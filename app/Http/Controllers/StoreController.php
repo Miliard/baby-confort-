@@ -9,7 +9,7 @@ class StoreController extends Controller
 {
     public function index()
     {
-        $products = Product::with('sizes')->where('active', true)->orderBy('id')->get();
+        $products = Product::with('sizes')->where('active', true)->orderBy('orden')->orderBy('id')->get();
         $envio = Setting::envio();
         return view('store.index', compact('products', 'envio'));
     }
@@ -29,7 +29,7 @@ class StoreController extends Controller
         $validas = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
         abort_unless(in_array($talla, $validas), 404);
 
-        $prods = Product::with('sizes')->where('active', true)->orderBy('id')->get();
+        $prods = Product::with('sizes')->where('active', true)->orderBy('orden')->orderBy('id')->get();
         $items = [];
         foreach ($prods as $p) {
             foreach ($p->sizes as $s) {

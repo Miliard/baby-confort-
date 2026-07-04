@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Storage;
 class Product extends Model
 {
     protected $fillable = [
-        'name', 'brand', 'description', 'image', 'image_upload',
+        'orden', 'name', 'brand', 'description', 'image', 'image_upload',
         'gallery', 'features', 'made_in', 'badge', 'oferta', 'stock_warning', 'active',
     ];
 

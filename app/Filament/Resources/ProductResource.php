@@ -93,6 +93,8 @@ class ProductResource extends Resource
                 Tables\Columns\TextColumn::make('sizes_count')->counts('sizes')->label('Tallas'),
                 Tables\Columns\IconColumn::make('active')->label('Activo')->boolean(),
             ])
+            ->reorderable('orden')
+            ->defaultSort('orden')
             ->filters([Tables\Filters\TernaryFilter::make('active')->label('Activo')])
             ->actions([Tables\Actions\EditAction::make(), Tables\Actions\DeleteAction::make()])
             ->bulkActions([Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()])]);
