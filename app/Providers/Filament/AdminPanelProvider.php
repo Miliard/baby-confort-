@@ -27,6 +27,8 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->favicon(asset('favicon-32.png'))
+            ->brandName('Baby-Confort')
             ->colors([
                 'primary' => Color::Amber,
             ])

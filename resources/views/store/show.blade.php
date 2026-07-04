@@ -7,6 +7,7 @@
     $sizesJs = $product->sizes->map(fn ($s) => [
         'size'     => $s->size,
         'weight'   => $s->weight,
+        'unidades' => $s->unidades ? (int) $s->unidades : null,
         'details'  => $s->details,
         'imagen'   => $s->imageUrl(),
         'price'    => (float) $s->price,
@@ -76,6 +77,11 @@
                 <template x-if="sel().antes && sel().antes > sel().price"><span class="precio-antes">$<span x-text="Number(sel().antes).toFixed(2)"></span></span></template>
                 $<span x-text="precio().toFixed(2)"></span> <small>USD</small>
             </div>
+            <template x-if="sel().unidades">
+                <div style="display:inline-block;margin-top:6px;background:#eef6ff;border:1px solid var(--borde);color:var(--azul-osc);border-radius:999px;padding:5px 14px;font-size:13.5px;font-weight:700">
+                    📦 Esta talla trae <span x-text="sel().unidades"></span> unidades
+                </div>
+            </template>
 
             <hr class="sep">
 

@@ -8,12 +8,13 @@ use Illuminate\Support\Facades\Storage;
 
 class ProductSize extends Model
 {
-    protected $fillable = ['product_id', 'size', 'price', 'price_before', 'weight', 'details', 'image', 'image_upload', 'quantity', 'combo_qty', 'combo_price'];
+    protected $fillable = ['product_id', 'size', 'price', 'price_before', 'weight', 'unidades', 'details', 'image', 'image_upload', 'quantity', 'combo_qty', 'combo_price'];
 
     protected $casts = [
         'price'       => 'decimal:2',
         'combo_price' => 'decimal:2',
         'quantity'    => 'integer',
+        'unidades'    => 'integer',
     ];
 
     public function product(): BelongsTo

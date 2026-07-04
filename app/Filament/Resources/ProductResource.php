@@ -63,6 +63,8 @@ class ProductResource extends Resource
                         ->schema([
                             Forms\Components\TextInput::make('size')->label('Talla / presentación')->required()->placeholder('Ej: M, S/M, 180 ML'),
                             Forms\Components\TextInput::make('weight')->label('Peso')->placeholder('Ej: 6-11 kg'),
+                            Forms\Components\TextInput::make('unidades')->label('Unidades que trae esta talla')->numeric()->minValue(1)
+                                ->helperText('Cuántas unidades (piezas) incluye esta talla. Ej: 42')->placeholder('Ej: 42'),
                             Forms\Components\Textarea::make('details')->label('Detalle de esta talla')->rows(6)->columnSpanFull()
                                 ->placeholder("Descripción que se muestra al elegir esta talla (puedes usar emojis y saltos de línea)."),
 
