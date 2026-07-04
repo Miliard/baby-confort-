@@ -18,9 +18,16 @@ class DatabaseSeeder extends Seeder
             FruitFeederSeeder::class,
             PPSUBottleSeeder::class,
             MilkBagsSeeder::class,
+            WipesAromaSeeder::class,
+            PreemieSeeder::class,
+            OvernightPantySeeder::class,
+            SanitaryNapkinSeeder::class,
+            AdultPantsSeeder::class,
         ]);
 
-        // Costo de envío por defecto (editable desde el panel)
-        Setting::put('envio', '2.50');
+        // Costo de envío por defecto (solo si aún no existe; no pisa tus cambios)
+        if (! Setting::where('key', 'envio')->exists()) {
+            Setting::put('envio', '2.50');
+        }
     }
 }
