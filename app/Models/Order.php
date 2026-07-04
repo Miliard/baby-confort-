@@ -8,12 +8,14 @@ class Order extends Model
 {
     protected $fillable = [
         'customer_name', 'phone', 'address', 'municipio',
-        'payment', 'total', 'items', 'status',
+        'payment', 'subtotal', 'shipping', 'total', 'items', 'status',
     ];
 
     protected $casts = [
-        'items' => 'array',
-        'total' => 'decimal:2',
+        'items'    => 'array',
+        'subtotal' => 'decimal:2',
+        'shipping' => 'decimal:2',
+        'total'    => 'decimal:2',
     ];
 
     public const PAGOS = [

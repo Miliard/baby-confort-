@@ -4,14 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 
 class OrderController extends Controller
 {
     public function store(Request $request)
     {
-        // 1) Validacion: TODOS los campos del cliente son obligatorios,
-        //    incluido el municipio (para evitar problemas con la direccion).
         $data = $request->validate([
             'customer_name'      => ['required', 'string', 'max:255'],
             'phone'              => ['required', 'string', 'max:50'],
@@ -29,24 +28,26 @@ class OrderController extends Controller
             'municipio'     => 'municipio',
         ]);
 
-        // 2) Recalculamos el total en el servidor (no confiamos en el navegador)
         $items = [];
-        $total = 0;
+        $subtotal = 0;
 
         foreach ($data['items'] as $line) {
-            $product = Product::find($line['product_id']);
-            if (! $product || ! $product->active) {
-                continue;
-            }
+            $product = Product::with('sizes')->find($line['product_id']);
+            if (! $product || ! $product->active) continue;
+
+            $size = $product->sizes->firstWhere('size', $line['size']);
+            if (! $size) continue;
+
             $cantidad = (int) $line['cantidad'];
-            $subtotal = $product->subtotalPara($cantidad);
-            $total   += $subtotal;
+            $lineTotal = $size->subtotalPara($cantidad);
+            $subtotal += $lineTotal;
 
             $items[] = [
                 'producto' => $product->name,
-                'talla'    => $line['size'],
+                'talla'    => $size->size,
                 'cantidad' => $cantidad,
-                'subtotal' => round($subtotal, 2),
+                'precio'   => (float) $size->price,   // precio unitario de la talla
+                'subtotal' => round($lineTotal, 2),
             ];
         }
 
@@ -54,46 +55,54 @@ class OrderController extends Controller
             return response()->json(['ok' => false, 'error' => 'El carrito está vacío.'], 422);
         }
 
-        // 3) Guardar el pedido (se ve en el panel /admin)
+        $shipping = Setting::envio();
+        $total    = $subtotal + $shipping;
+
         $order = Order::create([
             'customer_name' => $data['customer_name'],
             'phone'         => $data['phone'],
             'address'       => $data['address'],
             'municipio'     => $data['municipio'],
             'payment'       => $data['payment'],
+            'subtotal'      => round($subtotal, 2),
+            'shipping'      => round($shipping, 2),
             'total'         => round($total, 2),
             'items'         => $items,
             'status'        => 'nuevo',
         ]);
 
-        // 4) Armar el mensaje de WhatsApp
-        $numero = config('babyconfort.whatsapp');
-        $texto  = $this->mensajeWhatsApp($order);
-        $url    = 'https://wa.me/' . $numero . '?text=' . rawurlencode($texto);
+        $url = 'https://wa.me/' . config('babyconfort.whatsapp')
+             . '?text=' . rawurlencode($this->mensajeWhatsApp($order));
 
-        return response()->json([
-            'ok'           => true,
-            'folio'        => $order->id,
-            'whatsapp_url' => $url,
-        ]);
+        return response()->json(['ok' => true, 'folio' => $order->id, 'whatsapp_url' => $url]);
+    }
+
+    // Formato $: quita ".00" si es entero (8.5 -> $8.50, 17 -> $17)
+    private function mny($n): string
+    {
+        $s = number_format((float) $n, 2, '.', '');
+        $s = rtrim(rtrim($s, '0'), '.');
+        return '$' . $s;
     }
 
     private function mensajeWhatsApp(Order $order): string
     {
-        $t  = "*Nuevo pedido - Baby-Confort*\n";
-        $t .= "Folio: #{$order->id}\n\n";
-        $t .= "*Productos:*\n";
-        foreach ($order->items as $it) {
-            $t .= "• {$it['cantidad']}x {$it['producto']} (Talla {$it['talla']}) — $"
-                . number_format($it['subtotal'], 2) . "\n";
-        }
-        $t .= "\n*Total: $" . number_format($order->total, 2) . "*\n\n";
-        $t .= "*Cliente:*\n";
-        $t .= "Nombre: {$order->customer_name}\n";
-        $t .= "Teléfono: {$order->phone}\n";
-        $t .= "Dirección: {$order->address}\n";
+        $t  = "\u{1F4E6} Orden de Env\u{00ED}o: \u{1F69A}\n\n";
+        $t .= "\u{2705} Nombre completo:\n{$order->customer_name}\n\n";
+        $t .= "\u{2705} Direcci\u{00F3}n exacta:\n";
         $t .= "Municipio: {$order->municipio}\n";
-        $t .= "Forma de pago: " . (Order::PAGOS[$order->payment] ?? $order->payment) . "\n";
+        $t .= "{$order->address}\n\n";
+        $t .= "\u{2705} Producto(s):\n";
+        foreach ($order->items as $it) {
+            $linea = "{$it['cantidad']} {$it['producto']} {$it['talla']} " . $this->mny($it['precio']);
+            if ($it['cantidad'] > 1) {
+                $linea .= " (" . $this->mny($it['subtotal']) . ")";
+            }
+            $t .= $linea . "\n";
+        }
+        $t .= "\n\u{2705} Costo de env\u{00ED}o: $" . number_format($order->shipping, 2, '.', '') . "\n\n";
+        $t .= "\u{1F4B0} Total a pagar: $" . number_format($order->total, 2, '.', '') . "\n\n";
+        $t .= "\u{2728} \u{00A1}Gracias por tu preferencia! Tu pedido estar\u{00E1} en camino muy pronto.";
         return $t;
     }
 }

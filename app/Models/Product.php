@@ -4,18 +4,19 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class Product extends Model
 {
     protected $fillable = [
-        'name', 'brand', 'price', 'combo_qty', 'combo_price',
-        'description', 'image', 'active',
+        'name', 'brand', 'description', 'image', 'image_upload',
+        'gallery', 'features', 'made_in', 'badge', 'oferta', 'stock_warning', 'active',
     ];
 
     protected $casts = [
-        'price'       => 'decimal:2',
-        'combo_price' => 'decimal:2',
-        'active'      => 'boolean',
+        'active'   => 'boolean',
+        'gallery'  => 'array',
+        'features' => 'array',
     ];
 
     public function sizes(): HasMany
@@ -23,17 +24,34 @@ class Product extends Model
         return $this->hasMany(ProductSize::class);
     }
 
-    /**
-     * Calcula el subtotal de N paquetes aplicando el combo.
-     * Ej: precio 10, combo 3x25  =>  4 paquetes = 25 + 10 = 35
-     */
-    public function subtotalPara(int $cantidad): float
+    public function precioDesde(): float
     {
-        if ($this->combo_qty && $this->combo_qty > 0 && $this->combo_price) {
-            $grupos = intdiv($cantidad, $this->combo_qty);
-            $resto  = $cantidad % $this->combo_qty;
-            return $grupos * (float) $this->combo_price + $resto * (float) $this->price;
+        return (float) ($this->sizes->min('price') ?? 0);
+    }
+
+    // Convierte una ruta guardada o un link en URL utilizable
+    public static function urlDe(?string $img): ?string
+    {
+        if (empty($img)) return null;
+        return str_starts_with($img, 'http') ? $img : '/storage/' . ltrim($img, '/');
+    }
+
+    public function imageUrl(): ?string
+    {
+        // Si subiste una foto propia, se usa esa; si no, el link.
+        if (!empty($this->image_upload)) return '/storage/' . ltrim($this->image_upload, '/');
+        return static::urlDe($this->image);
+    }
+
+    // Todas las fotos: la principal + la galería
+    public function galleryUrls(): array
+    {
+        $urls = [];
+        if ($this->image) $urls[] = $this->imageUrl();
+        foreach (($this->gallery ?? []) as $g) {
+            $u = static::urlDe($g);
+            if ($u) $urls[] = $u;
         }
-        return $cantidad * (float) $this->price;
+        return $urls;
     }
 }
