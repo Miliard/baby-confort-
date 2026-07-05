@@ -9,6 +9,20 @@
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32.png') }}">
     <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('favicon-192.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
+    @php $fbPixel = \App\Models\Setting::get('fb_pixel', ''); @endphp
+    @if($fbPixel)
+    <script>
+    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+    n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+    document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '{{ $fbPixel }}');
+    fbq('track', 'PageView');
+    </script>
+    <noscript><img height="1" width="1" style="display:none"
+    src="https://www.facebook.com/tr?id={{ $fbPixel }}&ev=PageView&noscript=1"/></noscript>
+    @endif
     <script>window.BC_ENVIO = {{ (float) ($envio ?? 2.5) }};</script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
@@ -336,6 +350,7 @@ document.addEventListener('alpine:init', () => {
                     body:JSON.stringify({...c, items:this.items.map(i=>({product_id:i.id,size:i.talla,cantidad:i.cantidad}))})});
                 const data=await res.json();
                 if(!res.ok||!data.ok){ this.error=data.error||'Ocurrió un error.'; this.enviando=false; return; }
+                if(window.fbq){ fbq('track','Purchase',{value:Number(this.totalFinal().toFixed(2)),currency:'USD',num_items:this.cantidadTotal()}); }
                 window.open(data.whatsapp_url,'_blank');
                 this.items=[]; this.save(); this.enviando=false; this.cerrar();
                 alert('¡Pedido enviado! Te contactaremos por WhatsApp para coordinar la entrega. 💙');
