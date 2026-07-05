@@ -25,22 +25,31 @@ class StoreController extends Controller
 
     public function talla($talla)
     {
-        $talla = strtoupper($talla);
-        $validas = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
-        abort_unless(in_array($talla, $validas), 404);
+        $babySizes = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+        $tallaUp = strtoupper(trim($talla));
+        $esBaby = in_array($tallaUp, $babySizes);
+        $slug = \Illuminate\Support\Str::slug($talla);
 
         $prods = Product::with('sizes')->where('active', true)->orderBy('orden')->orderBy('id')->get();
         $items = [];
+        $titulo = $esBaby ? 'Talla ' . $tallaUp : ucfirst(str_replace('-', ' ', $slug));
+
         foreach ($prods as $p) {
             foreach ($p->sizes as $s) {
-                $tokens = preg_split('/[\/\s\-]+/', strtoupper(trim($s->size)));
-                if (in_array($talla, $tokens) && (int) $s->quantity > 0) {
+                if ($esBaby) {
+                    $tokens = preg_split('/[\/\s\-]+/', strtoupper(trim($s->size)));
+                    $match = in_array($tallaUp, $tokens);
+                } else {
+                    $match = (\Illuminate\Support\Str::slug($s->size) === $slug);
+                    if ($match) $titulo = $s->size;
+                }
+                if ($match && (int) $s->quantity > 0) {
                     $items[] = ['product' => $p, 'size' => $s];
                 }
             }
         }
 
         $envio = Setting::envio();
-        return view('store.talla', compact('talla', 'items', 'envio'));
+        return view('store.talla', compact('talla', 'titulo', 'esBaby', 'items', 'envio'));
     }
 }

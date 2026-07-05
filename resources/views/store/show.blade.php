@@ -15,7 +15,9 @@
         'quantity' => (int) $s->quantity,
         'combo'    => $s->combo_qty ? ['cantidad' => (int) $s->combo_qty, 'precio' => (float) $s->combo_price] : null,
     ])->values();
-    $primeraTalla = $product->sizes->firstWhere('quantity', '>', 0) ?? $product->sizes->first();
+    $tParam = request('t');
+    $tallaSel = $tParam ? $product->sizes->first(fn ($s) => \Illuminate\Support\Str::slug($s->size) === \Illuminate\Support\Str::slug($tParam)) : null;
+    $primeraTalla = $tallaSel ?? $product->sizes->firstWhere('quantity', '>', 0) ?? $product->sizes->first();
 @endphp
 
 <main class="contenedor"

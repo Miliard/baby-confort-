@@ -7,12 +7,13 @@
         'XXL'  => '15–21 kg · 33–46 lb',
         'XXXL' => '18–25 kg · 39–55 lb',
     ];
-    $ninos = [
-        '4–7 años'  => '37–64 lb',
-        '8–15 años' => '60–125 lb',
-    ];
-    $comfynite = \App\Models\Product::where('active', true)->where('name', 'like', '%ComfyNite%')->first();
-    $ninoUrl   = $comfynite ? route('store.show', $comfynite) : route('store.index');
+    $especiales = \App\Models\ProductSize::query()
+        ->whereHas('product', fn ($q) => $q->where('active', true))
+        ->where('size', 'like', '%año%')
+        ->where('quantity', '>', 0)
+        ->get()
+        ->unique(fn ($s) => \Illuminate\Support\Str::slug($s->size))
+        ->values();
 @endphp
 <section class="sg-wrap">
     <h3>Compra por talla 👶</h3>
@@ -28,15 +29,17 @@
         @endforeach
     </div>
 
+    @if ($especiales->count())
     <div class="sg-group-title alt">Para niños grandes</div>
     <div class="sg-grid sg-grid-2">
-        @foreach ($ninos as $t => $rango)
-            <a class="sg-card nino" href="{{ $ninoUrl }}">
-                <span class="sg-cpill alt">{{ $t }}</span>
-                <span class="sg-crango">{{ $rango }}</span>
+        @foreach ($especiales as $s)
+            <a class="sg-card nino" href="{{ route('store.talla', \Illuminate\Support\Str::slug($s->size)) }}">
+                <span class="sg-cpill alt">{{ $s->size }}</span>
+                <span class="sg-crango">{{ $s->weight }}</span>
             </a>
         @endforeach
     </div>
+    @endif
 
     <div class="sg-help">¿No sabes la talla? Dinos el peso del bebé y te recomendamos la ideal 💙</div>
     <a class="sg-wa" target="_blank" rel="noopener"
