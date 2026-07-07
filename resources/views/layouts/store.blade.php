@@ -63,6 +63,7 @@
         .seccion-sub{color:var(--gris);margin:0 0 20px;font-size:15px}
         /* catálogo */
         .grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));padding-bottom:48px}
+        @media(max-width:600px){.grid{grid-template-columns:repeat(2,1fr);gap:12px}}
         .pcard{background:#fff;border:1px solid var(--borde);border-radius:var(--radio);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--sombra);transition:transform .08s, box-shadow .08s}
         .pcard:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(47,127,191,.16)}
         .pcard .img{background:var(--azul-claro);aspect-ratio:1/1;display:grid;place-items:center;padding:14px}
