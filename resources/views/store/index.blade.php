@@ -34,4 +34,7 @@
         @endforeach
     </div>
 </main>
+
+@include('store.partials.resenas')
+@include('store.partials.confianza')
 @endsection
