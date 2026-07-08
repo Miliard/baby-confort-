@@ -241,7 +241,8 @@
     @yield('content')
 
     <footer class="footer">
-        <div class="contenedor"><b>Baby-Confort</b> · Pedidos por WhatsApp · El Salvador 🇸🇻<br>Atención personalizada para coordinar tu entrega.</div>
+        <div class="contenedor"><b>Baby-Confort</b> · Pedidos por WhatsApp · El Salvador 🇸🇻<br>Atención personalizada para coordinar tu entrega.<br>
+            <a href="{{ route('store.rastreo.guia') }}" style="color:var(--azul-osc);font-weight:700;text-decoration:none">📦 Rastrea tu pedido</a></div>
     </footer>
 
     {{-- Carrito / checkout (en todas las páginas) --}}

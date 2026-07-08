@@ -106,7 +106,26 @@ class OrderResource extends Resource
                     'nuevo' => 'Nuevo', 'contactado' => 'Contactado', 'entregado' => 'Entregado', 'cancelado' => 'Cancelado',
                 ]),
             ])
-            ->actions([Tables\Actions\EditAction::make()->label('Ver / Editar')]);
+            ->actions([
+                Tables\Actions\Action::make('guia')
+                    ->label('Guía')->icon('heroicon-o-truck')->color('info')
+                    ->form([
+                        Forms\Components\TextInput::make('guia')->label('Número de guía (Express)')->placeholder('Ej: 5009506'),
+                    ])
+                    ->fillForm(fn (Order $record) => ['guia' => $record->guia])
+                    ->action(fn (Order $record, array $data) => $record->update(['guia' => $data['guia'] ?: null]))
+                    ->modalHeading('Número de guía')->modalSubmitActionLabel('Guardar'),
+                Tables\Actions\Action::make('enviar')
+                    ->label('Enviar seguimiento')->icon('heroicon-o-chat-bubble-left-right')->color('success')
+                    ->url(function (Order $record) {
+                        $phone = preg_replace('/\D/', '', $record->phone ?? '');
+                        if (strlen($phone) === 8) $phone = '503' . $phone;
+                        $link = route('store.rastreo', $record);
+                        $msg = "\u{1F4E6} \u{A1}Sigue tu pedido, Baby-Confort! \u{1F69A}\n\nPedido #{$record->id}\nRastr\u{E9}alo aqu\u{ED}: {$link}\n\n\u{2728} \u{A1}Gracias por tu preferencia!";
+                        return 'https://wa.me/' . $phone . '?text=' . rawurlencode($msg);
+                    })->openUrlInNewTab(),
+                Tables\Actions\EditAction::make()->label('Ver'),
+            ]);
     }
 
     public static function getPages(): array

@@ -58,4 +58,11 @@ class StoreController extends Controller
         $etapa = $order->etapaEnvio();
         return view('store.rastreo', compact('order', 'etapa'));
     }
+
+    public function rastreoGuia(\Illuminate\Http\Request $request)
+    {
+        $guia  = trim((string) $request->query('guia', ''));
+        $etapa = $guia ? \App\Models\Order::etapaDeGuia($guia) : null;
+        return view('store.rastreo-guia', compact('guia', 'etapa'));
+    }
 }

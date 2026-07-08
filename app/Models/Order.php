@@ -42,14 +42,20 @@ class Order extends Model
         if ($this->estado_envio) {
             return (int) $this->estado_envio;
         }
-        if (empty($this->guia)) {
+        return static::etapaDeGuia($this->guia);
+    }
+
+    // Lee el estado real de Express (Sistrack) a partir de una guía. Con caché.
+    public static function etapaDeGuia(?string $guia): int
+    {
+        if (empty($guia)) {
             return 1;
         }
 
-        return Cache::remember('track_' . $this->guia, 600, function () {
+        return Cache::remember('track_' . $guia, 600, function () use ($guia) {
             try {
                 $html = strtoupper(
-                    Http::timeout(8)->get('https://expresselsalvador.sistrack.net/track/' . $this->guia)->body()
+                    Http::timeout(8)->get('https://expresselsalvador.sistrack.net/track/' . $guia)->body()
                 );
                 if (str_contains($html, 'ENTREGA')) return 4;
                 if (str_contains($html, 'EN RUTA') || str_contains($html, 'CAMINO')) return 3;
