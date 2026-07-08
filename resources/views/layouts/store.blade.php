@@ -9,7 +9,7 @@
     <meta property="og:site_name" content="Baby-Confort">
     <meta property="og:title" content="@yield('og_title', 'Catálogo Baby-Confort 👶')">
     <meta property="og:description" content="@yield('og_desc', 'Pañales premium e hipoalergénicos y productos para tu bebé. Alta absorción y entrega en El Salvador. Pide fácil por WhatsApp.')">
-    <meta property="og:image" content="{{ request()->schemeAndHttpHost() }}/og-image.png">
+    <meta property="og:image" content="{{ request()->schemeAndHttpHost() }}/@yield('og_image', 'og-image.png')">
     <meta property="og:url" content="{{ request()->url() }}">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="description" content="Catálogo Baby-Confort: pañales premium e hipoalergénicos para tu bebé. Entrega en El Salvador, pide por WhatsApp.">
