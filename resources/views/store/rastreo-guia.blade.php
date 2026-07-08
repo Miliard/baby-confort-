@@ -71,5 +71,7 @@
             💬 ¿Dudas? Escríbenos por WhatsApp
         </a>
     </div>
+
+    @include('store.partials.recomendados')
 </main>
 @endsection

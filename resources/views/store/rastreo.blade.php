@@ -81,5 +81,7 @@
         </a>
     </div>
     <p style="text-align:center;color:var(--gris);font-size:12px;margin-top:14px">El estado se actualiza automáticamente. Vuelve a abrir el enlace para ver el avance.</p>
+
+    @include('store.partials.recomendados')
 </main>
 @endsection
