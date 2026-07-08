@@ -52,4 +52,10 @@ class StoreController extends Controller
         $envio = Setting::envio();
         return view('store.talla', compact('talla', 'titulo', 'esBaby', 'items', 'envio'));
     }
+
+    public function rastreo(\App\Models\Order $order)
+    {
+        $etapa = $order->etapaEnvio();
+        return view('store.rastreo', compact('order', 'etapa'));
+    }
 }

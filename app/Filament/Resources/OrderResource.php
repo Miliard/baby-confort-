@@ -44,6 +44,36 @@ class OrderResource extends Resource
                 Forms\Components\TextInput::make('total')->label('Total')->prefix('$')->disabled(),
             ])->columns(2),
 
+            Forms\Components\Section::make('Envío y seguimiento')->schema([
+                Forms\Components\TextInput::make('guia')->label('Número de guía (Express)')
+                    ->helperText('Pega la guía que te da Express. La barra de seguimiento se actualiza sola leyendo su estado.')
+                    ->placeholder('Ej: 5009506'),
+                Forms\Components\Select::make('estado_envio')->label('Estado manual (opcional)')
+                    ->options([1 => '1 · Pedido confirmado', 2 => '2 · Recolectado', 3 => '3 · En camino', 4 => '4 · Entregado'])
+                    ->placeholder('Automático (leer de Express)')
+                    ->helperText('Déjalo vacío para que use el estado real de Express. Úsalo solo si quieres forzar una etapa.'),
+                Forms\Components\Actions::make([
+                    Forms\Components\Actions\Action::make('enviar_seguimiento')
+                        ->label('Enviar seguimiento por WhatsApp')
+                        ->icon('heroicon-o-chat-bubble-left-right')
+                        ->color('success')
+                        ->url(function (?Order $record) {
+                            if (! $record) return null;
+                            $phone = preg_replace('/\D/', '', $record->phone ?? '');
+                            if (strlen($phone) === 8) $phone = '503' . $phone;
+                            $link = route('store.rastreo', $record);
+                            $msg = "\u{1F4E6} \u{A1}Sigue tu pedido, Baby-Confort! \u{1F69A}\n\nPedido #{$record->id}\nRastr\u{E9}alo aqu\u{ED}: {$link}\n\n\u{2728} \u{A1}Gracias por tu preferencia!";
+                            return 'https://wa.me/' . $phone . '?text=' . rawurlencode($msg);
+                        })
+                        ->openUrlInNewTab(),
+                    Forms\Components\Actions\Action::make('ver_seguimiento')
+                        ->label('Ver página de seguimiento')
+                        ->icon('heroicon-o-eye')->color('gray')
+                        ->url(fn (?Order $record) => $record ? route('store.rastreo', $record) : null)
+                        ->openUrlInNewTab(),
+                ]),
+            ])->columns(2),
+
             Forms\Components\Placeholder::make('detalle')->label('Productos del pedido')
                 ->content(function (?Order $record) {
                     if (! $record) return '—';

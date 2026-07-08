@@ -13,5 +13,8 @@ Route::get('/producto/{product}', [StoreController::class, 'show'])->name('store
 // Colección por talla (todos los productos en esa talla)
 Route::get('/talla/{talla}', [StoreController::class, 'talla'])->name('store.talla');
 
+// Página de seguimiento del pedido (barra de progreso)
+Route::get('/rastreo/{order}', [StoreController::class, 'rastreo'])->name('store.rastreo');
+
 // Recibe el pedido del carrito (JSON) y devuelve el link de WhatsApp
 Route::post('/pedido', [OrderController::class, 'store'])->name('order.store');
