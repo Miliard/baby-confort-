@@ -14,9 +14,9 @@
     .trk-fill{position:absolute;top:28px;left:12.5%;height:6px;background:linear-gradient(90deg,#4aa3df,#2e9e6b);border-radius:99px;z-index:1;transition:width .6s ease}
     .trk-steps{position:relative;z-index:2;display:flex;justify-content:space-between}
     .trk-step{display:flex;flex-direction:column;align-items:center;width:25%;text-align:center}
-    .trk-dot{width:58px;height:58px;border-radius:50%;background:#fff;border:3px solid #e2e8ee;display:grid;place-items:center;font-size:27px;filter:grayscale(1) opacity(.55);transition:.3s}
-    .trk-step.on .trk-dot{border-color:#2e9e6b;background:#eafaf2;filter:none}
-    .trk-step.cur .trk-dot{box-shadow:0 0 0 6px rgba(46,158,107,.16);transform:scale(1.07)}
+    .trk-dot{width:58px;height:58px;border-radius:50%;background:#eef1f5;border:3px solid #e2e8ee;display:grid;place-items:center;font-size:30px;font-weight:900;color:#b3bcc7;transition:.3s}
+    .trk-step.on .trk-dot{background:#2e9e6b;border-color:#2e9e6b;color:#fff}
+    .trk-step.cur .trk-dot{box-shadow:0 0 0 6px rgba(46,158,107,.18);transform:scale(1.07)}
     .trk-lbl{margin-top:10px;font-size:13px;font-weight:800;color:var(--gris);line-height:1.2}
     .trk-step.on .trk-lbl{color:var(--texto)}
     .trk-estado{background:linear-gradient(135deg,#eafaf2,#eaf5fc);border:1px solid var(--borde);border-radius:16px;padding:16px 18px;text-align:center;margin-top:22px}
@@ -35,8 +35,8 @@
         <div class="trk-steps">
             @foreach($etapas as $n => $label)
                 <div class="trk-step {{ $n <= $etapa ? 'on' : '' }} {{ $n == $etapa ? 'cur' : '' }}">
-                    <div class="trk-dot">{{ $iconos[$n] }}</div>
-                    <div class="trk-lbl">{{ $label }}</div>
+                    <div class="trk-dot">{{ $n <= $etapa ? '✓' : '✕' }}</div>
+                    <div class="trk-lbl">{{ $iconos[$n] }} {{ $label }}</div>
                 </div>
             @endforeach
         </div>

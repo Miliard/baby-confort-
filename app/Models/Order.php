@@ -52,14 +52,19 @@ class Order extends Model
             return 1;
         }
 
-        return Cache::remember('track_' . $guia, 600, function () use ($guia) {
+        return Cache::remember('track_' . $guia, 120, function () use ($guia) {
             try {
-                $html = strtoupper(
-                    Http::timeout(8)->get('https://expresselsalvador.sistrack.net/track/' . $guia)->body()
-                );
-                if (str_contains($html, 'ENTREGA')) return 4;
-                if (str_contains($html, 'EN RUTA') || str_contains($html, 'CAMINO')) return 3;
-                if (str_contains($html, 'RECOLECT') || str_contains($html, 'BODEGA')) return 2;
+                $raw = Http::timeout(8)->get('https://expresselsalvador.sistrack.net/track/' . $guia)->body();
+                // Reemplaza etiquetas por espacios (para no partir "EN RUTA") y normaliza.
+                $t = strtoupper(preg_replace('/<[^>]+>/', ' ', $raw));
+                $t = strtr($t, ['Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U']);
+                $t = preg_replace('/\s+/', ' ', $t);
+
+                if (str_contains($t, 'ENTREGA')) return 4;
+                foreach (['EN RUTA', 'EN CAMINO', 'CAMINO', 'PILOTO', 'REPARTO', 'TRANSITO', 'DISTRIBUCION', 'SALIO'] as $k) {
+                    if (str_contains($t, $k)) return 3;
+                }
+                if (str_contains($t, 'RECOLECT') || str_contains($t, 'BODEGA') || str_contains($t, 'RECIBID')) return 2;
                 return 1;
             } catch (\Throwable $e) {
                 return 1;
