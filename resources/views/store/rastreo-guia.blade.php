@@ -65,13 +65,13 @@
         </div>
     @endif
 
+    @include('store.partials.recomendados')
+
     <div style="text-align:center;margin-top:22px">
         <a class="sg-wa" target="_blank" rel="noopener"
            href="https://wa.me/{{ config('babyconfort.whatsapp') }}?text=Hola%2C%20consulto%20por%20mi%20pedido">
             💬 ¿Dudas? Escríbenos por WhatsApp
         </a>
     </div>
-
-    @include('store.partials.recomendados')
 </main>
 @endsection

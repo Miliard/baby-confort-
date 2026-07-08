@@ -53,6 +53,8 @@
         </div>
     </div>
 
+    @include('store.partials.recomendados')
+
     <div class="trk-card">
         <div style="font-weight:800;color:var(--azul-osc);margin-bottom:8px">Detalle del pedido</div>
         @foreach(($order->items ?? []) as $it)
@@ -81,7 +83,5 @@
         </a>
     </div>
     <p style="text-align:center;color:var(--gris);font-size:12px;margin-top:14px">El estado se actualiza automáticamente. Vuelve a abrir el enlace para ver el avance.</p>
-
-    @include('store.partials.recomendados')
 </main>
 @endsection
