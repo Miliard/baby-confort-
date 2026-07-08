@@ -56,15 +56,13 @@ class StoreController extends Controller
     public function rastreo(\App\Models\Order $order)
     {
         $etapa = $order->etapaEnvio();
-        $recomendados = Product::with('sizes')->where('active', true)->inRandomOrder()->limit(4)->get();
-        return view('store.rastreo', compact('order', 'etapa', 'recomendados'));
+        return view('store.rastreo', compact('order', 'etapa'));
     }
 
     public function rastreoGuia(\Illuminate\Http\Request $request)
     {
         $guia  = trim((string) $request->query('guia', ''));
         $etapa = $guia ? \App\Models\Order::etapaDeGuia($guia) : null;
-        $recomendados = Product::with('sizes')->where('active', true)->inRandomOrder()->limit(4)->get();
-        return view('store.rastreo-guia', compact('guia', 'etapa', 'recomendados'));
+        return view('store.rastreo-guia', compact('guia', 'etapa'));
     }
 }
