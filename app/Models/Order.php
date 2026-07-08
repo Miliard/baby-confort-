@@ -60,7 +60,8 @@ class Order extends Model
                 $t = strtr($t, ['Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U']);
                 $t = preg_replace('/\s+/', ' ', $t);
 
-                if (str_contains($t, 'ENTREGA')) return 4;
+                // "ENTREGADO" (no "entrega", que aparece en "fecha estimada de entrega")
+                if (str_contains($t, 'ENTREGADO')) return 4;
                 foreach (['EN RUTA', 'EN CAMINO', 'CAMINO', 'PILOTO', 'REPARTO', 'TRANSITO', 'DISTRIBUCION', 'SALIO'] as $k) {
                     if (str_contains($t, $k)) return 3;
                 }
