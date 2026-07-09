@@ -143,7 +143,7 @@
         <div class="buy-sticky-info">
             <div class="buy-sticky-price">$<span x-text="precio().toFixed(2)"></span></div>
             <div class="buy-sticky-sub">
-                Talla <b x-text="talla || '—'"></b><template x-if="sel().unidades"><span> · <b x-text="sel().unidades"></b> uds</span></template>
+                <b x-text="talla || '—'"></b><template x-if="sel().unidades"><span> · <b x-text="sel().unidades"></b> uds</span></template>
             </div>
         </div>
         <button class="buy-sticky-btn" @click="add()" :disabled="(sel().quantity||0) <= 0">
