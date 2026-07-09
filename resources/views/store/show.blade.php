@@ -37,6 +37,7 @@
         add(){
             const s = this.sel();
             if(!s.size){ alert('Elige una talla'); return; }
+            if((s.quantity||0) <= 0){ alert('Esta talla está agotada por el momento. ¡Pronto la tendremos de nuevo!'); return; }
             $store.cart.agregar({ id: {{ $product->id }}, talla: s.size, cantidad: Math.max(1, this.cantidad),
                 nombre: @js($product->name), imagen: (s.imagen || this.fotos[0] || ''), precio: s.price, combo: s.combo });
         }
@@ -106,7 +107,7 @@
                 @foreach($product->sizes as $s)
                     <button class="spill" :class="talla === '{{ $s->size }}' ? 'sel' : ''"
                             @click="pickSize('{{ $s->size }}')"
-                            @if($s->quantity <= 0) disabled @endif>{{ $s->size }}</button>
+                            @if($s->quantity <= 0) disabled title="Agotado por el momento" @endif>{{ $s->size }}@if($s->quantity <= 0) <small>· Agotado</small>@endif</button>
                 @endforeach
             </div>
 

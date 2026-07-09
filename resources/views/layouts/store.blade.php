@@ -111,7 +111,8 @@
         .size-pills{display:flex;flex-wrap:wrap;gap:10px}
         .spill{border:1px solid var(--borde);background:#fff;border-radius:999px;padding:9px 16px;cursor:pointer;font-weight:700;font-size:14px}
         .spill.sel{border-color:var(--teal);background:#e9f8f7;color:var(--teal-osc)}
-        .spill:disabled{opacity:.4;cursor:not-allowed;text-decoration:line-through}
+        .spill:disabled{opacity:.7;cursor:not-allowed;color:var(--gris);border-style:dashed;background:#f7f9fb}
+        .spill:disabled small{color:var(--coral-osc);font-weight:800;font-size:10.5px}
         .cta{margin-top:16px;background:var(--teal);color:#fff;border:none;border-radius:12px;padding:15px;font-size:16px;font-weight:800;width:100%;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
         .cta:hover{background:var(--teal-osc)}
         .metarow{display:flex;gap:16px;margin-top:16px;flex-wrap:wrap}
