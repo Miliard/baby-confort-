@@ -94,14 +94,27 @@ class ProductResource extends Resource
                 Tables\Columns\ImageColumn::make('image')->label('Foto')->circular(),
                 Tables\Columns\TextColumn::make('name')->label('Nombre')->searchable()->wrap(),
                 Tables\Columns\TextColumn::make('brand')->label('Marca')->toggleable(),
+                Tables\Columns\SelectColumn::make('categoria')->label('Categoría')
+                    ->options(\App\Models\Product::CATEGORIAS)->placeholder('Sin categoría'),
                 Tables\Columns\TextColumn::make('sizes_count')->counts('sizes')->label('Tallas'),
                 Tables\Columns\IconColumn::make('active')->label('Activo')->boolean(),
             ])
             ->reorderable('orden')
             ->defaultSort('orden')
-            ->filters([Tables\Filters\TernaryFilter::make('active')->label('Activo')])
+            ->filters([
+                Tables\Filters\TernaryFilter::make('active')->label('Activo'),
+                Tables\Filters\SelectFilter::make('categoria')->label('Categoría')->options(\App\Models\Product::CATEGORIAS),
+            ])
             ->actions([Tables\Actions\EditAction::make(), Tables\Actions\DeleteAction::make()])
-            ->bulkActions([Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()])]);
+            ->bulkActions([Tables\Actions\BulkActionGroup::make([
+                Tables\Actions\BulkAction::make('setCategoria')
+                    ->label('Asignar categoría')
+                    ->icon('heroicon-o-tag')
+                    ->form([Forms\Components\Select::make('categoria')->label('Categoría')->options(\App\Models\Product::CATEGORIAS)->required()])
+                    ->action(fn ($records, array $data) => $records->each->update(['categoria' => $data['categoria']]))
+                    ->deselectRecordsAfterCompletion(),
+                Tables\Actions\DeleteBulkAction::make(),
+            ])]);
     }
 
     public static function getPages(): array
