@@ -43,7 +43,7 @@ class ReviewResource extends Resource
                 Tables\Columns\ImageColumn::make('image_upload')->label('Captura')->disk('public'),
                 Tables\Columns\TextColumn::make('name')->label('Cliente')->searchable(),
                 Tables\Columns\TextColumn::make('text')->label('Comentario')->limit(40)->wrap(),
-                Tables\Columns\TextColumn::make('rating')->label('★')->formatStateUsing(fn ($s) => str_repeat('★', (int) $s)),
+                Tables\Columns\TextColumn::make('rating')->label('★')->formatStateUsing(fn ($state) => str_repeat('★', (int) $state)),
                 Tables\Columns\IconColumn::make('active')->label('Activa')->boolean(),
             ])
             ->actions([
