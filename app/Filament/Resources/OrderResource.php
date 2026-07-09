@@ -62,7 +62,7 @@ class OrderResource extends Resource
                             $phone = preg_replace('/\D/', '', $record->phone ?? '');
                             if (strlen($phone) === 8) $phone = '503' . $phone;
                             $link = route('store.rastreo', $record);
-                            $msg = "\u{1F4E6} \u{A1}Sigue tu pedido, Baby-Confort! \u{1F69A}\n\nPedido #{$record->id}\nRastr\u{E9}alo aqu\u{ED}: {$link}\n\n\u{2728} \u{A1}Gracias por tu preferencia!";
+                            $msg = "\u{A1}Sigue tu pedido, Baby-Confort!\n\nPedido #{$record->id}\nRastr\u{E9}alo aqu\u{ED}: {$link}\n\n\u{A1}Gracias por tu preferencia!";
                             return 'https://wa.me/' . $phone . '?text=' . rawurlencode($msg);
                         })
                         ->openUrlInNewTab(),
@@ -121,7 +121,7 @@ class OrderResource extends Resource
                         $phone = preg_replace('/\D/', '', $record->phone ?? '');
                         if (strlen($phone) === 8) $phone = '503' . $phone;
                         $link = route('store.rastreo', $record);
-                        $msg = "\u{1F4E6} \u{A1}Sigue tu pedido, Baby-Confort! \u{1F69A}\n\nPedido #{$record->id}\nRastr\u{E9}alo aqu\u{ED}: {$link}\n\n\u{2728} \u{A1}Gracias por tu preferencia!";
+                        $msg = "\u{A1}Sigue tu pedido, Baby-Confort!\n\nPedido #{$record->id}\nRastr\u{E9}alo aqu\u{ED}: {$link}\n\n\u{A1}Gracias por tu preferencia!";
                         return 'https://wa.me/' . $phone . '?text=' . rawurlencode($msg);
                     })->openUrlInNewTab(),
                 Tables\Actions\EditAction::make()->label('Ver'),
