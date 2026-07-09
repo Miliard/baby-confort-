@@ -137,5 +137,24 @@
     </div>
 
     @include('store.partials.size-guide')
+
+    {{-- Barra fija de compra (solo móvil) --}}
+    <div class="buy-sticky">
+        <div class="buy-sticky-price">$<span x-text="precio().toFixed(2)"></span></div>
+        <button class="buy-sticky-btn" @click="add()" :disabled="(sel().quantity||0) <= 0">
+            <span x-text="(sel().quantity||0) <= 0 ? 'Agotado' : '🛒 Añadir al carrito'"></span>
+        </button>
+    </div>
 </main>
+<style>
+    .buy-sticky{display:none}
+    @media(max-width:820px){
+        .buy-sticky{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;background:#fff;border-top:1px solid var(--borde);padding:10px 14px;gap:12px;align-items:center;box-shadow:0 -4px 16px rgba(47,127,191,.12)}
+        .buy-sticky-price{font-weight:900;font-size:19px;color:var(--azul-osc);white-space:nowrap}
+        .buy-sticky-btn{flex:1;background:var(--teal);color:#fff;border:none;border-radius:12px;padding:14px;font-weight:800;font-size:15px;cursor:pointer}
+        .buy-sticky-btn:disabled{background:var(--gris);cursor:not-allowed}
+        main.contenedor{padding-bottom:82px}
+        .wa-float{bottom:82px}
+    }
+</style>
 @endsection
