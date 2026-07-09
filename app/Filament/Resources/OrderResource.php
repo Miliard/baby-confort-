@@ -57,15 +57,10 @@ class OrderResource extends Resource
                         ->label('Enviar seguimiento por WhatsApp')
                         ->icon('heroicon-o-chat-bubble-left-right')
                         ->color('success')
-                        ->url(function (?Order $record) {
-                            if (! $record) return null;
-                            $phone = preg_replace('/\D/', '', $record->phone ?? '');
-                            if (strlen($phone) === 8) $phone = '503' . $phone;
-                            $link = route('store.rastreo', $record);
-                            $msg = "\u{A1}Sigue tu pedido, Baby-Confort!\n\nPedido #{$record->id}\nRastr\u{E9}alo aqu\u{ED}: {$link}\n\n\u{A1}Gracias por tu preferencia!";
-                            return 'https://wa.me/' . $phone . '?text=' . rawurlencode($msg);
-                        })
-                        ->openUrlInNewTab(),
+                        ->modalHeading('Mensaje de seguimiento')
+                        ->modalSubmitAction(false)
+                        ->modalCancelActionLabel('Cerrar')
+                        ->modalContent(fn (?Order $record) => $record ? view('filament.seguimiento-modal', static::seguimientoData($record)) : null),
                     Forms\Components\Actions\Action::make('ver_seguimiento')
                         ->label('Ver página de seguimiento')
                         ->icon('heroicon-o-eye')->color('gray')
@@ -117,15 +112,22 @@ class OrderResource extends Resource
                     ->modalHeading('Número de guía')->modalSubmitActionLabel('Guardar'),
                 Tables\Actions\Action::make('enviar')
                     ->label('Enviar seguimiento')->icon('heroicon-o-chat-bubble-left-right')->color('success')
-                    ->url(function (Order $record) {
-                        $phone = preg_replace('/\D/', '', $record->phone ?? '');
-                        if (strlen($phone) === 8) $phone = '503' . $phone;
-                        $link = route('store.rastreo', $record);
-                        $msg = "\u{A1}Sigue tu pedido, Baby-Confort!\n\nPedido #{$record->id}\nRastr\u{E9}alo aqu\u{ED}: {$link}\n\n\u{A1}Gracias por tu preferencia!";
-                        return 'https://wa.me/' . $phone . '?text=' . rawurlencode($msg);
-                    })->openUrlInNewTab(),
+                    ->modalHeading('Mensaje de seguimiento')
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->modalContent(fn (Order $record) => view('filament.seguimiento-modal', static::seguimientoData($record))),
                 Tables\Actions\EditAction::make()->label('Ver'),
             ]);
+    }
+
+    public static function seguimientoData(Order $record): array
+    {
+        $phone = preg_replace('/\D/', '', $record->phone ?? '');
+        if (strlen($phone) === 8) $phone = '503' . $phone;
+        $link = route('store.rastreo', $record);
+        $msg = "\u{A1}Sigue tu pedido, Baby-Confort!\n\nPedido #{$record->id}\nRastr\u{E9}alo aqu\u{ED}: {$link}\n\n\u{A1}Gracias por tu preferencia!";
+        $wa  = 'https://wa.me/' . $phone . '?text=' . rawurlencode($msg);
+        return ['msg' => $msg, 'wa' => $wa];
     }
 
     public static function getPages(): array
