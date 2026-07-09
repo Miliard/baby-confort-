@@ -24,6 +24,10 @@ class ProductResource extends Resource
             Forms\Components\Section::make('Datos del producto')->schema([
                 Forms\Components\TextInput::make('name')->label('Nombre')->required()->maxLength(255),
                 Forms\Components\TextInput::make('brand')->label('Marca')->maxLength(255),
+                Forms\Components\Select::make('categoria')->label('Categoría (para el menú)')
+                    ->options(\App\Models\Product::CATEGORIAS)
+                    ->placeholder('Sin categoría')
+                    ->helperText('Define en qué sección del menú ☰ aparece.'),
                 Forms\Components\Textarea::make('description')->label('Descripción corta')->rows(3)->columnSpanFull(),
                 Forms\Components\TextInput::make('image')->label('Foto por link (pega la URL)')->url()->columnSpanFull()
                     ->helperText('Pega el link de una imagen. Si prefieres, sube tu propia foto abajo.'),

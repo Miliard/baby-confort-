@@ -53,6 +53,13 @@
         .logo .marca small{display:block;font-size:11px;color:var(--gris);font-weight:500}
         .btn-carrito{position:relative;border:1px solid var(--borde);background:#fff;padding:9px 14px;border-radius:999px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:15px}
         .btn-carrito:hover{border-color:var(--azul)}
+        .ham-btn{background:none;border:1px solid var(--borde);border-radius:10px;width:40px;height:40px;font-size:20px;cursor:pointer;color:var(--azul-osc);display:grid;place-items:center;flex:none}
+        .ham-btn:hover{border-color:var(--azul)}
+        .ham-menu{background:#fff;border-bottom:1px solid var(--borde);box-shadow:0 8px 18px rgba(47,127,191,.08)}
+        .ham-menu .contenedor{display:flex;flex-direction:column;padding:6px 16px 12px}
+        .ham-menu a{padding:12px 6px;border-bottom:1px solid var(--borde);color:var(--texto);text-decoration:none;font-weight:700;font-size:15px}
+        .ham-menu a:last-child{border-bottom:none}
+        .ham-menu a:hover{color:var(--azul-osc)}
         .badge{position:absolute;top:-8px;right:-8px;background:var(--coral);color:#fff;border-radius:999px;min-width:20px;height:20px;font-size:12px;font-weight:800;display:grid;place-items:center;padding:0 5px}
         .hero{background:linear-gradient(135deg,var(--azul-claro),#fff);border-bottom:1px solid var(--borde);padding:36px 0}
         .hero h1{margin:0 0 8px;font-size:28px;line-height:1.15}
@@ -225,16 +232,33 @@
 <body>
 <div x-data>
     {{-- Header --}}
-    <header class="header">
+    @php
+        $catsMenu = \App\Models\Product::where('active', true)->whereNotNull('categoria')->distinct()->pluck('categoria')->all();
+    @endphp
+    <header class="header" x-data="{ menu: false }">
         <div class="contenedor header-inner">
-            <a href="/" class="logo">
-                <span class="logo-badge">👶</span>
-                <span class="marca">Baby-<span>Confort</span><small>Bienestar para tu bebé</small></span>
-            </a>
+            <div style="display:flex;align-items:center;gap:10px">
+                <button class="ham-btn" @click="menu = !menu" aria-label="Menú">☰</button>
+                <a href="/" class="logo">
+                    <span class="logo-badge">👶</span>
+                    <span class="marca">Baby-<span>Confort</span><small>Bienestar para tu bebé</small></span>
+                </a>
+            </div>
             <button class="btn-carrito" @click="$store.cart.abierto = true">
                 🛒 Carrito
                 <span class="badge" x-show="$store.cart.cantidadTotal() > 0" x-text="$store.cart.cantidadTotal()"></span>
             </button>
+        </div>
+        <div class="ham-menu" x-show="menu" x-transition @click.away="menu = false" style="display:none">
+            <div class="contenedor">
+                <a href="{{ route('store.index') }}">🏠 Todo el catálogo</a>
+                @foreach(\App\Models\Product::CATEGORIAS as $slug => $label)
+                    @if(in_array($slug, $catsMenu))
+                        <a href="{{ route('store.categoria', $slug) }}">{{ $label }}</a>
+                    @endif
+                @endforeach
+                <a href="{{ route('store.rastreo.guia') }}">📦 Rastrea tu pedido</a>
+            </div>
         </div>
     </header>
 

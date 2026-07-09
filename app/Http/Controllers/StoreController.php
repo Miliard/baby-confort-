@@ -53,6 +53,16 @@ class StoreController extends Controller
         return view('store.talla', compact('talla', 'titulo', 'esBaby', 'items', 'envio'));
     }
 
+    public function categoria($cat)
+    {
+        $categorias = Product::CATEGORIAS;
+        abort_unless(array_key_exists($cat, $categorias), 404);
+        $titulo = $categorias[$cat];
+        $products = Product::with('sizes')->where('active', true)->where('categoria', $cat)
+            ->orderBy('orden')->orderBy('id')->get();
+        return view('store.categoria', compact('products', 'titulo', 'cat'));
+    }
+
     public function rastreo(\App\Models\Order $order)
     {
         $etapa = $order->etapaEnvio();

@@ -13,6 +13,9 @@ Route::get('/producto/{product}', [StoreController::class, 'show'])->name('store
 // Colección por talla (todos los productos en esa talla)
 Route::get('/talla/{talla}', [StoreController::class, 'talla'])->name('store.talla');
 
+// Categoría (menú hamburguesa)
+Route::get('/categoria/{cat}', [StoreController::class, 'categoria'])->name('store.categoria');
+
 // Rastreo genérico por número de guía (para clientes que escriben directo)
 Route::get('/rastreo', [StoreController::class, 'rastreoGuia'])->name('store.rastreo.guia');
 

@@ -9,8 +9,15 @@ use Illuminate\Support\Facades\Storage;
 class Product extends Model
 {
     protected $fillable = [
-        'orden', 'name', 'brand', 'description', 'image', 'image_upload',
+        'orden', 'name', 'brand', 'categoria', 'description', 'image', 'image_upload',
         'gallery', 'features', 'made_in', 'badge', 'oferta', 'stock_warning', 'active',
+    ];
+
+    public const CATEGORIAS = [
+        'bebe'        => 'Para bebé',
+        'accesorios'  => 'Accesorios para bebé',
+        'mujer'       => 'Para mujer',
+        'adulto'      => 'Para adulto',
     ];
 
     protected $casts = [
