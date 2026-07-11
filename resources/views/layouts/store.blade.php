@@ -166,6 +166,17 @@
         .egb-track{height:8px;background:#e2ebe6;border-radius:999px;overflow:hidden}
         .egb-fill{height:100%;background:linear-gradient(90deg,var(--teal),var(--ok));border-radius:999px;transition:width .35s ease}
         .error{font-size:12.5px;color:var(--coral-osc)}
+        .cupon-box{margin-bottom:10px}
+        .cupon-row{display:flex;gap:8px}
+        .cupon-input{flex:1;border:1px dashed var(--borde);border-radius:10px;padding:10px 12px;font-size:14px}
+        .cupon-btn{flex:none;border:none;background:var(--azul);color:#fff;border-radius:10px;padding:0 16px;font-weight:700;font-size:14px;cursor:pointer}
+        .cupon-btn:disabled{opacity:.6;cursor:default}
+        .cupon-ok{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#eef8f2;border:1px solid #bfe6cf;border-radius:10px;padding:9px 12px;font-size:14px;color:var(--texto)}
+        .cupon-ok b{color:var(--teal-osc)}
+        .cupon-quitar{border:none;background:none;color:var(--coral-osc);font-size:12.5px;font-weight:700;cursor:pointer}
+        .cupon-error{font-size:12.5px;color:var(--coral-osc);margin-top:6px}
+        html.dark .cupon-input{background:#16202f;color:var(--texto)}
+        html.dark .cupon-ok{background:#14261c;border-color:#2f5a3f}
         .footer{border-top:1px solid var(--borde);background:#fff;padding:28px 0;margin-top:20px;color:var(--gris);font-size:14px}
         .footer b{color:var(--texto)}
         .footer-links{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:12px}
@@ -301,6 +312,13 @@
         html.dark .sg-dots span{background:#33405a}
         html.dark .sg-none{background:#16202f;border-color:var(--borde)}
         html.dark .drawer{background:var(--fondo)}
+        html.dark .conf-card,
+        html.dark .resena-card,
+        html.dark .trk-card,
+        html.dark .gbtn-more{background:#16202f;color:var(--texto);border-color:var(--borde)}
+        html.dark .trk-line{background:#233043}
+        html.dark .trk-dot{background:#16202f;border-color:#233043;color:var(--gris)}
+        html.dark .gracias-resumen{background:#182338}
     </style>
 </head>
 <body>
@@ -402,6 +420,21 @@
                         <div class="drawer-foot">
                             <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--gris);margin-bottom:4px"><span>Productos</span><span x-text="c.money(c.totalProductos())"></span></div>
                             <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--gris);margin-bottom:8px"><span>Envío</span><span x-text="c.envioEfectivo() === 0 ? '¡Gratis! 🎉' : c.money(c.envioEfectivo())"></span></div>
+                            <div class="cupon-box">
+                                <template x-if="!c.cupon">
+                                    <div class="cupon-row">
+                                        <input class="cupon-input" x-model="c.cuponInput" placeholder="🎟️ ¿Tienes un cupón?" @keydown.enter.prevent="c.aplicarCupon()">
+                                        <button class="cupon-btn" @click="c.aplicarCupon()" :disabled="c.cuponCargando"><span x-text="c.cuponCargando ? '…' : 'Aplicar'"></span></button>
+                                    </div>
+                                </template>
+                                <template x-if="c.cupon">
+                                    <div class="cupon-ok"><span>🎟️ <b x-text="c.cupon.codigo"></b> · −<span x-text="c.cupon.porcentaje"></span>%</span><button class="cupon-quitar" @click="c.quitarCupon()">Quitar</button></div>
+                                </template>
+                                <div class="cupon-error" x-show="c.cuponError" x-text="c.cuponError"></div>
+                            </div>
+                            <template x-if="c.cupon">
+                                <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--teal-osc);font-weight:700;margin-bottom:8px"><span>Descuento (<span x-text="c.cupon.porcentaje"></span>%)</span><span x-text="'− ' + c.money(c.descuento())"></span></div>
+                            </template>
                             <div class="total-fila"><span>Total</span><b x-text="c.money(c.totalFinal())"></b></div>
                             <button class="btn btn-coral" @click="c.paso='datos'">Continuar con el pedido →</button>
                             <button class="btn btn-linea" style="margin-top:8px" @click="c.abierto=false">← Seguir comprando</button>
@@ -427,6 +460,9 @@
                         <div class="drawer-foot">
                             <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--gris);margin-bottom:4px"><span>Productos</span><span x-text="c.money(c.totalProductos())"></span></div>
                             <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--gris);margin-bottom:8px"><span>Envío</span><span x-text="c.envioEfectivo() === 0 ? '¡Gratis! 🎉' : c.money(c.envioEfectivo())"></span></div>
+                            <template x-if="c.cupon">
+                                <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--teal-osc);font-weight:700;margin-bottom:8px"><span>Descuento <span x-text="c.cupon.codigo"></span> (<span x-text="c.cupon.porcentaje"></span>%)</span><span x-text="'− ' + c.money(c.descuento())"></span></div>
+                            </template>
                             <div class="total-fila"><span>Total a pagar</span><b x-text="c.money(c.totalFinal())"></b></div>
                             <button class="btn btn-verde" @click="c.confirmar()" :disabled="c.enviando"><span x-text="c.enviando?'Enviando…':'Confirmar y enviar pedido ✅'"></span></button>
                             <button class="btn btn-linea" style="margin-top:8px" @click="c.paso='carrito'">← Volver al carrito</button>
@@ -457,6 +493,7 @@ document.addEventListener('alpine:init', () => {
         envio: (window.BC_ENVIO ?? 2.5),
         gratisDesde: (window.BC_ENVIO_GRATIS ?? 0),
         abierto: false, paso: 'carrito', enviando: false, error: '',
+        cupon: null, cuponInput: '', cuponError: '', cuponCargando: false,
         pagos: { transferencia:'Transferencia bancaria', efectivo:'Efectivo (contra entrega)', link:'Link de pago' },
         cliente: { customer_name:'', phone:'', municipio:'', address:'', payment:'transferencia' },
 
@@ -477,7 +514,22 @@ document.addEventListener('alpine:init', () => {
         envioEfectivo(){ const g=Number(this.gratisDesde||0); if(g>0 && this.totalProductos()>=g) return 0; return Number(this.envio||0); },
         faltaGratis(){ const g=Number(this.gratisDesde||0); if(g<=0) return 0; return Math.max(0, g - this.totalProductos()); },
         progresoGratis(){ const g=Number(this.gratisDesde||0); if(g<=0) return 0; return Math.min(100, (this.totalProductos()/g)*100); },
-        totalFinal(){ return this.totalProductos() + this.envioEfectivo(); },
+        descuento(){ if(!this.cupon) return 0; return this.totalProductos() * (Number(this.cupon.porcentaje||0)/100); },
+        async aplicarCupon(){
+            this.cuponError='';
+            const code=(this.cuponInput||'').trim();
+            if(!code){ this.cuponError='Escribe un código.'; return; }
+            this.cuponCargando=true;
+            try{
+                const res=await fetch('/cupon/validar?codigo='+encodeURIComponent(code),{headers:{'Accept':'application/json'}});
+                const data=await res.json();
+                if(!data.ok){ this.cupon=null; this.cuponError=data.error||'Cupón no válido.'; this.cuponCargando=false; return; }
+                this.cupon={codigo:data.codigo, porcentaje:data.porcentaje};
+                this.cuponInput=data.codigo; this.cuponCargando=false;
+            }catch(e){ this.cuponError='No se pudo validar. Revisa tu conexión.'; this.cuponCargando=false; }
+        },
+        quitarCupon(){ this.cupon=null; this.cuponInput=''; this.cuponError=''; },
+        totalFinal(){ return Math.max(0, this.totalProductos() - this.descuento()) + this.envioEfectivo(); },
         cantidadTotal(){ return this.items.reduce((s,i)=>s+i.cantidad,0); },
         cerrar(){ this.abierto=false; this.paso='carrito'; this.error=''; },
 
@@ -489,7 +541,7 @@ document.addEventListener('alpine:init', () => {
             try{
                 const token=document.querySelector('meta[name="csrf-token"]').content;
                 const res=await fetch('/pedido',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-TOKEN':token,'Accept':'application/json'},
-                    body:JSON.stringify({...c, items:this.items.map(i=>({product_id:i.id,size:i.talla,cantidad:i.cantidad}))})});
+                    body:JSON.stringify({...c, cupon:(this.cupon?this.cupon.codigo:null), items:this.items.map(i=>({product_id:i.id,size:i.talla,cantidad:i.cantidad}))})});
                 const data=await res.json();
                 if(!res.ok||!data.ok){ this.error=data.error||'Ocurrió un error.'; this.enviando=false; return; }
                 if(window.fbq){ fbq('track','Purchase',{value:Number(this.totalFinal().toFixed(2)),currency:'USD',num_items:this.cantidadTotal()}); }

@@ -55,8 +55,18 @@ class OrderController extends Controller
             return response()->json(['ok' => false, 'error' => 'El carrito está vacío.'], 422);
         }
 
+        // Cupón: se re-valida en el servidor (nunca se confía en el navegador).
+        $descuento   = 0;
+        $cuponCodigo = null;
+        $cupon = \App\Models\Cupon::buscarActivo($request->input('cupon'));
+        if ($cupon) {
+            $descuento   = round($subtotal * ($cupon->porcentaje / 100), 2);
+            $cuponCodigo = $cupon->codigo;
+            $cupon->increment('usos');
+        }
+
         $shipping = Setting::envioPara($subtotal);
-        $total    = $subtotal + $shipping;
+        $total    = max(0, $subtotal - $descuento) + $shipping;
 
         $order = Order::create([
             'customer_name' => $data['customer_name'],
@@ -67,6 +77,8 @@ class OrderController extends Controller
             'subtotal'      => round($subtotal, 2),
             'shipping'      => round($shipping, 2),
             'total'         => round($total, 2),
+            'cupon'         => $cuponCodigo,
+            'descuento'     => $descuento,
             'items'         => $items,
             'status'        => 'nuevo',
         ]);
@@ -99,6 +111,9 @@ class OrderController extends Controller
                 $linea .= " (" . $this->mny($it['subtotal']) . ")";
             }
             $t .= $linea . "\n";
+        }
+        if ($order->descuento > 0) {
+            $t .= "\n\u{1F3AB} Cup\u{00F3}n {$order->cupon}: -$" . number_format($order->descuento, 2, '.', '');
         }
         $t .= "\n\u{2705} Costo de env\u{00ED}o: $" . number_format($order->shipping, 2, '.', '') . "\n\n";
         $t .= "\u{1F4B0} Total a pagar: $" . number_format($order->total, 2, '.', '') . "\n\n";

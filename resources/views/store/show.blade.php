@@ -89,7 +89,7 @@
                 $<span x-text="precio().toFixed(2)"></span> <small>USD</small>
             </div>
             <template x-if="sel().unidades">
-                <div style="display:inline-block;margin-top:6px;background:#eef6ff;border:1px solid var(--borde);color:var(--azul-osc);border-radius:999px;padding:5px 14px;font-size:13.5px;font-weight:700">
+                <div style="display:inline-block;margin-top:6px;background:var(--azul-claro);border:1px solid var(--borde);color:var(--azul-osc);border-radius:999px;padding:5px 14px;font-size:13.5px;font-weight:700">
                     📦 Esta talla trae <span x-text="sel().unidades"></span> unidades
                 </div>
             </template>
@@ -98,7 +98,7 @@
 
             {{-- Detalle de la talla elegida (si tiene). Si no, se muestran las características. --}}
             <template x-if="sel().details">
-                <div style="white-space:pre-line;background:#f4f9fc;border:1px solid var(--borde);border-radius:12px;padding:16px;font-size:14px;line-height:1.65" x-text="sel().details"></div>
+                <div style="white-space:pre-line;background:var(--azul-claro);border:1px solid var(--borde);border-radius:12px;padding:16px;font-size:14px;line-height:1.65;color:var(--texto)" x-text="sel().details"></div>
             </template>
             @if(!empty($product->features))
                 <div x-show="!sel().details">

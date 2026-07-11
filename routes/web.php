@@ -30,5 +30,8 @@ Route::get('/nosotros', [StoreController::class, 'nosotros'])->name('store.nosot
 Route::get('/devoluciones', [StoreController::class, 'devoluciones'])->name('store.devoluciones');
 Route::get('/privacidad', [StoreController::class, 'privacidad'])->name('store.privacidad');
 
+// Valida un cupón (devuelve el % de descuento si es válido)
+Route::get('/cupon/validar', [StoreController::class, 'validarCupon'])->name('store.cupon');
+
 // Recibe el pedido del carrito (JSON) y devuelve el link de WhatsApp
 Route::post('/pedido', [OrderController::class, 'store'])->name('order.store');

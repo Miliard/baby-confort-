@@ -90,6 +90,19 @@ class StoreController extends Controller
         return view('store.rastreo-guia', compact('guia', 'etapa'));
     }
 
+    public function validarCupon(\Illuminate\Http\Request $request)
+    {
+        $cupon = \App\Models\Cupon::buscarActivo($request->query('codigo'));
+        if (! $cupon) {
+            return response()->json(['ok' => false, 'error' => 'Cupón no válido o inactivo.']);
+        }
+        return response()->json([
+            'ok'         => true,
+            'codigo'     => $cupon->codigo,
+            'porcentaje' => $cupon->porcentaje,
+        ]);
+    }
+
     public function gracias(\App\Models\Order $order)
     {
         return view('store.gracias', compact('order'));
