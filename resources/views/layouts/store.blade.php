@@ -309,6 +309,7 @@
                             <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--gris);margin-bottom:8px"><span>Envío</span><span x-text="c.money(c.envio)"></span></div>
                             <div class="total-fila"><span>Total</span><b x-text="c.money(c.totalFinal())"></b></div>
                             <button class="btn btn-coral" @click="c.paso='datos'">Continuar con el pedido →</button>
+                            <button class="btn btn-linea" style="margin-top:8px" @click="c.abierto=false">← Seguir comprando</button>
                         </div>
                     </div>
                 </template>

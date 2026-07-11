@@ -26,6 +26,8 @@
         sizes: @js($sizesJs),
         idx: 0,
         current: '',
+        zoom: false, zx: 50, zy: 50,
+        panZoom(e){ const r = e.currentTarget.getBoundingClientRect(); this.zx = ((e.clientX - r.left) / r.width) * 100; this.zy = ((e.clientY - r.top) / r.height) * 100; },
         talla: '{{ $primeraTalla->size ?? '' }}',
         cantidad: 1,
         init(){ const s = this.sel(); this.current = (s && s.imagen) ? s.imagen : (this.fotos[0] || ''); },
@@ -50,8 +52,13 @@
         <div>
             <div class="gal-main">
                 @if($product->oferta)<span class="oferta-bubble">{{ $product->oferta }}</span>@endif
-                <img :src="current" x-ref="mimg"
+                <img :src="current" x-ref="mimg" class="gal-zoomable"
                      x-effect="current; if($refs.mimg){ $refs.mimg.classList.remove('anim'); void $refs.mimg.offsetWidth; $refs.mimg.classList.add('anim'); }"
+                     @mouseenter="if(window.matchMedia('(hover: hover)').matches) zoom = true"
+                     @mouseleave="zoom = false"
+                     @mousemove="if(zoom) panZoom($event)"
+                     @click="if(window.matchMedia('(hover: none)').matches) zoom = !zoom"
+                     :style="zoom ? 'transform:scale(2.3);transform-origin:'+zx+'% '+zy+'%;cursor:zoom-out' : ''"
                      :alt="@js($product->name)">
                 <template x-if="fotos.length > 1">
                     <button class="gal-nav prev" @click="idx=(idx-1+fotos.length)%fotos.length; current=fotos[idx]">‹</button>
@@ -59,6 +66,7 @@
                 <template x-if="fotos.length > 1">
                     <button class="gal-nav next" @click="idx=(idx+1)%fotos.length; current=fotos[idx]">›</button>
                 </template>
+                <div class="gal-hint" x-show="!zoom">🔍 <span x-text="window.matchMedia('(hover: none)').matches ? 'Toca para ampliar' : 'Pasa el cursor para ampliar'"></span></div>
             </div>
             <div class="gal-thumbs">
                 <template x-for="(f, k) in fotos" :key="k">
@@ -152,6 +160,10 @@
     </div>
 </main>
 <style>
+    .gal-zoomable{cursor:zoom-in;transition:transform .12s ease-out}
+    .gal-zoomable.anim{transition:none}
+    .gal-hint{position:absolute;bottom:10px;right:10px;z-index:3;background:rgba(255,255,255,.9);color:var(--texto);border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700;pointer-events:none;display:flex;align-items:center;gap:5px}
+    @media(hover:none){.gal-zoomable{cursor:zoom-in}}
     .buy-sticky{display:none}
     @media(max-width:820px){
         .buy-sticky{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;background:#fff;border-top:1px solid var(--borde);padding:10px 14px;gap:12px;align-items:center;box-shadow:0 -4px 16px rgba(47,127,191,.12)}

@@ -2,6 +2,10 @@
 @section('title', 'Baby-Confort | Tienda')
 
 @section('content')
+@php
+    $iconosCat = ['bebe' => '👶', 'accesorios' => '🍼', 'mujer' => '🌸', 'adulto' => '🧑'];
+    $catsPortada = \App\Models\Product::where('active', true)->whereNotNull('categoria')->distinct()->pluck('categoria')->all();
+@endphp
 <div x-data="{ q: '', productos: @js($products->pluck('name')->map(fn ($n) => \Illuminate\Support\Str::lower($n))->values()) }">
 <section class="hero">
     <div class="contenedor">
@@ -19,6 +23,21 @@
         </div>
     </div>
 </section>
+
+@if(count($catsPortada) > 0)
+<div class="contenedor cat-chips-wrap" x-show="q.trim() === ''">
+    <div class="cat-chips">
+        @foreach(\App\Models\Product::CATEGORIAS as $slug => $label)
+            @if(in_array($slug, $catsPortada))
+                <a class="cat-chip" href="{{ route('store.categoria', $slug) }}">
+                    <span class="cat-chip-ic">{{ $iconosCat[$slug] ?? '🛍️' }}</span>
+                    <span class="cat-chip-txt">{{ $label }}</span>
+                </a>
+            @endif
+        @endforeach
+    </div>
+</div>
+@endif
 
 <div class="contenedor" x-show="q.trim() === ''">@include('store.partials.size-guide')</div>
 
@@ -56,6 +75,16 @@
     .buscador:focus{outline:none;border-color:var(--azul);box-shadow:0 0 0 3px rgba(74,163,223,.15)}
     .buscador-ic{position:absolute;left:15px;top:50%;transform:translateY(-50%);font-size:16px;opacity:.7}
     .buscador-x{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:#eef2f6;border-radius:50%;width:26px;height:26px;cursor:pointer;color:var(--gris);font-size:13px}
+    /* Chips de categoría */
+    .cat-chips-wrap{margin-top:18px}
+    .cat-chips{display:flex;gap:12px;flex-wrap:wrap}
+    .cat-chip{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--borde);border-radius:999px;padding:9px 18px 9px 12px;font-weight:700;font-size:14.5px;color:var(--texto);box-shadow:0 2px 8px rgba(47,127,191,.06);transition:transform .08s,box-shadow .08s,border-color .08s}
+    .cat-chip:hover{transform:translateY(-2px);border-color:var(--azul);box-shadow:0 8px 18px rgba(47,127,191,.14);color:var(--azul-osc)}
+    .cat-chip-ic{width:34px;height:34px;border-radius:999px;background:var(--azul-claro);display:grid;place-items:center;font-size:18px;flex:none}
+    @media(max-width:600px){
+        .cat-chips{gap:9px}
+        .cat-chip{flex:1 1 calc(50% - 9px);justify-content:flex-start;padding:9px 12px;font-size:13.5px}
+    }
 </style>
 
 @include('store.partials.resenas')
