@@ -70,7 +70,8 @@
 </div>
 
 <style>
-    .buscador-wrap{position:relative;max-width:560px;margin:16px 0 4px}
+    .buscador-wrap{position:relative;max-width:560px;margin:16px auto 4px}
+    @media(min-width:821px){.hero .contenedor{text-align:center}.hero p{margin-left:auto;margin-right:auto}.pills{justify-content:center}.cat-chips{justify-content:center}}
     .buscador{width:100%;padding:13px 40px 13px 42px;border:1px solid var(--borde);border-radius:999px;font-size:15px;background:#fff;box-shadow:0 2px 8px rgba(47,127,191,.06)}
     .buscador:focus{outline:none;border-color:var(--azul);box-shadow:0 0 0 3px rgba(74,163,223,.15)}
     .buscador-ic{position:absolute;left:15px;top:50%;transform:translateY(-50%);font-size:16px;opacity:.7}
