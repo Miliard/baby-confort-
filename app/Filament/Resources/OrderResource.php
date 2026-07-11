@@ -40,6 +40,8 @@ class OrderResource extends Resource
                     'entregado' => 'Entregado', 'cancelado' => 'Cancelado',
                 ])->required(),
                 Forms\Components\TextInput::make('subtotal')->label('Productos')->prefix('$')->disabled(),
+                Forms\Components\TextInput::make('cupon')->label('Cupón aplicado')->disabled()->placeholder('Sin cupón'),
+                Forms\Components\TextInput::make('descuento')->label('Descuento')->prefix('$')->disabled(),
                 Forms\Components\TextInput::make('shipping')->label('Envío')->prefix('$')->disabled(),
                 Forms\Components\TextInput::make('total')->label('Total')->prefix('$')->disabled(),
             ])->columns(2),

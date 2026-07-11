@@ -63,6 +63,11 @@
                 <span>${{ number_format($it['subtotal'] ?? 0, 2) }}</span>
             </div>
         @endforeach
+        @if($order->descuento > 0)
+            <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--teal-osc);font-weight:700;padding-top:6px">
+                <span>Cupón {{ $order->cupon }}</span><span>− ${{ number_format($order->descuento, 2) }}</span>
+            </div>
+        @endif
         <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--gris);padding-top:6px">
             <span>Envío</span><span>${{ number_format($order->shipping, 2) }}</span>
         </div>

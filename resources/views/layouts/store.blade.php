@@ -318,6 +318,8 @@
         html.dark .gbtn-more{background:#16202f;color:var(--texto);border-color:var(--borde)}
         html.dark .trk-line{background:#233043}
         html.dark .trk-dot{background:#16202f;border-color:#233043;color:var(--gris)}
+        html.dark .trk-estado{background:#182338;border-color:var(--borde)}
+        html.dark .cat-cta{background:linear-gradient(135deg,#16273f,#1e1838);border-color:var(--borde)}
         html.dark .gracias-resumen{background:#182338}
     </style>
 </head>
@@ -493,7 +495,7 @@ document.addEventListener('alpine:init', () => {
         envio: (window.BC_ENVIO ?? 2.5),
         gratisDesde: (window.BC_ENVIO_GRATIS ?? 0),
         abierto: false, paso: 'carrito', enviando: false, error: '',
-        cupon: null, cuponInput: '', cuponError: '', cuponCargando: false,
+        cupon: JSON.parse(localStorage.getItem('bc_cupon') || 'null'), cuponInput: '', cuponError: '', cuponCargando: false,
         pagos: { transferencia:'Transferencia bancaria', efectivo:'Efectivo (contra entrega)', link:'Link de pago' },
         cliente: { customer_name:'', phone:'', municipio:'', address:'', payment:'transferencia' },
 
@@ -526,9 +528,10 @@ document.addEventListener('alpine:init', () => {
                 if(!data.ok){ this.cupon=null; this.cuponError=data.error||'Cupón no válido.'; this.cuponCargando=false; return; }
                 this.cupon={codigo:data.codigo, porcentaje:data.porcentaje};
                 this.cuponInput=data.codigo; this.cuponCargando=false;
+                try{ localStorage.setItem('bc_cupon', JSON.stringify(this.cupon)); }catch(e){}
             }catch(e){ this.cuponError='No se pudo validar. Revisa tu conexión.'; this.cuponCargando=false; }
         },
-        quitarCupon(){ this.cupon=null; this.cuponInput=''; this.cuponError=''; },
+        quitarCupon(){ this.cupon=null; this.cuponInput=''; this.cuponError=''; try{ localStorage.removeItem('bc_cupon'); }catch(e){} },
         totalFinal(){ return Math.max(0, this.totalProductos() - this.descuento()) + this.envioEfectivo(); },
         cantidadTotal(){ return this.items.reduce((s,i)=>s+i.cantidad,0); },
         cerrar(){ this.abierto=false; this.paso='carrito'; this.error=''; },
@@ -546,6 +549,7 @@ document.addEventListener('alpine:init', () => {
                 if(!res.ok||!data.ok){ this.error=data.error||'Ocurrió un error.'; this.enviando=false; return; }
                 if(window.fbq){ fbq('track','Purchase',{value:Number(this.totalFinal().toFixed(2)),currency:'USD',num_items:this.cantidadTotal()}); }
                 this.items=[]; this.save(); this.enviando=false;
+                this.cupon=null; this.cuponInput=''; try{ localStorage.removeItem('bc_cupon'); }catch(e){}
                 window.open(data.whatsapp_url,'_blank');
                 window.location.href = '/gracias/' + data.folio;
             }catch(e){ this.error='No se pudo enviar. Revisa tu conexión.'; this.enviando=false; }
