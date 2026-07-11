@@ -25,4 +25,18 @@ class Setting extends Model
     {
         return (float) static::get('envio', 2.50);
     }
+
+    // Monto de productos a partir del cual el envío es gratis (0 = desactivado)
+    public static function envioGratisDesde(): float
+    {
+        return (float) static::get('envio_gratis_desde', 0);
+    }
+
+    // Envío efectivo dado un subtotal de productos (aplica envío gratis si corresponde)
+    public static function envioPara(float $subtotal): float
+    {
+        $desde = static::envioGratisDesde();
+        if ($desde > 0 && $subtotal >= $desde) return 0.0;
+        return static::envio();
+    }
 }

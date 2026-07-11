@@ -32,6 +32,7 @@
     src="https://www.facebook.com/tr?id={{ $fbPixel }}&ev=PageView&noscript=1"/></noscript>
     @endif
     <script>window.BC_ENVIO = {{ (float) ($envio ?? 2.5) }};</script>
+    <script>window.BC_ENVIO_GRATIS = {{ (float) \App\Models\Setting::envioGratisDesde() }};</script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         :root{
@@ -157,9 +158,18 @@
         .pago-op{border:1px solid var(--borde);border-radius:10px;padding:11px 12px;display:flex;gap:10px;align-items:center;cursor:pointer;background:#fff;font-size:14px}
         .pago-op.sel{border-color:var(--azul);background:var(--azul-claro)}.pago-op input{width:auto}
         .aviso{font-size:12.5px;color:var(--gris);background:var(--azul-claro);padding:10px 12px;border-radius:10px}
+        .envio-gratis-bar{background:linear-gradient(135deg,#eef8f2,#eaf5fc);border:1px solid #cfe8dc;border-radius:12px;padding:11px 13px;margin-bottom:4px}
+        .egb-msg{font-size:13px;color:var(--texto);margin-bottom:8px}
+        .egb-msg b{color:var(--teal-osc)}
+        .egb-ok{color:var(--teal-osc);font-weight:700}
+        .egb-track{height:8px;background:#e2ebe6;border-radius:999px;overflow:hidden}
+        .egb-fill{height:100%;background:linear-gradient(90deg,var(--teal),var(--ok));border-radius:999px;transition:width .35s ease}
         .error{font-size:12.5px;color:var(--coral-osc)}
         .footer{border-top:1px solid var(--borde);background:#fff;padding:28px 0;margin-top:20px;color:var(--gris);font-size:14px}
         .footer b{color:var(--texto)}
+        .footer-links{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:12px}
+        .footer-links a{color:var(--azul-osc);font-weight:700;text-decoration:none;font-size:13.5px}
+        .footer-links a:hover{text-decoration:underline}
         .wa-float{position:fixed;right:18px;bottom:18px;z-index:70;width:58px;height:58px;border-radius:999px;background:#25D366;display:grid;place-items:center;box-shadow:0 6px 18px rgba(0,0,0,.28);transition:transform .1s}
         .wa-float:hover{transform:scale(1.07)}
         .wa-float svg{width:32px;height:32px;fill:#fff}
@@ -266,8 +276,14 @@
     @yield('content')
 
     <footer class="footer">
-        <div class="contenedor"><b>Baby-Confort</b> · Pedidos por WhatsApp · El Salvador 🇸🇻<br>Atención personalizada para coordinar tu entrega.<br>
-            <a href="{{ route('store.rastreo.guia') }}" style="color:var(--azul-osc);font-weight:700;text-decoration:none">📦 Rastrea tu pedido</a></div>
+        <div class="contenedor"><b>Baby-Confort</b> · Pedidos por WhatsApp · El Salvador 🇸🇻<br>Atención personalizada para coordinar tu entrega.
+            <div class="footer-links">
+                <a href="{{ route('store.rastreo.guia') }}">📦 Rastrea tu pedido</a>
+                <a href="{{ route('store.nosotros') }}">Nosotros</a>
+                <a href="{{ route('store.devoluciones') }}">Cambios y devoluciones</a>
+                <a href="{{ route('store.privacidad') }}">Privacidad</a>
+            </div>
+        </div>
     </footer>
 
     {{-- Carrito / checkout (en todas las páginas) --}}
@@ -287,6 +303,17 @@
                 <template x-if="c.items.length > 0 && c.paso === 'carrito'">
                     <div style="display:flex;flex-direction:column;flex:1;overflow:hidden">
                         <div class="drawer-body">
+                            <template x-if="c.gratisDesde > 0">
+                                <div class="envio-gratis-bar">
+                                    <div class="egb-msg" x-show="c.faltaGratis() > 0">
+                                        🚚 Te faltan <b x-text="c.money(c.faltaGratis())"></b> para <b>envío gratis</b>
+                                    </div>
+                                    <div class="egb-msg egb-ok" x-show="c.faltaGratis() === 0">
+                                        🎉 ¡Felicidades! Tienes <b>envío gratis</b>
+                                    </div>
+                                    <div class="egb-track"><div class="egb-fill" :style="'width:'+c.progresoGratis()+'%'"></div></div>
+                                </div>
+                            </template>
                             <template x-for="i in c.items" :key="i.key">
                                 <div class="item">
                                     <img :src="i.imagen" :alt="i.nombre">
@@ -306,7 +333,7 @@
                         </div>
                         <div class="drawer-foot">
                             <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--gris);margin-bottom:4px"><span>Productos</span><span x-text="c.money(c.totalProductos())"></span></div>
-                            <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--gris);margin-bottom:8px"><span>Envío</span><span x-text="c.money(c.envio)"></span></div>
+                            <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--gris);margin-bottom:8px"><span>Envío</span><span x-text="c.envioEfectivo() === 0 ? '¡Gratis! 🎉' : c.money(c.envioEfectivo())"></span></div>
                             <div class="total-fila"><span>Total</span><b x-text="c.money(c.totalFinal())"></b></div>
                             <button class="btn btn-coral" @click="c.paso='datos'">Continuar con el pedido →</button>
                             <button class="btn btn-linea" style="margin-top:8px" @click="c.abierto=false">← Seguir comprando</button>
@@ -331,7 +358,7 @@
                         </div></div>
                         <div class="drawer-foot">
                             <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--gris);margin-bottom:4px"><span>Productos</span><span x-text="c.money(c.totalProductos())"></span></div>
-                            <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--gris);margin-bottom:8px"><span>Envío</span><span x-text="c.money(c.envio)"></span></div>
+                            <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--gris);margin-bottom:8px"><span>Envío</span><span x-text="c.envioEfectivo() === 0 ? '¡Gratis! 🎉' : c.money(c.envioEfectivo())"></span></div>
                             <div class="total-fila"><span>Total a pagar</span><b x-text="c.money(c.totalFinal())"></b></div>
                             <button class="btn btn-verde" @click="c.confirmar()" :disabled="c.enviando"><span x-text="c.enviando?'Enviando…':'Confirmar y enviar pedido ✅'"></span></button>
                             <button class="btn btn-linea" style="margin-top:8px" @click="c.paso='carrito'">← Volver al carrito</button>
@@ -353,6 +380,7 @@ document.addEventListener('alpine:init', () => {
     Alpine.store('cart', {
         items: JSON.parse(localStorage.getItem('bc_cart') || '[]'),
         envio: (window.BC_ENVIO ?? 2.5),
+        gratisDesde: (window.BC_ENVIO_GRATIS ?? 0),
         abierto: false, paso: 'carrito', enviando: false, error: '',
         pagos: { transferencia:'Transferencia bancaria', efectivo:'Efectivo (contra entrega)', link:'Link de pago' },
         cliente: { customer_name:'', phone:'', municipio:'', address:'', payment:'transferencia' },
@@ -371,7 +399,10 @@ document.addEventListener('alpine:init', () => {
         quitar(key){ this.items=this.items.filter(i=>i.key!==key); this.save(); },
         subtotal(i){ if(i.combo && i.combo.cantidad>0){ const g=Math.floor(i.cantidad/i.combo.cantidad), r=i.cantidad%i.combo.cantidad; return g*i.combo.precio + r*i.precio; } return i.cantidad*i.precio; },
         totalProductos(){ return this.items.reduce((s,i)=>s+this.subtotal(i),0); },
-        totalFinal(){ return this.totalProductos() + Number(this.envio||0); },
+        envioEfectivo(){ const g=Number(this.gratisDesde||0); if(g>0 && this.totalProductos()>=g) return 0; return Number(this.envio||0); },
+        faltaGratis(){ const g=Number(this.gratisDesde||0); if(g<=0) return 0; return Math.max(0, g - this.totalProductos()); },
+        progresoGratis(){ const g=Number(this.gratisDesde||0); if(g<=0) return 0; return Math.min(100, (this.totalProductos()/g)*100); },
+        totalFinal(){ return this.totalProductos() + this.envioEfectivo(); },
         cantidadTotal(){ return this.items.reduce((s,i)=>s+i.cantidad,0); },
         cerrar(){ this.abierto=false; this.paso='carrito'; this.error=''; },
 
@@ -387,9 +418,9 @@ document.addEventListener('alpine:init', () => {
                 const data=await res.json();
                 if(!res.ok||!data.ok){ this.error=data.error||'Ocurrió un error.'; this.enviando=false; return; }
                 if(window.fbq){ fbq('track','Purchase',{value:Number(this.totalFinal().toFixed(2)),currency:'USD',num_items:this.cantidadTotal()}); }
+                this.items=[]; this.save(); this.enviando=false;
                 window.open(data.whatsapp_url,'_blank');
-                this.items=[]; this.save(); this.enviando=false; this.cerrar();
-                alert('¡Pedido enviado! Te contactaremos por WhatsApp para coordinar la entrega. 💙');
+                window.location.href = '/gracias/' + data.folio;
             }catch(e){ this.error='No se pudo enviar. Revisa tu conexión.'; this.enviando=false; }
         },
     });

@@ -55,7 +55,7 @@ class OrderController extends Controller
             return response()->json(['ok' => false, 'error' => 'El carrito está vacío.'], 422);
         }
 
-        $shipping = Setting::envio();
+        $shipping = Setting::envioPara($subtotal);
         $total    = $subtotal + $shipping;
 
         $order = Order::create([

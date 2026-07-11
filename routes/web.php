@@ -22,5 +22,13 @@ Route::get('/rastreo', [StoreController::class, 'rastreoGuia'])->name('store.ras
 // Página de seguimiento del pedido (barra de progreso)
 Route::get('/rastreo/{order}', [StoreController::class, 'rastreo'])->name('store.rastreo');
 
+// Página de "¡Gracias por tu pedido!" (post-compra)
+Route::get('/gracias/{order}', [StoreController::class, 'gracias'])->name('store.gracias');
+
+// Páginas de confianza
+Route::get('/nosotros', [StoreController::class, 'nosotros'])->name('store.nosotros');
+Route::get('/devoluciones', [StoreController::class, 'devoluciones'])->name('store.devoluciones');
+Route::get('/privacidad', [StoreController::class, 'privacidad'])->name('store.privacidad');
+
 // Recibe el pedido del carrito (JSON) y devuelve el link de WhatsApp
 Route::post('/pedido', [OrderController::class, 'store'])->name('order.store');

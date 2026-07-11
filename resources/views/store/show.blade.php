@@ -146,6 +146,10 @@
 
     @include('store.partials.size-guide')
 
+    @include('store.partials.faq')
+
+    @include('store.partials.relacionados')
+
     {{-- Barra fija de compra (solo móvil) --}}
     <div class="buy-sticky">
         <div class="buy-sticky-info">

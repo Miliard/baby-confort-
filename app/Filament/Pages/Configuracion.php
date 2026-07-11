@@ -26,6 +26,7 @@ class Configuracion extends Page implements HasForms
         $this->form->fill([
             'envio' => Setting::get('envio', '2.50'),
             'envio_tiempo' => Setting::get('envio_tiempo', '24 horas hábiles'),
+            'envio_gratis_desde' => Setting::get('envio_gratis_desde', '0'),
             'fb_pixel' => Setting::get('fb_pixel', ''),
         ]);
     }
@@ -37,6 +38,9 @@ class Configuracion extends Page implements HasForms
                 ->helperText('Se suma al total de cada pedido.'),
             TextInput::make('envio_tiempo')->label('Tiempo de entrega')->required()
                 ->helperText('Texto que se muestra en la página del producto. Ej: 24 horas hábiles'),
+            TextInput::make('envio_gratis_desde')->label('Envío gratis desde ($)')->numeric()->prefix('$')
+                ->helperText('Si el cliente compra este monto o más (en productos), el envío es gratis y se muestra una barra "Te faltan $X para envío gratis". Pon 0 para desactivarlo.')
+                ->placeholder('Ej: 25'),
             TextInput::make('fb_pixel')->label('ID del Píxel de Facebook')
                 ->helperText('Pega el ID (número) de tu Píxel de Meta para medir tu campaña. Déjalo vacío para desactivarlo.')
                 ->placeholder('Ej: 1234567890123456'),
@@ -48,6 +52,7 @@ class Configuracion extends Page implements HasForms
         $data = $this->form->getState();
         Setting::put('envio', $data['envio']);
         Setting::put('envio_tiempo', $data['envio_tiempo']);
+        Setting::put('envio_gratis_desde', $data['envio_gratis_desde'] ?? '0');
         Setting::put('fb_pixel', trim($data['fb_pixel'] ?? ''));
         Notification::make()->title('Configuración guardada')->success()->send();
     }

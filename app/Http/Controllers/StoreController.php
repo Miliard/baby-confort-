@@ -20,7 +20,21 @@ class StoreController extends Controller
         $product->load('sizes');
         $envio = Setting::envio();
         $entregaTexto = Setting::get('envio_tiempo', '24 horas hábiles');
-        return view('store.show', compact('product', 'envio', 'entregaTexto'));
+
+        // Productos relacionados: primero de la misma categoría, luego se rellena con otros.
+        $relacionados = Product::with('sizes')->where('active', true)->where('id', '!=', $product->id)
+            ->when($product->categoria, fn ($q) => $q->where('categoria', $product->categoria))
+            ->orderBy('orden')->orderBy('id')->take(4)->get();
+        if ($relacionados->count() < 4) {
+            $faltan = 4 - $relacionados->count();
+            $extra = Product::with('sizes')->where('active', true)
+                ->where('id', '!=', $product->id)
+                ->whereNotIn('id', $relacionados->pluck('id'))
+                ->orderBy('orden')->orderBy('id')->take($faltan)->get();
+            $relacionados = $relacionados->concat($extra);
+        }
+
+        return view('store.show', compact('product', 'envio', 'entregaTexto', 'relacionados'));
     }
 
     public function talla($talla)
@@ -74,5 +88,25 @@ class StoreController extends Controller
         $guia  = trim((string) $request->query('guia', ''));
         $etapa = $guia ? \App\Models\Order::etapaDeGuia($guia) : null;
         return view('store.rastreo-guia', compact('guia', 'etapa'));
+    }
+
+    public function gracias(\App\Models\Order $order)
+    {
+        return view('store.gracias', compact('order'));
+    }
+
+    public function nosotros()
+    {
+        return view('store.paginas.nosotros');
+    }
+
+    public function devoluciones()
+    {
+        return view('store.paginas.devoluciones');
+    }
+
+    public function privacidad()
+    {
+        return view('store.paginas.privacidad');
     }
 }
