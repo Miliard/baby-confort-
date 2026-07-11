@@ -2,11 +2,17 @@
 @section('title', 'Baby-Confort | Tienda')
 
 @section('content')
+<div x-data="{ q: '', productos: @js($products->pluck('name')->map(fn ($n) => \Illuminate\Support\Str::lower($n))->values()) }">
 <section class="hero">
     <div class="contenedor">
         <h1>Todo para el confort de tu bebé 👶</h1>
         <p>Pañales y calzoncitos premium, suaves y de alta absorción. Elige tu producto y haz tu pedido en minutos.</p>
-        <div class="pills">
+        <div class="buscador-wrap">
+            <span class="buscador-ic">🔍</span>
+            <input x-model="q" type="text" class="buscador" placeholder="Buscar pañales, biberones, toallitas…">
+            <button class="buscador-x" x-show="q" @click="q = ''" style="display:none">✕</button>
+        </div>
+        <div class="pills" x-show="q.trim() === ''">
             <span class="pill-i">✅ Alta absorción</span>
             <span class="pill-i">🚚 Entrega en El Salvador</span>
             <span class="pill-i">💳 Transferencia · Efectivo · Link</span>
@@ -14,15 +20,16 @@
     </div>
 </section>
 
-<div class="contenedor">@include('store.partials.size-guide')</div>
+<div class="contenedor" x-show="q.trim() === ''">@include('store.partials.size-guide')</div>
 
 <main class="contenedor">
-    <h2 class="seccion-titulo">Nuestros productos</h2>
-    <p class="seccion-sub">Toca un producto para ver sus tallas, precios y detalles.</p>
+    <h2 class="seccion-titulo" x-text="q.trim() === '' ? 'Nuestros productos' : 'Resultados de tu búsqueda'"></h2>
+    <p class="seccion-sub" x-show="q.trim() === ''">Toca un producto para ver sus tallas, precios y detalles.</p>
 
     <div class="grid">
         @foreach ($products as $p)
-            <a class="pcard" href="{{ route('store.show', $p) }}">
+            <a class="pcard" href="{{ route('store.show', $p) }}"
+               x-show="q.trim() === '' || @js(\Illuminate\Support\Str::lower($p->name)).includes(q.toLowerCase().trim())">
                 <div class="img">@if($p->oferta)<span class="oferta-bubble">{{ $p->oferta }}</span>@endif<img src="{{ $p->imageUrl() }}" alt="{{ $p->name }}" loading="lazy"></div>
                 <div class="body">
                     <div class="marca">{{ $p->brand }}</div>
@@ -33,8 +40,24 @@
             </a>
         @endforeach
     </div>
+
+    <div class="sg-none" style="margin:24px 0;display:none"
+         x-show="q.trim() !== '' && productos.filter(n => n.includes(q.toLowerCase().trim())).length === 0">
+        No encontramos productos con "<span x-text="q"></span>".
+        <a style="color:var(--teal-osc);font-weight:700" target="_blank"
+           href="https://wa.me/{{ config('babyconfort.whatsapp') }}?text=Hola%2C%20busco%20un%20producto">Pregúntanos por WhatsApp</a>.
+    </div>
 </main>
+</div>
 
 @include('store.partials.resenas')
 @include('store.partials.confianza')
 @endsection
+
+<style>
+    .buscador-wrap{position:relative;max-width:520px;margin:16px 0 4px}
+    .buscador{width:100%;padding:13px 40px 13px 42px;border:1px solid var(--borde);border-radius:999px;font-size:15px;background:#fff;box-shadow:0 2px 8px rgba(47,127,191,.06)}
+    .buscador:focus{outline:none;border-color:var(--azul);box-shadow:0 0 0 3px rgba(74,163,223,.15)}
+    .buscador-ic{position:absolute;left:15px;top:50%;transform:translateY(-50%);font-size:16px;opacity:.7}
+    .buscador-x{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:#eef2f6;border-radius:50%;width:26px;height:26px;cursor:pointer;color:var(--gris);font-size:13px}
+</style>
