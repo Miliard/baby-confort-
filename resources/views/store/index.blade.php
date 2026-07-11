@@ -50,14 +50,14 @@
 </main>
 </div>
 
-@include('store.partials.resenas')
-@include('store.partials.confianza')
-@endsection
-
 <style>
-    .buscador-wrap{position:relative;max-width:520px;margin:16px 0 4px}
+    .buscador-wrap{position:relative;max-width:560px;margin:16px 0 4px}
     .buscador{width:100%;padding:13px 40px 13px 42px;border:1px solid var(--borde);border-radius:999px;font-size:15px;background:#fff;box-shadow:0 2px 8px rgba(47,127,191,.06)}
     .buscador:focus{outline:none;border-color:var(--azul);box-shadow:0 0 0 3px rgba(74,163,223,.15)}
     .buscador-ic{position:absolute;left:15px;top:50%;transform:translateY(-50%);font-size:16px;opacity:.7}
     .buscador-x{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:#eef2f6;border-radius:50%;width:26px;height:26px;cursor:pointer;color:var(--gris);font-size:13px}
 </style>
+
+@include('store.partials.resenas')
+@include('store.partials.confianza')
+@endsection
