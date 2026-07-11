@@ -13,7 +13,7 @@
         <p>Pañales y calzoncitos premium, suaves y de alta absorción. Elige tu producto y haz tu pedido en minutos.</p>
         <div class="buscador-wrap">
             <span class="buscador-ic">🔍</span>
-            <input x-model="q" type="text" class="buscador" placeholder="Buscar pañales, biberones, toallitas…">
+            <input x-model="q" type="text" class="buscador" placeholder="Buscar pañales, pachas, toallitas…">
             <button class="buscador-x" x-show="q" @click="q = ''" style="display:none">✕</button>
         </div>
         <div class="pills" x-show="q.trim() === ''">

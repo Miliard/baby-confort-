@@ -2,7 +2,7 @@
     <div class="cat-cta">
         <div>
             <div class="cat-cta-t">¿Necesitas algo más para tu bebé? 🍼</div>
-            <div class="cat-cta-s">Explora todo nuestro catálogo: pañales, biberones, toallitas y más.</div>
+            <div class="cat-cta-s">Explora todo nuestro catálogo: pañales, pachas, toallitas y más.</div>
         </div>
         <a href="{{ route('store.index') }}" class="cat-cta-btn">Ver catálogo →</a>
     </div>
