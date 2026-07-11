@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script>(function(){try{if(localStorage.getItem('bc_theme')==='dark'){document.documentElement.classList.add('dark');}}catch(e){}})();</script>
     <title>@yield('title', 'Baby-Confort | Pañales y calzoncitos para bebé')</title>
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Baby-Confort">
@@ -238,6 +239,68 @@
         .pcard .img{position:relative}
         .gal-main .oferta-bubble{top:12px;left:12px;font-size:13.5px}
         .precio-antes{color:var(--gris);text-decoration:line-through;font-weight:600;margin-right:8px;font-size:.82em}
+        /* ===== Botón modo noche ===== */
+        .theme-btn{background:none;border:1px solid var(--borde);border-radius:999px;width:40px;height:40px;font-size:18px;cursor:pointer;display:grid;place-items:center;flex:none;line-height:1}
+        .theme-btn:hover{border-color:var(--azul)}
+        .theme-btn .th-sun{display:none}
+        html.dark .theme-btn .th-moon{display:none}
+        html.dark .theme-btn .th-sun{display:inline}
+        /* ===== MODO NOCHE ===== */
+        html.dark{
+            --azul:#5cb0e6;--azul-osc:#9ccff2;--azul-claro:#16273f;
+            --teal:#3cc7c0;--teal-osc:#63d8d1;
+            --coral:#ff9a90;--coral-osc:#ffb2aa;
+            --texto:#e7eef6;--gris:#9db0c2;
+            --borde:#2a3547;--ok:#43c07f;--fondo:#0e1420;
+            --sombra:0 6px 18px rgba(0,0,0,.4);
+        }
+        html.dark body{
+            background:
+                radial-gradient(1100px 620px at 12% 8%, rgba(46,74,130,.35), transparent 62%),
+                radial-gradient(1000px 700px at 88% 16%, rgba(70,52,116,.32), transparent 60%),
+                radial-gradient(900px 650px at 78% 95%, rgba(40,80,110,.22), transparent 62%),
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='130' viewBox='0 0 130 130'%3E%3Cg fill='%23ffffff' opacity='0.5'%3E%3Ccircle cx='16' cy='22' r='1.4'/%3E%3Ccircle cx='48' cy='64' r='1'/%3E%3Ccircle cx='84' cy='30' r='1.7'/%3E%3Ccircle cx='104' cy='86' r='1.1'/%3E%3Ccircle cx='30' cy='100' r='1'/%3E%3Ccircle cx='68' cy='112' r='1.3'/%3E%3Ccircle cx='116' cy='48' r='1'/%3E%3Ccircle cx='58' cy='16' r='.9'/%3E%3C/g%3E%3Cg fill='%23ffd98a' opacity='0.55'%3E%3Ccircle cx='95' cy='102' r='3.4'/%3E%3C/g%3E%3C/svg%3E"),
+                linear-gradient(180deg,#0e1420 0%,#111a2b 55%,#0e1622 100%);
+            background-attachment:fixed;
+        }
+        html.dark .hero{background:transparent !important;border-bottom:1px solid rgba(255,255,255,.08) !important}
+        html.dark .header,
+        html.dark .ham-menu,
+        html.dark .drawer-head,
+        html.dark .drawer-foot,
+        html.dark .buy-sticky{background:#121b2a;border-color:var(--borde)}
+        html.dark .footer{background:rgba(18,27,42,.85);border-color:var(--borde)}
+        html.dark .pcard,
+        html.dark .btn-carrito,
+        html.dark .ham-btn,
+        html.dark .item,
+        html.dark .qtybox button,
+        html.dark .pago-op,
+        html.dark .sg-card,
+        html.dark .sg-prod,
+        html.dark .sg-panel,
+        html.dark .sg-arrow,
+        html.dark .faq-item,
+        html.dark .gracias-card,
+        html.dark .cat-chip,
+        html.dark .pill-i,
+        html.dark .buscador,
+        html.dark .btn-linea,
+        html.dark input,
+        html.dark select,
+        html.dark textarea{background:#16202f;color:var(--texto);border-color:var(--borde)}
+        html.dark .trust,
+        html.dark .infobar{background:#182338;border:1px solid var(--borde)}
+        html.dark .warn{background:#2a1e1e;border-color:#5a3a36}
+        html.dark .faq-garantia{background:#14261c;border-color:#2f5a3f}
+        html.dark .envio-gratis-bar{background:linear-gradient(135deg,#14261c,#132339);border-color:var(--borde)}
+        html.dark .egb-track{background:#233043}
+        html.dark .buscador-x{background:#233043;color:var(--gris)}
+        html.dark .sg-wrap{background:rgba(20,30,48,.78);border-color:var(--borde)}
+        html.dark .sg-slide{background:linear-gradient(135deg,#16233a,#1e1838)}
+        html.dark .sg-dots span{background:#33405a}
+        html.dark .sg-none{background:#16202f;border-color:var(--borde)}
+        html.dark .drawer{background:var(--fondo)}
     </style>
 </head>
 <body>
@@ -255,10 +318,15 @@
                     <span class="marca">Baby-<span>Confort</span><small>Bienestar para tu bebé</small></span>
                 </a>
             </div>
-            <button class="btn-carrito" @click="$store.cart.abierto = true">
-                🛒 Carrito
-                <span class="badge" x-show="$store.cart.cantidadTotal() > 0" x-text="$store.cart.cantidadTotal()"></span>
-            </button>
+            <div style="display:flex;align-items:center;gap:10px">
+                <button class="theme-btn" onclick="bcToggleTheme()" aria-label="Cambiar modo día/noche" title="Modo día/noche">
+                    <span class="th-moon">🌙</span><span class="th-sun">☀️</span>
+                </button>
+                <button class="btn-carrito" @click="$store.cart.abierto = true">
+                    🛒 Carrito
+                    <span class="badge" x-show="$store.cart.cantidadTotal() > 0" x-text="$store.cart.cantidadTotal()"></span>
+                </button>
+            </div>
         </div>
         <div class="ham-menu" x-show="menu" x-transition @click.away="menu = false" style="display:none">
             <div class="contenedor">
@@ -375,6 +443,13 @@
     </a>
 </div>
 
+<script>
+function bcToggleTheme(){
+    var h = document.documentElement;
+    h.classList.toggle('dark');
+    try { localStorage.setItem('bc_theme', h.classList.contains('dark') ? 'dark' : 'light'); } catch(e){}
+}
+</script>
 <script>
 document.addEventListener('alpine:init', () => {
     Alpine.store('cart', {
