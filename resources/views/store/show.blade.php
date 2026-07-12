@@ -180,4 +180,13 @@
         .wa-float{bottom:82px}
     }
 </style>
+<script>
+    if (window.fbq) fbq('track', 'ViewContent', {
+        content_type: 'product',
+        content_ids: ['{{ $product->id }}'],
+        content_name: @js($product->name),
+        value: {{ number_format($product->precioDesde(), 2, '.', '') }},
+        currency: 'USD'
+    });
+</script>
 @endsection

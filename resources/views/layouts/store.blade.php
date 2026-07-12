@@ -438,7 +438,7 @@
                                 <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--teal-osc);font-weight:700;margin-bottom:8px"><span>Descuento (<span x-text="c.cupon.porcentaje"></span>%)</span><span x-text="'− ' + c.money(c.descuento())"></span></div>
                             </template>
                             <div class="total-fila"><span>Total</span><b x-text="c.money(c.totalFinal())"></b></div>
-                            <button class="btn btn-coral" @click="c.paso='datos'">Continuar con el pedido →</button>
+                            <button class="btn btn-coral" @click="c.irADatos()">Continuar con el pedido →</button>
                             <button class="btn btn-linea" style="margin-top:8px" @click="c.abierto=false">← Seguir comprando</button>
                         </div>
                     </div>
@@ -508,6 +508,7 @@ document.addEventListener('alpine:init', () => {
             if (ex) ex.cantidad += item.cantidad;
             else this.items.push({ ...item, key });
             this.save(); this.abierto = true; this.paso = 'carrito';
+            if (window.fbq) fbq('track','AddToCart',{content_type:'product',content_ids:[String(item.id)],content_name:item.nombre,value:Number((item.precio*Math.max(1,item.cantidad)).toFixed(2)),currency:'USD'});
         },
         cambiar(key,d){ const i=this.items.find(x=>x.key===key); if(!i)return; i.cantidad+=d; if(i.cantidad<=0)this.quitar(key); else this.save(); },
         quitar(key){ this.items=this.items.filter(i=>i.key!==key); this.save(); },
@@ -532,6 +533,10 @@ document.addEventListener('alpine:init', () => {
             }catch(e){ this.cuponError='No se pudo validar. Revisa tu conexión.'; this.cuponCargando=false; }
         },
         quitarCupon(){ this.cupon=null; this.cuponInput=''; this.cuponError=''; try{ localStorage.removeItem('bc_cupon'); }catch(e){} },
+        irADatos(){
+            if (window.fbq) fbq('track','InitiateCheckout',{value:Number(this.totalFinal().toFixed(2)),currency:'USD',num_items:this.cantidadTotal(),content_ids:this.items.map(i=>String(i.id))});
+            this.paso='datos';
+        },
         totalFinal(){ return Math.max(0, this.totalProductos() - this.descuento()) + this.envioEfectivo(); },
         cantidadTotal(){ return this.items.reduce((s,i)=>s+i.cantidad,0); },
         cerrar(){ this.abierto=false; this.paso='carrito'; this.error=''; },
@@ -547,7 +552,7 @@ document.addEventListener('alpine:init', () => {
                     body:JSON.stringify({...c, cupon:(this.cupon?this.cupon.codigo:null), items:this.items.map(i=>({product_id:i.id,size:i.talla,cantidad:i.cantidad}))})});
                 const data=await res.json();
                 if(!res.ok||!data.ok){ this.error=data.error||'Ocurrió un error.'; this.enviando=false; return; }
-                if(window.fbq){ fbq('track','Purchase',{value:Number(this.totalFinal().toFixed(2)),currency:'USD',num_items:this.cantidadTotal()}); }
+                if(window.fbq){ fbq('track','Purchase',{value:Number(this.totalFinal().toFixed(2)),currency:'USD',num_items:this.cantidadTotal(),content_type:'product',content_ids:this.items.map(i=>String(i.id))}); }
                 this.items=[]; this.save(); this.enviando=false;
                 this.cupon=null; this.cuponInput=''; try{ localStorage.removeItem('bc_cupon'); }catch(e){}
                 window.open(data.whatsapp_url,'_blank');
