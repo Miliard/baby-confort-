@@ -116,6 +116,8 @@ class OrderController extends Controller
             $t .= "\n\u{1F3AB} Cup\u{00F3}n {$order->cupon}: -$" . number_format($order->descuento, 2, '.', '');
         }
         $t .= "\n\u{2705} Costo de env\u{00ED}o: $" . number_format($order->shipping, 2, '.', '') . "\n\n";
+        $pago = \App\Models\Order::PAGOS[$order->payment] ?? $order->payment;
+        $t .= "\u{1F4B3} Forma de pago: {$pago}\n\n";
         $t .= "\u{1F4B0} Total a pagar: $" . number_format($order->total, 2, '.', '') . "\n\n";
         $t .= "\u{2728} \u{00A1}Gracias por tu preferencia! Tu pedido estar\u{00E1} en camino muy pronto.";
         return $t;
