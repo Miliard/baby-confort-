@@ -351,7 +351,7 @@
         <div class="ham-menu" x-show="menu" x-transition @click.away="menu = false" style="display:none">
             <div class="contenedor">
                 <a href="{{ route('store.index') }}">🏠 Todo el catálogo</a>
-                @foreach(\App\Models\Product::CATEGORIAS as $slug => $label)
+                @foreach(\App\Models\Product::categoriaLabels() as $slug => $label)
                     @if(in_array($slug, $catsMenu))
                         <a href="{{ route('store.categoria', $slug) }}">{{ $label }}</a>
                     @endif

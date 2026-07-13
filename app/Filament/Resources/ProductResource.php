@@ -25,7 +25,7 @@ class ProductResource extends Resource
                 Forms\Components\TextInput::make('name')->label('Nombre')->required()->maxLength(255),
                 Forms\Components\TextInput::make('brand')->label('Marca')->maxLength(255),
                 Forms\Components\Select::make('categoria')->label('Categoría (para el menú)')
-                    ->options(\App\Models\Product::CATEGORIAS)
+                    ->options(\App\Models\Product::categoriaLabels())
                     ->placeholder('Sin categoría')
                     ->helperText('Define en qué sección del menú ☰ aparece.'),
                 Forms\Components\Textarea::make('description')->label('Descripción corta')->rows(3)->columnSpanFull(),
@@ -95,7 +95,7 @@ class ProductResource extends Resource
                 Tables\Columns\TextColumn::make('name')->label('Nombre')->searchable()->wrap(),
                 Tables\Columns\TextColumn::make('brand')->label('Marca')->toggleable(),
                 Tables\Columns\SelectColumn::make('categoria')->label('Categoría')
-                    ->options(\App\Models\Product::CATEGORIAS)->placeholder('Sin categoría'),
+                    ->options(\App\Models\Product::categoriaLabels())->placeholder('Sin categoría'),
                 Tables\Columns\TextColumn::make('sizes_count')->counts('sizes')->label('Tallas'),
                 Tables\Columns\IconColumn::make('active')->label('Activo')->boolean(),
             ])
@@ -103,14 +103,14 @@ class ProductResource extends Resource
             ->defaultSort('orden')
             ->filters([
                 Tables\Filters\TernaryFilter::make('active')->label('Activo'),
-                Tables\Filters\SelectFilter::make('categoria')->label('Categoría')->options(\App\Models\Product::CATEGORIAS),
+                Tables\Filters\SelectFilter::make('categoria')->label('Categoría')->options(\App\Models\Product::categoriaLabels()),
             ])
             ->actions([Tables\Actions\EditAction::make(), Tables\Actions\DeleteAction::make()])
             ->bulkActions([Tables\Actions\BulkActionGroup::make([
                 Tables\Actions\BulkAction::make('setCategoria')
                     ->label('Asignar categoría')
                     ->icon('heroicon-o-tag')
-                    ->form([Forms\Components\Select::make('categoria')->label('Categoría')->options(\App\Models\Product::CATEGORIAS)->required()])
+                    ->form([Forms\Components\Select::make('categoria')->label('Categoría')->options(\App\Models\Product::categoriaLabels())->required()])
                     ->action(fn ($records, array $data) => $records->each->update(['categoria' => $data['categoria']]))
                     ->deselectRecordsAfterCompletion(),
                 Tables\Actions\DeleteBulkAction::make(),

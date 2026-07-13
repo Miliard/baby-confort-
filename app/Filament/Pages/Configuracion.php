@@ -28,6 +28,10 @@ class Configuracion extends Page implements HasForms
             'envio_tiempo' => Setting::get('envio_tiempo', '24 horas hábiles'),
             'envio_gratis_desde' => Setting::get('envio_gratis_desde', '0'),
             'fb_pixel' => Setting::get('fb_pixel', ''),
+            'cat_bebe' => Setting::get('cat_bebe', 'Para bebé'),
+            'cat_accesorios' => Setting::get('cat_accesorios', 'Accesorios para bebé'),
+            'cat_mujer' => Setting::get('cat_mujer', 'Para mujer'),
+            'cat_adulto' => Setting::get('cat_adulto', 'Para adulto'),
         ]);
     }
 
@@ -44,6 +48,15 @@ class Configuracion extends Page implements HasForms
             TextInput::make('fb_pixel')->label('ID del Píxel de Facebook')
                 ->helperText('Pega el ID (número) de tu Píxel de Meta para medir tu campaña. Déjalo vacío para desactivarlo.')
                 ->placeholder('Ej: 1234567890123456'),
+
+            \Filament\Forms\Components\Section::make('Nombres de las categorías')
+                ->description('Son los nombres que se muestran en el menú ☰ y en los botones de la portada. Cambiar el texto no afecta a los productos ya asignados.')
+                ->schema([
+                    TextInput::make('cat_bebe')->label('Categoría 1 (bebé)')->placeholder('Para bebé'),
+                    TextInput::make('cat_accesorios')->label('Categoría 2 (accesorios)')->placeholder('Accesorios para bebé'),
+                    TextInput::make('cat_mujer')->label('Categoría 3 (mujer)')->placeholder('Para mujer'),
+                    TextInput::make('cat_adulto')->label('Categoría 4 (adulto)')->placeholder('Para adulto'),
+                ])->columns(2),
         ])->statePath('data');
     }
 
@@ -54,6 +67,10 @@ class Configuracion extends Page implements HasForms
         Setting::put('envio_tiempo', $data['envio_tiempo']);
         Setting::put('envio_gratis_desde', $data['envio_gratis_desde'] ?? '0');
         Setting::put('fb_pixel', trim($data['fb_pixel'] ?? ''));
+        Setting::put('cat_bebe', trim($data['cat_bebe'] ?? '') ?: 'Para bebé');
+        Setting::put('cat_accesorios', trim($data['cat_accesorios'] ?? '') ?: 'Accesorios para bebé');
+        Setting::put('cat_mujer', trim($data['cat_mujer'] ?? '') ?: 'Para mujer');
+        Setting::put('cat_adulto', trim($data['cat_adulto'] ?? '') ?: 'Para adulto');
         Notification::make()->title('Configuración guardada')->success()->send();
     }
 }

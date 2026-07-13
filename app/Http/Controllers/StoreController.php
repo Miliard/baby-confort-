@@ -69,9 +69,8 @@ class StoreController extends Controller
 
     public function categoria($cat)
     {
-        $categorias = Product::CATEGORIAS;
-        abort_unless(array_key_exists($cat, $categorias), 404);
-        $titulo = $categorias[$cat];
+        abort_unless(array_key_exists($cat, Product::CATEGORIAS), 404);
+        $titulo = Product::categoriaLabel($cat);
         $products = Product::with('sizes')->where('active', true)->where('categoria', $cat)
             ->orderBy('orden')->orderBy('id')->get();
         return view('store.categoria', compact('products', 'titulo', 'cat'));

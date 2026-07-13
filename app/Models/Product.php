@@ -20,6 +20,24 @@ class Product extends Model
         'adulto'      => 'Para adulto',
     ];
 
+    // Nombres de categoría que se muestran (editables desde Configuración).
+    // Las claves (bebe, accesorios…) NO cambian; solo el texto visible.
+    public static function categoriaLabels(): array
+    {
+        $labels = [];
+        foreach (self::CATEGORIAS as $slug => $default) {
+            $val = Setting::get('cat_' . $slug, $default);
+            $labels[$slug] = ($val !== null && trim((string) $val) !== '') ? $val : $default;
+        }
+        return $labels;
+    }
+
+    public static function categoriaLabel(?string $slug): ?string
+    {
+        if (! $slug) return null;
+        return self::categoriaLabels()[$slug] ?? $slug;
+    }
+
     protected $casts = [
         'active'   => 'boolean',
         'gallery'  => 'array',

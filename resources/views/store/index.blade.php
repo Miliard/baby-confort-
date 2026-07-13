@@ -27,7 +27,7 @@
 @if(count($catsPortada) > 0)
 <div class="contenedor cat-chips-wrap" x-show="q.trim() === ''">
     <div class="cat-chips">
-        @foreach(\App\Models\Product::CATEGORIAS as $slug => $label)
+        @foreach(\App\Models\Product::categoriaLabels() as $slug => $label)
             @if(in_array($slug, $catsPortada))
                 <a class="cat-chip" href="{{ route('store.categoria', $slug) }}">
                     <span class="cat-chip-ic">{{ $iconosCat[$slug] ?? '🛍️' }}</span>
