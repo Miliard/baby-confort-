@@ -76,7 +76,7 @@
         </div>
 
         {{-- Info --}}
-        <div>
+        <div class="pdp-info">
             <div class="trust">
                 <div class="avs"><span>👩</span><span>🧑</span><span>👵</span></div>
                 <div><b>Confiados por 10000+ padres felices</b><br><span style="color:var(--gris)">Calidad superior para el bienestar de tu bebé</span></div>
@@ -89,7 +89,7 @@
                 $<span x-text="precio().toFixed(2)"></span> <small>USD</small>
             </div>
             <template x-if="sel().unidades">
-                <div style="display:inline-block;margin-top:6px;background:var(--azul-claro);border:1px solid var(--borde);color:var(--azul-osc);border-radius:999px;padding:5px 14px;font-size:13.5px;font-weight:700">
+                <div class="unidades-badge" style="display:inline-block;margin-top:6px;background:var(--azul-claro);border:1px solid var(--borde);color:var(--azul-osc);border-radius:999px;padding:5px 14px;font-size:13.5px;font-weight:700">
                     📦 Esta talla trae <span x-text="sel().unidades"></span> unidades
                 </div>
             </template>
@@ -110,6 +110,7 @@
 
             <div class="infobar"><span class="dot"></span> Envío en <b style="margin:0 4px">{{ $entregaTexto }}</b> · 🇸🇻 Envío rápido en SV</div>
 
+            <div class="buy-section">
             <div class="size-label">TALLA</div>
             <div class="size-pills">
                 @foreach($product->sizes as $s)
@@ -132,6 +133,7 @@
             </div>
 
             <button class="cta" @click="add()">🛒 Añadir al carrito</button>
+            </div>
 
             <div class="metarow">
                 @if($product->made_in)<div class="m">🏭 Fabricado en <b>{{ $product->made_in }}</b></div>@endif
@@ -178,6 +180,15 @@
         .buy-sticky-btn:disabled{background:var(--gris);cursor:not-allowed}
         main.contenedor{padding-bottom:82px}
         .wa-float{bottom:82px}
+        /* En móvil: subir TALLA + cantidad + botón justo debajo de la imagen */
+        .pdp-info{display:flex;flex-direction:column}
+        .pdp-info > *{order:9}
+        .pdp-info > .trust{order:1}
+        .pdp-info > h1{order:2}
+        .pdp-info > .precio{order:3}
+        .pdp-info > .unidades-badge{order:4}
+        .pdp-info > .buy-section{order:5;margin-top:10px}
+        .pdp-info > hr.sep{display:none}
     }
 </style>
 <script>
