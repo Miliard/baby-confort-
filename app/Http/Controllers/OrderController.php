@@ -83,43 +83,9 @@ class OrderController extends Controller
             'status'        => 'nuevo',
         ]);
 
-        $url = 'https://wa.me/' . config('babyconfort.whatsapp')
-             . '?text=' . rawurlencode($this->mensajeWhatsApp($order));
+        // Aviso instantáneo al negocio por Telegram (si está configurado).
+        $order->notificarTelegram();
 
-        return response()->json(['ok' => true, 'folio' => $order->id, 'whatsapp_url' => $url]);
-    }
-
-    // Formato $: quita ".00" si es entero (8.5 -> $8.50, 17 -> $17)
-    private function mny($n): string
-    {
-        $s = number_format((float) $n, 2, '.', '');
-        $s = rtrim(rtrim($s, '0'), '.');
-        return '$' . $s;
-    }
-
-    private function mensajeWhatsApp(Order $order): string
-    {
-        $t  = "\u{1F4E6} Orden de Env\u{00ED}o: \u{1F69A}\n\n";
-        $t .= "\u{2705} Nombre completo:\n{$order->customer_name}\n\n";
-        $t .= "\u{2705} Direcci\u{00F3}n exacta:\n";
-        $t .= "Municipio: {$order->municipio}\n";
-        $t .= "{$order->address}\n\n";
-        $t .= "\u{2705} Producto(s):\n";
-        foreach ($order->items as $it) {
-            $linea = "{$it['cantidad']} {$it['producto']} {$it['talla']} " . $this->mny($it['precio']);
-            if ($it['cantidad'] > 1) {
-                $linea .= " (" . $this->mny($it['subtotal']) . ")";
-            }
-            $t .= $linea . "\n";
-        }
-        if ($order->descuento > 0) {
-            $t .= "\n\u{1F3AB} Cup\u{00F3}n {$order->cupon}: -$" . number_format($order->descuento, 2, '.', '');
-        }
-        $t .= "\n\u{2705} Costo de env\u{00ED}o: $" . number_format($order->shipping, 2, '.', '') . "\n\n";
-        $pago = \App\Models\Order::PAGOS[$order->payment] ?? $order->payment;
-        $t .= "\u{1F4B3} Forma de pago: {$pago}\n\n";
-        $t .= "\u{1F4B0} Total a pagar: $" . number_format($order->total, 2, '.', '') . "\n\n";
-        $t .= "\u{2728} \u{00A1}Gracias por tu preferencia! Tu pedido estar\u{00E1} en camino muy pronto.";
-        return $t;
+        return response()->json(['ok' => true, 'folio' => $order->id, 'whatsapp_url' => $order->whatsappUrl()]);
     }
 }

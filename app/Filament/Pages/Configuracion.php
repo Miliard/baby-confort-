@@ -32,6 +32,8 @@ class Configuracion extends Page implements HasForms
             'cat_accesorios' => Setting::get('cat_accesorios', 'Accesorios para bebé'),
             'cat_mujer' => Setting::get('cat_mujer', 'Para mujer'),
             'cat_adulto' => Setting::get('cat_adulto', 'Para adulto'),
+            'telegram_token' => Setting::get('telegram_token', ''),
+            'telegram_chat' => Setting::get('telegram_chat', ''),
         ]);
     }
 
@@ -57,6 +59,17 @@ class Configuracion extends Page implements HasForms
                     TextInput::make('cat_mujer')->label('Categoría 3 (mujer)')->placeholder('Para mujer'),
                     TextInput::make('cat_adulto')->label('Categoría 4 (adulto)')->placeholder('Para adulto'),
                 ])->columns(2),
+
+            \Filament\Forms\Components\Section::make('🔔 Alerta de pedidos por Telegram')
+                ->description('Recibe un aviso instantáneo en tu Telegram cada vez que entra un pedido. Deja los campos vacíos para desactivarlo.')
+                ->schema([
+                    TextInput::make('telegram_token')->label('Token del bot')
+                        ->helperText('Te lo da @BotFather al crear tu bot. Ej: 123456789:AAG...')
+                        ->placeholder('123456789:AAG...'),
+                    TextInput::make('telegram_chat')->label('Chat ID')
+                        ->helperText('Tu ID de chat (te lo da @userinfobot). Ahí llegarán los avisos.')
+                        ->placeholder('Ej: 987654321'),
+                ])->columns(2),
         ])->statePath('data');
     }
 
@@ -71,6 +84,8 @@ class Configuracion extends Page implements HasForms
         Setting::put('cat_accesorios', trim($data['cat_accesorios'] ?? '') ?: 'Accesorios para bebé');
         Setting::put('cat_mujer', trim($data['cat_mujer'] ?? '') ?: 'Para mujer');
         Setting::put('cat_adulto', trim($data['cat_adulto'] ?? '') ?: 'Para adulto');
+        Setting::put('telegram_token', trim($data['telegram_token'] ?? ''));
+        Setting::put('telegram_chat', trim($data['telegram_chat'] ?? ''));
         Notification::make()->title('Configuración guardada')->success()->send();
     }
 }

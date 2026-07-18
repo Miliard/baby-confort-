@@ -78,4 +78,84 @@ class Order extends Model
     {
         return $this->guia ? 'https://expresselsalvador.sistrack.net/track/' . $this->guia : null;
     }
+
+    // Formato $: quita ".00" si es entero (8.5 -> $8.50, 17 -> $17)
+    private function mnyWa($n): string
+    {
+        $s = number_format((float) $n, 2, '.', '');
+        $s = rtrim(rtrim($s, '0'), '.');
+        return '$' . $s;
+    }
+
+    // Mensaje de "Orden de Envío" para WhatsApp (el que le llega al negocio).
+    public function mensajeWhatsApp(): string
+    {
+        $t  = "\u{1F4E6} Orden de Env\u{00ED}o: \u{1F69A}\n\n";
+        $t .= "\u{2705} Nombre completo:\n{$this->customer_name}\n\n";
+        $t .= "\u{2705} Direcci\u{00F3}n exacta:\n";
+        $t .= "Municipio: {$this->municipio}\n";
+        $t .= "{$this->address}\n\n";
+        $t .= "\u{2705} Producto(s):\n";
+        foreach (($this->items ?? []) as $it) {
+            $linea = "{$it['cantidad']} {$it['producto']} {$it['talla']} " . $this->mnyWa($it['precio'] ?? 0);
+            if (($it['cantidad'] ?? 1) > 1) {
+                $linea .= " (" . $this->mnyWa($it['subtotal'] ?? 0) . ")";
+            }
+            $t .= $linea . "\n";
+        }
+        if ($this->descuento > 0) {
+            $t .= "\n\u{1F3AB} Cup\u{00F3}n {$this->cupon}: -$" . number_format($this->descuento, 2, '.', '');
+        }
+        $t .= "\n\u{2705} Costo de env\u{00ED}o: $" . number_format($this->shipping, 2, '.', '') . "\n\n";
+        $pago = self::PAGOS[$this->payment] ?? $this->payment;
+        $t .= "\u{1F4B3} Forma de pago: {$pago}\n\n";
+        $t .= "\u{1F4B0} Total a pagar: $" . number_format($this->total, 2, '.', '') . "\n\n";
+        $t .= "\u{2728} \u{00A1}Gracias por tu preferencia! Tu pedido estar\u{00E1} en camino muy pronto.";
+        return $t;
+    }
+
+    public function whatsappUrl(): string
+    {
+        return 'https://wa.me/' . config('babyconfort.whatsapp') . '?text=' . rawurlencode($this->mensajeWhatsApp());
+    }
+
+    // Mensaje corto para la alerta de Telegram al negocio.
+    public function mensajeTelegram(): string
+    {
+        $lineas = collect($this->items ?? [])->map(function ($it) {
+            return "\u{2022} " . ($it['cantidad'] ?? '') . "x " . ($it['producto'] ?? '') .
+                " (" . ($it['talla'] ?? '') . ") - $" . number_format($it['subtotal'] ?? 0, 2);
+        })->implode("\n");
+
+        $pago = self::PAGOS[$this->payment] ?? $this->payment;
+        $desc = $this->descuento > 0
+            ? "\n\u{1F3AB} Cup\u{00F3}n {$this->cupon}: -$" . number_format($this->descuento, 2)
+            : '';
+
+        return "\u{1F6D2} NUEVO PEDIDO #{$this->id}\n\n"
+            . "\u{1F464} {$this->customer_name}\n"
+            . "\u{1F4DE} {$this->phone}\n"
+            . "\u{1F4CD} {$this->municipio}\n{$this->address}\n\n"
+            . "{$lineas}{$desc}\n"
+            . "\u{1F69A} Env\u{00ED}o: $" . number_format($this->shipping, 2) . "\n"
+            . "\u{1F4B3} {$pago}\n"
+            . "\u{1F4B0} TOTAL: $" . number_format($this->total, 2);
+    }
+
+    // Envía una alerta a Telegram si están configurados el token y el chat.
+    public function notificarTelegram(): void
+    {
+        $token = trim((string) Setting::get('telegram_token', ''));
+        $chat  = trim((string) Setting::get('telegram_chat', ''));
+        if ($token === '' || $chat === '') return;
+
+        try {
+            Http::timeout(6)->get("https://api.telegram.org/bot{$token}/sendMessage", [
+                'chat_id' => $chat,
+                'text'    => $this->mensajeTelegram(),
+            ]);
+        } catch (\Throwable $e) {
+            // No interrumpir el pedido si Telegram falla.
+        }
+    }
 }

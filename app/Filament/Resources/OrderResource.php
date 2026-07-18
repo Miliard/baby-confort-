@@ -71,14 +71,30 @@ class OrderResource extends Resource
                 ]),
             ])->columns(2),
 
-            Forms\Components\Placeholder::make('detalle')->label('Productos del pedido')
-                ->content(function (?Order $record) {
-                    if (! $record) return '—';
-                    return collect($record->items ?? [])->map(function ($it) {
-                        return ($it['cantidad'] ?? '?') . ' x ' . ($it['producto'] ?? '') .
-                            ' (' . ($it['talla'] ?? '') . ') — $' . number_format($it['subtotal'] ?? 0, 2);
-                    })->implode("\n") ?: '—';
-                }),
+            Forms\Components\Section::make('🛒 Lo que pidió el cliente')
+                ->schema([
+                    Forms\Components\Placeholder::make('detalle')->label('')
+                        ->content(function (?Order $record) {
+                            if (! $record) return '—';
+                            $items = collect($record->items ?? []);
+                            if ($items->isEmpty()) {
+                                return new \Illuminate\Support\HtmlString('<span style="color:#888">Sin productos registrados.</span>');
+                            }
+                            $rows = $items->map(function ($it) {
+                                $cant  = (int) ($it['cantidad'] ?? 0);
+                                $prod  = e($it['producto'] ?? '');
+                                $talla = e($it['talla'] ?? '');
+                                $sub   = number_format($it['subtotal'] ?? 0, 2);
+                                return "<tr>"
+                                    . "<td style='padding:7px 14px 7px 0;border-bottom:1px solid #eee'><b>{$cant}×</b> {$prod}</td>"
+                                    . "<td style='padding:7px 14px;border-bottom:1px solid #eee;color:#666'>Talla: <b>{$talla}</b></td>"
+                                    . "<td style='padding:7px 0;border-bottom:1px solid #eee;text-align:right;font-weight:700'>\${$sub}</td>"
+                                    . "</tr>";
+                            })->implode('');
+                            $html = "<table style='width:100%;border-collapse:collapse;font-size:14px'>{$rows}</table>";
+                            return new \Illuminate\Support\HtmlString($html);
+                        }),
+                ]),
         ]);
     }
 
@@ -90,6 +106,11 @@ class OrderResource extends Resource
                 Tables\Columns\TextColumn::make('id')->label('#')->sortable(),
                 Tables\Columns\TextColumn::make('created_at')->label('Fecha')->dateTime('d/m/Y H:i')->sortable(),
                 Tables\Columns\TextColumn::make('customer_name')->label('Cliente')->searchable(),
+                Tables\Columns\TextColumn::make('items')->label('Productos')
+                    ->formatStateUsing(fn ($state) => collect(is_array($state) ? $state : [])
+                        ->map(fn ($it) => ((int) ($it['cantidad'] ?? 0)) . '× ' . ($it['producto'] ?? '') . ' (' . ($it['talla'] ?? '') . ')')
+                        ->implode(', ') ?: '—')
+                    ->wrap()->toggleable(),
                 Tables\Columns\TextColumn::make('phone')->label('Teléfono')->searchable(),
                 Tables\Columns\TextColumn::make('municipio')->label('Municipio')->searchable(),
                 Tables\Columns\TextColumn::make('shipping')->label('Envío')->money('USD'),

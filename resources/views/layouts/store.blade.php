@@ -555,7 +555,6 @@ document.addEventListener('alpine:init', () => {
                 if(window.fbq){ fbq('track','Purchase',{value:Number(this.totalFinal().toFixed(2)),currency:'USD',num_items:this.cantidadTotal(),content_type:'product',content_ids:this.items.map(i=>String(i.id))}); }
                 this.items=[]; this.save(); this.enviando=false;
                 this.cupon=null; this.cuponInput=''; try{ localStorage.removeItem('bc_cupon'); }catch(e){}
-                window.open(data.whatsapp_url,'_blank');
                 window.location.href = '/gracias/' + data.folio;
             }catch(e){ this.error='No se pudo enviar. Revisa tu conexión.'; this.enviando=false; }
         },

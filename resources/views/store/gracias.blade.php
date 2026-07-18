@@ -1,12 +1,15 @@
 @extends('layouts.store')
-@section('title', '¡Gracias por tu pedido! | Baby-Confort')
+@section('title', '¡Casi listo! Envía tu pedido | Baby-Confort')
 
 @section('content')
 <main class="contenedor gracias-wrap">
     <div class="gracias-card">
-        <div class="gracias-check">✅</div>
-        <h1>¡Gracias por tu pedido, {{ \Illuminate\Support\Str::of($order->customer_name)->before(' ') }}! 💙</h1>
-        <p class="gracias-sub">Recibimos tu pedido <b>#{{ $order->id }}</b>. En un momento te escribimos por WhatsApp para coordinar la entrega.</p>
+        <div class="gracias-check">🎉</div>
+        <h1>¡Ya casi, {{ \Illuminate\Support\Str::of($order->customer_name)->before(' ') }}!</h1>
+        <p class="gracias-sub">Tu pedido <b>#{{ $order->id }}</b> quedó guardado. <b>Falta un paso:</b> envíanoslo por WhatsApp para confirmarlo y coordinar la entrega. 👇</p>
+
+        <a class="gracias-cta" href="{{ $waUrl }}" target="_blank" rel="noopener">📲 Enviar mi pedido por WhatsApp</a>
+        <div class="gracias-cta-hint">Toca el botón verde y luego dale <b>Enviar</b> en WhatsApp. Sin ese paso no recibimos tu pedido.</div>
 
         <div class="gracias-resumen">
             <div class="gr-titulo">Resumen de tu pedido</div>
@@ -24,15 +27,13 @@
         </div>
 
         <div class="gracias-pasos">
-            <div class="gp"><span class="gp-n">1</span> Te contactamos por WhatsApp para confirmar tu dirección y forma de pago.</div>
-            <div class="gp"><span class="gp-n">2</span> Preparamos y enviamos tu pedido (normalmente en 24 h hábiles).</div>
+            <div class="gp"><span class="gp-n">1</span> Envíanos tu pedido tocando el botón verde de arriba.</div>
+            <div class="gp"><span class="gp-n">2</span> Te confirmamos por WhatsApp y coordinamos la entrega (24 h hábiles).</div>
             <div class="gp"><span class="gp-n">3</span> Sigue tu paquete en vivo con el enlace de rastreo. 📦</div>
         </div>
 
         <div class="gracias-btns">
             <a class="gbtn gbtn-track" href="{{ route('store.rastreo', $order) }}">📦 Rastrear mi pedido</a>
-            <a class="gbtn gbtn-wa" target="_blank" rel="noopener"
-               href="https://wa.me/{{ config('babyconfort.whatsapp') }}?text={{ rawurlencode('Hola, acabo de hacer el pedido #' . $order->id) }}">💬 Escribirnos por WhatsApp</a>
             <a class="gbtn gbtn-more" href="{{ route('store.index') }}">← Seguir comprando</a>
         </div>
     </div>
@@ -42,7 +43,11 @@
     .gracias-card{background:#fff;border:1px solid var(--borde);border-radius:22px;box-shadow:var(--sombra);max-width:560px;width:100%;padding:34px 26px;text-align:center}
     .gracias-check{font-size:52px;line-height:1;margin-bottom:8px}
     .gracias-card h1{font-size:24px;margin:6px 0 10px;line-height:1.25}
-    .gracias-sub{color:var(--gris);font-size:15px;margin:0 0 22px;line-height:1.6}
+    .gracias-sub{color:var(--gris);font-size:15px;margin:0 0 18px;line-height:1.6}
+    .gracias-cta{display:block;background:#25D366;color:#fff;border-radius:14px;padding:17px;font-weight:900;font-size:17px;box-shadow:0 8px 20px rgba(37,211,102,.35);animation:ctaPulse 1.6s ease-in-out infinite}
+    .gracias-cta:hover{background:#20bd5a}
+    @keyframes ctaPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
+    .gracias-cta-hint{color:var(--gris);font-size:13px;margin:10px 0 22px;line-height:1.5}
     .gracias-resumen{background:var(--azul-claro);border-radius:14px;padding:16px 18px;text-align:left;margin-bottom:20px}
     .gr-titulo{font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-osc);margin-bottom:10px}
     .gr-linea{display:flex;justify-content:space-between;gap:12px;font-size:14.5px;padding:5px 0;color:var(--texto)}
@@ -56,7 +61,13 @@
     .gracias-btns{display:flex;flex-direction:column;gap:10px}
     .gbtn{border-radius:12px;padding:14px;font-weight:800;font-size:15px}
     .gbtn-track{background:var(--azul);color:#fff}
-    .gbtn-wa{background:#25D366;color:#fff}
     .gbtn-more{background:#fff;border:1px solid var(--borde);color:var(--texto)}
+    html.dark .gracias-card{background:#16202f;border-color:var(--borde)}
+    html.dark .gbtn-more{background:#16202f;color:var(--texto);border-color:var(--borde)}
 </style>
+<script>
+    // Intento de abrir WhatsApp automáticamente (si el navegador lo permite).
+    // Si lo bloquea, el botón verde grande queda como la forma segura de enviarlo.
+    (function(){ try { window.open(@js($waUrl), '_blank'); } catch(e){} })();
+</script>
 @endsection

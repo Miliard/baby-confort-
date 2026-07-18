@@ -104,7 +104,8 @@ class StoreController extends Controller
 
     public function gracias(\App\Models\Order $order)
     {
-        return view('store.gracias', compact('order'));
+        $waUrl = $order->whatsappUrl();
+        return view('store.gracias', compact('order', 'waUrl'));
     }
 
     public function nosotros()
