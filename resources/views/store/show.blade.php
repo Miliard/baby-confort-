@@ -3,7 +3,9 @@
 
 @section('content')
 @php
-    $fotos = $product->galleryUrls();
+    $fotos = collect($product->galleryUrls())
+        ->merge($product->sizes->map(fn ($s) => $s->imageUrl())->filter())
+        ->unique()->values()->all();
     $sizesJs = $product->sizes->map(fn ($s) => [
         'size'     => $s->size,
         'weight'   => $s->weight,
@@ -34,7 +36,7 @@
         sel(){ return this.sizes.find(s => s.size === this.talla) || {}; },
         precio(){ return this.sel().price || 0; },
         money(n){ return '$' + Number(n||0).toFixed(2); },
-        pickSize(t){ this.talla = t; const s = this.sel(); this.current = (s && s.imagen) ? s.imagen : (this.fotos[0] || ''); },
+        pickSize(t){ this.talla = t; const s = this.sel(); this.current = (s && s.imagen) ? s.imagen : (this.fotos[0] || ''); const i = this.fotos.indexOf(this.current); if (i >= 0) this.idx = i; },
         pickFoto(k){ this.idx = k; this.current = this.fotos[k]; },
         add(){
             const s = this.sel();
