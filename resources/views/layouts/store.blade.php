@@ -327,8 +327,7 @@
 <div x-data>
     {{-- Header --}}
     @php
-        $catsConProductos = \App\Models\Product::where('active', true)->whereNotNull('categoria')->distinct()->pluck('categoria')->all();
-        $menuCats = \App\Models\Categoria::where('activo', true)->whereIn('slug', $catsConProductos)->orderBy('orden')->orderBy('id')->get();
+        $catsMenu = \App\Models\Product::where('active', true)->whereNotNull('categoria')->distinct()->pluck('categoria')->all();
     @endphp
     <header class="header" x-data="{ menu: false }">
         <div class="contenedor header-inner">
@@ -352,8 +351,10 @@
         <div class="ham-menu" x-show="menu" x-transition @click.away="menu = false" style="display:none">
             <div class="contenedor">
                 <a href="{{ route('store.index') }}">🏠 Todo el catálogo</a>
-                @foreach($menuCats as $c)
-                    <a href="{{ route('store.categoria', $c->slug) }}">{{ $c->icono }} {{ $c->nombre }}</a>
+                @foreach(\App\Models\Product::categoriaLabels() as $slug => $label)
+                    @if(in_array($slug, $catsMenu))
+                        <a href="{{ route('store.categoria', $slug) }}">{{ $label }}</a>
+                    @endif
                 @endforeach
                 <a href="{{ route('store.rastreo.guia') }}">📦 Rastrea tu pedido</a>
             </div>

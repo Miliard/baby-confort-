@@ -69,7 +69,7 @@ class StoreController extends Controller
 
     public function categoria($cat)
     {
-        abort_unless(\App\Models\Categoria::where('slug', $cat)->exists(), 404);
+        abort_unless(array_key_exists($cat, Product::CATEGORIAS), 404);
         $titulo = Product::categoriaLabel($cat);
         $products = Product::with('sizes')->where('active', true)->where('categoria', $cat)
             ->orderBy('orden')->orderBy('id')->get();
