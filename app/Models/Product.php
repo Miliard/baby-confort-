@@ -20,22 +20,17 @@ class Product extends Model
         'adulto'      => 'Para adulto',
     ];
 
-    // Nombres de categoría que se muestran (editables desde Configuración).
-    // Las claves (bebe, accesorios…) NO cambian; solo el texto visible.
+    // Categorías administrables desde el panel (tabla categorias).
+    // Devuelve [slug => nombre] de TODAS las categorías (para menús del admin).
     public static function categoriaLabels(): array
     {
-        $labels = [];
-        foreach (self::CATEGORIAS as $slug => $default) {
-            $val = Setting::get('cat_' . $slug, $default);
-            $labels[$slug] = ($val !== null && trim((string) $val) !== '') ? $val : $default;
-        }
-        return $labels;
+        return Categoria::orderBy('orden')->orderBy('id')->pluck('nombre', 'slug')->all();
     }
 
     public static function categoriaLabel(?string $slug): ?string
     {
         if (! $slug) return null;
-        return self::categoriaLabels()[$slug] ?? $slug;
+        return Categoria::where('slug', $slug)->value('nombre') ?? $slug;
     }
 
     protected $casts = [
