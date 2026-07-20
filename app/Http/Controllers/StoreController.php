@@ -69,17 +69,7 @@ class StoreController extends Controller
 
     public function categoria($cat)
     {
-        // Válida si es una de las 4 por defecto o existe en la tabla de categorías.
-        $valido = array_key_exists($cat, Product::CATEGORIAS);
-        if (! $valido) {
-            try {
-                $valido = \Illuminate\Support\Facades\Schema::hasTable('categorias')
-                    && \App\Models\Categoria::where('slug', $cat)->exists();
-            } catch (\Throwable $e) {
-            }
-        }
-        abort_unless($valido, 404);
-
+        abort_unless(array_key_exists($cat, Product::CATEGORIAS), 404);
         $titulo = Product::categoriaLabel($cat);
         $products = Product::with('sizes')->where('active', true)->where('categoria', $cat)
             ->orderBy('orden')->orderBy('id')->get();

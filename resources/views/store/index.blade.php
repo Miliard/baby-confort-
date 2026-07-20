@@ -3,8 +3,8 @@
 
 @section('content')
 @php
-    $catsConProductos = \App\Models\Product::where('active', true)->whereNotNull('categoria')->distinct()->pluck('categoria')->all();
-    $chipsCats = \App\Models\Product::categoriasTienda($catsConProductos);
+    $iconosCat = ['bebe' => '👶', 'accesorios' => '🍼', 'mujer' => '🌸', 'adulto' => '🧑'];
+    $catsPortada = \App\Models\Product::where('active', true)->whereNotNull('categoria')->distinct()->pluck('categoria')->all();
 @endphp
 <div x-data="{ q: '', productos: @js($products->pluck('name')->map(fn ($n) => \Illuminate\Support\Str::lower($n))->values()) }">
 <section class="hero">
@@ -24,14 +24,16 @@
     </div>
 </section>
 
-@if($chipsCats->count() > 0)
+@if(count($catsPortada) > 0)
 <div class="contenedor cat-chips-wrap" x-show="q.trim() === ''">
     <div class="cat-chips">
-        @foreach($chipsCats as $c)
-            <a class="cat-chip" href="{{ route('store.categoria', $c->slug) }}">
-                <span class="cat-chip-ic">{{ $c->icono ?: '🛍️' }}</span>
-                <span class="cat-chip-txt">{{ $c->nombre }}</span>
-            </a>
+        @foreach(\App\Models\Product::categoriaLabels() as $slug => $label)
+            @if(in_array($slug, $catsPortada))
+                <a class="cat-chip" href="{{ route('store.categoria', $slug) }}">
+                    <span class="cat-chip-ic">{{ $iconosCat[$slug] ?? '🛍️' }}</span>
+                    <span class="cat-chip-txt">{{ $label }}</span>
+                </a>
+            @endif
         @endforeach
     </div>
 </div>
