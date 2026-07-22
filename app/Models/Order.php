@@ -79,6 +79,53 @@ class Order extends Model
         return $this->guia ? 'https://expresselsalvador.sistrack.net/track/' . $this->guia : null;
     }
 
+    // Lee el historial de actualizaciones (estado + fecha/hora) de Express. Con caché.
+    // Devuelve un arreglo de ['estado' => ..., 'desc' => ..., 'fecha' => 'd/m/Y g:i A'], del más nuevo al más viejo.
+    public static function historialDeGuia(?string $guia): array
+    {
+        if (empty($guia)) {
+            return [];
+        }
+
+        return Cache::remember('trackhist_' . $guia, 120, function () use ($guia) {
+            try {
+                $raw   = Http::timeout(8)->get('https://expresselsalvador.sistrack.net/track/' . $guia)->body();
+                $texto = preg_replace('/<[^>]+>/', ' ', $raw);
+                $texto = preg_replace('/\s+/', ' ', $texto);
+
+                $patron = '/(ENTREGADO|EN RUTA|EN CAMINO|EN TRANSITO|RECOLECTADO|EN BODEGA|CREADO|CANCELADO|DEVUELTO)\s+'
+                        . '([A-Za-zÀ-ÿ ]{2,40}?)\s+(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/u';
+
+                $eventos = [];
+                $vistos  = [];
+                if (preg_match_all($patron, $texto, $ms, PREG_SET_ORDER)) {
+                    foreach ($ms as $m) {
+                        $estado = trim($m[1]);
+                        $desc   = trim($m[2]);
+                        $iso    = "{$m[3]}-{$m[4]}-{$m[5]} {$m[6]}:{$m[7]}";
+                        $clave  = $estado . '|' . $desc . '|' . $iso;
+                        if (isset($vistos[$clave])) {
+                            continue;
+                        }
+                        $vistos[$clave] = true;
+
+                        try {
+                            $fecha = \Illuminate\Support\Carbon::parse($iso)->format('d/m/Y g:i A');
+                        } catch (\Throwable $e) {
+                            $fecha = $iso;
+                        }
+
+                        $eventos[] = ['estado' => $estado, 'desc' => $desc, 'fecha' => $fecha];
+                    }
+                }
+
+                return $eventos;
+            } catch (\Throwable $e) {
+                return [];
+            }
+        });
+    }
+
     // Formato $: quita ".00" si es entero (8.5 -> $8.50, 17 -> $17)
     private function mnyWa($n): string
     {

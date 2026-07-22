@@ -53,6 +53,8 @@
         </div>
     </div>
 
+    @include('store.partials.historial')
+
     @include('store.partials.recomendados')
 
     <div class="trk-card">

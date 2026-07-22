@@ -63,6 +63,8 @@
                 · <a href="https://expresselsalvador.sistrack.net/track/{{ $guia }}" target="_blank" rel="noopener" style="color:var(--azul-osc);font-weight:700">Detalle del courier ↗</a>
             </div>
         </div>
+
+        @include('store.partials.historial')
     @endif
 
     @include('store.partials.recomendados')

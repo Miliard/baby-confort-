@@ -89,14 +89,16 @@ class StoreController extends Controller
     public function rastreo(\App\Models\Order $order)
     {
         $etapa = $order->etapaEnvio();
-        return view('store.rastreo', compact('order', 'etapa'));
+        $historial = \App\Models\Order::historialDeGuia($order->guia);
+        return view('store.rastreo', compact('order', 'etapa', 'historial'));
     }
 
     public function rastreoGuia(\Illuminate\Http\Request $request)
     {
         $guia  = trim((string) $request->query('guia', ''));
         $etapa = $guia ? \App\Models\Order::etapaDeGuia($guia) : null;
-        return view('store.rastreo-guia', compact('guia', 'etapa'));
+        $historial = $guia ? \App\Models\Order::historialDeGuia($guia) : [];
+        return view('store.rastreo-guia', compact('guia', 'etapa', 'historial'));
     }
 
     public function validarCupon(\Illuminate\Http\Request $request)
