@@ -65,6 +65,15 @@ class OrderController extends Controller
             $cupon->increment('usos');
         }
 
+        // Revendedor: NO cambia el precio del cliente; solo etiqueta el pedido y calcula la comisión.
+        $revCodigo = null;
+        $comision  = 0;
+        $rev = \App\Models\Revendedor::buscarActivo($request->input('revendedor'));
+        if ($rev) {
+            $revCodigo = $rev->codigo;
+            $comision  = round($subtotal * ($rev->porcentaje / 100), 2);
+        }
+
         $shipping = Setting::envioPara($subtotal);
         $total    = max(0, $subtotal - $descuento) + $shipping;
 
@@ -79,6 +88,8 @@ class OrderController extends Controller
             'total'         => round($total, 2),
             'cupon'         => $cuponCodigo,
             'descuento'     => $descuento,
+            'revendedor'    => $revCodigo,
+            'comision'      => $comision,
             'items'         => $items,
             'status'        => 'nuevo',
         ]);

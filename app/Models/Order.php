@@ -11,7 +11,7 @@ class Order extends Model
     protected $fillable = [
         'customer_name', 'phone', 'address', 'municipio',
         'payment', 'subtotal', 'shipping', 'total', 'items', 'status',
-        'guia', 'estado_envio', 'cupon', 'descuento',
+        'guia', 'estado_envio', 'cupon', 'descuento', 'revendedor', 'comision',
     ];
 
     protected $casts = [
@@ -20,6 +20,7 @@ class Order extends Model
         'shipping'  => 'decimal:2',
         'total'     => 'decimal:2',
         'descuento' => 'decimal:2',
+        'comision'  => 'decimal:2',
     ];
 
     public const PAGOS = [

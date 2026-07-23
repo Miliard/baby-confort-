@@ -456,6 +456,7 @@
                                 </template>
                             </div></div>
                             <template x-if="c.cliente.payment==='link'"><div class="aviso">Te enviaremos el link de pago por WhatsApp al confirmar. 💳</div></template>
+                            <div class="campo"><label>Código de vendedor <span style="color:var(--gris);font-weight:400">(opcional)</span></label><input x-model="c.cliente.revendedor" placeholder="Si alguien te atendió, escribe su código" style="text-transform:uppercase"></div>
                             <template x-if="c.error"><div class="error" x-text="c.error"></div></template>
                         </div></div>
                         <div class="drawer-foot">
@@ -496,7 +497,7 @@ document.addEventListener('alpine:init', () => {
         abierto: false, paso: 'carrito', enviando: false, error: '',
         cupon: JSON.parse(localStorage.getItem('bc_cupon') || 'null'), cuponInput: '', cuponError: '', cuponCargando: false,
         pagos: { transferencia:'Transferencia bancaria', efectivo:'Efectivo (contra entrega)', link:'Link de pago' },
-        cliente: { customer_name:'', phone:'', municipio:'', address:'', payment:'transferencia' },
+        cliente: { customer_name:'', phone:'', municipio:'', address:'', payment:'transferencia', revendedor:'' },
 
         save(){ localStorage.setItem('bc_cart', JSON.stringify(this.items)); },
         money(n){ return '$' + Number(n||0).toFixed(2); },

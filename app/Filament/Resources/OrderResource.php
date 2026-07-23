@@ -44,6 +44,8 @@ class OrderResource extends Resource
                 Forms\Components\TextInput::make('descuento')->label('Descuento')->prefix('$')->disabled(),
                 Forms\Components\TextInput::make('shipping')->label('Envío')->prefix('$')->disabled(),
                 Forms\Components\TextInput::make('total')->label('Total')->prefix('$')->disabled(),
+                Forms\Components\TextInput::make('revendedor')->label('Revendedor (código)')->disabled()->placeholder('Venta directa'),
+                Forms\Components\TextInput::make('comision')->label('Comisión a pagar')->prefix('$')->disabled(),
             ])->columns(2),
 
             Forms\Components\Section::make('Envío y seguimiento')->schema([
