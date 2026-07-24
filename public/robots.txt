@@ -1,2 +1,7 @@
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /admin
+Disallow: /gracias
+Disallow: /rastreo
+
+Sitemap: https://www.baby-confort.shop/sitemap.xml

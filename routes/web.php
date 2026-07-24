@@ -30,6 +30,9 @@ Route::get('/nosotros', [StoreController::class, 'nosotros'])->name('store.nosot
 Route::get('/devoluciones', [StoreController::class, 'devoluciones'])->name('store.devoluciones');
 Route::get('/privacidad', [StoreController::class, 'privacidad'])->name('store.privacidad');
 
+// Mapa del sitio para buscadores (SEO)
+Route::get('/sitemap.xml', [StoreController::class, 'sitemap'])->name('store.sitemap');
+
 // Valida un cupón (devuelve el % de descuento si es válido)
 Route::get('/cupon/validar', [StoreController::class, 'validarCupon'])->name('store.cupon');
 

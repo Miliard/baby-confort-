@@ -101,6 +101,37 @@ class StoreController extends Controller
         return view('store.rastreo-guia', compact('guia', 'etapa', 'historial'));
     }
 
+    public function sitemap()
+    {
+        $urls = [
+            url('/'),
+            route('store.rastreo.guia'),
+            route('store.nosotros'),
+            route('store.devoluciones'),
+            route('store.privacidad'),
+        ];
+
+        try {
+            foreach (\App\Models\Categoria::where('activo', true)->get() as $c) {
+                $urls[] = route('store.categoria', $c->slug);
+            }
+        } catch (\Throwable $e) {
+        }
+
+        foreach (Product::where('active', true)->orderBy('id')->get() as $p) {
+            $urls[] = route('store.show', $p);
+        }
+
+        $xml  = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+        foreach (array_unique($urls) as $u) {
+            $xml .= '  <url><loc>' . htmlspecialchars($u, ENT_XML1) . '</loc></url>' . "\n";
+        }
+        $xml .= '</urlset>';
+
+        return response($xml, 200)->header('Content-Type', 'application/xml');
+    }
+
     public function validarCupon(\Illuminate\Http\Request $request)
     {
         $cupon = \App\Models\Cupon::buscarActivo($request->query('codigo'));

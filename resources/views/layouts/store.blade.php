@@ -5,15 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <script>(function(){try{if(localStorage.getItem('bc_theme')==='dark'){document.documentElement.classList.add('dark');}}catch(e){}})();</script>
-    <title>@yield('title', 'Baby-Confort | Pañales y calzoncitos para bebé')</title>
+    <title>@yield('title', 'Baby-Confort | Pañales Aiwibi antialérgicos en El Salvador')</title>
+    <link rel="canonical" href="{{ url()->current() }}">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Baby-Confort">
-    <meta property="og:title" content="@yield('og_title', 'Catálogo Baby-Confort 👶')">
-    <meta property="og:description" content="@yield('og_desc', 'Pañales premium e hipoalergénicos y productos para tu bebé. Alta absorción y entrega en El Salvador. Pide fácil por WhatsApp.')">
+    <meta property="og:title" content="@yield('og_title', 'Pañales Aiwibi antialérgicos | Baby-Confort El Salvador 👶')">
+    <meta property="og:description" content="@yield('og_desc', 'Pañales y calzoncitos Aiwibi antialérgicos, alta absorción y protección de noche. Entrega en todo El Salvador. Pide fácil por WhatsApp.')">
     <meta property="og:image" content="{{ request()->schemeAndHttpHost() }}/@yield('og_image', 'og-image.png')">
     <meta property="og:url" content="{{ request()->url() }}">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="description" content="Catálogo Baby-Confort: pañales premium e hipoalergénicos para tu bebé. Entrega en El Salvador, pide por WhatsApp.">
+    <meta name="description" content="@yield('meta_desc', 'Pañales Aiwibi antialérgicos en El Salvador: alta absorción, hipoalergénicos y protección de noche. Calzoncitos, pañales de bebé y talla especial. Pide por WhatsApp con entrega a domicilio.')">
+    <meta name="keywords" content="@yield('meta_keywords', 'pañales Aiwibi, pañales antialérgicos, pañales El Salvador, calzoncitos Aiwibi, pañales de noche, pañales hipoalergénicos, pañales de bebé, talla especial')">
     <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32.png') }}">
     <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('favicon-192.png') }}">

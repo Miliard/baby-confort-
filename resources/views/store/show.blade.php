@@ -1,7 +1,30 @@
 @extends('layouts.store')
-@section('title', $product->name . ' | Baby-Confort')
+@section('title', $product->name . ' | Baby-Confort El Salvador')
+@section('meta_desc', \Illuminate\Support\Str::limit(strip_tags($product->description ?? ($product->name . ' Aiwibi en El Salvador. Pide por WhatsApp.')), 155))
+@section('og_title', $product->name . ' — Baby-Confort')
+@section('og_desc', \Illuminate\Support\Str::limit(strip_tags($product->description ?? ''), 200))
 
 @section('content')
+@php
+    $seoImg = $product->imageUrl();
+    $seoImgAbs = $seoImg ? (\Illuminate\Support\Str::startsWith($seoImg, 'http') ? $seoImg : url($seoImg)) : url('/og-image.png');
+    $ldProducto = [
+        '@context'    => 'https://schema.org',
+        '@type'       => 'Product',
+        'name'        => $product->name,
+        'image'       => $seoImgAbs,
+        'description' => \Illuminate\Support\Str::limit(strip_tags($product->description ?? ''), 300),
+        'brand'       => ['@type' => 'Brand', 'name' => $product->brand ?: 'Aiwibi'],
+        'offers'      => [
+            '@type'         => 'Offer',
+            'priceCurrency' => 'USD',
+            'price'         => number_format($product->precioDesde(), 2, '.', ''),
+            'availability'  => 'https://schema.org/InStock',
+            'url'           => url()->current(),
+        ],
+    ];
+@endphp
+<script type="application/ld+json">{!! json_encode($ldProducto, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}</script>
 @php
     $fotos = collect($product->galleryUrls())
         ->merge($product->sizes->map(fn ($s) => $s->imageUrl())->filter())
