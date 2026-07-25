@@ -11,11 +11,22 @@
     <meta property="og:site_name" content="Baby-Confort">
     <meta property="og:title" content="@yield('og_title', 'Pañales Aiwibi antialérgicos | Baby-Confort El Salvador 👶')">
     <meta property="og:description" content="@yield('og_desc', 'Pañales y calzoncitos Aiwibi antialérgicos, alta absorción y protección de noche. Entrega en todo El Salvador. Pide fácil por WhatsApp.')">
-    <meta property="og:image" content="{{ request()->schemeAndHttpHost() }}/@yield('og_image', 'og-image.png')">
+    <meta property="og:image" content="@yield('og_image_abs', request()->schemeAndHttpHost() . '/' . trim(\Illuminate\Support\Facades\View::yieldContent('og_image', 'og-image.png'), '/'))">
     <meta property="og:url" content="{{ request()->url() }}">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="description" content="@yield('meta_desc', 'Pañales Aiwibi antialérgicos en El Salvador: alta absorción, hipoalergénicos y protección de noche. Calzoncitos, pañales de bebé y talla especial. Pide por WhatsApp con entrega a domicilio.')">
     <meta name="keywords" content="@yield('meta_keywords', 'pañales Aiwibi, pañales antialérgicos, pañales El Salvador, calzoncitos Aiwibi, pañales de noche, pañales hipoalergénicos, pañales de bebé, talla especial')">
+    {{-- Datos estructurados del negocio (ayuda a Google a mostrar la tienda con nombre y logo) --}}
+    <script type="application/ld+json">{!! json_encode([
+        '@context' => 'https://schema.org',
+        '@type'    => 'OnlineStore',
+        'name'     => 'Baby-Confort',
+        'url'      => url('/'),
+        'logo'     => asset('favicon-192.png'),
+        'image'    => asset('og-image.png'),
+        'areaServed' => 'SV',
+        'sameAs'   => [],
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}</script>
     <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32.png') }}">
     <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('favicon-192.png') }}">
@@ -248,6 +259,7 @@
         .sg-prod .d{font-size:12.5px;color:var(--gris);margin-top:2px}
         .sg-prod .go{margin-left:auto;color:var(--teal-osc);font-weight:800;font-size:13px;white-space:nowrap}
         .sg-none{font-size:13.5px;color:var(--gris);background:#f8fbff;border:1px dashed var(--borde);border-radius:10px;padding:10px}
+        .agotado-chip{position:absolute;top:10px;left:10px;z-index:3;background:#6b7c8c;color:#fff;font-weight:800;font-size:12px;padding:6px 12px;border-radius:999px;letter-spacing:.3px}
         .oferta-bubble{position:absolute;top:10px;left:10px;z-index:3;background:linear-gradient(135deg,#ff8a80,#e5695f);color:#fff;font-weight:800;font-size:12.5px;padding:7px 13px;border-radius:999px;box-shadow:0 4px 12px rgba(229,105,95,.45);transform:rotate(-7deg);letter-spacing:.3px}
         .pcard .img{position:relative}
         .gal-main .oferta-bubble{top:12px;left:12px;font-size:13.5px}
@@ -547,6 +559,7 @@ document.addEventListener('alpine:init', () => {
             this.error='';
             const c=this.cliente;
             if(!c.customer_name.trim()||!c.phone.trim()||!c.municipio.trim()||!c.address.trim()){ this.error='Completa todos los campos obligatorios (*).'; return; }
+            if((c.phone.match(/\d/g)||[]).length < 8){ this.error='Revisa tu teléfono: debe tener al menos 8 dígitos para poder contactarte.'; return; }
             this.enviando=true;
             try{
                 const token=document.querySelector('meta[name="csrf-token"]').content;

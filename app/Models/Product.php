@@ -101,7 +101,8 @@ class Product extends Model
     public function galleryUrls(): array
     {
         $urls = [];
-        if ($this->image) $urls[] = $this->imageUrl();
+        // Bug corregido: si solo hay foto subida (image_upload) sin link, también cuenta como principal.
+        if ($this->image || $this->image_upload) $urls[] = $this->imageUrl();
         foreach (($this->gallery ?? []) as $g) {
             $u = static::urlDe($g);
             if ($u) $urls[] = $u;

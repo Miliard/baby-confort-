@@ -1,12 +1,18 @@
 @extends('layouts.store')
-@section('title', 'Baby-Confort | Tienda')
+@section('title', 'Baby-Confort | Pañales Aiwibi antialérgicos en El Salvador')
 
 @section('content')
 @php
     $catsConProductos = \App\Models\Product::where('active', true)->whereNotNull('categoria')->distinct()->pluck('categoria')->all();
     $chipsCats = \App\Models\Product::categoriasTienda($catsConProductos);
 @endphp
-<div x-data="{ q: '', productos: @js($products->pluck('name')->map(fn ($n) => \Illuminate\Support\Str::lower($n))->values()) }">
+@php
+    // Índice de búsqueda: nombre + marca + inicio de la descripción (para encontrar "toallitas", "premium", etc.)
+    $indiceBusqueda = $products->map(fn ($p) => \Illuminate\Support\Str::lower(
+        $p->name . ' ' . ($p->brand ?? '') . ' ' . \Illuminate\Support\Str::limit(strip_tags($p->description ?? ''), 160, '')
+    ))->values();
+@endphp
+<div x-data="{ q: '', productos: @js($indiceBusqueda) }">
 <section class="hero">
     <div class="contenedor">
         <h1>Todo para el confort de tu bebé 👶</h1>
@@ -46,13 +52,14 @@
     <div class="grid">
         @foreach ($products as $p)
             <a class="pcard" href="{{ route('store.show', $p) }}"
-               x-show="q.trim() === '' || @js(\Illuminate\Support\Str::lower($p->name)).includes(q.toLowerCase().trim())">
-                <div class="img">@if($p->oferta)<span class="oferta-bubble">{{ $p->oferta }}</span>@endif<img src="{{ $p->imageUrl() }}" alt="{{ $p->name }}" loading="lazy"></div>
+               x-show="q.trim() === '' || @js($indiceBusqueda[$loop->index]).includes(q.toLowerCase().trim())">
+                @php $sinStock = $p->sizes->isNotEmpty() && ! $p->sizes->contains(fn ($s) => (int) $s->quantity > 0); @endphp
+                <div class="img">@if($p->oferta && ! $sinStock)<span class="oferta-bubble">{{ $p->oferta }}</span>@endif @if($sinStock)<span class="agotado-chip">Agotado</span>@endif<img src="{{ $p->imageUrl() }}" alt="{{ $p->name }}" loading="lazy" @if($sinStock) style="filter:grayscale(.7);opacity:.7" @endif></div>
                 <div class="body">
                     <div class="marca">{{ $p->brand }}</div>
                     <div class="nom">{{ $p->name }}</div>
                     <div class="precio">desde ${{ number_format($p->precioDesde(), 2) }}</div>
-                    <div class="ver">Ver producto →</div>
+                    <div class="ver">{{ $sinStock ? 'Ver detalles' : 'Ver producto →' }}</div>
                 </div>
             </a>
         @endforeach

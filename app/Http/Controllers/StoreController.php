@@ -103,29 +103,32 @@ class StoreController extends Controller
 
     public function sitemap()
     {
+        // [url => lastmod|null] — lastmod ayuda a Google a saber qué re-visitar.
         $urls = [
-            url('/'),
-            route('store.rastreo.guia'),
-            route('store.nosotros'),
-            route('store.devoluciones'),
-            route('store.privacidad'),
+            url('/')                     => null,
+            route('store.rastreo.guia')  => null,
+            route('store.nosotros')      => null,
+            route('store.devoluciones')  => null,
+            route('store.privacidad')    => null,
         ];
 
         try {
             foreach (\App\Models\Categoria::where('activo', true)->get() as $c) {
-                $urls[] = route('store.categoria', $c->slug);
+                $urls[route('store.categoria', $c->slug)] = optional($c->updated_at)->toDateString();
             }
         } catch (\Throwable $e) {
         }
 
         foreach (Product::where('active', true)->orderBy('id')->get() as $p) {
-            $urls[] = route('store.show', $p);
+            $urls[route('store.show', $p)] = optional($p->updated_at)->toDateString();
         }
 
         $xml  = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
         $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
-        foreach (array_unique($urls) as $u) {
-            $xml .= '  <url><loc>' . htmlspecialchars($u, ENT_XML1) . '</loc></url>' . "\n";
+        foreach ($urls as $u => $lastmod) {
+            $xml .= '  <url><loc>' . htmlspecialchars($u, ENT_XML1) . '</loc>'
+                 . ($lastmod ? '<lastmod>' . $lastmod . '</lastmod>' : '')
+                 . '</url>' . "\n";
         }
         $xml .= '</urlset>';
 

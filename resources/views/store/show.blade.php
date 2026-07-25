@@ -3,11 +3,19 @@
 @section('meta_desc', \Illuminate\Support\Str::limit(strip_tags($product->description ?? ($product->name . ' Aiwibi en El Salvador. Pide por WhatsApp.')), 155))
 @section('og_title', $product->name . ' — Baby-Confort')
 @section('og_desc', \Illuminate\Support\Str::limit(strip_tags($product->description ?? ''), 200))
+@php
+    $seoImgTmp = $product->imageUrl();
+    $ogImgAbs = $seoImgTmp ? (\Illuminate\Support\Str::startsWith($seoImgTmp, 'http') ? $seoImgTmp : url($seoImgTmp)) : url('/og-image.png');
+@endphp
+@section('og_image_abs', $ogImgAbs)
 
 @section('content')
 @php
     $seoImg = $product->imageUrl();
     $seoImgAbs = $seoImg ? (\Illuminate\Support\Str::startsWith($seoImg, 'http') ? $seoImg : url($seoImg)) : url('/og-image.png');
+    $hayStock  = $product->sizes->contains(fn ($s) => (int) $s->quantity > 0);
+    $precioMin = (float) ($product->sizes->min('price') ?? 0);
+    $precioMax = (float) ($product->sizes->max('price') ?? 0);
     $ldProducto = [
         '@context'    => 'https://schema.org',
         '@type'       => 'Product',
@@ -16,15 +24,25 @@
         'description' => \Illuminate\Support\Str::limit(strip_tags($product->description ?? ''), 300),
         'brand'       => ['@type' => 'Brand', 'name' => $product->brand ?: 'Aiwibi'],
         'offers'      => [
-            '@type'         => 'Offer',
+            '@type'         => 'AggregateOffer',
             'priceCurrency' => 'USD',
-            'price'         => number_format($product->precioDesde(), 2, '.', ''),
-            'availability'  => 'https://schema.org/InStock',
+            'lowPrice'      => number_format($precioMin, 2, '.', ''),
+            'highPrice'     => number_format($precioMax, 2, '.', ''),
+            'offerCount'    => $product->sizes->count(),
+            'availability'  => $hayStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
             'url'           => url()->current(),
         ],
     ];
+    // Migas de pan para Google (Inicio → Categoría → Producto)
+    $migas = [['@type' => 'ListItem', 'position' => 1, 'name' => 'Inicio', 'item' => url('/')]];
+    if ($product->categoria) {
+        $migas[] = ['@type' => 'ListItem', 'position' => 2, 'name' => \App\Models\Product::categoriaLabel($product->categoria), 'item' => route('store.categoria', $product->categoria)];
+    }
+    $migas[] = ['@type' => 'ListItem', 'position' => count($migas) + 1, 'name' => $product->name, 'item' => url()->current()];
+    $ldMigas = ['@context' => 'https://schema.org', '@type' => 'BreadcrumbList', 'itemListElement' => $migas];
 @endphp
 <script type="application/ld+json">{!! json_encode($ldProducto, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}</script>
+<script type="application/ld+json">{!! json_encode($ldMigas, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}</script>
 @php
     $fotos = collect($product->galleryUrls())
         ->merge($product->sizes->map(fn ($s) => $s->imageUrl())->filter())
@@ -164,6 +182,13 @@
                     <span style="font-size:12.5px;color:var(--coral-osc);font-weight:700">🎉 Combo <span x-text="sel().combo.cantidad"></span> x <span x-text="money(sel().combo.precio)"></span></span>
                 </template>
             </div>
+
+            {{-- Urgencia real: solo aparece cuando la talla elegida tiene 5 unidades o menos --}}
+            <template x-if="(sel().quantity||0) > 0 && (sel().quantity||0) <= 5">
+                <div style="margin-top:12px;display:flex;align-items:center;gap:8px;background:#fff5f2;border:1px solid #f3c6c0;border-radius:10px;padding:9px 12px;font-size:13.5px;font-weight:700;color:var(--coral-osc)">
+                    🔥 ¡Quedan pocas unidades de esta talla! Pide hoy para asegurar la tuya.
+                </div>
+            </template>
 
             <button class="cta" @click="add()">🛒 Añadir al carrito</button>
             </div>

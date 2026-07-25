@@ -1,5 +1,7 @@
 @extends('layouts.store')
-@section('title', 'Talla ' . $talla . ' | Baby-Confort')
+@section('title', 'Pañales ' . $titulo . ' | Baby-Confort El Salvador')
+@section('meta_desc', 'Todos los pañales y calzoncitos Aiwibi disponibles en ' . $titulo . '. Alta absorción, hipoalergénicos y entrega a domicilio en El Salvador.')
+@section('og_title', 'Colección ' . $titulo . ' — Baby-Confort')
 
 @section('content')
 <section class="hero">

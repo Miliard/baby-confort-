@@ -33,8 +33,12 @@ Route::get('/privacidad', [StoreController::class, 'privacidad'])->name('store.p
 // Mapa del sitio para buscadores (SEO)
 Route::get('/sitemap.xml', [StoreController::class, 'sitemap'])->name('store.sitemap');
 
-// Valida un cupón (devuelve el % de descuento si es válido)
-Route::get('/cupon/validar', [StoreController::class, 'validarCupon'])->name('store.cupon');
+// Valida un cupón (devuelve el % de descuento si es válido).
+// throttle: máx. 30 intentos por minuto por IP (evita adivinar códigos por fuerza bruta).
+Route::get('/cupon/validar', [StoreController::class, 'validarCupon'])
+    ->middleware('throttle:30,1')->name('store.cupon');
 
-// Recibe el pedido del carrito (JSON) y devuelve el link de WhatsApp
-Route::post('/pedido', [OrderController::class, 'store'])->name('order.store');
+// Recibe el pedido del carrito (JSON) y devuelve el link de WhatsApp.
+// throttle: máx. 10 pedidos por minuto por IP (evita pedidos basura automatizados).
+Route::post('/pedido', [OrderController::class, 'store'])
+    ->middleware('throttle:10,1')->name('order.store');

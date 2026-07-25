@@ -17,10 +17,10 @@ class OrderController extends Controller
             'address'            => ['required', 'string', 'max:1000'],
             'municipio'          => ['required', 'string', 'max:255'],
             'payment'            => ['required', 'in:transferencia,efectivo,link'],
-            'items'              => ['required', 'array', 'min:1'],
+            'items'              => ['required', 'array', 'min:1', 'max:50'],
             'items.*.product_id' => ['required', 'integer'],
-            'items.*.size'       => ['required', 'string'],
-            'items.*.cantidad'   => ['required', 'integer', 'min:1'],
+            'items.*.size'       => ['required', 'string', 'max:100'],
+            'items.*.cantidad'   => ['required', 'integer', 'min:1', 'max:999'],
         ], [], [
             'customer_name' => 'nombre',
             'phone'         => 'teléfono',
@@ -37,6 +37,14 @@ class OrderController extends Controller
 
             $size = $product->sizes->firstWhere('size', $line['size']);
             if (! $size) continue;
+
+            // No se aceptan tallas agotadas (el stock se valida siempre en el servidor).
+            if ((int) $size->quantity <= 0) {
+                return response()->json([
+                    'ok'    => false,
+                    'error' => "La talla {$size->size} de {$product->name} está agotada. Quítala del carrito para continuar.",
+                ], 422);
+            }
 
             $cantidad = (int) $line['cantidad'];
             $lineTotal = $size->subtotalPara($cantidad);
