@@ -46,6 +46,7 @@
                         'unidades' => $s->unidades ? (int) $s->unidades : null,
                         'combo'    => $s->combo_qty ? ['cantidad' => (int) $s->combo_qty, 'precio' => (float) $s->combo_price] : null,
                         'url'      => $urlProd,
+                        'imagen'   => $img,
                     ];
                 @endphp
                 <div class="pcard" x-data="{ cantidad: 1 }" style="cursor:default" :class="sel[@js($selKey)] ? 'pcard-sel' : ''">
@@ -136,17 +137,39 @@ function bcBloqueProducto(d){
     return t;
 }
 
-function bcEnviar(t){
-    if (navigator.share) {
-        navigator.share({ text: t }).catch(function(){});
-    } else {
-        window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank');
+// Envía el mensaje. En teléfonos intenta adjuntar las FOTOS REALES de los productos
+// (además copia el texto al portapapeles por si WhatsApp no lo pega como descripción).
+// Si no se puede (computadora, o la foto no lo permite), comparte el texto con el link
+// y WhatsApp muestra la foto del producto en la vista previa del link.
+async function bcEnviar(t, imagenes){
+    if (imagenes && imagenes.length && navigator.canShare) {
+        try {
+            const files = [];
+            for (const u of imagenes.slice(0, 10)) {
+                const res = await fetch(u);
+                if (!res.ok) throw new Error('img');
+                const blob = await res.blob();
+                const ext = ((blob.type || '').split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+                files.push(new File([blob], 'baby-confort-' + (files.length + 1) + '.' + ext, { type: blob.type || 'image/jpeg' }));
+            }
+            if (files.length && navigator.canShare({ files: files })) {
+                try { await navigator.clipboard.writeText(t); } catch(e) {}
+                await navigator.share({ files: files, text: t, title: 'Baby-Confort' });
+                return;
+            }
+        } catch(e) { /* foto bloqueada o red lenta: seguimos con el texto */ }
     }
+    if (navigator.share) {
+        try { await navigator.share({ text: t }); return; } catch(e) {}
+    }
+    const w = window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank');
+    if (!w) location.href = 'https://wa.me/?text=' + encodeURIComponent(t);
 }
 
 // Compartir UN producto
 function bcCompartir(d){
-    bcEnviar('🍼 ' + bcBloqueProducto(d) + '\n🚚 Entrega a domicilio en todo El Salvador');
+    bcEnviar('🍼 ' + bcBloqueProducto(d) + '\n🚚 Entrega a domicilio en todo El Salvador',
+        d.imagen ? [d.imagen] : []);
 }
 
 // Compartir VARIOS productos en un solo mensaje
@@ -157,7 +180,7 @@ function bcCompartirVarios(items){
         t += (i + 1) + ') ' + bcBloqueProducto(d) + '\n\n';
     });
     t += '🚚 Entrega a domicilio en todo El Salvador. ¡Pide el tuyo!';
-    bcEnviar(t);
+    bcEnviar(t, items.map(function(d){ return d.imagen; }).filter(Boolean));
 }
 </script>
 @endsection
