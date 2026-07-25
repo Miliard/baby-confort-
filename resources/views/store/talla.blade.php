@@ -108,9 +108,6 @@
 </main>
 
 <style>
-    .btn-compartir{margin-top:8px;width:100%;border:1px solid #25D366;background:#f0fbf4;color:#1a9e4b;border-radius:10px;padding:9px;font-weight:700;font-size:13.5px;cursor:pointer;transition:background .1s}
-    .btn-compartir:hover{background:#e0f7e9}
-    html.dark .btn-compartir{background:#14261c;border-color:#2f5a3f;color:#63d891}
     .btn-elegir{flex:none;border:1px solid var(--borde);background:#fff;color:var(--texto);border-radius:10px;padding:9px 12px;font-weight:700;font-size:13.5px;cursor:pointer;transition:all .1s;white-space:nowrap}
     .btn-elegir:hover{border-color:var(--azul)}
     .btn-elegir.on{border-color:var(--teal);background:#e9f8f7;color:var(--teal-osc)}
@@ -137,75 +134,6 @@
     html.dark .sel-limpiar{background:#233043}
 </style>
 
-<script>
-// Comparte el producto con todos sus datos. En el teléfono abre el menú de compartir
-// (eliges WhatsApp y el contacto); en computadora abre WhatsApp con el mensaje listo.
-// Si el link de la página trae ?rev=CODIGO (código de vendedora), se agrega al link
-// compartido para que la comisión quede registrada al pedido del cliente.
-function bcUrlConRev(url){
-    try {
-        const rev = new URLSearchParams(location.search).get('rev') || localStorage.getItem('bc_rev');
-        if (rev) url += (url.includes('?') ? '&' : '?') + 'rev=' + encodeURIComponent(rev.toUpperCase());
-    } catch(e) {}
-    return url;
-}
-
-// Bloque de texto de UN producto (se usa solo y en la lista de varios)
-function bcBloqueProducto(d){
-    let t = '*' + d.nombre + '* — Talla ' + d.talla + '\n';
-    t += '💵 $' + Number(d.precio).toFixed(2);
-    if (d.antes) t += ' (antes $' + Number(d.antes).toFixed(2) + ')';
-    if (d.unidades) t += ' · 📦 ' + d.unidades + ' unidades';
-    t += '\n';
-    if (d.combo) t += '🎉 Combo: ' + d.combo.cantidad + ' x $' + Number(d.combo.precio).toFixed(2) + '\n';
-    t += '👉 ' + bcUrlConRev(d.url);
-    return t;
-}
-
-// Envía el mensaje. En teléfonos intenta adjuntar las FOTOS REALES de los productos
-// (además copia el texto al portapapeles por si WhatsApp no lo pega como descripción).
-// Si no se puede (computadora, o la foto no lo permite), comparte el texto con el link
-// y WhatsApp muestra la foto del producto en la vista previa del link.
-async function bcEnviar(t, imagenes){
-    if (imagenes && imagenes.length && navigator.canShare) {
-        try {
-            const files = [];
-            for (const u of imagenes.slice(0, 10)) {
-                const res = await fetch(u);
-                if (!res.ok) throw new Error('img');
-                const blob = await res.blob();
-                const ext = ((blob.type || '').split('/')[1] || 'jpg').replace('jpeg', 'jpg');
-                files.push(new File([blob], 'baby-confort-' + (files.length + 1) + '.' + ext, { type: blob.type || 'image/jpeg' }));
-            }
-            if (files.length && navigator.canShare({ files: files })) {
-                try { await navigator.clipboard.writeText(t); } catch(e) {}
-                await navigator.share({ files: files, text: t, title: 'Baby-Confort' });
-                return;
-            }
-        } catch(e) { /* foto bloqueada o red lenta: seguimos con el texto */ }
-    }
-    if (navigator.share) {
-        try { await navigator.share({ text: t }); return; } catch(e) {}
-    }
-    const w = window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank');
-    if (!w) location.href = 'https://wa.me/?text=' + encodeURIComponent(t);
-}
-
-// Compartir UN producto
-function bcCompartir(d){
-    bcEnviar('🍼 ' + bcBloqueProducto(d) + '\n🚚 Entrega a domicilio en todo El Salvador',
-        d.imagen ? [d.imagen] : []);
-}
-
-// Compartir VARIOS productos en un solo mensaje
-function bcCompartirVarios(items){
-    if (!items.length) return;
-    let t = '🍼 ¡Mira estos productos de Baby-Confort!\n\n';
-    items.forEach(function(d, i){
-        t += (i + 1) + ') ' + bcBloqueProducto(d) + '\n\n';
-    });
-    t += '🚚 Entrega a domicilio en todo El Salvador. ¡Pide el tuyo!';
-    bcEnviar(t, items.map(function(d){ return d.imagen; }).filter(Boolean));
-}
-</script>
+{{-- Las funciones de compartir (bcCompartir, bcCompartirVarios) viven en el layout,
+     disponibles en toda la tienda. --}}
 @endsection

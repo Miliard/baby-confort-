@@ -191,6 +191,18 @@
             </template>
 
             <button class="cta" @click="add()">🛒 Añadir al carrito</button>
+
+            {{-- Compartir este producto (con la talla elegida) por WhatsApp --}}
+            <button class="btn-compartir" @click="bcCompartir({
+                nombre:   @js($product->name),
+                talla:    talla || (sel().size || ''),
+                precio:   sel().price || 0,
+                antes:    (sel().antes && sel().antes > sel().price) ? sel().antes : null,
+                unidades: sel().unidades || null,
+                combo:    sel().combo || null,
+                url:      @js(route('store.show', $product)) + (talla ? '?t=' + encodeURIComponent(talla) : ''),
+                imagen:   current || (fotos[0] || null),
+            })">📤 Compartir por WhatsApp</button>
             </div>
 
             <div class="metarow">
