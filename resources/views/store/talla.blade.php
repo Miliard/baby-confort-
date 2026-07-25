@@ -20,10 +20,12 @@
 
 <main class="contenedor" x-data="{
     sel: {},
+    panel: false,
+    enviados: {},
     selCount(){ return Object.keys(this.sel).length },
-    toggleSel(k, d){ if (this.sel[k]) delete this.sel[k]; else this.sel[k] = d },
-    limpiarSel(){ this.sel = {} },
-    compartirSel(){ bcCompartirVarios(Object.values(this.sel)) },
+    toggleSel(k, d){ if (this.sel[k]) delete this.sel[k]; else this.sel[k] = d; if (this.selCount() === 0) this.panel = false },
+    limpiarSel(){ this.sel = {}; this.enviados = {}; this.panel = false },
+    compartirSel(){ bcCompartirVarios(Object.values(this.sel)); this.panel = false },
 }">
     @if(count($items) === 0)
         <div class="sg-none" style="margin:24px 0">Por ahora no hay productos en {{ $titulo }}.
@@ -84,11 +86,24 @@
         </div>
     @endif
 
-    {{-- Barra flotante: aparece al elegir 1 o más productos para compartirlos juntos --}}
+    {{-- Panel: elegir cómo compartir (todo junto o cada producto con su foto y su link) --}}
+    <div class="sel-panel" x-show="panel && selCount() > 0" x-transition @click.away="panel = false" style="display:none">
+        <div class="sel-panel-h">¿Cómo quieres enviarlos?</div>
+        <button class="sel-op" @click="compartirSel()">🧾 Todo en un solo mensaje <small>(las fotos van juntas)</small></button>
+        <div class="sel-panel-sub">O envía cada producto con su foto y su link:</div>
+        <template x-for="(d, k) in sel" :key="k">
+            <button class="sel-op sel-op-item" :class="enviados[k] ? 'ok' : ''"
+                @click="bcCompartir(d); enviados[k] = true">
+                <span x-text="(enviados[k] ? '✅' : '📤') + ' ' + d.nombre + ' — Talla ' + d.talla"></span>
+            </button>
+        </template>
+    </div>
+
+    {{-- Barra flotante: aparece al elegir 1 o más productos para compartirlos --}}
     <div class="sel-bar" x-show="selCount() > 0" x-transition style="display:none">
         <button class="sel-limpiar" @click="limpiarSel()" title="Quitar selección">✕</button>
         <span class="sel-txt"><b x-text="selCount()"></b> <span x-text="selCount() === 1 ? 'producto elegido' : 'productos elegidos'"></span></span>
-        <button class="sel-compartir" @click="compartirSel()">📤 Compartir todos</button>
+        <button class="sel-compartir" @click="selCount() === 1 ? compartirSel() : panel = !panel">📤 Compartir</button>
     </div>
 </main>
 
@@ -106,6 +121,16 @@
     .sel-compartir{border:none;background:#25D366;color:#fff;border-radius:999px;padding:10px 16px;font-weight:800;font-size:14px;cursor:pointer;flex:none}
     .sel-compartir:hover{background:#1fb457}
     @media(max-width:600px){.sel-bar{bottom:12px;font-size:13px;gap:8px}}
+    .sel-panel{position:fixed;left:50%;transform:translateX(-50%);bottom:80px;z-index:81;background:#fff;border:1px solid var(--borde);border-radius:16px;padding:14px;box-shadow:0 14px 40px rgba(20,40,60,.3);width:min(360px, calc(100vw - 24px));max-height:60vh;overflow-y:auto}
+    .sel-panel-h{font-weight:800;font-size:14.5px;margin-bottom:10px}
+    .sel-panel-sub{font-size:12.5px;color:var(--gris);margin:12px 0 8px}
+    .sel-op{display:block;width:100%;text-align:left;border:1px solid var(--borde);background:#f8fbff;border-radius:10px;padding:10px 12px;font-weight:700;font-size:13.5px;cursor:pointer;color:var(--texto);margin-bottom:6px}
+    .sel-op:hover{border-color:var(--azul)}
+    .sel-op small{color:var(--gris);font-weight:600}
+    .sel-op-item.ok{background:#eef8f2;border-color:#bfe6cf;color:var(--teal-osc)}
+    html.dark .sel-panel{background:#121b2a;border-color:var(--borde)}
+    html.dark .sel-op{background:#16202f;border-color:var(--borde);color:var(--texto)}
+    html.dark .sel-op-item.ok{background:#14261c;border-color:#2f5a3f}
     html.dark .btn-elegir{background:#16202f;border-color:var(--borde);color:var(--texto)}
     html.dark .btn-elegir.on{background:#14261c;border-color:var(--teal);color:var(--teal-osc)}
     html.dark .sel-bar{background:#121b2a;border-color:var(--borde)}
