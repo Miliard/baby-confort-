@@ -511,7 +511,14 @@ document.addEventListener('alpine:init', () => {
         abierto: false, paso: 'carrito', enviando: false, error: '',
         cupon: JSON.parse(localStorage.getItem('bc_cupon') || 'null'), cuponInput: '', cuponError: '', cuponCargando: false,
         pagos: { transferencia:'Transferencia bancaria', efectivo:'Efectivo (contra entrega)', link:'Link de pago' },
-        cliente: { customer_name:'', phone:'', municipio:'', address:'', payment:'transferencia', revendedor:'' },
+        // Si el cliente llegó por un link con ?rev=CODIGO (compartido por una vendedora),
+        // el código se guarda y se rellena solo en el checkout para registrar su comisión.
+        cliente: { customer_name:'', phone:'', municipio:'', address:'', payment:'transferencia',
+            revendedor: (function(){ try {
+                const r = new URLSearchParams(location.search).get('rev');
+                if (r) localStorage.setItem('bc_rev', r.toUpperCase());
+                return localStorage.getItem('bc_rev') || '';
+            } catch(e) { return ''; } })() },
 
         save(){ localStorage.setItem('bc_cart', JSON.stringify(this.items)); },
         money(n){ return '$' + Number(n||0).toFixed(2); },

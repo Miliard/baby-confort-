@@ -53,10 +53,56 @@
                                 Agregar 🛒
                             </button>
                         </div>
+                        {{-- Compartir con un cliente por WhatsApp (ideal para vendedoras) --}}
+                        <button class="btn-compartir"
+                            @click="bcCompartir(@js([
+                                'nombre'   => $p->name,
+                                'talla'    => $s->size,
+                                'precio'   => (float) $s->price,
+                                'antes'    => ($s->price_before && $s->price_before > $s->price) ? (float) $s->price_before : null,
+                                'unidades' => $s->unidades ? (int) $s->unidades : null,
+                                'combo'    => $s->combo_qty ? ['cantidad' => (int) $s->combo_qty, 'precio' => (float) $s->combo_price] : null,
+                                'url'      => $urlProd,
+                            ]))">
+                            📤 Compartir por WhatsApp
+                        </button>
                     </div>
                 </div>
             @endforeach
         </div>
     @endif
 </main>
+
+<style>
+    .btn-compartir{margin-top:8px;width:100%;border:1px solid #25D366;background:#f0fbf4;color:#1a9e4b;border-radius:10px;padding:9px;font-weight:700;font-size:13.5px;cursor:pointer;transition:background .1s}
+    .btn-compartir:hover{background:#e0f7e9}
+    html.dark .btn-compartir{background:#14261c;border-color:#2f5a3f;color:#63d891}
+</style>
+
+<script>
+// Comparte el producto con todos sus datos. En el teléfono abre el menú de compartir
+// (eliges WhatsApp y el contacto); en computadora abre WhatsApp con el mensaje listo.
+// Si el link de la página trae ?rev=CODIGO (código de vendedora), se agrega al link
+// compartido para que la comisión quede registrada al pedido del cliente.
+function bcCompartir(d){
+    let url = d.url;
+    try {
+        const rev = new URLSearchParams(location.search).get('rev') || localStorage.getItem('bc_rev');
+        if (rev) url += (url.includes('?') ? '&' : '?') + 'rev=' + encodeURIComponent(rev.toUpperCase());
+    } catch(e) {}
+    let t = '🍼 ' + d.nombre + ' — Talla ' + d.talla + '\n';
+    t += '💵 Precio: $' + Number(d.precio).toFixed(2);
+    if (d.antes) t += ' (antes $' + Number(d.antes).toFixed(2) + ')';
+    t += '\n';
+    if (d.unidades) t += '📦 Trae ' + d.unidades + ' unidades\n';
+    if (d.combo) t += '🎉 Combo: ' + d.combo.cantidad + ' x $' + Number(d.combo.precio).toFixed(2) + '\n';
+    t += '🚚 Entrega a domicilio en todo El Salvador\n';
+    t += '👉 Pídelo aquí: ' + url;
+    if (navigator.share) {
+        navigator.share({ text: t }).catch(function(){});
+    } else {
+        window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank');
+    }
+}
+</script>
 @endsection
