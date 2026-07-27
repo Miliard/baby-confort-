@@ -78,8 +78,8 @@
                             </button>
                         </div>
                         {{-- Compartir con un cliente por WhatsApp (ideal para vendedoras) --}}
-                        <div style="display:flex;gap:8px;margin-top:8px">
-                            <button class="btn-compartir" style="margin-top:0;flex:1" @click="bcCompartir(@js($shareData))">📤 Compartir</button>
+                        <div class="share-row">
+                            <button class="btn-compartir" @click="bcCompartir(@js($shareData))">📤 Compartir</button>
                             <button class="btn-elegir" :class="sel[@js($selKey)] ? 'on' : ''"
                                 @click="toggleSel(@js($selKey), @js($shareData))">
                                 <span x-text="sel[@js($selKey)] ? '✅ Elegido' : '➕ Elegir'"></span>
@@ -117,6 +117,18 @@
 </main>
 
 <style>
+    /* Fila Compartir + Elegir: nunca se desborda de la tarjeta (2 columnas en teléfono) */
+    .share-row{display:flex;gap:8px;margin-top:8px}
+    .share-row .btn-compartir{margin-top:0;flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .share-row .btn-elegir{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    @media(max-width:600px){
+        .share-row{gap:6px}
+        .share-row .btn-compartir,.share-row .btn-elegir{font-size:12px;padding:8px 4px}
+        /* Controles de cantidad más compactos para que la fila no se desborde */
+        .pcard .qtybox{gap:5px}
+        .pcard .qtybox button{width:24px;height:24px;font-size:14px}
+        .pcard .btn{font-size:13px;padding:10px 8px}
+    }
     .btn-elegir{flex:none;border:1px solid var(--borde);background:#fff;color:var(--texto);border-radius:10px;padding:9px 12px;font-weight:700;font-size:13.5px;cursor:pointer;transition:all .1s;white-space:nowrap}
     .btn-elegir:hover{border-color:var(--azul)}
     .btn-elegir.on{border-color:var(--teal);background:#e9f8f7;color:var(--teal-osc)}

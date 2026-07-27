@@ -89,7 +89,7 @@
         .pcard{background:#fff;border:1px solid var(--borde);border-radius:var(--radio);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--sombra);transition:transform .08s, box-shadow .08s}
         .pcard:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(47,127,191,.16)}
         .pcard .img{background:var(--azul-claro);aspect-ratio:1/1;display:grid;place-items:center;padding:14px}
-        .pcard .img img{max-height:100%;object-fit:contain}
+        .pcard .img img{width:100%;height:100%;max-height:100%;object-fit:contain}
         .pcard .body{padding:16px;display:flex;flex-direction:column;gap:6px;flex:1}
         .pcard .marca{font-size:12px;color:var(--gris);text-transform:uppercase;letter-spacing:.5px}
         .pcard .nom{font-size:16px;font-weight:700;line-height:1.25;flex:1}
