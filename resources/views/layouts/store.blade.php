@@ -555,15 +555,20 @@ function bcCompartir(d){
         d.imagen ? [d.imagen] : []);
 }
 
-// Compartir VARIOS productos en un solo mensaje
-function bcCompartirVarios(items){
-    if (!items.length) return;
+// Texto completo de VARIOS productos (lista numerada con todos los detalles)
+function bcTextoVarios(items){
     let t = '🍼 ¡Mira estos productos de Baby-Confort!\n\n';
     items.forEach(function(d, i){
         t += (i + 1) + ') ' + bcBloqueProducto(d) + '\n\n';
     });
     t += '🚚 Entrega a domicilio en todo El Salvador. ¡Pide el tuyo!';
-    bcEnviar(t, items.map(function(d){ return d.imagen; }).filter(Boolean));
+    return t;
+}
+
+// Compartir VARIOS productos en un solo mensaje
+function bcCompartirVarios(items){
+    if (!items.length) return;
+    bcEnviar(bcTextoVarios(items), items.map(function(d){ return d.imagen; }).filter(Boolean));
 }
 
 function bcToggleTheme(){

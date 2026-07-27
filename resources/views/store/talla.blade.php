@@ -22,10 +22,15 @@
     sel: {},
     panel: false,
     enviados: {},
+    copiado: false,
     selCount(){ return Object.keys(this.sel).length },
     toggleSel(k, d){ if (this.sel[k]) delete this.sel[k]; else this.sel[k] = d; if (this.selCount() === 0) this.panel = false },
     limpiarSel(){ this.sel = {}; this.enviados = {}; this.panel = false },
     compartirSel(){ bcCompartirVarios(Object.values(this.sel)); this.panel = false },
+    copiarSel(){
+        const t = bcTextoVarios(Object.values(this.sel));
+        navigator.clipboard.writeText(t).then(() => { this.copiado = true; setTimeout(() => this.copiado = false, 2500); });
+    },
 }">
     @if(count($items) === 0)
         <div class="sg-none" style="margin:24px 0">Por ahora no hay productos en {{ $titulo }}.
@@ -90,6 +95,10 @@
     <div class="sel-panel" x-show="panel && selCount() > 0" x-transition @click.away="panel = false" style="display:none">
         <div class="sel-panel-h">¿Cómo quieres enviarlos?</div>
         <button class="sel-op" @click="compartirSel()">🧾 Todo en un solo mensaje <small>(las fotos van juntas)</small></button>
+        <button class="sel-op" :class="copiado ? 'ok' : ''" @click="copiarSel()">
+            <span x-text="copiado ? '✅ ¡Copiado! Pégalo en el chat de WhatsApp' : '📋 Copiar mensaje con todo'"></span>
+            <small x-show="!copiado">(ideal en computadora, para mandarlo a varios clientes)</small>
+        </button>
         <div class="sel-panel-sub">O envía cada producto con su foto y su link:</div>
         <template x-for="(d, k) in sel" :key="k">
             <button class="sel-op sel-op-item" :class="enviados[k] ? 'ok' : ''"
@@ -124,10 +133,10 @@
     .sel-op{display:block;width:100%;text-align:left;border:1px solid var(--borde);background:#f8fbff;border-radius:10px;padding:10px 12px;font-weight:700;font-size:13.5px;cursor:pointer;color:var(--texto);margin-bottom:6px}
     .sel-op:hover{border-color:var(--azul)}
     .sel-op small{color:var(--gris);font-weight:600}
-    .sel-op-item.ok{background:#eef8f2;border-color:#bfe6cf;color:var(--teal-osc)}
+    .sel-op.ok{background:#eef8f2;border-color:#bfe6cf;color:var(--teal-osc)}
     html.dark .sel-panel{background:#121b2a;border-color:var(--borde)}
     html.dark .sel-op{background:#16202f;border-color:var(--borde);color:var(--texto)}
-    html.dark .sel-op-item.ok{background:#14261c;border-color:#2f5a3f}
+    html.dark .sel-op.ok{background:#14261c;border-color:#2f5a3f}
     html.dark .btn-elegir{background:#16202f;border-color:var(--borde);color:var(--texto)}
     html.dark .btn-elegir.on{background:#14261c;border-color:var(--teal);color:var(--teal-osc)}
     html.dark .sel-bar{background:#121b2a;border-color:var(--borde)}
