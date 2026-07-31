@@ -26,6 +26,27 @@ class OrderResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
+            // Pegar la "Orden de envío" de WhatsApp: llena los campos automáticamente.
+            Forms\Components\Section::make('⚡ Pegar orden de WhatsApp')
+                ->description('Pega aquí el texto de la "Orden de envío" tal como te llega y los campos de abajo se llenan solos. Solo te queda escribir el teléfono del cliente.')
+                ->visible(fn (string $operation) => $operation === 'create')
+                ->collapsible()
+                ->schema([
+                    Forms\Components\Textarea::make('pegar_orden')->label('')
+                        ->rows(7)
+                        ->placeholder("Orden de envío:🚚\n✅Nombre completo:\nBianca pimentel\n✅Dirección:\nFinal de la 85 avenida norte...\n✅producto:\n4 paquetes de niño de 8 a 15 años \$30\n✅envío:\$2.50\n💰total: \$32.50")
+                        ->dehydrated(false)
+                        ->live(debounce: 700)
+                        ->afterStateUpdated(function ($state, \Filament\Forms\Set $set) {
+                            $r = \App\Services\OrdenWhatsappParser::parsear((string) $state);
+                            if ($r['nombre'])    $set('customer_name', $r['nombre']);
+                            if ($r['direccion']) $set('address', $r['direccion']);
+                            if ($r['municipio']) $set('municipio', $r['municipio']);
+                            if ($r['items'])     $set('items', $r['items']);
+                            if ($r['envio'] !== null) $set('shipping', $r['envio']);
+                        }),
+                ]),
+
             Forms\Components\Section::make('Cliente')->schema([
                 Forms\Components\TextInput::make('customer_name')->label('Nombre')
                     ->disabled(fn (string $operation) => $operation === 'edit')
@@ -59,6 +80,8 @@ class OrderResource extends Resource
                             Forms\Components\TextInput::make('cantidad')->label('Cantidad')->numeric()->default(1)->required()->minValue(1),
                             Forms\Components\TextInput::make('precio')->label('Precio c/u')->numeric()->prefix('$')->required(),
                         ])->columns(4)->defaultItems(1)->addActionLabel('Agregar producto')->columnSpanFull(),
+                    Forms\Components\TextInput::make('shipping')->label('Envío ($)')->numeric()->prefix('$')
+                        ->helperText('Déjalo vacío para calcularlo automático según tu configuración.'),
                 ]),
 
             Forms\Components\Section::make('Estado y montos')

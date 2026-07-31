@@ -29,7 +29,11 @@ class CreateOrder extends CreateRecord
         })->values()->all();
 
         $subtotal = round(collect($items)->sum('subtotal'), 2);
-        $shipping = Setting::envioPara($subtotal);
+
+        // Si escribió (o pegó) un envío, se respeta; si no, se calcula automático.
+        $shipping = ($data['shipping'] ?? '') !== '' && $data['shipping'] !== null
+            ? (float) $data['shipping']
+            : Setting::envioPara($subtotal);
 
         $data['items']    = $items;
         $data['subtotal'] = $subtotal;

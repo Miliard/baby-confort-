@@ -67,7 +67,8 @@ class SistrackService
             // 1) Crear el destinatario con los datos del cliente.
             $rd = Http::withToken($token)->acceptJson()->timeout(20)
                 ->post("{$base}/api/recipient/create", [
-                    'name'           => $order->customer_name,
+                    // Convención del negocio: el cliente se registra empezando por su teléfono.
+                    'name'           => trim(preg_replace('/\D/', '', (string) $order->phone) . ' ' . $order->customer_name),
                     'telephone'      => $tel,
                     'email'          => 'clientes@baby-confort.shop',
                     'id_number'      => '00000000',
