@@ -27,14 +27,43 @@ class OrderResource extends Resource
     {
         return $form->schema([
             Forms\Components\Section::make('Cliente')->schema([
-                Forms\Components\TextInput::make('customer_name')->label('Nombre')->disabled(),
-                Forms\Components\TextInput::make('phone')->label('Teléfono')->disabled(),
-                Forms\Components\TextInput::make('municipio')->label('Municipio')->disabled(),
-                Forms\Components\Textarea::make('address')->label('Dirección')->disabled()->columnSpanFull(),
-                Forms\Components\TextInput::make('payment')->label('Forma de pago')->disabled(),
+                Forms\Components\TextInput::make('customer_name')->label('Nombre')
+                    ->disabled(fn (string $operation) => $operation === 'edit')
+                    ->required()->placeholder('Ej: Lupe de López'),
+                Forms\Components\TextInput::make('phone')->label('Teléfono')
+                    ->disabled(fn (string $operation) => $operation === 'edit')
+                    ->required()->placeholder('Ej: 7777-7777'),
+                Forms\Components\TextInput::make('municipio')->label('Municipio')
+                    ->disabled(fn (string $operation) => $operation === 'edit')
+                    ->required()->placeholder('Ej: San Vicente, San Vicente'),
+                Forms\Components\Textarea::make('address')->label('Dirección')
+                    ->disabled(fn (string $operation) => $operation === 'edit')
+                    ->required()->columnSpanFull()->placeholder('Colonia, calle, casa, referencia'),
+                Forms\Components\Select::make('payment')->label('Forma de pago')
+                    ->options(Order::PAGOS)->default('efectivo')->required()
+                    ->visible(fn (string $operation) => $operation === 'create'),
+                Forms\Components\TextInput::make('payment')->label('Forma de pago')->disabled()
+                    ->visible(fn (string $operation) => $operation === 'edit'),
             ])->columns(2),
 
-            Forms\Components\Section::make('Estado y montos')->schema([
+            // Productos del pedido (solo al registrar un pedido manual, ej. de WhatsApp)
+            Forms\Components\Section::make('🛒 Productos del pedido')
+                ->description('Escribe lo que pidió el cliente. El subtotal, envío y total se calculan solos al guardar.')
+                ->visible(fn (string $operation) => $operation === 'create')
+                ->schema([
+                    Forms\Components\Repeater::make('items')->label('Productos')
+                        ->schema([
+                            Forms\Components\TextInput::make('producto')->label('Producto')->required()
+                                ->placeholder('Ej: Calzoncito Magic'),
+                            Forms\Components\TextInput::make('talla')->label('Talla')->placeholder('Ej: M'),
+                            Forms\Components\TextInput::make('cantidad')->label('Cantidad')->numeric()->default(1)->required()->minValue(1),
+                            Forms\Components\TextInput::make('precio')->label('Precio c/u')->numeric()->prefix('$')->required(),
+                        ])->columns(4)->defaultItems(1)->addActionLabel('Agregar producto')->columnSpanFull(),
+                ]),
+
+            Forms\Components\Section::make('Estado y montos')
+                ->visible(fn (string $operation) => $operation === 'edit')
+                ->schema([
                 Forms\Components\Select::make('status')->label('Estado')->options([
                     'nuevo' => 'Nuevo', 'contactado' => 'Contactado',
                     'entregado' => 'Entregado', 'cancelado' => 'Cancelado',
@@ -48,7 +77,31 @@ class OrderResource extends Resource
                 Forms\Components\TextInput::make('comision')->label('Comisión a pagar')->prefix('$')->disabled(),
             ])->columns(2),
 
-            Forms\Components\Section::make('Envío y seguimiento')->schema([
+            Forms\Components\Section::make('Envío y seguimiento')
+                ->visible(fn (string $operation) => $operation === 'edit')
+                ->schema([
+                Forms\Components\Actions::make([
+                    Forms\Components\Actions\Action::make('crear_guia_form')
+                        ->label('⚡ Crear guía en Express (automático)')
+                        ->color('warning')
+                        ->visible(fn (?Order $record) => $record && empty($record->guia) && \App\Services\SistrackService::configurado())
+                        ->form(fn (?Order $record) => [
+                            Forms\Components\Textarea::make('descripcion')->label('Descripción del paquete')->rows(2)->required()
+                                ->default($record ? \App\Services\SistrackService::descripcionDe($record) : ''),
+                            Forms\Components\TextInput::make('cobrar')->label('Monto a cobrar al entregar (COD)')->numeric()->prefix('$')
+                                ->default($record && $record->payment === 'efectivo' ? (string) $record->total : '0')
+                                ->helperText('Pon 0 si ya está pagado (transferencia o link).'),
+                        ])
+                        ->action(function (?Order $record, array $data) {
+                            if (! $record) return;
+                            $res = app(\App\Services\SistrackService::class)->crearGuia($record, $data['descripcion'], (float) $data['cobrar']);
+                            if ($res['ok']) {
+                                \Filament\Notifications\Notification::make()->title('✅ Guía creada: ' . $res['guia'])->success()->send();
+                            } else {
+                                \Filament\Notifications\Notification::make()->title('No se pudo crear la guía')->body($res['error'])->danger()->send();
+                            }
+                        }),
+                ])->columnSpanFull(),
                 Forms\Components\TextInput::make('guia')->label('Número de guía (Express)')
                     ->helperText('Pega la guía que te da Express. La barra de seguimiento se actualiza sola leyendo su estado.')
                     ->placeholder('Ej: 5009506'),
@@ -127,6 +180,28 @@ class OrderResource extends Resource
                 ]),
             ])
             ->actions([
+                Tables\Actions\Action::make('crear_guia')
+                    ->label('⚡ Crear guía')->icon('heroicon-o-bolt')->color('warning')
+                    ->visible(fn (Order $record) => empty($record->guia) && \App\Services\SistrackService::configurado())
+                    ->form(fn (Order $record) => [
+                        Forms\Components\Textarea::make('descripcion')->label('Descripción del paquete')->rows(2)->required()
+                            ->default(\App\Services\SistrackService::descripcionDe($record)),
+                        Forms\Components\TextInput::make('cobrar')->label('Monto a cobrar al entregar (COD)')->numeric()->prefix('$')
+                            ->default($record->payment === 'efectivo' ? (string) $record->total : '0')
+                            ->helperText('Pon 0 si ya está pagado (transferencia o link).'),
+                    ])
+                    ->modalHeading('Crear guía en Express El Salvador')
+                    ->modalDescription(fn (Order $record) => "Se creará la guía para {$record->customer_name} · {$record->municipio}")
+                    ->modalSubmitActionLabel('Crear guía')
+                    ->action(function (Order $record, array $data) {
+                        $res = app(\App\Services\SistrackService::class)->crearGuia($record, $data['descripcion'], (float) $data['cobrar']);
+                        if ($res['ok']) {
+                            \Filament\Notifications\Notification::make()->title('✅ Guía creada: ' . $res['guia'])
+                                ->body('Ya puedes enviarle el seguimiento al cliente.')->success()->send();
+                        } else {
+                            \Filament\Notifications\Notification::make()->title('No se pudo crear la guía')->body($res['error'])->danger()->send();
+                        }
+                    }),
                 Tables\Actions\Action::make('guia')
                     ->label('Guía')->icon('heroicon-o-truck')->color('info')
                     ->form([
@@ -158,8 +233,9 @@ class OrderResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListOrders::route('/'),
-            'edit'  => Pages\EditOrder::route('/{record}/edit'),
+            'index'  => Pages\ListOrders::route('/'),
+            'create' => Pages\CreateOrder::route('/create'),
+            'edit'   => Pages\EditOrder::route('/{record}/edit'),
         ];
     }
 }
