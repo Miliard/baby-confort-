@@ -5,6 +5,13 @@
 @section('og_desc', \Illuminate\Support\Str::limit(strip_tags($product->description ?? ''), 200))
 @php
     $seoImgTmp = $product->imageUrl();
+    // Si el link trae ?t=talla y esa talla tiene su propia foto, la vista previa
+    // de WhatsApp/Facebook muestra la foto de ESA talla (no la principal).
+    $tShare = request('t');
+    if ($tShare) {
+        $sShare = $product->sizes->first(fn ($s) => \Illuminate\Support\Str::slug($s->size) === \Illuminate\Support\Str::slug($tShare));
+        if ($sShare && $sShare->imageUrl()) $seoImgTmp = $sShare->imageUrl();
+    }
     $ogImgAbs = $seoImgTmp ? (\Illuminate\Support\Str::startsWith($seoImgTmp, 'http') ? $seoImgTmp : url($seoImgTmp)) : url('/og-image.png');
 @endphp
 @section('og_image_abs', $ogImgAbs)
