@@ -202,6 +202,23 @@ class OrderResource extends Resource
                     'nuevo' => 'Nuevo', 'contactado' => 'Contactado', 'entregado' => 'Entregado', 'cancelado' => 'Cancelado',
                 ]),
             ])
+            ->bulkActions([
+                Tables\Actions\BulkAction::make('exportar_sistrack')
+                    ->label('📤 Exportar Excel para Sistrack')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('info')
+                    ->action(function (\Illuminate\Database\Eloquent\Collection $records) {
+                        $nombre = 'sistrack_' . now()->format('Y-m-d_Hi') . '.xlsx';
+                        $path = storage_path('app/' . $nombre);
+                        \App\Services\SistrackExcel::generar($records, $path);
+                        \Filament\Notifications\Notification::make()
+                            ->title('Excel generado con ' . $records->count() . ' pedido(s)')
+                            ->body('Súbelo en Sistrack → Importar órdenes. Cada fila lleva "Pedido #N" en observaciones para identificar la guía.')
+                            ->success()->send();
+                        return response()->download($path, $nombre)->deleteFileAfterSend();
+                    })
+                    ->deselectRecordsAfterCompletion(),
+            ])
             ->actions([
                 Tables\Actions\Action::make('crear_guia')
                     ->label('⚡ Crear guía')->icon('heroicon-o-bolt')->color('warning')
