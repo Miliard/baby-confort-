@@ -21,6 +21,23 @@ use OpenSpout\Writer\XLSX\Writer;
  */
 class SistrackExcel
 {
+    /**
+     * Nombre para Sistrack: teléfono primero en formato "7777 7777" y luego el
+     * nombre del cliente, para poder buscarlo por número. Ej: "7777 7777 Juan Pérez".
+     */
+    public static function nombreConTelefono(?string $telefono, ?string $nombre): string
+    {
+        $d = preg_replace('/\D/', '', (string) $telefono);
+        // Quita el código de país si viene incluido (503).
+        if (strlen($d) === 11 && str_starts_with($d, '503')) {
+            $d = substr($d, 3);
+        }
+        // Formato salvadoreño: 4 dígitos, espacio, 4 dígitos.
+        $tel = strlen($d) === 8 ? substr($d, 0, 4) . ' ' . substr($d, 4) : $d;
+
+        return trim($tel . ' ' . trim((string) $nombre));
+    }
+
     public static function generar($orders, string $path): void
     {
         $writer = new Writer();
@@ -60,7 +77,7 @@ class SistrackExcel
 
             $writer->addRow(Row::fromValues([
                 '',                                                             // ORDEN (la asigna Sistrack)
-                trim($digitos . ' ' . ($g['nombre'] ?? '')),                    // NOMBRE (teléfono primero)
+                self::nombreConTelefono($g['telefono'] ?? '', $g['nombre'] ?? ''), // NOMBRE ("7777 7777 Juan Pérez")
                 $tel,                                                           // TELEFONO
                 'clientes@baby-confort.shop',                                   // EMAIL
                 trim(preg_replace('/\s+/', ' ', (string) ($g['direccion'] ?? ''))), // DIRECCION
@@ -97,7 +114,7 @@ class SistrackExcel
 
         return [
             '',                                                          // ORDEN (la asigna Sistrack)
-            trim($digitos . ' ' . $order->customer_name),                // NOMBRE (convención: teléfono primero)
+            self::nombreConTelefono($order->phone, $order->customer_name), // NOMBRE ("7777 7777 Juan Pérez")
             $tel,                                                        // TELEFONO
             'clientes@baby-confort.shop',                                // EMAIL
             trim(preg_replace('/\s+/', ' ', (string) $order->address)),  // DIRECCION
