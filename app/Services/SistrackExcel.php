@@ -42,6 +42,8 @@ class SistrackExcel
     {
         $writer = new Writer();
         $writer->openToFile($path);
+        // Sistrack espera la hoja como en su plantilla ("Hoja1").
+        $writer->getCurrentSheet()->setName('Hoja1');
 
         $writer->addRow(Row::fromValues([
             'ORDEN', 'NOMBRE', 'TELEFONO', 'EMAIL', 'DIRECCION', 'MUNICIPIO',
@@ -64,6 +66,8 @@ class SistrackExcel
     {
         $writer = new Writer();
         $writer->openToFile($path);
+        // Sistrack espera la hoja como en su plantilla ("Hoja1").
+        $writer->getCurrentSheet()->setName('Hoja1');
 
         $writer->addRow(Row::fromValues([
             'ORDEN', 'NOMBRE', 'TELEFONO', 'EMAIL', 'DIRECCION', 'MUNICIPIO',
