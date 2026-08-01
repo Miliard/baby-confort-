@@ -39,6 +39,8 @@ class OrdenWhatsappParser
         foreach ($lineas as $linea) {
             // Quita emojis/símbolos decorativos y espacios sobrantes.
             $l = trim(preg_replace('/[✅☑️✔️🚚💰📦🛒👉•*_]+/u', '', $linea));
+            // Quita viñetas al inicio ("- 3 paquetes...", "· 2 pañales").
+            $l = trim(preg_replace('/^[\-\x{2013}\x{2014}\x{00B7}>»]+\s*/u', '', $l));
             if ($l === '') continue;
 
             $clave = self::normalizar($l);
@@ -243,9 +245,12 @@ class OrdenWhatsappParser
         // La cantidad va al inicio ("2 Calzoncito Magic"). Se extrae y se QUITA del
         // nombre, para que luego no quede duplicada ("2 2 Calzoncito Magic").
         // También se admite "2 paquetes de ...", "3 unidades de ...".
+        // Quita viñetas sueltas al inicio y toma la cantidad ("3 paquetes ..." -> 3).
+        // Se conserva la palabra que sigue ("paquetes") para que la descripción se lea natural.
+        $texto = trim(preg_replace('/^[\-\x{2013}\x{2014}\x{00B7}>»]+\s*/u', '', $texto));
+
         $cantidad = 1;
-        if (preg_match('/^(\d{1,3})\s*(?:x\s*)?(paquetes?|unidades?|piezas?|pzas?|bolsas?|cajas?)?\s*(?:de\s+)?/iu', $texto, $m)
-            && $m[1] !== '') {
+        if (preg_match('/^(\d{1,3})\s*(?:x\s+)?/u', $texto, $m) && $m[1] !== '') {
             $cantidad = max(1, (int) $m[1]);
             $texto = trim(mb_substr($texto, mb_strlen($m[0])));
         }
