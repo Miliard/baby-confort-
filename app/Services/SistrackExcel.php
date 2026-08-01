@@ -28,7 +28,13 @@ class SistrackExcel
     public static function limpiar(?string $texto, int $max = 240): string
     {
         $t = (string) $texto;
-        $t = str_replace(['—', '–', '·', '"', '"', ''', '''], ['-', '-', '-', '"', '"', "'", "'"], $t);
+        // Comillas y guiones tipográficos -> versiones simples (por código, para no
+        // romper la sintaxis del archivo).
+        $t = str_replace(
+            ["\u{2014}", "\u{2013}", "\u{00B7}", "\u{201C}", "\u{201D}", "\u{2018}", "\u{2019}"],
+            ['-', '-', '-', '"', '"', "'", "'"],
+            $t
+        );
         // Quita emojis y caracteres de control (deja letras acentuadas y ñ).
         $t = preg_replace('/[\x{1F000}-\x{1FAFF}\x{2190}-\x{2BFF}\x{FE00}-\x{FE0F}\x{200D}]/u', '', $t);
         $t = preg_replace('/[\x00-\x1F\x7F]/u', ' ', $t);
@@ -51,7 +57,20 @@ class SistrackExcel
         // Formato salvadoreño: 4 dígitos, espacio, 4 dígitos.
         $tel = strlen($d) === 8 ? substr($d, 0, 4) . ' ' . substr($d, 4) : $d;
 
-        return trim($tel . ' ' . trim((string) $nombre));
+        $nom = trim((string) $nombre);
+
+        // Si el nombre ya trae el teléfono al inicio (pasa cuando el cliente lo
+        // escribe en la orden), se le quita para no duplicarlo.
+        if ($d !== '') {
+            $nom = preg_replace(
+                '/^\s*(?:\+?503[\s-]*)?' . preg_quote(substr($d, 0, 4), '/') . '[\s.-]*' . preg_quote(substr($d, 4), '/') . '\s*[-:]?\s*/u',
+                '',
+                $nom
+            );
+            $nom = trim((string) $nom);
+        }
+
+        return trim($tel . ' ' . $nom);
     }
 
     public static function generar($orders, string $path): void

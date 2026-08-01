@@ -196,7 +196,16 @@ class OrdenWhatsappParser
     {
         switch ($seccion) {
             case 'nombre':
-                $out['nombre'] = $out['nombre'] ?? $valor;
+                if (! $out['nombre']) {
+                    // A veces el nombre viene con el teléfono pegado ("6061 1693 Mireldy").
+                    // Se separa: el teléfono se guarda aparte y el nombre queda limpio.
+                    if (preg_match('/(?:^|[^\d])(?:\+?503[\s-]*)?([267]\d{3})[\s.-]?(\d{4})(?![\d])/u', $valor, $m)) {
+                        $out['telefono'] = $out['telefono'] ?: ($m[1] . ' ' . $m[2]);
+                        $valor = trim(preg_replace('/(?:\+?503[\s-]*)?' . preg_quote($m[1], '/') . '[\s.-]?' . preg_quote($m[2], '/') . '/u', ' ', $valor));
+                        $valor = trim(preg_replace('/\s+/u', ' ', $valor), " \t-:.,");
+                    }
+                    $out['nombre'] = $valor !== '' ? $valor : null;
+                }
                 break;
             case 'telefono':
                 if (! $out['telefono']) {
