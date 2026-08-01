@@ -40,8 +40,13 @@ class OrderResource extends Resource
                         ->afterStateUpdated(function ($state, \Filament\Forms\Set $set) {
                             $r = \App\Services\OrdenWhatsappParser::parsear((string) $state);
                             if ($r['nombre'])    $set('customer_name', $r['nombre']);
+                            if ($r['telefono'])  $set('phone', $r['telefono']);
                             if ($r['direccion']) $set('address', $r['direccion']);
                             if ($r['municipio']) $set('municipio', $r['municipio']);
+                            if (! empty($r['departamento'])) {
+                                $set('departamento', $r['departamento']);
+                                $set('municipio_nombre', $r['municipio_nombre'] ?: null);
+                            }
                             if ($r['items'])     $set('items', $r['items']);
                             if ($r['envio'] !== null) $set('shipping', $r['envio']);
                         }),

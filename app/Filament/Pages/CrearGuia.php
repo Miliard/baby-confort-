@@ -49,6 +49,7 @@ class CrearGuia extends Page implements HasForms
                 ->afterStateUpdated(function ($state, Forms\Set $set) {
                     $r = OrdenWhatsappParser::parsear((string) $state);
                     if ($r['nombre'])    $set('nombre', $r['nombre']);
+                    if ($r['telefono'])  $set('telefono', $r['telefono']);
                     if ($r['direccion']) $set('direccion', $r['direccion']);
                     // Municipio y departamento detectados del catálogo (se pueden corregir a mano).
                     if (! empty($r['departamento'])) {
