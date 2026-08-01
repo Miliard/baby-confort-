@@ -54,9 +54,29 @@ class OrderResource extends Resource
                 Forms\Components\TextInput::make('phone')->label('Teléfono')
                     ->disabled(fn (string $operation) => $operation === 'edit')
                     ->required()->placeholder('Ej: 7777-7777'),
-                Forms\Components\TextInput::make('municipio')->label('Municipio')
+                // Departamento y municipio con la lista EXACTA de Sistrack (para no depender del intérprete).
+                Forms\Components\Select::make('departamento')->label('Departamento')
+                    ->options(fn () => array_combine(array_keys(config('municipios_sv', [])), array_keys(config('municipios_sv', []))))
+                    ->searchable()->live()->dehydrated(false)
+                    ->visible(fn (string $operation) => $operation === 'create')
+                    ->afterStateUpdated(fn (\Filament\Forms\Set $set) => $set('municipio_nombre', null)),
+                Forms\Components\Select::make('municipio_nombre')->label('Municipio')
+                    ->options(function (\Filament\Forms\Get $get) {
+                        $m = config('municipios_sv', [])[$get('departamento')] ?? [];
+                        return $m ? array_combine($m, $m) : [];
+                    })
+                    ->searchable()->live()->dehydrated(false)
+                    ->placeholder('Elige primero el departamento')
+                    ->visible(fn (string $operation) => $operation === 'create')
+                    ->afterStateUpdated(function ($state, \Filament\Forms\Get $get, \Filament\Forms\Set $set) {
+                        $dep = $get('departamento');
+                        $set('municipio', $state ? ($state . ($dep ? ', ' . $dep : '')) : '');
+                    }),
+                Forms\Components\TextInput::make('municipio')->label('Municipio (así se guarda)')
                     ->disabled(fn (string $operation) => $operation === 'edit')
-                    ->required()->placeholder('Ej: San Vicente, San Vicente'),
+                    ->required()->placeholder('Ej: San Vicente, San Vicente')
+                    ->helperText(fn (string $operation) => $operation === 'create'
+                        ? 'Se llena al elegir departamento y municipio. Puedes ajustarlo a mano si hace falta.' : null),
                 Forms\Components\Textarea::make('address')->label('Dirección')
                     ->disabled(fn (string $operation) => $operation === 'edit')
                     ->required()->columnSpanFull()->placeholder('Colonia, calle, casa, referencia'),
