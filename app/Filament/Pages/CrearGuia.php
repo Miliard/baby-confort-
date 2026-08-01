@@ -50,6 +50,11 @@ class CrearGuia extends Page implements HasForms
                     $r = OrdenWhatsappParser::parsear((string) $state);
                     if ($r['nombre'])    $set('nombre', $r['nombre']);
                     if ($r['direccion']) $set('direccion', $r['direccion']);
+                    // Municipio y departamento detectados del catálogo (se pueden corregir a mano).
+                    if (! empty($r['departamento'])) {
+                        $set('departamento', $r['departamento']);
+                        $set('municipio', $r['municipio_nombre'] ?: null);
+                    }
                     if (! empty($r['items'])) {
                         $set('descripcion', collect($r['items'])
                             ->map(fn ($i) => ((int) ($i['cantidad'] ?? 1)) . ' ' . trim((string) ($i['producto'] ?? '')))
@@ -87,6 +92,23 @@ class CrearGuia extends Page implements HasForms
 
     public function agregar(): void
     {
+        // Si falta algo, avisa y salta al primer campo vacío (no solo un mensaje).
+        $faltantes = [
+            'nombre'      => 'el nombre del cliente',
+            'telefono'    => 'el teléfono',
+            'departamento'=> 'el departamento',
+            'municipio'   => 'el municipio',
+            'direccion'   => 'la dirección',
+            'descripcion' => 'qué lleva el paquete',
+        ];
+        foreach ($faltantes as $campo => $etiqueta) {
+            if (trim((string) ($this->data[$campo] ?? '')) === '') {
+                Notification::make()->title('Falta ' . $etiqueta)->warning()->send();
+                $this->dispatch('enfocar-campo', campo: $campo);
+                return;
+            }
+        }
+
         $d = $this->form->getState();
 
         $this->lista[] = [

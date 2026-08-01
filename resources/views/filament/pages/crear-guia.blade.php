@@ -59,4 +59,25 @@
             @endif
         </div>
     </div>
+
+    {{-- Si falta un campo, lo resalta y salta a él (útil en el teléfono) --}}
+    <script>
+        document.addEventListener('livewire:init', () => {
+            Livewire.on('enfocar-campo', (e) => {
+                const campo = (e && (e.campo ?? e[0]?.campo)) || null;
+                if (!campo) return;
+                setTimeout(() => {
+                    const el = document.querySelector('[wire\\:model="data.' + campo + '"], [id$="data.' + campo + '"]')
+                        || document.querySelector('[name="data.' + campo + '"]');
+                    if (!el) return;
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    try { el.focus({ preventScroll: true }); } catch (err) {}
+                    const caja = el.closest('.fi-fo-field-wrp') || el;
+                    caja.style.transition = 'box-shadow .2s';
+                    caja.style.boxShadow = '0 0 0 3px rgba(239,68,68,.45)';
+                    setTimeout(() => { caja.style.boxShadow = ''; }, 1800);
+                }, 60);
+            });
+        });
+    </script>
 </x-filament-panels::page>

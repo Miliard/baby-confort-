@@ -72,19 +72,87 @@ class OrdenWhatsappParser
             }
         }
 
-        // Municipio: intenta detectar el departamento dentro de la dirección.
-        if ($out['direccion'] && ! $out['municipio']) {
-            $dirNorm = self::normalizar($out['direccion']);
-            foreach (self::DEPARTAMENTOS as $depto) {
-                if (str_contains($dirNorm, $depto)) {
-                    $bonito = ucwords($depto);
-                    $out['municipio'] = $bonito . ', ' . $bonito;
-                    break;
+        // Detecta municipio y departamento reales (catálogo de Sistrack) dentro del texto.
+        $lugar = self::detectarLugar(($out['direccion'] ?? '') . ' ' . $texto);
+        $out['municipio_nombre'] = $lugar['municipio'];
+        $out['departamento']     = $lugar['departamento'];
+
+        if (! $out['municipio'] && $lugar['municipio']) {
+            $out['municipio'] = $lugar['municipio'] . ($lugar['departamento'] ? ', ' . $lugar['departamento'] : '');
+        }
+
+        return $out;
+    }
+
+    /**
+     * Busca en el texto un municipio del catálogo oficial (config/municipios_sv.php).
+     * Si no encuentra municipio, al menos intenta reconocer el departamento.
+     * Devuelve ['municipio' => string|null, 'departamento' => string|null].
+     */
+    public static function detectarLugar(string $texto): array
+    {
+        $h = self::normalizar($texto);
+        if ($h === '') return ['municipio' => null, 'departamento' => null];
+
+        $catalogo = config('municipios_sv', []);
+        if (empty($catalogo)) return ['municipio' => null, 'departamento' => null];
+
+        // 1) Municipio. Se juntan todas las coincidencias y se elige la mejor:
+        //    primero la que aparece antes en el texto (el municipio suele ir antes que el
+        //    departamento) y, a igual posición, el nombre más largo ("San Miguel Tepezontes"
+        //    gana sobre "San Miguel").
+        $candidatos = [];
+        foreach ($catalogo as $depto => $municipios) {
+            foreach ($municipios as $muni) {
+                $k = self::normalizar($muni);
+                if ($k === '') continue;
+                if (preg_match('/(^|[^a-z0-9])' . preg_quote($k, '/') . '([^a-z0-9]|$)/u', $h, $mm, PREG_OFFSET_CAPTURE)) {
+                    $candidatos[] = [
+                        'muni'  => $muni,
+                        'depto' => $depto,
+                        'pos'   => $mm[0][1],
+                        'largo' => mb_strlen($k),
+                    ];
                 }
             }
         }
 
-        return $out;
+        if (! empty($candidatos)) {
+            usort($candidatos, function ($a, $b) {
+                // Si uno contiene al otro (San Miguel vs San Miguel Tepezontes), gana el largo.
+                if (abs($a['pos'] - $b['pos']) <= 3) {
+                    return $b['largo'] <=> $a['largo'];
+                }
+                return $a['pos'] <=> $b['pos'];
+            });
+            return ['municipio' => $candidatos[0]['muni'], 'departamento' => $candidatos[0]['depto']];
+        }
+
+        // 2) Sin municipio: al menos el departamento (incluye variantes de escritura).
+        $alias = [
+            'chalatenango' => 'Chaletenango', 'chaletenango' => 'Chaletenango',
+            'usulutan' => 'Usulutan', 'cuscatlan' => 'Cuscatlan',
+            'ahuachapan' => 'Ahuachapán', 'cabanas' => 'Cabañas',
+            'morazan' => 'Morazán', 'la union' => 'La Unión',
+        ];
+        foreach ($alias as $a => $real) {
+            if (isset($catalogo[$real]) && self::contiene($h, $a)) {
+                return ['municipio' => null, 'departamento' => $real];
+            }
+        }
+        foreach (array_keys($catalogo) as $depto) {
+            if (self::contiene($h, self::normalizar($depto))) {
+                return ['municipio' => null, 'departamento' => $depto];
+            }
+        }
+
+        return ['municipio' => null, 'departamento' => null];
+    }
+
+    // Coincidencia de palabra completa (para que "colon" no matchee dentro de otra palabra).
+    private static function contiene(string $heno, string $aguja): bool
+    {
+        return (bool) preg_match('/(^|[^a-z0-9])' . preg_quote($aguja, '/') . '([^a-z0-9]|$)/u', $heno);
     }
 
     private static function asignar(array &$out, string $seccion, string $valor): void
