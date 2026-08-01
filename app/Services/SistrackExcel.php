@@ -22,6 +22,22 @@ use OpenSpout\Writer\XLSX\Writer;
 class SistrackExcel
 {
     /**
+     * Limpia un texto para el Excel: quita emojis y símbolos raros que pueden
+     * hacer que el importador de Sistrack descarte la celda, y recorta espacios.
+     */
+    public static function limpiar(?string $texto, int $max = 240): string
+    {
+        $t = (string) $texto;
+        $t = str_replace(['—', '–', '·', '"', '"', ''', '''], ['-', '-', '-', '"', '"', "'", "'"], $t);
+        // Quita emojis y caracteres de control (deja letras acentuadas y ñ).
+        $t = preg_replace('/[\x{1F000}-\x{1FAFF}\x{2190}-\x{2BFF}\x{FE00}-\x{FE0F}\x{200D}]/u', '', $t);
+        $t = preg_replace('/[\x00-\x1F\x7F]/u', ' ', $t);
+        $t = trim(preg_replace('/\s+/u', ' ', $t));
+
+        return mb_substr($t, 0, $max);
+    }
+
+    /**
      * Nombre para Sistrack: teléfono primero en formato "7777 7777" y luego el
      * nombre del cliente, para poder buscarlo por número. Ej: "7777 7777 Juan Pérez".
      */
@@ -84,17 +100,17 @@ class SistrackExcel
                 self::nombreConTelefono($g['telefono'] ?? '', $g['nombre'] ?? ''), // NOMBRE ("7777 7777 Juan Pérez")
                 $tel,                                                           // TELEFONO
                 'clientes@baby-confort.shop',                                   // EMAIL
-                trim(preg_replace('/\s+/', ' ', (string) ($g['direccion'] ?? ''))), // DIRECCION
-                (string) ($g['municipio'] ?? ''),                               // MUNICIPIO
-                (string) ($g['departamento'] ?? ''),                            // DEPARTAMENTO
+                self::limpiar($g['direccion'] ?? ''),                            // DIRECCION
+                self::limpiar($g['municipio'] ?? '', 60),                        // MUNICIPIO
+                self::limpiar($g['departamento'] ?? '', 60),                     // DEPARTAMENTO
                 'El Salvador',                                                  // PAIS
                 '',                                                             // CODIGO POSTAL
-                (string) ($g['descripcion'] ?? ''),                             // DESCRIPCION
+                self::limpiar($g['descripcion'] ?? '') ?: 'Productos para bebe', // DESCRIPCION
                 1,                                                              // PESO
                 $cobrar,                                                        // PRECIO (a cobrar)
                 $cobrar > 0
                     ? 'COBRAR AL ENTREGAR: $' . number_format($cobrar, 2)
-                    : 'PAGADO — no cobrar',                                     // OBSERVACIONES
+                    : 'PAGADO - no cobrar',                                     // OBSERVACIONES
             ]));
         }
 
@@ -113,23 +129,23 @@ class SistrackExcel
         $cobrar = $order->payment === 'efectivo' ? (float) $order->total : 0.0;
         $obs    = ($cobrar > 0
                 ? 'COBRAR AL ENTREGAR: $' . number_format($cobrar, 2) . ' (efectivo)'
-                : 'PAGADO — no cobrar')
-            . ' · Pedido #' . $order->id;
+                : 'PAGADO - no cobrar')
+            . ' - Pedido #' . $order->id;
 
         return [
             '',                                                          // ORDEN (la asigna Sistrack)
             self::nombreConTelefono($order->phone, $order->customer_name), // NOMBRE ("7777 7777 Juan Pérez")
             $tel,                                                        // TELEFONO
             'clientes@baby-confort.shop',                                // EMAIL
-            trim(preg_replace('/\s+/', ' ', (string) $order->address)),  // DIRECCION
-            $muni,                                                       // MUNICIPIO
-            $depto,                                                      // DEPARTAMENTO
+            self::limpiar($order->address),                              // DIRECCION
+            self::limpiar($muni, 60),                                    // MUNICIPIO
+            self::limpiar($depto, 60),                                   // DEPARTAMENTO
             'El Salvador',                                               // PAIS
             '',                                                          // CODIGO POSTAL
-            SistrackService::descripcionDe($order),                      // DESCRIPCION
+            self::limpiar(SistrackService::descripcionDe($order)) ?: 'Productos para bebe', // DESCRIPCION
             1,                                                           // PESO
             $cobrar,                                                     // PRECIO (monto a cobrar)
-            $obs,                                                        // OBSERVACIONES
+            self::limpiar($obs),                                         // OBSERVACIONES
         ];
     }
 }
