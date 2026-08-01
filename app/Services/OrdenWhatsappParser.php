@@ -231,10 +231,16 @@ class OrdenWhatsappParser
         $texto = trim((string) preg_replace('/\$\s*[\d.,]+\s*$/u', '', $l));
         if ($texto === '' && $monto === null) return null;
 
+        // La cantidad va al inicio ("2 Calzoncito Magic"). Se extrae y se QUITA del
+        // nombre, para que luego no quede duplicada ("2 2 Calzoncito Magic").
+        // También se admite "2 paquetes de ...", "3 unidades de ...".
         $cantidad = 1;
-        if (preg_match('/^(\d{1,3})\s+/u', $texto, $m)) {
+        if (preg_match('/^(\d{1,3})\s*(?:x\s*)?(paquetes?|unidades?|piezas?|pzas?|bolsas?|cajas?)?\s*(?:de\s+)?/iu', $texto, $m)
+            && $m[1] !== '') {
             $cantidad = max(1, (int) $m[1]);
+            $texto = trim(mb_substr($texto, mb_strlen($m[0])));
         }
+
         $precioUnitario = $monto !== null ? round($monto / $cantidad, 2) : 0;
 
         return [
