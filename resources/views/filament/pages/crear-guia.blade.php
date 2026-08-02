@@ -72,7 +72,6 @@
                 </p>
             @endif
         </div>
-    </div>
 
     {{-- Si falta un campo, lo resalta y salta a él (útil en el teléfono) --}}
     <script>
@@ -94,4 +93,5 @@
             });
         });
     </script>
+    </div>
 </x-filament-panels::page>
