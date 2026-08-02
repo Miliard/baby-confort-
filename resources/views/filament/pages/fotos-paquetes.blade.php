@@ -15,7 +15,10 @@
 
         <div id="resumen" style="margin-top:14px;font-size:14px;font-weight:700;display:none"></div>
         <div id="resultados" style="margin-top:12px;display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+</x-filament-panels::page>
 
+@push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <script>
     (() => {
@@ -165,5 +168,4 @@
         }
     })();
     </script>
-    </div>
-</x-filament-panels::page>
+@endpush

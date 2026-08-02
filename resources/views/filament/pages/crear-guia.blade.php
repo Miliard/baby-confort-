@@ -72,8 +72,11 @@
                 </p>
             @endif
         </div>
+    </div>
+</x-filament-panels::page>
 
-    {{-- Si falta un campo, lo resalta y salta a él (útil en el teléfono) --}}
+{{-- Si falta un campo, lo resalta y salta a él (útil en el teléfono) --}}
+@push('scripts')
     <script>
         document.addEventListener('livewire:init', () => {
             Livewire.on('enfocar-campo', (e) => {
@@ -93,5 +96,4 @@
             });
         });
     </script>
-    </div>
-</x-filament-panels::page>
+@endpush
