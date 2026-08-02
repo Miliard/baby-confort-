@@ -20,6 +20,7 @@
 
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script>
     (() => {
         const input = document.getElementById('fotos-input');
@@ -84,6 +85,31 @@
                 }
             }
             return null;
+        }
+
+        // Lee el texto de la parte de arriba de la etiqueta (donde va "Para: nombre teléfono")
+        // para sacar el número del cliente. Se hace una sola vez y en zona recortada, para que sea rápido.
+        let lector = null;
+        async function leerDatosCliente(img) {
+            try {
+                if (typeof Tesseract === 'undefined') return {};
+                if (!lector) lector = await Tesseract.createWorker('eng');
+
+                const c = recorte(img, img.width * 0.03, img.height * 0.10, img.width * 0.95, img.height * 0.25,
+                                  Math.min(2, 1700 / (img.width * 0.95)));
+                const { data } = await lector.recognize(c);
+                const t = (data.text || '').replace(/\s+/g, ' ');
+
+                const tel = t.match(/(?:^|[^\d])([267]\d{3})[\s.-]?(\d{4})(?![\d])/);
+                const nom = t.match(/Para:?\s*([A-Za-zÀ-ÿ' ]{3,60})/i);
+
+                return {
+                    telefono: tel ? (tel[1] + ' ' + tel[2]) : null,
+                    nombre: nom ? nom[1].trim() : null,
+                };
+            } catch (e) {
+                return {};
+            }
         }
 
         const sacarGuia = (txt) => {
@@ -159,7 +185,19 @@
                     continue;
                 }
 
-                await subir(file, guia, est, card.querySelector('.acciones'));
+                const acc = card.querySelector('.acciones');
+                await subir(file, guia, est, acc);
+
+                // Lee el teléfono de la etiqueta para poder escribirle al cliente.
+                const aviso = document.createElement('span');
+                aviso.textContent = ' · leyendo teléfono…';
+                aviso.style.cssText = 'font-size:12px;color:#6b7280;font-weight:500';
+                est.appendChild(aviso);
+
+                const datos = await leerDatosCliente(img);
+                aviso.remove();
+                if (datos.telefono) agregarWhatsapp(acc, datos, guia);
+
                 resumen.textContent = `✅ ${ok} subidas · ✕ ${fallo} sin leer`;
             }
             input.value = '';
@@ -184,6 +222,34 @@
                 setTimeout(() => { b.textContent = original; }, 1400);
             });
             return b;
+        }
+
+        // Botón verde que abre el WhatsApp del cliente con el mensaje ya escrito.
+        function agregarWhatsapp(acc, datos, guia) {
+            if (!acc || acc.querySelector('.wa-btn')) return;
+
+            const d = datos.telefono.replace(/\D/g, '');
+            const enlace = location.origin + '/rastreo?guia=' + guia;
+            const msg = '¡Sigue tu pedido, Baby-Confort!\n\nGuía ' + guia +
+                        '\nRastréalo aquí: ' + enlace +
+                        '\n\nAhí podés ver la foto de tu paquete. ¡Gracias por tu preferencia!';
+
+            const a = document.createElement('a');
+            a.className = 'wa-btn';
+            a.href = 'https://wa.me/503' + d + '?text=' + encodeURIComponent(msg);
+            a.target = '_blank'; a.rel = 'noopener';
+            a.textContent = '💬 WhatsApp ' + datos.telefono;
+            a.style.cssText = 'background:#25D366;color:#fff;border-radius:8px;padding:8px 12px;font-weight:700;font-size:13px;text-decoration:none';
+            acc.prepend(a);
+
+            acc.appendChild(botonCopiar('📞 ' + datos.telefono, datos.telefono, '#059669'));
+
+            if (datos.nombre) {
+                const n = document.createElement('div');
+                n.textContent = '👤 ' + datos.nombre;
+                n.style.cssText = 'width:100%;font-size:12.5px;color:#6b7280;margin-top:2px';
+                acc.appendChild(n);
+            }
         }
 
         async function subir(file, guia, est, acc) {
