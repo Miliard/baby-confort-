@@ -53,6 +53,8 @@
         </div>
     </div>
 
+    @include('store.partials.foto-paquete', ['guiaFoto' => $order->guia])
+
     @include('store.partials.historial')
 
     @include('store.partials.recomendados')

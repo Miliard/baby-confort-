@@ -64,6 +64,8 @@
             </div>
         </div>
 
+        @include('store.partials.foto-paquete', ['guiaFoto' => $guia])
+
         @include('store.partials.historial')
     @endif
 

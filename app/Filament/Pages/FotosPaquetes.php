@@ -1,0 +1,20 @@
+<?php
+
+namespace App\Filament\Pages;
+
+use Filament\Pages\Page;
+
+/**
+ * Sube varias fotos de etiquetas de golpe. Lee el QR de cada foto para saber
+ * a qué guía pertenece y la guarda, de modo que el cliente vea la foto de SU
+ * paquete al abrir su enlace de seguimiento.
+ */
+class FotosPaquetes extends Page
+{
+    protected static ?string $navigationIcon = 'heroicon-o-camera';
+    protected static ?string $navigationLabel = 'Fotos de paquetes';
+    protected static ?string $title = 'Fotos de paquetes';
+    protected static ?int $navigationSort = 2;
+
+    protected static string $view = 'filament.pages.fotos-paquetes';
+}

@@ -33,6 +33,12 @@ Route::get('/privacidad', [StoreController::class, 'privacidad'])->name('store.p
 // Mapa del sitio para buscadores (SEO)
 Route::get('/sitemap.xml', [StoreController::class, 'sitemap'])->name('store.sitemap');
 
+// Fotos de paquetes (solo con sesión iniciada en el panel)
+Route::middleware('auth')->group(function () {
+    Route::post('/fotos-paquete', [\App\Http\Controllers\GuiaFotoController::class, 'subir'])->name('fotos.subir');
+    Route::delete('/fotos-paquete/{foto}', [\App\Http\Controllers\GuiaFotoController::class, 'eliminar'])->name('fotos.eliminar');
+});
+
 // Valida un cupón (devuelve el % de descuento si es válido).
 // throttle: máx. 30 intentos por minuto por IP (evita adivinar códigos por fuerza bruta).
 Route::get('/cupon/validar', [StoreController::class, 'validarCupon'])
