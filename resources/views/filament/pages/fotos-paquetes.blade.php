@@ -95,10 +95,13 @@
         const tarjeta = (nombre, src) => {
             const d = document.createElement('div');
             d.style.cssText = 'display:flex;gap:12px;align-items:center;border:1px solid #e5e7eb;border-radius:12px;padding:10px;background:#fff';
-            d.innerHTML = `<img src="${src}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;flex:none">
+            d.innerHTML = `<a href="${src}" target="_blank" rel="noopener" title="Abrir la foto en grande">
+                  <img src="${src}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;flex:none;cursor:zoom-in">
+                </a>
                 <div style="flex:1;min-width:0">
                   <div style="font-size:12.5px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombre}</div>
                   <div class="estado" style="font-weight:700;font-size:14px;margin-top:3px">Leyendo QR…</div>
+                  <div class="acciones" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:7px"></div>
                 </div>`;
             cont.prepend(d);
             return d;
@@ -124,24 +127,66 @@
                 if (!guia) {
                     fallo++;
                     est.innerHTML = '<span style="color:#dc2626">✕ No se pudo leer el QR</span>';
+                    const acc = card.querySelector('.acciones');
+
+                    const ver = document.createElement('a');
+                    ver.href = url; ver.target = '_blank'; ver.rel = 'noopener';
+                    ver.textContent = '🔍 Ver foto grande';
+                    ver.style.cssText = 'background:#f1f5f9;border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;color:#334155;text-decoration:none';
+                    acc.appendChild(ver);
+
+                    const fila = document.createElement('div');
+                    fila.style.cssText = 'display:flex;gap:6px;width:100%;margin-top:6px';
                     const inp = document.createElement('input');
-                    inp.placeholder = 'Escribí la guía y presioná Enter';
-                    inp.style.cssText = 'margin-top:6px;width:100%;padding:7px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px';
-                    inp.addEventListener('keydown', e => {
-                        if (e.key === 'Enter' && inp.value.trim()) { inp.disabled = true; subir(file, inp.value.trim(), est); }
-                    });
-                    est.after(inp);
+                    inp.placeholder = 'Escribí la guía que ves en la foto';
+                    inp.inputMode = 'numeric';
+                    inp.style.cssText = 'flex:1;min-width:0;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:15px';
+                    const btn = document.createElement('button');
+                    btn.type = 'button'; btn.textContent = 'Subir';
+                    btn.style.cssText = 'background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-weight:700;font-size:13.5px;cursor:pointer';
+                    const mandar = () => {
+                        const v = inp.value.trim();
+                        if (!v) return;
+                        inp.disabled = true; btn.disabled = true; fila.remove(); acc.innerHTML = '';
+                        subir(file, v, est, acc);
+                    };
+                    btn.addEventListener('click', mandar);
+                    inp.addEventListener('keydown', e => { if (e.key === 'Enter') mandar(); });
+                    fila.append(inp, btn);
+                    acc.after(fila);
+
                     resumen.textContent = `✅ ${ok} subidas · ✕ ${fallo} sin leer`;
                     continue;
                 }
 
-                await subir(file, guia, est);
+                await subir(file, guia, est, card.querySelector('.acciones'));
                 resumen.textContent = `✅ ${ok} subidas · ✕ ${fallo} sin leer`;
             }
             input.value = '';
         });
 
-        async function subir(file, guia, est) {
+        // Botón que copia un texto al portapapeles y avisa al tocarlo.
+        function botonCopiar(etiqueta, texto, color) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = etiqueta;
+            b.style.cssText = `background:${color};color:#fff;border:none;border-radius:8px;padding:8px 12px;font-weight:700;font-size:13px;cursor:pointer`;
+            b.addEventListener('click', async () => {
+                const original = b.textContent;
+                try {
+                    await navigator.clipboard.writeText(texto);
+                } catch (e) {
+                    const ta = document.createElement('textarea');
+                    ta.value = texto; document.body.appendChild(ta); ta.select();
+                    document.execCommand('copy'); ta.remove();
+                }
+                b.textContent = '✓ Copiado';
+                setTimeout(() => { b.textContent = original; }, 1400);
+            });
+            return b;
+        }
+
+        async function subir(file, guia, est, acc) {
             est.textContent = 'Subiendo guía ' + guia + '…';
             const fd = new FormData();
             fd.append('guia', guia);
@@ -155,8 +200,22 @@
                 const data = await res.json();
                 if (data.ok) {
                     ok++;
-                    est.innerHTML = `<span style="color:#059669">✓ Guía ${data.guia}</span>
-                        <a href="${data.rastreo}" target="_blank" style="display:block;font-size:12.5px;color:#2563eb;margin-top:2px">Ver enlace de seguimiento ↗</a>`;
+                    est.innerHTML = `<span style="color:#059669">✓ Guía ${data.guia}</span>`;
+
+                    if (acc) {
+                        acc.innerHTML = '';
+                        acc.appendChild(botonCopiar('📋 Guía', data.guia, '#2563eb'));
+                        if (data.telefono) {
+                            acc.appendChild(botonCopiar('📞 ' + data.telefono, data.telefono, '#059669'));
+                        }
+                        acc.appendChild(botonCopiar('🔗 Enlace', data.rastreo, '#7c3aed'));
+
+                        const ver = document.createElement('a');
+                        ver.href = data.rastreo; ver.target = '_blank'; ver.rel = 'noopener';
+                        ver.textContent = 'Abrir ↗';
+                        ver.style.cssText = 'background:#f1f5f9;border:1px solid #e5e7eb;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;color:#334155;text-decoration:none';
+                        acc.appendChild(ver);
+                    }
                 } else {
                     fallo++;
                     est.innerHTML = '<span style="color:#dc2626">✕ ' + (data.error || 'Error al subir') + '</span>';

@@ -24,11 +24,28 @@ class GuiaFotoController extends Controller
 
         $foto = GuiaFoto::create(['guia' => $guia, 'ruta' => $ruta]);
 
+        // Si esa guía ya está en un pedido, se devuelve el teléfono del cliente
+        // para poder copiarlo y buscarlo rápido.
+        $telefono = null;
+        $nombre   = null;
+        try {
+            $pedido = \App\Models\Order::where('guia', $guia)->first();
+            if ($pedido) {
+                $d = preg_replace('/\D/', '', (string) $pedido->phone);
+                if (strlen($d) === 11 && str_starts_with($d, '503')) $d = substr($d, 3);
+                $telefono = strlen($d) === 8 ? substr($d, 0, 4) . ' ' . substr($d, 4) : ($d ?: null);
+                $nombre   = $pedido->customer_name;
+            }
+        } catch (\Throwable $e) {
+        }
+
         return response()->json([
-            'ok'      => true,
-            'guia'    => $guia,
-            'url'     => $foto->url(),
-            'rastreo' => route('store.rastreo.guia') . '?guia=' . $guia,
+            'ok'       => true,
+            'guia'     => $guia,
+            'url'      => $foto->url(),
+            'rastreo'  => route('store.rastreo.guia') . '?guia=' . $guia,
+            'telefono' => $telefono,
+            'nombre'   => $nombre,
         ]);
     }
 
