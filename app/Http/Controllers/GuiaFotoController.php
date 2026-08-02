@@ -20,9 +20,21 @@ class GuiaFotoController extends Controller
             return response()->json(['ok' => false, 'error' => 'Guía no válida'], 422);
         }
 
+        // Una sola foto por guía: si ya había, se reemplaza (evita repetidas).
+        foreach (GuiaFoto::where('guia', $guia)->get() as $vieja) {
+            try {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($vieja->ruta);
+            } catch (\Throwable $e) {
+            }
+            $vieja->delete();
+        }
+
         $ruta = $request->file('foto')->store('paquetes', 'public');
 
         $foto = GuiaFoto::create(['guia' => $guia, 'ruta' => $ruta]);
+
+        // Limpieza: borra fotos con más de 5 días para no llenar el servidor.
+        static::limpiarViejas();
 
         // Si esa guía ya está en un pedido, se devuelve el teléfono del cliente
         // para poder copiarlo y buscarlo rápido.
@@ -47,6 +59,28 @@ class GuiaFotoController extends Controller
             'telefono' => $telefono,
             'nombre'   => $nombre,
         ]);
+    }
+
+    /**
+     * Borra las fotos con más de 5 días (archivo + registro). Se ejecuta sola
+     * cada vez que se sube una foto, así no hace falta una tarea programada.
+     */
+    public static function limpiarViejas(int $dias = 5): int
+    {
+        $borradas = 0;
+        try {
+            $viejas = GuiaFoto::where('created_at', '<', now()->subDays($dias))->get();
+            foreach ($viejas as $f) {
+                try {
+                    \Illuminate\Support\Facades\Storage::disk('public')->delete($f->ruta);
+                } catch (\Throwable $e) {
+                }
+                $f->delete();
+                $borradas++;
+            }
+        } catch (\Throwable $e) {
+        }
+        return $borradas;
     }
 
     /** Quita una foto (por si se subió una equivocada). */

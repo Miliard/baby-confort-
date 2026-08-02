@@ -181,7 +181,7 @@
                     fila.append(inp, btn);
                     acc.after(fila);
 
-                    resumen.textContent = `✅ ${ok} subidas · ✕ ${fallo} sin leer`;
+                    actualizarContador();
                     continue;
                 }
 
@@ -198,13 +198,60 @@
                 aviso.remove();
                 if (datos.telefono) agregarWhatsapp(acc, datos, guia);
 
-                resumen.textContent = `✅ ${ok} subidas · ✕ ${fallo} sin leer`;
+                actualizarContador();
             }
             input.value = '';
         });
 
+        // ---- Control de "por cuál cliente voy" ----
+        let enviados = 0, totalSubidas = 0;
+
+        function actualizarContador() {
+            if (!totalSubidas) return;
+            resumen.innerHTML = `📨 <b>${enviados} de ${totalSubidas}</b> enviados`
+                + (fallo ? ` · <span style="color:#dc2626">✕ ${fallo} sin leer</span>` : '');
+        }
+
+        // Marca la tarjeta en la que estás trabajando ahora.
+        function marcarActiva(card) {
+            document.querySelectorAll('.tarjeta-activa').forEach(c => {
+                c.classList.remove('tarjeta-activa');
+                if (!c.classList.contains('tarjeta-lista')) c.style.opacity = '1';
+                c.style.boxShadow = 'none';
+                c.style.borderColor = '#e5e7eb';
+            });
+            if (card.classList.contains('tarjeta-lista')) return;
+            card.classList.add('tarjeta-activa');
+            card.style.borderColor = '#2563eb';
+            card.style.boxShadow = '0 0 0 3px rgba(37,99,235,.20)';
+            card.style.opacity = '1';
+        }
+
+        // Marca la tarjeta como ya enviada (se copió el enlace = último paso).
+        function marcarLista(card) {
+            if (card.classList.contains('tarjeta-lista')) return;
+            card.classList.add('tarjeta-lista');
+            card.classList.remove('tarjeta-activa');
+            card.style.borderColor = '#86efac';
+            card.style.background = '#f0fdf4';
+            card.style.boxShadow = 'none';
+            card.style.opacity = '.6';
+
+            const est = card.querySelector('.estado');
+            if (est && !est.querySelector('.sello')) {
+                const s = document.createElement('span');
+                s.className = 'sello';
+                s.textContent = ' ✓ Enviado';
+                s.style.cssText = 'color:#059669;font-size:12.5px';
+                est.appendChild(s);
+            }
+            enviados++;
+            actualizarContador();
+        }
+
         // Botón que copia un texto al portapapeles y avisa al tocarlo.
-        function botonCopiar(etiqueta, texto, color) {
+        // 'marcaFinal' = al copiarlo, la tarjeta queda marcada como enviada.
+        function botonCopiar(etiqueta, texto, color, card, marcaFinal = false) {
             const b = document.createElement('button');
             b.type = 'button';
             b.textContent = etiqueta;
@@ -220,6 +267,8 @@
                 }
                 b.textContent = '✓ Copiado';
                 setTimeout(() => { b.textContent = original; }, 1400);
+
+                if (card) marcaFinal ? marcarLista(card) : marcarActiva(card);
             });
             return b;
         }
@@ -234,15 +283,19 @@
                         '\nRastréalo aquí: ' + enlace +
                         '\n\nAhí podés ver la foto de tu paquete. ¡Gracias por tu preferencia!';
 
+            const card = acc.closest('div[style*="border"]');
+
             const a = document.createElement('a');
             a.className = 'wa-btn';
             a.href = 'https://wa.me/503' + d + '?text=' + encodeURIComponent(msg);
             a.target = '_blank'; a.rel = 'noopener';
             a.textContent = '💬 WhatsApp ' + datos.telefono;
             a.style.cssText = 'background:#25D366;color:#fff;border-radius:8px;padding:8px 12px;font-weight:700;font-size:13px;text-decoration:none';
+            // Mandar por WhatsApp también cuenta como enviado.
+            a.addEventListener('click', () => { if (card) marcarLista(card); });
             acc.prepend(a);
 
-            acc.appendChild(botonCopiar('📞 ' + datos.telefono, datos.telefono, '#059669'));
+            acc.appendChild(botonCopiar('📞 ' + datos.telefono, datos.telefono, '#059669', card));
 
             if (datos.nombre) {
                 const n = document.createElement('div');
@@ -269,12 +322,16 @@
                     est.innerHTML = `<span style="color:#059669">✓ Guía ${data.guia}</span>`;
 
                     if (acc) {
+                        const card = acc.closest('div[style*="border"]');
+                        totalSubidas++; actualizarContador();
+
                         acc.innerHTML = '';
-                        acc.appendChild(botonCopiar('📋 Guía', data.guia, '#2563eb'));
+                        acc.appendChild(botonCopiar('📋 Guía', data.guia, '#2563eb', card));
                         if (data.telefono) {
-                            acc.appendChild(botonCopiar('📞 ' + data.telefono, data.telefono, '#059669'));
+                            acc.appendChild(botonCopiar('📞 ' + data.telefono, data.telefono, '#059669', card));
                         }
-                        acc.appendChild(botonCopiar('🔗 Enlace', data.rastreo, '#7c3aed'));
+                        // Copiar el enlace es el último paso: marca la tarjeta como enviada.
+                        acc.appendChild(botonCopiar('🔗 Enlace', data.rastreo, '#7c3aed', card, true));
 
                         const ver = document.createElement('a');
                         ver.href = data.rastreo; ver.target = '_blank'; ver.rel = 'noopener';
