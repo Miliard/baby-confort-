@@ -100,7 +100,21 @@ class CrearGuia extends Page implements HasForms
         ])->columns(1)->statePath('data');
     }
 
-    public function agregar(): void
+    // Solo los dígitos del teléfono, para comparar sin importar cómo se escribió.
+    private static function soloDigitos(?string $tel): string
+    {
+        $d = preg_replace('/\D/', '', (string) $tel);
+        if (strlen($d) === 11 && str_starts_with($d, '503')) $d = substr($d, 3);
+        return $d;
+    }
+
+    #[\Livewire\Attributes\On('agregar-forzado')]
+    public function agregarForzado(): void
+    {
+        $this->agregar(true);
+    }
+
+    public function agregar(bool $forzar = false): void
     {
         // Si falta algo, avisa y salta al primer campo vacío (no solo un mensaje).
         $faltantes = [
@@ -121,7 +135,40 @@ class CrearGuia extends Page implements HasForms
 
         $d = $this->form->getState();
 
-        $this->lista[] = [
+        // Evita meter dos veces la misma guía en el lote. Se compara por el ID del
+        // cliente (su teléfono). Si es el mismo cliente pero otro pedido, se puede forzar.
+        $idNuevo = self::soloDigitos($d['telefono'] ?? '');
+        if (! $forzar && $idNuevo !== '') {
+            foreach ($this->lista as $g) {
+                if (self::soloDigitos($g['telefono'] ?? '') !== $idNuevo) continue;
+
+                $mismaDir  = mb_strtolower(trim((string) ($g['direccion'] ?? ''))) === mb_strtolower(trim((string) ($d['direccion'] ?? '')));
+                $mismoProd = mb_strtolower(trim((string) ($g['descripcion'] ?? ''))) === mb_strtolower(trim((string) ($d['descripcion'] ?? '')));
+
+                if ($mismaDir && $mismoProd) {
+                    Notification::make()
+                        ->title('⚠️ Guía repetida')
+                        ->body('Ya tienes esta misma guía en el lote (' . ($g['nombre'] ?? '') . ' · ' . $idNuevo . '). No se agregó.')
+                        ->danger()->persistent()->send();
+                    return;
+                }
+
+                Notification::make()
+                    ->title('⚠️ Ese cliente ya está en el lote')
+                    ->body(($g['nombre'] ?? '') . ' · ' . $idNuevo . '. Si es otro pedido distinto, confirma para agregarlo.')
+                    ->warning()->persistent()
+                    ->actions([
+                        \Filament\Notifications\Actions\Action::make('forzar')
+                            ->label('Sí, agregar de todos modos')
+                            ->button()->close()->dispatch('agregar-forzado'),
+                    ])
+                    ->send();
+                return;
+            }
+        }
+
+        // El más reciente queda de primero, para tenerlo a la vista.
+        array_unshift($this->lista, [
             'nombre'          => $d['nombre'],
             'telefono'        => $d['telefono'],
             'telefono_recibe' => $d['telefono_recibe'] ?? null,
@@ -130,7 +177,7 @@ class CrearGuia extends Page implements HasForms
             'departamento'=> $d['departamento'],
             'descripcion' => $d['descripcion'],
             'cobrar'      => (float) ($d['cobrar'] ?? 0),
-        ];
+        ]);
 
         session(['guias_lista' => $this->lista]);
         $this->form->fill();
@@ -162,7 +209,9 @@ class CrearGuia extends Page implements HasForms
         $nombre = 'sistrack_' . now()->format('Y-m-d_Hi') . '.xlsx';
         $path   = storage_path('app/' . $nombre);
 
-        SistrackExcel::generarDesdeLista($this->lista, $path);
+        // En pantalla el último va arriba; en el Excel se exporta en el orden en que
+        // se fueron agregando.
+        SistrackExcel::generarDesdeLista(array_reverse($this->lista), $path);
 
         return response()->download($path, $nombre)->deleteFileAfterSend();
     }

@@ -23,10 +23,24 @@
                 @endif
             </div>
 
+            @php
+                // Cuenta cuántas veces aparece cada teléfono, para avisar de repetidos.
+                $conteoTel = collect($lista)
+                    ->map(fn ($x) => preg_replace('/\D/', '', (string) ($x['telefono'] ?? '')))
+                    ->countBy();
+            @endphp
             @forelse($lista as $i => $g)
-                <div style="display:flex;gap:10px;align-items:flex-start;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:11px 13px;margin-bottom:8px">
+                @php
+                    $tel = preg_replace('/\D/', '', (string) ($g['telefono'] ?? ''));
+                    $rep = $tel !== '' && ($conteoTel[$tel] ?? 0) > 1;
+                @endphp
+                <div style="display:flex;gap:10px;align-items:flex-start;background:{{ $loop->first ? '#eff6ff' : '#f9fafb' }};border:1px solid {{ $rep ? '#fca5a5' : ($loop->first ? '#bfdbfe' : '#e5e7eb') }};border-radius:10px;padding:11px 13px;margin-bottom:8px">
                     <div style="flex:1;min-width:0">
-                        <div style="font-weight:700;font-size:14px">{{ $g['nombre'] }}</div>
+                        <div style="font-weight:700;font-size:14px">
+                            {{ $g['nombre'] }}
+                            @if($loop->first)<span style="background:#2563eb;color:#fff;font-size:10.5px;padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:middle">última</span>@endif
+                            @if($rep)<span style="background:#dc2626;color:#fff;font-size:10.5px;padding:2px 7px;border-radius:999px;margin-left:4px;vertical-align:middle">repetido</span>@endif
+                        </div>
                         <div style="color:#6b7280;font-size:12.5px;margin-top:2px">
                             {{ $g['telefono'] }} · {{ $g['municipio'] }}, {{ $g['departamento'] }}
                         </div>
