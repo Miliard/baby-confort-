@@ -29,7 +29,10 @@ class OrdenWhatsappParser
 
     public static function parsear(string $texto): array
     {
-        $out = ['nombre' => null, 'telefono' => null, 'direccion' => null, 'municipio' => null,
+        // telefono_id  = el que va JUNTO AL NOMBRE (identifica al cliente en Sistrack).
+        // telefono     = el de la línea "Teléfono:" (al que llama el repartidor).
+        $out = ['nombre' => null, 'telefono' => null, 'telefono_id' => null,
+                'direccion' => null, 'municipio' => null,
                 'municipio_texto' => null, 'items' => [], 'envio' => null, 'total' => null];
         if (trim($texto) === '') return $out;
 
@@ -78,12 +81,16 @@ class OrdenWhatsappParser
         }
 
         // Si no vino etiquetado, busca un teléfono suelto (8 dígitos) en todo el texto.
-        if (! $out['telefono']) {
+        if (! $out['telefono'] && ! $out['telefono_id']) {
             $limpio = preg_replace('/\$\s*[\d.,]+/u', ' ', $texto); // ignora montos
             if (preg_match('/(?:^|[^\d])(?:\+?503[\s-]*)?([267]\d{3})[\s-]?(\d{4})(?![\d])/u', $limpio, $m)) {
                 $out['telefono'] = $m[1] . ' ' . $m[2];
             }
         }
+
+        // Si solo vino uno de los dos, sirve para ambos usos.
+        if (! $out['telefono_id']) $out['telefono_id'] = $out['telefono'];
+        if (! $out['telefono'])    $out['telefono']    = $out['telefono_id'];
 
         // Detecta municipio y departamento reales (catálogo de Sistrack).
         // Se da prioridad a la línea "Municipio: ..." si venía en la orden.
@@ -199,10 +206,10 @@ class OrdenWhatsappParser
         switch ($seccion) {
             case 'nombre':
                 if (! $out['nombre']) {
-                    // A veces el nombre viene con el teléfono pegado ("6061 1693 Mireldy").
-                    // Se separa: el teléfono se guarda aparte y el nombre queda limpio.
+                    // Si el nombre trae un teléfono al lado ("6061 1693 Mireldy"), ESE es el
+                    // ID del cliente: se guarda aparte y el nombre queda limpio.
                     if (preg_match('/(?:^|[^\d])(?:\+?503[\s-]*)?([267]\d{3})[\s.-]?(\d{4})(?![\d])/u', $valor, $m)) {
-                        $out['telefono'] = $out['telefono'] ?: ($m[1] . ' ' . $m[2]);
+                        $out['telefono_id'] = $out['telefono_id'] ?: ($m[1] . ' ' . $m[2]);
                         $valor = trim(preg_replace('/(?:\+?503[\s-]*)?' . preg_quote($m[1], '/') . '[\s.-]?' . preg_quote($m[2], '/') . '/u', ' ', $valor));
                         $valor = trim(preg_replace('/\s+/u', ' ', $valor), " \t-:.,");
                     }

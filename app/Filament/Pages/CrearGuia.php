@@ -48,8 +48,11 @@ class CrearGuia extends Page implements HasForms
                 ->placeholder("Orden de envío:🚚\n✅Nombre completo:\n...\n✅Dirección:\n...\n✅producto:\n...")
                 ->afterStateUpdated(function ($state, Forms\Set $set) {
                     $r = OrdenWhatsappParser::parsear((string) $state);
-                    if ($r['nombre'])    $set('nombre', $r['nombre']);
-                    if ($r['telefono'])  $set('telefono', $r['telefono']);
+                    if ($r['nombre'])      $set('nombre', $r['nombre']);
+                    // El de junto al nombre identifica al cliente; el de la línea "Teléfono:"
+                    // es al que llama el repartidor.
+                    if ($r['telefono_id']) $set('telefono', $r['telefono_id']);
+                    if ($r['telefono'])    $set('telefono_recibe', $r['telefono']);
                     if ($r['direccion']) $set('direccion', $r['direccion']);
                     // Municipio y departamento detectados del catálogo (se pueden corregir a mano).
                     if (! empty($r['departamento'])) {
@@ -67,7 +70,13 @@ class CrearGuia extends Page implements HasForms
                 }),
 
             Forms\Components\TextInput::make('nombre')->label('2. Nombre del cliente')->required(),
-            Forms\Components\TextInput::make('telefono')->label('3. Teléfono')->tel()->required()->placeholder('7777-7777'),
+            Forms\Components\TextInput::make('telefono')->label('3. Teléfono junto al nombre (ID del cliente)')
+                ->tel()->required()->placeholder('7777-7777')
+                ->helperText('El de quien pide. Va pegado al nombre en Sistrack para buscarlo por número.'),
+
+            Forms\Components\TextInput::make('telefono_recibe')->label('4. Teléfono para el repartidor')
+                ->tel()->placeholder('Al que debe llamar para entregar')
+                ->helperText('El de la línea "Teléfono:" de la orden. Si va vacío, se usa el del cliente.'),
 
             Forms\Components\Select::make('departamento')->label('4. Departamento')
                 ->options(fn () => array_combine(array_keys(config('municipios_sv', [])), array_keys(config('municipios_sv', []))))
@@ -113,8 +122,9 @@ class CrearGuia extends Page implements HasForms
         $d = $this->form->getState();
 
         $this->lista[] = [
-            'nombre'      => $d['nombre'],
-            'telefono'    => $d['telefono'],
+            'nombre'          => $d['nombre'],
+            'telefono'        => $d['telefono'],
+            'telefono_recibe' => $d['telefono_recibe'] ?? null,
             'direccion'   => $d['direccion'],
             'municipio'   => $d['municipio'],
             'departamento'=> $d['departamento'],

@@ -110,9 +110,19 @@ class SistrackExcel
         ]));
 
         foreach ($lista as $g) {
-            $digitos = preg_replace('/\D/', '', (string) ($g['telefono'] ?? ''));
-            $tel     = strlen($digitos) === 8 ? '+503' . $digitos : '+' . $digitos;
-            $cobrar  = (float) ($g['cobrar'] ?? 0);
+            // El teléfono del cliente es su "ID" (va junto al nombre). Si el paquete lo
+            // recibe otra persona, en la columna TELEFONO va el de quien recibe, que es
+            // a quien llama el repartidor.
+            $telContacto = trim((string) ($g['telefono_recibe'] ?? '')) !== ''
+                ? $g['telefono_recibe']
+                : ($g['telefono'] ?? '');
+
+            $digitos = preg_replace('/\D/', '', (string) $telContacto);
+            if (strlen($digitos) === 11 && str_starts_with($digitos, '503')) {
+                $digitos = substr($digitos, 3);
+            }
+            $tel    = strlen($digitos) === 8 ? '+503' . $digitos : '+' . $digitos;
+            $cobrar = (float) ($g['cobrar'] ?? 0);
 
             $writer->addRow(Row::fromValues([
                 '',                                                             // ORDEN (la asigna Sistrack)
@@ -127,9 +137,9 @@ class SistrackExcel
                 self::limpiar($g['descripcion'] ?? '') ?: 'Productos para bebe', // DESCRIPCION
                 1,                                                              // PESO
                 $cobrar,                                                        // PRECIO (a cobrar)
-                $cobrar > 0
+                self::limpiar($cobrar > 0
                     ? 'COBRAR AL ENTREGAR: $' . number_format($cobrar, 2)
-                    : 'PAGADO - no cobrar',                                     // OBSERVACIONES
+                    : 'PAGADO - no cobrar'),                                    // OBSERVACIONES
             ]));
         }
 
