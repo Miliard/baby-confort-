@@ -159,7 +159,8 @@
         .item{background:#fff;border:1px solid var(--borde);border-radius:12px;padding:12px;display:flex;gap:12px}
         .item img{width:56px;height:56px;object-fit:contain;background:var(--azul-claro);border-radius:8px;padding:4px}
         .item .nom{font-weight:700;font-size:14px;line-height:1.3}
-        .item .meta{font-size:12.5px;color:var(--gris);margin-top:2px}
+        .item .meta{font-size:12.5px;color:var(--gris);margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+        .talla-badge{background:var(--teal);color:#fff;font-weight:800;font-size:12px;letter-spacing:.4px;padding:3px 9px;border-radius:999px;white-space:nowrap}
         .lineabajo{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
         .qtybox{display:flex;align-items:center;gap:8px}
         .qtybox button{width:28px;height:28px;border-radius:8px;border:1px solid var(--borde);background:#fff;cursor:pointer;font-size:16px;font-weight:700}
@@ -423,7 +424,9 @@
                                     <img :src="i.imagen" :alt="i.nombre">
                                     <div style="flex:1">
                                         <div class="nom" x-text="i.nombre"></div>
-                                        <div class="meta">Talla: <span x-text="i.talla"></span> · <span x-text="c.money(i.precio)"></span> c/u
+                                        <div class="meta">
+                                            <span class="talla-badge" x-text="'TALLA ' + i.talla"></span>
+                                            <span x-text="c.money(i.precio)"></span> c/u
                                             <template x-if="i.combo"><span> · combo <span x-text="i.combo.cantidad"></span>x<span x-text="c.money(i.combo.precio)"></span></span></template>
                                         </div>
                                         <div class="lineabajo">

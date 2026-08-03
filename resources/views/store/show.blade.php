@@ -161,7 +161,10 @@
             <div class="infobar"><span class="dot"></span> Envío en <b style="margin:0 4px">{{ $entregaTexto }}</b> · 🇸🇻 Envío rápido en SV</div>
 
             <div class="buy-section">
-            <div class="size-label">TALLA</div>
+            <div class="size-label">TALLA
+                <span x-show="talla" style="background:var(--teal);color:#fff;font-weight:800;font-size:12.5px;letter-spacing:.4px;padding:3px 11px;border-radius:999px;margin-left:8px;text-transform:none"
+                      x-text="'Elegiste: ' + talla"></span>
+            </div>
             <div class="size-pills">
                 @foreach($product->sizes as $s)
                     <button class="spill" :class="talla === '{{ $s->size }}' ? 'sel' : ''"
