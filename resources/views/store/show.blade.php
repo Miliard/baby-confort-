@@ -83,7 +83,14 @@
         precio(){ return this.sel().price || 0; },
         money(n){ return '$' + Number(n||0).toFixed(2); },
         pickSize(t){ this.talla = t; const s = this.sel(); this.current = (s && s.imagen) ? s.imagen : (this.fotos[0] || ''); const i = this.fotos.indexOf(this.current); if (i >= 0) this.idx = i; },
-        pickFoto(k){ this.idx = k; this.current = this.fotos[k]; },
+        // Al tocar una foto, si esa foto es la de una talla, se selecciona esa talla.
+        // (El cliente elige por imagen y espera que la talla cambie con ella.)
+        pickFoto(k){
+            this.idx = k;
+            this.current = this.fotos[k];
+            const s = this.sizes.find(x => x.imagen && x.imagen === this.fotos[k]);
+            if (s) this.talla = s.size;
+        },
         add(){
             const s = this.sel();
             if(!s.size){ alert('Elige una talla'); return; }
@@ -104,10 +111,10 @@
                      x-effect="current; if($refs.mimg){ $refs.mimg.classList.remove('anim'); void $refs.mimg.offsetWidth; $refs.mimg.classList.add('anim'); }"
                      :alt="@js($product->name)">
                 <template x-if="fotos.length > 1">
-                    <button class="gal-nav prev" @click="idx=(idx-1+fotos.length)%fotos.length; current=fotos[idx]">‹</button>
+                    <button class="gal-nav prev" @click="pickFoto((idx-1+fotos.length)%fotos.length)">‹</button>
                 </template>
                 <template x-if="fotos.length > 1">
-                    <button class="gal-nav next" @click="idx=(idx+1)%fotos.length; current=fotos[idx]">›</button>
+                    <button class="gal-nav next" @click="pickFoto((idx+1)%fotos.length)">›</button>
                 </template>
             </div>
             <div class="gal-thumbs">
