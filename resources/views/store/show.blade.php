@@ -201,17 +201,23 @@
 
             <button class="cta" @click="add()">🛒 Añadir al carrito</button>
 
-            {{-- Compartir este producto (con la talla elegida) por WhatsApp --}}
-            <button class="btn-compartir" @click="bcCompartir({
-                nombre:   @js($product->name),
-                talla:    talla || (sel().size || ''),
-                precio:   sel().price || 0,
-                antes:    (sel().antes && sel().antes > sel().price) ? sel().antes : null,
-                unidades: sel().unidades || null,
-                combo:    sel().combo || null,
-                url:      @js(route('store.show', $product)) + (talla ? '?t=' + encodeURIComponent(talla) : ''),
-                imagen:   current || (fotos[0] || null),
-            })">📤 Compartir por WhatsApp</button>
+            {{-- Compartir este producto (con la talla elegida) --}}
+            @php
+                $nombreJs = \Illuminate\Support\Js::from($product->name)->toHtml();
+                $urlJs    = \Illuminate\Support\Js::from(route('store.show', $product))->toHtml();
+                $datosCompartir = "{"
+                    . "nombre: {$nombreJs},"
+                    . "talla: talla || (sel().size || ''),"
+                    . "precio: sel().price || 0,"
+                    . "antes: (sel().antes && sel().antes > sel().price) ? sel().antes : null,"
+                    . "unidades: sel().unidades || null,"
+                    . "combo: sel().combo || null,"
+                    . "url: {$urlJs} + (talla ? '?t=' + encodeURIComponent(talla) : ''),"
+                    . "imagen: current || (fotos[0] || null)"
+                    . "}";
+            @endphp
+            <button class="btn-compartir" @click="bcCopiarProducto({!! $datosCompartir !!}, $event.currentTarget)">📋 Copiar foto + info</button>
+            <button class="btn-compartir btn-compartir-alt" @click="bcCompartir({!! $datosCompartir !!})">📤 Compartir por WhatsApp</button>
             </div>
 
             <div class="metarow">

@@ -260,9 +260,14 @@
         .sg-prod .d{font-size:12.5px;color:var(--gris);margin-top:2px}
         .sg-prod .go{margin-left:auto;color:var(--teal-osc);font-weight:800;font-size:13px;white-space:nowrap}
         .sg-none{font-size:13.5px;color:var(--gris);background:#f8fbff;border:1px dashed var(--borde);border-radius:10px;padding:10px}
-        .btn-compartir{margin-top:8px;width:100%;border:1px solid #25D366;background:#f0fbf4;color:#1a9e4b;border-radius:10px;padding:9px;font-weight:700;font-size:13.5px;cursor:pointer;transition:background .1s}
+        .btn-compartir{margin-top:8px;width:100%;border:1px solid var(--azul);background:#eef6ff;color:var(--azul-osc);border-radius:10px;padding:10px;font-weight:700;font-size:14px;cursor:pointer;transition:background .1s}
         .btn-compartir:hover{background:#e0f7e9}
         html.dark .btn-compartir{background:#14261c;border-color:#2f5a3f;color:#63d891}
+        .btn-compartir:disabled{opacity:.85;cursor:default}
+        /* El de copiar es el principal (azul); compartir queda como alternativa */
+        .btn-compartir-alt{border-color:var(--borde);background:#fff;color:var(--gris);font-size:12.5px;padding:7px;margin-top:6px}
+        .btn-compartir-alt:hover{background:#f7fafc}
+        html.dark .btn-compartir-alt{background:#16202f;border-color:var(--borde);color:var(--gris)}
         .agotado-chip{position:absolute;top:10px;left:10px;z-index:3;background:#6b7c8c;color:#fff;font-weight:800;font-size:12px;padding:6px 12px;border-radius:999px;letter-spacing:.3px}
         .oferta-bubble{position:absolute;top:10px;left:10px;z-index:3;background:linear-gradient(135deg,#ff8a80,#e5695f);color:#fff;font-weight:800;font-size:12.5px;padding:7px 13px;border-radius:999px;box-shadow:0 4px 12px rgba(229,105,95,.45);transform:rotate(-7deg);letter-spacing:.3px}
         .pcard .img{position:relative}
@@ -556,6 +561,72 @@ async function bcEnviar(t, imagenes){
 function bcCompartir(d){
     bcEnviar('🍼 ' + bcBloqueProducto(d) + '\n🚚 Entrega a domicilio en todo El Salvador',
         d.imagen ? [d.imagen] : []);
+}
+
+// Copia el texto al portapapeles y avisa en el botón (sin abrir WhatsApp).
+async function bcCopiarTexto(texto, boton){
+    try {
+        await navigator.clipboard.writeText(texto);
+    } catch(e) {
+        const ta = document.createElement('textarea');
+        ta.value = texto;
+        ta.style.cssText = 'position:fixed;top:-1000px';
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); } catch(err) {}
+        ta.remove();
+    }
+    if (boton) {
+        const antes = boton.innerHTML;
+        boton.innerHTML = '✅ ¡Copiado! Ya podés pegarlo';
+        boton.disabled = true;
+        setTimeout(function(){ boton.innerHTML = antes; boton.disabled = false; }, 1800);
+    }
+}
+
+// Convierte una imagen (jpg/webp) a PNG, que es lo único que acepta el portapapeles.
+async function bcImagenPng(url){
+    const resp = await fetch(url, { mode: 'cors' });
+    const blob = await resp.blob();
+    if (blob.type === 'image/png') return blob;
+
+    const bitmap = await createImageBitmap(blob);
+    const c = document.createElement('canvas');
+    c.width = bitmap.width; c.height = bitmap.height;
+    c.getContext('2d').drawImage(bitmap, 0, 0);
+    return await new Promise(function(res){ c.toBlob(res, 'image/png'); });
+}
+
+// Copiar la info de UN producto (para pegarla en un chat ya abierto).
+// Intenta copiar FOTO + TEXTO juntos; si el navegador no deja, copia solo el texto.
+async function bcCopiarProducto(d, boton){
+    const texto = '🍼 ' + bcBloqueProducto(d) + '\n🚚 Entrega a domicilio en todo El Salvador';
+
+    if (d.imagen && window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+        const original = boton ? boton.innerHTML : null;
+        if (boton) { boton.innerHTML = '⏳ Preparando la foto…'; boton.disabled = true; }
+        try {
+            const png = await bcImagenPng(d.imagen);
+            await navigator.clipboard.write([ new ClipboardItem({
+                'image/png':  png,
+                'text/plain': new Blob([texto], { type: 'text/plain' }),
+            }) ]);
+            if (boton) {
+                boton.innerHTML = '✅ ¡Foto y texto copiados!';
+                setTimeout(function(){ boton.innerHTML = original; boton.disabled = false; }, 2000);
+            }
+            return;
+        } catch(e) {
+            if (boton) { boton.innerHTML = original; boton.disabled = false; }
+        }
+    }
+
+    bcCopiarTexto(texto, boton);
+}
+
+// Copiar la info de VARIOS productos
+function bcCopiarVarios(items, boton){
+    if (!items.length) return;
+    bcCopiarTexto(bcTextoVarios(items), boton);
 }
 
 // Texto completo de VARIOS productos (lista numerada con todos los detalles)
