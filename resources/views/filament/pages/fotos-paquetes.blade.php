@@ -186,16 +186,13 @@
                 }
 
                 const acc = card.querySelector('.acciones');
-                await subir(file, guia, est, acc);
 
-                // Lee el teléfono de la etiqueta para poder escribirle al cliente.
-                const aviso = document.createElement('span');
-                aviso.textContent = ' · leyendo teléfono…';
-                aviso.style.cssText = 'font-size:12px;color:#6b7280;font-weight:500';
-                est.appendChild(aviso);
-
+                // Lee nombre y teléfono de la etiqueta ANTES de subir, para guardarlos
+                // junto con la foto (el nombre sirve para saludar al cliente en el rastreo).
+                est.innerHTML = '✓ Guía ' + guia + ' <span style="font-size:12px;color:#6b7280;font-weight:500">· leyendo datos…</span>';
                 const datos = await leerDatosCliente(img);
-                aviso.remove();
+
+                await subir(file, guia, est, acc, datos);
                 if (datos.telefono) agregarWhatsapp(acc, datos, guia);
 
                 actualizarContador();
@@ -305,11 +302,12 @@
             }
         }
 
-        async function subir(file, guia, est, acc) {
+        async function subir(file, guia, est, acc, datos) {
             est.textContent = 'Subiendo guía ' + guia + '…';
             const fd = new FormData();
             fd.append('guia', guia);
             fd.append('foto', file);
+            if (datos && datos.nombre) fd.append('nombre', datos.nombre);
             try {
                 const res = await fetch('{{ route('fotos.subir') }}', {
                     method: 'POST',

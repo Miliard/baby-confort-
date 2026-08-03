@@ -30,7 +30,14 @@
 <main class="trk-wrap">
     <a href="/" class="volver" style="color:var(--azul-osc);font-weight:700;text-decoration:none">← Volver a la tienda</a>
     <h1 style="margin:12px 0 4px;color:var(--texto)">Seguimiento de tu pedido 📦</h1>
-    <p style="color:var(--gris);margin:0">Hola{{ $order->customer_name ? ', ' . $order->customer_name : '' }} 👋 &nbsp; Pedido <b>#{{ $order->id }}</b></p>
+    @php
+        $nom = $order->customer_name ?: \App\Models\GuiaFoto::nombreDeGuia($order->guia);
+        $primerNombre = $nom ? \Illuminate\Support\Str::of($nom)->trim()->before(' ')->title() : null;
+    @endphp
+    <p style="color:var(--gris);margin:0">
+        @if($primerNombre)<b style="color:var(--azul-osc)">¡Hola {{ $primerNombre }}!</b> 👋 @endif
+        Pedido <b>#{{ $order->id }}</b>
+    </p>
 
     <div class="trk">
         <div class="trk-line"></div>

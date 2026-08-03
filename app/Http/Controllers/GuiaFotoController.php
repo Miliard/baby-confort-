@@ -11,8 +11,9 @@ class GuiaFotoController extends Controller
     public function subir(Request $request)
     {
         $data = $request->validate([
-            'guia'  => ['required', 'string', 'max:40'],
-            'foto'  => ['required', 'image', 'max:8192'], // hasta 8 MB
+            'guia'   => ['required', 'string', 'max:40'],
+            'foto'   => ['required', 'image', 'max:8192'], // hasta 8 MB
+            'nombre' => ['nullable', 'string', 'max:80'],  // leído de la etiqueta
         ]);
 
         $guia = preg_replace('/\D/', '', $data['guia']);
@@ -31,7 +32,11 @@ class GuiaFotoController extends Controller
 
         $ruta = $request->file('foto')->store('paquetes', 'public');
 
-        $foto = GuiaFoto::create(['guia' => $guia, 'ruta' => $ruta]);
+        $foto = GuiaFoto::create([
+            'guia'   => $guia,
+            'ruta'   => $ruta,
+            'nombre' => trim((string) ($data['nombre'] ?? '')) ?: null,
+        ]);
 
         // Limpieza: borra fotos con más de 5 días para no llenar el servidor.
         static::limpiarViejas();

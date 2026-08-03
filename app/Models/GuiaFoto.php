@@ -14,7 +14,14 @@ class GuiaFoto extends Model
 {
     protected $table = 'guia_fotos';
 
-    protected $fillable = ['guia', 'ruta'];
+    protected $fillable = ['guia', 'ruta', 'nombre'];
+
+    /** Nombre del cliente asociado a una guía (leído de la etiqueta), si se tiene. */
+    public static function nombreDeGuia(?string $guia): ?string
+    {
+        $g = static::deGuia($guia)->firstWhere(fn ($f) => filled($f->nombre));
+        return $g?->nombre;
+    }
 
     public function url(): string
     {

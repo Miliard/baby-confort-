@@ -27,6 +27,8 @@
     .trk-form{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
     .trk-form input{flex:1;min-width:180px;padding:12px 14px;border:1px solid var(--borde);border-radius:12px;font-size:15px}
     .trk-form button{background:linear-gradient(135deg,var(--azul),var(--azul-osc));color:#fff;border:none;border-radius:12px;padding:12px 22px;font-weight:800;font-size:15px;cursor:pointer}
+    .saludo-cliente{margin-top:18px;background:linear-gradient(135deg,#eafaf2,#eaf5fc);border:1px solid var(--borde);border-radius:14px;padding:14px 16px;font-size:16px;font-weight:700;color:var(--azul-osc);text-align:center}
+    html.dark .saludo-cliente{background:#182338;border-color:var(--borde)}
     @media(max-width:460px){.trk-dot{width:48px;height:48px;font-size:22px}.trk-line,.trk-fill{top:23px}.trk-lbl{font-size:11.5px}}
 </style>
 <main class="trk-wrap">
@@ -38,6 +40,16 @@
         <input type="text" name="guia" value="{{ $guia }}" placeholder="Número de guía (ej: 5009506)" required>
         <button type="submit">Rastrear</button>
     </form>
+
+    @php
+        // Nombre leído de la etiqueta al subir la foto del paquete.
+        $nombreCliente = $guia ? \App\Models\GuiaFoto::nombreDeGuia($guia) : null;
+        $primerNombre  = $nombreCliente ? \Illuminate\Support\Str::of($nombreCliente)->trim()->before(' ')->title() : null;
+    @endphp
+
+    @if($guia && $etapa && $primerNombre)
+        <div class="saludo-cliente">¡Hola {{ $primerNombre }}! 👋 Aquí podés ver cómo va tu paquete.</div>
+    @endif
 
     @if($guia && $etapa)
         <div class="trk">
