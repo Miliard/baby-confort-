@@ -17,6 +17,9 @@ return [
         'San Pedro Puxtla',
         'Tacuba',
         'Turín',
+        'El Amatillo',
+        'San Francisco Menéndez (Cara Sucia)',
+        'San Francisco Menéndez (La Hachadura)',
     ],
     'Santa Ana' => [
         'Candelaria de la Frontera',
@@ -50,6 +53,7 @@ return [
         'Santo Domingo de Guzmán',
         'Sonsonate',
         'Sonzacate',
+        'San José La Majada',
     ],
     'Chaletenango' => [
         'Agua Caliente',
@@ -109,6 +113,7 @@ return [
         'Teotepeque',
         'Tepecoyo',
         'Zaragoza',
+        'Puerto de La Libertad',
     ],
     'San Salvador' => [
         'Aguilares',
@@ -130,6 +135,8 @@ return [
         'Santo Tomás',
         'Soyapango',
         'Tonacatepeque',
+        'Ciudad Delgado',
+        'San Jacinto',
     ],
     'Cuscatlan' => [
         'Candelaria',
