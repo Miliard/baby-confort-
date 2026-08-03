@@ -127,6 +127,18 @@ class Order extends Model
         });
     }
 
+    /**
+     * Quita del nombre el listado de tallas, que confunde cuando ya se indica
+     * la talla elegida. Ej: "Pañales Comfy Care Talla (P,M,G,XG) Paquete 50un."
+     * queda como "Pañales Comfy Care Paquete 50un.".
+     */
+    public static function nombreSinTallas(string $nombre): string
+    {
+        $n = preg_replace('/\s*tallas?\s*\([^)]*\)/iu', '', $nombre);
+        $n = preg_replace('/\s*\((?:\s*(?:P|M|G|S|L|XL|XXL|XXXL|XG|XXG|XXXG)\s*[,\/]\s*){2,}[^)]*\)/iu', '', $n);
+        return trim(preg_replace('/\s{2,}/u', ' ', $n));
+    }
+
     // Formato $: quita ".00" si es entero (8.5 -> $8.50, 17 -> $17)
     private function mnyWa($n): string
     {
@@ -145,9 +157,17 @@ class Order extends Model
         $t .= "{$this->address}\n\n";
         $t .= "\u{2705} Producto(s):\n";
         foreach (($this->items ?? []) as $it) {
-            $linea = "{$it['cantidad']} {$it['producto']} {$it['talla']} " . $this->mnyWa($it['precio'] ?? 0);
+            // La TALLA va aparte y en mayúsculas, para que no se pierda dentro de
+            // nombres largos que ya mencionan varias tallas.
+            $nombre = self::nombreSinTallas((string) ($it['producto'] ?? ''));
+            $talla  = trim((string) ($it['talla'] ?? ''));
+
+            $linea = "{$it['cantidad']} {$nombre} " . $this->mnyWa($it['precio'] ?? 0);
             if (($it['cantidad'] ?? 1) > 1) {
                 $linea .= " (" . $this->mnyWa($it['subtotal'] ?? 0) . ")";
+            }
+            if ($talla !== '' && $talla !== '-') {
+                $linea .= "\n   \u{27A1} TALLA: " . mb_strtoupper($talla);
             }
             $t .= $linea . "\n";
         }
@@ -171,8 +191,10 @@ class Order extends Model
     public function mensajeTelegram(): string
     {
         $lineas = collect($this->items ?? [])->map(function ($it) {
-            return "\u{2022} " . ($it['cantidad'] ?? '') . "x " . ($it['producto'] ?? '') .
-                " (" . ($it['talla'] ?? '') . ") - $" . number_format($it['subtotal'] ?? 0, 2);
+            $talla = trim((string) ($it['talla'] ?? ''));
+            return "\u{2022} " . ($it['cantidad'] ?? '') . "x " . self::nombreSinTallas((string) ($it['producto'] ?? ''))
+                . ($talla !== '' && $talla !== '-' ? "\n   \u{27A1} TALLA: " . mb_strtoupper($talla) : '')
+                . " - $" . number_format($it['subtotal'] ?? 0, 2);
         })->implode("\n");
 
         $pago = self::PAGOS[$this->payment] ?? $this->payment;
