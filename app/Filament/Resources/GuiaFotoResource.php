@@ -33,11 +33,12 @@ class GuiaFotoResource extends Resource
                     ->icon('heroicon-m-clipboard-document')->iconPosition('after')
                     ->tooltip('Clic para copiar la guía'),
 
-                // Un solo clic copia la guía y su enlace juntos, listo para pegar.
+                // Un solo clic copia el mensaje listo: leyenda + enlace + guía.
+                // La leyenda va escrita en el texto (no depende de la vista previa de WhatsApp).
                 Tables\Columns\TextColumn::make('enlace')->label('Copiar')
-                    ->getStateUsing(fn (GuiaFoto $record) => 'Guía ' . $record->guia . "\n" . $record->enlaceRastreo())
-                    ->formatStateUsing(fn () => '📋 Guía + enlace')
-                    ->copyable()->copyMessage('✓ Copiado: guía y enlace')
+                    ->getStateUsing(fn (GuiaFoto $record) => $record->mensajeParaCliente())
+                    ->formatStateUsing(fn () => '📋 Mensaje + enlace')
+                    ->copyable()->copyMessage('✓ Mensaje copiado, ya podés pegarlo')
                     ->color('primary')->weight('bold')
                     ->tooltip('Copia la guía y el enlace de seguimiento juntos'),
 

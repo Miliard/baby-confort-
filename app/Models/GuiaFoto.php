@@ -22,6 +22,22 @@ class GuiaFoto extends Model
         return route('store.rastreo.guia') . '?guia=' . $this->guia;
     }
 
+    /**
+     * Mensaje listo para pegarle al cliente. La leyenda va escrita en el texto,
+     * para que se entienda aunque WhatsApp no muestre la vista previa del enlace.
+     */
+    public function mensajeParaCliente(): string
+    {
+        $saludo = $this->nombre
+            ? '¡Hola ' . \Illuminate\Support\Str::of($this->nombre)->trim()->before(' ')->title() . '! '
+            : '';
+
+        return $saludo . "\u{1F4E6} Aqu\u{ED} pod\u{E9}s ver el progreso de tu paquete:\n"
+            . $this->enlaceRastreo() . "\n"
+            . "Gu\u{ED}a: {$this->guia}\n\n"
+            . "Ah\u{ED} mismo aparece la foto de tu pedido. \u{A1}Gracias por tu preferencia! \u{1F499}";
+    }
+
     /** Enlace de WhatsApp con el mensaje listo (si se conoce el teléfono). */
     public function whatsapp(): ?string
     {
@@ -29,11 +45,7 @@ class GuiaFoto extends Model
         if (strlen($d) === 11 && str_starts_with($d, '503')) $d = substr($d, 3);
         if (strlen($d) !== 8) return null;
 
-        $msg = "\u{A1}Sigue tu pedido, Baby-Confort!\n\nGu\u{ED}a {$this->guia}\nRastr\u{E9}alo aqu\u{ED}: "
-             . $this->enlaceRastreo()
-             . "\n\nAh\u{ED} pod\u{E9}s ver la foto de tu paquete. \u{A1}Gracias por tu preferencia!";
-
-        return 'https://wa.me/503' . $d . '?text=' . rawurlencode($msg);
+        return 'https://wa.me/503' . $d . '?text=' . rawurlencode($this->mensajeParaCliente());
     }
 
     /** Nombre del cliente asociado a una guía (leído de la etiqueta), si se tiene. */
