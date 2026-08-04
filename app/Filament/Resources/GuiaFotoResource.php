@@ -75,11 +75,27 @@ class GuiaFotoResource extends Resource
                     ->searchable(query: function ($query, string $search) {
                         $d = preg_replace('/\D/', '', $search);
                         if ($d === '') return $query;
-                        // Compara ignorando espacios y guiones guardados.
-                        return $query->whereRaw(
-                            "REPLACE(REPLACE(REPLACE(COALESCE(telefono,''),' ',''),'-',''),'+','') LIKE ?",
-                            ['%' . $d . '%']
-                        );
+
+                        // Número guardado sin espacios ni guiones.
+                        $campo = "REPLACE(REPLACE(REPLACE(COALESCE(telefono,''),' ',''),'-',''),'+','')";
+
+                        // Búsqueda tolerante: si el OCR leyó mal un dígito, igual encuentra.
+                        // Se parte lo buscado en pedazos de 4 y basta que uno coincida.
+                        $trozos = [];
+                        $largo  = strlen($d);
+                        if ($largo <= 4) {
+                            $trozos[] = $d;
+                        } else {
+                            for ($i = 0; $i + 4 <= $largo; $i++) {
+                                $trozos[] = substr($d, $i, 4);
+                            }
+                        }
+
+                        return $query->where(function ($q) use ($campo, $trozos) {
+                            foreach ($trozos as $t) {
+                                $q->orWhereRaw("{$campo} LIKE ?", ['%' . $t . '%']);
+                            }
+                        });
                     }),
 
                 Tables\Columns\ImageColumn::make('ruta')->label('Foto')
