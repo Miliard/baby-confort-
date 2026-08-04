@@ -44,13 +44,34 @@ class GuiaFotoResource extends Resource
                 Tables\Columns\TextColumn::make('created_at')->label('Fecha')
                     ->dateTime('d/m/Y H:i')->sortable(),
 
-                Tables\Columns\TextColumn::make('nombre')->label('Cliente')
-                    ->searchable()->placeholder('—')->wrap(),
+                // Se pueden escribir a mano cuando el OCR no los leyó (y así buscar por ellos).
+                // Busca por parte del nombre, sin importar mayúsculas ni acentos.
+                Tables\Columns\TextInputColumn::make('nombre')->label('Cliente')
+                    ->placeholder('Escribir nombre')->rules(['max:80'])
+                    ->searchable(query: function ($query, string $search) {
+                        $s = mb_strtolower(trim($search));
+                        $s = strtr($s, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ü'=>'u','ñ'=>'n']);
+                        if ($s === '') return $query;
 
-                Tables\Columns\TextColumn::make('telefono')->label('Teléfono')
-                    ->searchable()->copyable()->copyMessage('✓ Teléfono copiado')
-                    ->placeholder('sin teléfono')
-                    ->tooltip('Clic para copiar el teléfono'),
+                        // Quita acentos también de lo guardado, para que coincida igual.
+                        $campo = "LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(nombre,''),"
+                               . "'á','a'),'é','e'),'í','i'),'ó','o'),'ú','u'),'ñ','n'))";
+
+                        return $query->whereRaw("{$campo} LIKE ?", ['%' . $s . '%']);
+                    }),
+
+                // Busca aunque el número se escriba con guion, espacio o de corrido.
+                Tables\Columns\TextInputColumn::make('telefono')->label('Teléfono')
+                    ->placeholder('Escribir teléfono')->rules(['max:30'])
+                    ->searchable(query: function ($query, string $search) {
+                        $d = preg_replace('/\D/', '', $search);
+                        if ($d === '') return $query;
+                        // Compara ignorando espacios y guiones guardados.
+                        return $query->whereRaw(
+                            "REPLACE(REPLACE(REPLACE(COALESCE(telefono,''),' ',''),'-',''),'+','') LIKE ?",
+                            ['%' . $d . '%']
+                        );
+                    }),
 
                 Tables\Columns\ImageColumn::make('ruta')->label('Foto')
                     ->disk('public')->height(42)->square(),
@@ -71,6 +92,10 @@ class GuiaFotoResource extends Resource
                             default  => $query,
                         };
                     }),
+
+                Tables\Filters\Filter::make('sin_telefono')
+                    ->label('Solo las que les falta el teléfono')
+                    ->query(fn ($query) => $query->where(fn ($q) => $q->whereNull('telefono')->orWhere('telefono', ''))),
             ])
             ->actions([
                 Tables\Actions\Action::make('enlace')
