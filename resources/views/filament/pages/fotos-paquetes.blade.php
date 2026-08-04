@@ -16,65 +16,12 @@
         <div id="resumen" style="margin-top:14px;font-size:14px;font-weight:700;display:none"></div>
         <div id="resultados" style="margin-top:12px;display:flex;flex-direction:column;gap:10px"></div>
 
-        {{-- Guías ya guardadas: siguen aquí aunque cierres la pantalla --}}
-        <div style="margin-top:26px">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-                <b style="font-size:15px">📦 Guías guardadas ({{ $this->guardadas->count() }})</b>
-                <button type="button" wire:click="$refresh" style="background:none;border:none;color:#2563eb;font-weight:600;font-size:13px;cursor:pointer">↻ Actualizar</button>
-            </div>
-
-            @if($this->guardadas->count())
-                <div style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;background:#fff">
-                    <table style="width:100%;border-collapse:collapse;font-size:13.5px">
-                        <thead>
-                            <tr style="background:#f8fafc;text-align:left">
-                                <th style="padding:9px 12px;font-size:12px;color:#64748b;font-weight:700">GUÍA</th>
-                                <th style="padding:9px 12px;font-size:12px;color:#64748b;font-weight:700">CLIENTE</th>
-                                <th style="padding:9px 12px;font-size:12px;color:#64748b;font-weight:700;text-align:right">ACCIONES</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        @foreach($this->guardadas as $guia => $fotos)
-                            @php $f = $fotos->first(); @endphp
-                            <tr style="border-top:1px solid #f1f5f9">
-                                <td style="padding:10px 12px;vertical-align:top;white-space:nowrap">
-                                    <div style="font-weight:800">{{ $guia }}</div>
-                                    <div style="font-size:11.5px;color:#94a3b8">{{ $f->created_at->format('d/m H:i') }}</div>
-                                </td>
-                                <td style="padding:10px 12px;vertical-align:top">
-                                    <div style="font-weight:600">{{ $f->nombre ?: '—' }}</div>
-                                    <div style="font-size:12px;color:#64748b">{{ $f->telefono ?: 'sin teléfono' }}</div>
-                                </td>
-                                <td style="padding:10px 12px;vertical-align:top">
-                                    <div style="display:flex;gap:5px;justify-content:flex-end;flex-wrap:wrap">
-                                        @if($f->whatsapp())
-                                            <a href="{{ $f->whatsapp() }}" target="_blank" rel="noopener" title="Enviar por WhatsApp"
-                                               style="background:#25D366;color:#fff;border-radius:7px;padding:6px 9px;font-size:13px;text-decoration:none">💬</a>
-                                        @endif
-                                        <button type="button" class="js-copiar" data-copiar="{{ $guia }}" title="Copiar guía"
-                                            style="background:#eff6ff;border:1px solid #bfdbfe;color:#2563eb;border-radius:7px;padding:6px 9px;font-size:13px;cursor:pointer">📋</button>
-                                        @if($f->telefono)
-                                            <button type="button" class="js-copiar" data-copiar="{{ $f->telefono }}" title="Copiar teléfono"
-                                                style="background:#ecfdf5;border:1px solid #a7f3d0;color:#059669;border-radius:7px;padding:6px 9px;font-size:13px;cursor:pointer">📞</button>
-                                        @endif
-                                        <button type="button" class="js-copiar" data-copiar="{{ $f->enlaceRastreo() }}" title="Copiar enlace"
-                                            style="background:#f5f3ff;border:1px solid #ddd6fe;color:#7c3aed;border-radius:7px;padding:6px 9px;font-size:13px;cursor:pointer">🔗</button>
-                                        <a href="{{ $f->url() }}" target="_blank" rel="noopener" title="Ver foto"
-                                           style="background:#f8fafc;border:1px solid #e5e7eb;color:#475569;border-radius:7px;padding:6px 9px;font-size:13px;text-decoration:none">🖼️</a>
-                                        <button type="button" wire:click="eliminarFoto({{ $f->id }})" wire:confirm="¿Borrar esta foto?" title="Borrar"
-                                            style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:7px;padding:6px 9px;font-size:13px;cursor:pointer">🗑</button>
-                                    </div>
-                                </td>
-                            </tr>
-                        @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @else
-                <div style="color:#6b7280;font-size:13.5px;background:#f9fafb;border:1px dashed #e5e7eb;border-radius:10px;padding:16px;text-align:center">
-                    Todavía no hay fotos guardadas. Subí las etiquetas arriba y aparecerán aquí.
-                </div>
-            @endif
+        {{-- Las fotos guardadas se ven en su propia pantalla, con la tabla de siempre --}}
+        <div style="margin-top:22px;text-align:center">
+            <a href="{{ \App\Filament\Resources\GuiaFotoResource::getUrl() }}"
+               style="display:inline-block;background:#eff6ff;border:1px solid #bfdbfe;color:#2563eb;border-radius:10px;padding:11px 18px;font-weight:700;font-size:14px;text-decoration:none">
+                📋 Ver todas las guías guardadas →
+            </a>
         </div>
     </div>
 </x-filament-panels::page>
