@@ -23,49 +23,58 @@
                 <button type="button" wire:click="$refresh" style="background:none;border:none;color:#2563eb;font-weight:600;font-size:13px;cursor:pointer">↻ Actualizar</button>
             </div>
 
-            @forelse($this->guardadas as $guia => $fotos)
-                @php $f = $fotos->first(); @endphp
-                <div style="border:1px solid #e5e7eb;border-radius:12px;padding:11px;margin-bottom:9px;background:#fff">
-                    <div style="display:flex;gap:11px;align-items:flex-start">
-                        <a href="{{ $f->url() }}" target="_blank" rel="noopener">
-                            <img src="{{ $f->url() }}" style="width:58px;height:58px;object-fit:cover;border-radius:8px;flex:none">
-                        </a>
-                        <div style="flex:1;min-width:0">
-                            <div style="font-weight:800;font-size:15px">Guía {{ $guia }}
-                                @if($fotos->count() > 1)<span style="font-weight:500;color:#6b7280;font-size:12px">· {{ $fotos->count() }} fotos</span>@endif
-                            </div>
-                            <div style="font-size:12.5px;color:#6b7280;margin-top:1px">
-                                {{ $f->nombre ?: 'Sin nombre' }}@if($f->telefono) · {{ $f->telefono }}@endif
-                                · {{ $f->created_at->diffForHumans() }}
-                            </div>
-
-                            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
-                                @if($f->whatsapp())
-                                    <a href="{{ $f->whatsapp() }}" target="_blank" rel="noopener"
-                                       style="background:#25D366;color:#fff;border-radius:8px;padding:7px 11px;font-weight:700;font-size:12.5px;text-decoration:none">💬 Enviar</a>
-                                @endif
-                                <button type="button" class="js-copiar" data-copiar="{{ $guia }}"
-                                    style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-weight:700;font-size:12.5px;cursor:pointer">📋 Guía</button>
-                                @if($f->telefono)
-                                    <button type="button" class="js-copiar" data-copiar="{{ $f->telefono }}"
-                                        style="background:#059669;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-weight:700;font-size:12.5px;cursor:pointer">📞 Teléfono</button>
-                                @endif
-                                <button type="button" class="js-copiar" data-copiar="{{ $f->enlaceRastreo() }}"
-                                    style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-weight:700;font-size:12.5px;cursor:pointer">🔗 Enlace</button>
-                                <a href="{{ $f->enlaceRastreo() }}" target="_blank" rel="noopener"
-                                   style="background:#f1f5f9;border:1px solid #e5e7eb;border-radius:8px;padding:7px 11px;font-size:12.5px;font-weight:600;color:#334155;text-decoration:none">Abrir ↗</a>
-                                <button type="button" wire:click="eliminarFoto({{ $f->id }})"
-                                    wire:confirm="¿Borrar esta foto?"
-                                    style="background:none;border:none;color:#dc2626;font-size:12.5px;font-weight:600;cursor:pointer">Borrar</button>
-                            </div>
-                        </div>
-                    </div>
+            @if($this->guardadas->count())
+                <div style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;background:#fff">
+                    <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+                        <thead>
+                            <tr style="background:#f8fafc;text-align:left">
+                                <th style="padding:9px 12px;font-size:12px;color:#64748b;font-weight:700">GUÍA</th>
+                                <th style="padding:9px 12px;font-size:12px;color:#64748b;font-weight:700">CLIENTE</th>
+                                <th style="padding:9px 12px;font-size:12px;color:#64748b;font-weight:700;text-align:right">ACCIONES</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach($this->guardadas as $guia => $fotos)
+                            @php $f = $fotos->first(); @endphp
+                            <tr style="border-top:1px solid #f1f5f9">
+                                <td style="padding:10px 12px;vertical-align:top;white-space:nowrap">
+                                    <div style="font-weight:800">{{ $guia }}</div>
+                                    <div style="font-size:11.5px;color:#94a3b8">{{ $f->created_at->format('d/m H:i') }}</div>
+                                </td>
+                                <td style="padding:10px 12px;vertical-align:top">
+                                    <div style="font-weight:600">{{ $f->nombre ?: '—' }}</div>
+                                    <div style="font-size:12px;color:#64748b">{{ $f->telefono ?: 'sin teléfono' }}</div>
+                                </td>
+                                <td style="padding:10px 12px;vertical-align:top">
+                                    <div style="display:flex;gap:5px;justify-content:flex-end;flex-wrap:wrap">
+                                        @if($f->whatsapp())
+                                            <a href="{{ $f->whatsapp() }}" target="_blank" rel="noopener" title="Enviar por WhatsApp"
+                                               style="background:#25D366;color:#fff;border-radius:7px;padding:6px 9px;font-size:13px;text-decoration:none">💬</a>
+                                        @endif
+                                        <button type="button" class="js-copiar" data-copiar="{{ $guia }}" title="Copiar guía"
+                                            style="background:#eff6ff;border:1px solid #bfdbfe;color:#2563eb;border-radius:7px;padding:6px 9px;font-size:13px;cursor:pointer">📋</button>
+                                        @if($f->telefono)
+                                            <button type="button" class="js-copiar" data-copiar="{{ $f->telefono }}" title="Copiar teléfono"
+                                                style="background:#ecfdf5;border:1px solid #a7f3d0;color:#059669;border-radius:7px;padding:6px 9px;font-size:13px;cursor:pointer">📞</button>
+                                        @endif
+                                        <button type="button" class="js-copiar" data-copiar="{{ $f->enlaceRastreo() }}" title="Copiar enlace"
+                                            style="background:#f5f3ff;border:1px solid #ddd6fe;color:#7c3aed;border-radius:7px;padding:6px 9px;font-size:13px;cursor:pointer">🔗</button>
+                                        <a href="{{ $f->url() }}" target="_blank" rel="noopener" title="Ver foto"
+                                           style="background:#f8fafc;border:1px solid #e5e7eb;color:#475569;border-radius:7px;padding:6px 9px;font-size:13px;text-decoration:none">🖼️</a>
+                                        <button type="button" wire:click="eliminarFoto({{ $f->id }})" wire:confirm="¿Borrar esta foto?" title="Borrar"
+                                            style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:7px;padding:6px 9px;font-size:13px;cursor:pointer">🗑</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
                 </div>
-            @empty
+            @else
                 <div style="color:#6b7280;font-size:13.5px;background:#f9fafb;border:1px dashed #e5e7eb;border-radius:10px;padding:16px;text-align:center">
                     Todavía no hay fotos guardadas. Subí las etiquetas arriba y aparecerán aquí.
                 </div>
-            @endforelse
+            @endif
         </div>
     </div>
 </x-filament-panels::page>
