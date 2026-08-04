@@ -60,6 +60,15 @@ class GuiaFotoResource extends Resource
                         return $query->whereRaw("{$campo} LIKE ?", ['%' . $s . '%']);
                     }),
 
+                // Botón aparte para copiar el teléfono (el campo de al lado es editable).
+                Tables\Columns\TextColumn::make('tel_copiar')->label('')
+                    ->getStateUsing(fn (GuiaFoto $record) => $record->telefono ?: null)
+                    ->formatStateUsing(fn ($state) => $state ? '📞 Copiar' : '')
+                    ->copyable(fn ($state) => filled($state))
+                    ->copyMessage('✓ Teléfono copiado')
+                    ->color('success')->weight('bold')
+                    ->tooltip('Copiar el teléfono del cliente'),
+
                 // Busca aunque el número se escriba con guion, espacio o de corrido.
                 Tables\Columns\TextInputColumn::make('telefono')->label('Teléfono')
                     ->placeholder('Escribir teléfono')->rules(['max:30'])
