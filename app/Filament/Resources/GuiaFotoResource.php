@@ -28,8 +28,18 @@ class GuiaFotoResource extends Resource
             ->defaultSort('id', 'desc')
             ->columns([
                 Tables\Columns\TextColumn::make('guia')->label('Guía')
-                    ->weight('bold')->searchable()->copyable()
-                    ->copyMessage('Guía copiada'),
+                    ->weight('bold')->searchable()
+                    ->copyable()->copyMessage('✓ Guía copiada')
+                    ->icon('heroicon-m-clipboard-document')->iconPosition('after')
+                    ->tooltip('Clic para copiar la guía'),
+
+                // Un solo clic copia la guía y su enlace juntos, listo para pegar.
+                Tables\Columns\TextColumn::make('enlace')->label('Copiar')
+                    ->getStateUsing(fn (GuiaFoto $record) => 'Guía ' . $record->guia . "\n" . $record->enlaceRastreo())
+                    ->formatStateUsing(fn () => '📋 Guía + enlace')
+                    ->copyable()->copyMessage('✓ Copiado: guía y enlace')
+                    ->color('primary')->weight('bold')
+                    ->tooltip('Copia la guía y el enlace de seguimiento juntos'),
 
                 Tables\Columns\TextColumn::make('created_at')->label('Fecha')
                     ->dateTime('d/m/Y H:i')->sortable(),
@@ -38,19 +48,31 @@ class GuiaFotoResource extends Resource
                     ->searchable()->placeholder('—')->wrap(),
 
                 Tables\Columns\TextColumn::make('telefono')->label('Teléfono')
-                    ->searchable()->copyable()->copyMessage('Teléfono copiado')
-                    ->placeholder('sin teléfono'),
+                    ->searchable()->copyable()->copyMessage('✓ Teléfono copiado')
+                    ->placeholder('sin teléfono')
+                    ->tooltip('Clic para copiar el teléfono'),
 
                 Tables\Columns\ImageColumn::make('ruta')->label('Foto')
                     ->disk('public')->height(42)->square(),
             ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('cuando')
+                    ->label('Cuándo se subió')
+                    ->options([
+                        'hoy'    => 'Hoy',
+                        'ayer'   => 'Ayer',
+                        'semana' => 'Últimos 7 días',
+                    ])
+                    ->query(function ($query, array $data) {
+                        return match ($data['value'] ?? null) {
+                            'hoy'    => $query->whereDate('created_at', today()),
+                            'ayer'   => $query->whereDate('created_at', today()->subDay()),
+                            'semana' => $query->where('created_at', '>=', now()->subDays(7)),
+                            default  => $query,
+                        };
+                    }),
+            ])
             ->actions([
-                Tables\Actions\Action::make('whatsapp')
-                    ->label('Enviar')->icon('heroicon-o-chat-bubble-left-right')->color('success')
-                    ->url(fn (GuiaFoto $record) => $record->whatsapp())
-                    ->openUrlInNewTab()
-                    ->visible(fn (GuiaFoto $record) => filled($record->whatsapp())),
-
                 Tables\Actions\Action::make('enlace')
                     ->label('Ver rastreo')->icon('heroicon-o-link')->color('gray')
                     ->url(fn (GuiaFoto $record) => $record->enlaceRastreo())
