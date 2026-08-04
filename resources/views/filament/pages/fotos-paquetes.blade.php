@@ -13,7 +13,19 @@
         </label>
         <input id="fotos-input" type="file" accept="image/*" multiple style="display:none">
 
-        <div id="resumen" style="margin-top:14px;font-size:14px;font-weight:700;display:none"></div>
+        {{-- Barra de progreso mientras se suben (el detalle queda en "Guías con foto") --}}
+        <div id="progreso-caja" style="margin-top:18px;display:none">
+            <div style="display:flex;justify-content:space-between;font-size:13.5px;font-weight:700;margin-bottom:6px">
+                <span id="progreso-texto">Procesando…</span>
+                <span id="progreso-num" style="color:#6b7280;font-weight:600"></span>
+            </div>
+            <div style="height:10px;background:#e5e7eb;border-radius:999px;overflow:hidden">
+                <div id="progreso-barra" style="height:100%;width:0%;background:linear-gradient(90deg,#2563eb,#059669);border-radius:999px;transition:width .25s ease"></div>
+            </div>
+            <div id="progreso-detalle" style="font-size:12.5px;color:#6b7280;margin-top:7px"></div>
+        </div>
+
+        {{-- Solo se listan aquí las que NO se pudieron leer, para escribir la guía a mano --}}
         <div id="resultados" style="margin-top:12px;display:flex;flex-direction:column;gap:10px"></div>
 
         {{-- Las fotos guardadas se ven en su propia pantalla, con la tabla de siempre --}}
@@ -33,7 +45,6 @@
     (() => {
         const input = document.getElementById('fotos-input');
         const cont  = document.getElementById('resultados');
-        const resumen = document.getElementById('resumen');
         const token = document.querySelector('meta[name="csrf-token"]')?.content;
         let ok = 0, fallo = 0;
 
@@ -141,17 +152,34 @@
             return d;
         };
 
+        // ---- Barra de progreso ----
+        const caja    = document.getElementById('progreso-caja');
+        const barra   = document.getElementById('progreso-barra');
+        const pTexto  = document.getElementById('progreso-texto');
+        const pNum    = document.getElementById('progreso-num');
+        const pDet    = document.getElementById('progreso-detalle');
+
+        function progreso(hechas, total, texto, detalle) {
+            caja.style.display = 'block';
+            barra.style.width = total ? Math.round((hechas / total) * 100) + '%' : '0%';
+            pNum.textContent = hechas + ' de ' + total;
+            if (texto)   pTexto.textContent = texto;
+            if (detalle !== undefined) pDet.innerHTML = detalle;
+        }
+
         input.addEventListener('change', async () => {
             const files = [...input.files];
             if (!files.length) return;
             ok = 0; fallo = 0;
-            resumen.style.display = 'block';
+            cont.innerHTML = '';
+            progreso(0, files.length, 'Procesando fotos…', '');
 
+            let i = 0;
             for (const file of files) {
-                const url = URL.createObjectURL(file);
-                const card = tarjeta(file.name, url);
-                const est = card.querySelector('.estado');
+                i++;
+                progreso(i - 1, files.length, 'Leyendo foto ' + i + '…');
 
+                const url = URL.createObjectURL(file);
                 const img = new Image();
                 await new Promise(r => { img.onload = r; img.onerror = r; img.src = url; });
 
@@ -159,9 +187,12 @@
                 const guia = sacarGuia(texto);
 
                 if (!guia) {
+                    // Solo las que fallan se muestran, para escribir la guía a mano.
                     fallo++;
-                    est.innerHTML = '<span style="color:#dc2626">✕ No se pudo leer el QR</span>';
+                    const card = tarjeta(file.name, url);
+                    const est = card.querySelector('.estado');
                     const acc = card.querySelector('.acciones');
+                    est.innerHTML = '<span style="color:#dc2626">✕ No se pudo leer el QR</span>';
 
                     const ver = document.createElement('a');
                     ver.href = url; ver.target = '_blank'; ver.rel = 'noopener';
@@ -178,36 +209,38 @@
                     const btn = document.createElement('button');
                     btn.type = 'button'; btn.textContent = 'Subir';
                     btn.style.cssText = 'background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-weight:700;font-size:13.5px;cursor:pointer';
-                    const mandar = () => {
+                    const mandar = async () => {
                         const v = inp.value.trim();
                         if (!v) return;
-                        inp.disabled = true; btn.disabled = true; fila.remove(); acc.innerHTML = '';
-                        subir(file, v, est, acc);
+                        inp.disabled = true; btn.disabled = true; fila.remove();
+                        const datos = await leerDatosCliente(img);
+                        await subir(file, v, est, acc, datos);
+                        try { if (window.Livewire) Livewire.dispatch('$refresh'); } catch (e) {}
                     };
                     btn.addEventListener('click', mandar);
                     inp.addEventListener('keydown', e => { if (e.key === 'Enter') mandar(); });
                     fila.append(inp, btn);
                     acc.after(fila);
 
-                    actualizarContador();
+                    progreso(i, files.length, 'Procesando fotos…',
+                        '✅ ' + ok + ' guardadas · <b style="color:#dc2626">✕ ' + fallo + ' sin leer</b>');
                     continue;
                 }
 
-                const acc = card.querySelector('.acciones');
-
-                // Lee nombre y teléfono de la etiqueta ANTES de subir, para guardarlos
-                // junto con la foto (el nombre sirve para saludar al cliente en el rastreo).
-                est.innerHTML = '✓ Guía ' + guia + ' <span style="font-size:12px;color:#6b7280;font-weight:500">· leyendo datos…</span>';
+                progreso(i - 1, files.length, 'Guía ' + guia + ' · leyendo datos…');
                 const datos = await leerDatosCliente(img);
+                await subir(file, guia, null, null, datos);
 
-                await subir(file, guia, est, acc, datos);
-                if (datos.telefono) agregarWhatsapp(acc, datos, guia);
-
-                actualizarContador();
+                progreso(i, files.length, 'Procesando fotos…',
+                    '✅ ' + ok + ' guardadas' + (fallo ? ' · <b style="color:#dc2626">✕ ' + fallo + ' sin leer</b>' : ''));
             }
-            input.value = '';
 
-            // Refresca la lista de guardadas, para tenerlas siempre a la mano.
+            input.value = '';
+            progreso(files.length, files.length,
+                fallo ? 'Listo (faltan ' + fallo + ' por escribir a mano)' : '¡Listo! Todas guardadas ✅',
+                '✅ ' + ok + ' guardadas' + (fallo ? ' · <b style="color:#dc2626">✕ ' + fallo + ' sin leer</b>' : '') +
+                ' &nbsp;·&nbsp; <a href="{{ \App\Filament\Resources\GuiaFotoResource::getUrl() }}" style="color:#2563eb;font-weight:700">Ver las guías →</a>');
+
             try { if (window.Livewire) Livewire.dispatch('$refresh'); } catch (e) {}
         });
 
@@ -232,8 +265,8 @@
         let enviados = 0, totalSubidas = 0;
 
         function actualizarContador() {
-            if (!totalSubidas) return;
-            resumen.innerHTML = `📨 <b>${enviados} de ${totalSubidas}</b> enviados`
+            if (!totalSubidas || !pDet) return;
+            pDet.innerHTML = `📨 <b>${enviados} de ${totalSubidas}</b> enviados`
                 + (fallo ? ` · <span style="color:#dc2626">✕ ${fallo} sin leer</span>` : '');
         }
 
@@ -331,7 +364,7 @@
         }
 
         async function subir(file, guia, est, acc, datos) {
-            est.textContent = 'Subiendo guía ' + guia + '…';
+            if (est) est.textContent = 'Subiendo guía ' + guia + '…';
             const fd = new FormData();
             fd.append('guia', guia);
             fd.append('foto', file);
@@ -346,7 +379,7 @@
                 const data = await res.json();
                 if (data.ok) {
                     ok++;
-                    est.innerHTML = `<span style="color:#059669">✓ Guía ${data.guia}</span>`;
+                    if (est) est.innerHTML = `<span style="color:#059669">✓ Guía ${data.guia}</span>`;
 
                     if (acc) {
                         const card = acc.closest('div[style*="border"]');
@@ -368,11 +401,11 @@
                     }
                 } else {
                     fallo++;
-                    est.innerHTML = '<span style="color:#dc2626">✕ ' + (data.error || 'Error al subir') + '</span>';
+                    if (est) est.innerHTML = '<span style="color:#dc2626">✕ ' + (data.error || 'Error al subir') + '</span>';
                 }
             } catch (e) {
                 fallo++;
-                est.innerHTML = '<span style="color:#dc2626">✕ Error de conexión</span>';
+                if (est) est.innerHTML = '<span style="color:#dc2626">✕ Error de conexión</span>';
             }
         }
     })();
