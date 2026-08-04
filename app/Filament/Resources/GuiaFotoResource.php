@@ -99,7 +99,18 @@ class GuiaFotoResource extends Resource
                     }),
 
                 Tables\Columns\ImageColumn::make('ruta')->label('Foto')
-                    ->disk('public')->height(42)->square(),
+                    ->disk('public')->height(42)->square()
+                    ->action(
+                        Tables\Actions\Action::make('abrir_foto')
+                            ->modalHeading(fn (GuiaFoto $record) => 'Etiqueta de la guía ' . $record->guia)
+                            ->modalContent(fn (GuiaFoto $record) => new \Illuminate\Support\HtmlString(
+                                '<img src="' . e($record->url()) . '" alt="Etiqueta" style="width:100%;border-radius:10px;display:block">'
+                            ))
+                            ->modalSubmitAction(false)
+                            ->modalCancelActionLabel('Cerrar')
+                            ->modalWidth('lg')
+                    )
+                    ->tooltip('Clic para ver la etiqueta en grande'),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('cuando')
@@ -123,10 +134,22 @@ class GuiaFotoResource extends Resource
                     ->query(fn ($query) => $query->where(fn ($q) => $q->whereNull('telefono')->orWhere('telefono', ''))),
             ])
             ->actions([
-                Tables\Actions\Action::make('enlace')
-                    ->label('Ver rastreo')->icon('heroicon-o-link')->color('gray')
-                    ->url(fn (GuiaFoto $record) => $record->enlaceRastreo())
-                    ->openUrlInNewTab(),
+                // Abre la etiqueta en grande para revisar que la guía y el teléfono estén bien.
+                Tables\Actions\Action::make('ver_foto')
+                    ->label('Ver foto')->icon('heroicon-o-photo')->color('gray')
+                    ->modalHeading(fn (GuiaFoto $record) => 'Etiqueta de la guía ' . $record->guia)
+                    ->modalContent(fn (GuiaFoto $record) => new \Illuminate\Support\HtmlString(
+                        '<img src="' . e($record->url()) . '" alt="Etiqueta" '
+                        . 'style="width:100%;border-radius:10px;display:block">'
+                        . '<div style="margin-top:10px;font-size:13px;color:#6b7280;text-align:center">'
+                        . 'Guía <b>' . e($record->guia) . '</b>'
+                        . ($record->telefono ? ' · Tel <b>' . e($record->telefono) . '</b>' : '')
+                        . ($record->nombre ? ' · ' . e($record->nombre) : '')
+                        . '</div>'
+                    ))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->modalWidth('lg'),
 
                 Tables\Actions\DeleteAction::make()->label('Borrar')
                     ->after(function (GuiaFoto $record) {
