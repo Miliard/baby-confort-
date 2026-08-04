@@ -1,7 +1,8 @@
 @extends('layouts.store')
-@section('title', 'Rastrea tu pedido | Baby-Confort')
-@section('og_title', 'Sigue tu pedido en vivo 📦 — Baby-Confort')
-@section('og_desc', 'Rastrea tu paquete y mira en qué etapa va tu envío, paso a paso.')
+@section('title', '📦 Aquí podés ver el progreso de tu paquete | Baby-Confort')
+@section('og_title', '📦 Aquí podés ver el progreso de tu paquete')
+@section('og_desc', 'Tocá el enlace y mirá en qué va tu envío: confirmado, recolectado, en camino o entregado. También podés ver la foto de tu paquete. Baby-Confort 💙')
+@section('meta_desc', 'Mirá el progreso de tu paquete Baby-Confort: en qué etapa va tu envío y la foto de tu pedido.')
 @section('og_image', 'og-rastreo.png')
 
 @section('content')

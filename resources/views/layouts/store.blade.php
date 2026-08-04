@@ -12,6 +12,11 @@
     <meta property="og:title" content="@yield('og_title', 'Pañales Aiwibi antialérgicos | Baby-Confort El Salvador 👶')">
     <meta property="og:description" content="@yield('og_desc', 'Pañales y calzoncitos Aiwibi antialérgicos, alta absorción y protección de noche. Entrega en todo El Salvador. Pide fácil por WhatsApp.')">
     <meta property="og:image" content="@yield('og_image_abs', request()->schemeAndHttpHost() . '/' . trim(\Illuminate\Support\Facades\View::yieldContent('og_image', 'og-image.png'), '/'))">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Baby-Confort — seguimiento de tu paquete">
+    <meta property="og:locale" content="es_SV">
     <meta property="og:url" content="{{ request()->url() }}">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="description" content="@yield('meta_desc', 'Pañales Aiwibi antialérgicos en El Salvador: alta absorción, hipoalergénicos y protección de noche. Calzoncitos, pañales de bebé y talla especial. Pide por WhatsApp con entrega a domicilio.')">
