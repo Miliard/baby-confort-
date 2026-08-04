@@ -15,6 +15,58 @@
 
         <div id="resumen" style="margin-top:14px;font-size:14px;font-weight:700;display:none"></div>
         <div id="resultados" style="margin-top:12px;display:flex;flex-direction:column;gap:10px"></div>
+
+        {{-- Guías ya guardadas: siguen aquí aunque cierres la pantalla --}}
+        <div style="margin-top:26px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                <b style="font-size:15px">📦 Guías guardadas ({{ $this->guardadas->count() }})</b>
+                <button type="button" wire:click="$refresh" style="background:none;border:none;color:#2563eb;font-weight:600;font-size:13px;cursor:pointer">↻ Actualizar</button>
+            </div>
+
+            @forelse($this->guardadas as $guia => $fotos)
+                @php $f = $fotos->first(); @endphp
+                <div style="border:1px solid #e5e7eb;border-radius:12px;padding:11px;margin-bottom:9px;background:#fff">
+                    <div style="display:flex;gap:11px;align-items:flex-start">
+                        <a href="{{ $f->url() }}" target="_blank" rel="noopener">
+                            <img src="{{ $f->url() }}" style="width:58px;height:58px;object-fit:cover;border-radius:8px;flex:none">
+                        </a>
+                        <div style="flex:1;min-width:0">
+                            <div style="font-weight:800;font-size:15px">Guía {{ $guia }}
+                                @if($fotos->count() > 1)<span style="font-weight:500;color:#6b7280;font-size:12px">· {{ $fotos->count() }} fotos</span>@endif
+                            </div>
+                            <div style="font-size:12.5px;color:#6b7280;margin-top:1px">
+                                {{ $f->nombre ?: 'Sin nombre' }}@if($f->telefono) · {{ $f->telefono }}@endif
+                                · {{ $f->created_at->diffForHumans() }}
+                            </div>
+
+                            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+                                @if($f->whatsapp())
+                                    <a href="{{ $f->whatsapp() }}" target="_blank" rel="noopener"
+                                       style="background:#25D366;color:#fff;border-radius:8px;padding:7px 11px;font-weight:700;font-size:12.5px;text-decoration:none">💬 Enviar</a>
+                                @endif
+                                <button type="button" class="js-copiar" data-copiar="{{ $guia }}"
+                                    style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-weight:700;font-size:12.5px;cursor:pointer">📋 Guía</button>
+                                @if($f->telefono)
+                                    <button type="button" class="js-copiar" data-copiar="{{ $f->telefono }}"
+                                        style="background:#059669;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-weight:700;font-size:12.5px;cursor:pointer">📞 Teléfono</button>
+                                @endif
+                                <button type="button" class="js-copiar" data-copiar="{{ $f->enlaceRastreo() }}"
+                                    style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-weight:700;font-size:12.5px;cursor:pointer">🔗 Enlace</button>
+                                <a href="{{ $f->enlaceRastreo() }}" target="_blank" rel="noopener"
+                                   style="background:#f1f5f9;border:1px solid #e5e7eb;border-radius:8px;padding:7px 11px;font-size:12.5px;font-weight:600;color:#334155;text-decoration:none">Abrir ↗</a>
+                                <button type="button" wire:click="eliminarFoto({{ $f->id }})"
+                                    wire:confirm="¿Borrar esta foto?"
+                                    style="background:none;border:none;color:#dc2626;font-size:12.5px;font-weight:600;cursor:pointer">Borrar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @empty
+                <div style="color:#6b7280;font-size:13.5px;background:#f9fafb;border:1px dashed #e5e7eb;border-radius:10px;padding:16px;text-align:center">
+                    Todavía no hay fotos guardadas. Subí las etiquetas arriba y aparecerán aquí.
+                </div>
+            @endforelse
+        </div>
     </div>
 </x-filament-panels::page>
 
@@ -198,6 +250,26 @@
                 actualizarContador();
             }
             input.value = '';
+
+            // Refresca la lista de guardadas, para tenerlas siempre a la mano.
+            try { if (window.Livewire) Livewire.dispatch('$refresh'); } catch (e) {}
+        });
+
+        // Botones de copiar de la lista guardada (funcionan aunque Livewire redibuje).
+        document.addEventListener('click', async (e) => {
+            const b = e.target.closest('.js-copiar');
+            if (!b) return;
+            const txt = b.dataset.copiar || '';
+            try {
+                await navigator.clipboard.writeText(txt);
+            } catch (err) {
+                const ta = document.createElement('textarea');
+                ta.value = txt; document.body.appendChild(ta); ta.select();
+                document.execCommand('copy'); ta.remove();
+            }
+            const antes = b.textContent;
+            b.textContent = '✓ Copiado';
+            setTimeout(() => { b.textContent = antes; }, 1300);
         });
 
         // ---- Control de "por cuál cliente voy" ----
@@ -307,7 +379,8 @@
             const fd = new FormData();
             fd.append('guia', guia);
             fd.append('foto', file);
-            if (datos && datos.nombre) fd.append('nombre', datos.nombre);
+            if (datos && datos.nombre)   fd.append('nombre', datos.nombre);
+            if (datos && datos.telefono) fd.append('telefono', datos.telefono);
             try {
                 const res = await fetch('{{ route('fotos.subir') }}', {
                     method: 'POST',
