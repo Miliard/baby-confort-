@@ -33,17 +33,18 @@ class GuiaFotoResource extends Resource
                     ->icon('heroicon-m-clipboard-document')->iconPosition('after')
                     ->tooltip('Clic para copiar la guía'),
 
-                // Copia el mensaje completo (leyenda + enlace + guía) con un clic.
-                Tables\Columns\TextColumn::make('mensaje')->label('Copiar')
+                // UN SOLO CLIC: copia el mensaje y marca la fila como enviada.
+                // Rojo = falta enviar · Verde = ya enviado.
+                Tables\Columns\TextColumn::make('mensaje')->label('Mensaje')
                     ->getStateUsing(fn (GuiaFoto $record) => $record->mensajeParaCliente())
-                    ->formatStateUsing(fn () => '📋 Mensaje + enlace')
-                    ->copyable()->copyMessage('✓ Mensaje copiado, ya podés pegarlo')
-                    ->color('primary')->weight('bold')
-                    ->tooltip('Copia el mensaje con la leyenda, el enlace y la guía'),
-
-                // Marca de enviado: se toca después de mandarlo, para no repetir.
-                Tables\Columns\ToggleColumn::make('enviado')->label('Enviado')
-                    ->tooltip('Marcá cuando ya se lo mandaste al cliente'),
+                    ->formatStateUsing(fn (GuiaFoto $record) => $record->enviado_at
+                        ? '✓ Enviado'
+                        : '📋 Copiar y enviar')
+                    ->badge()
+                    ->color(fn (GuiaFoto $record) => $record->enviado_at ? 'success' : 'danger')
+                    ->copyable()->copyMessage('✓ Copiado y marcado como enviado')
+                    ->action(fn (GuiaFoto $record) => $record->update(['enviado_at' => now()]))
+                    ->tooltip('Un clic: copia el mensaje y lo marca como enviado'),
 
                 Tables\Columns\TextColumn::make('lote')->label('Lote')
                     ->formatStateUsing(fn (GuiaFoto $record) => $record->loteBonito())
