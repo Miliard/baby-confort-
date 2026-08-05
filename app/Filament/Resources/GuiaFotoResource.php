@@ -35,16 +35,8 @@ class GuiaFotoResource extends Resource
 
                 // UN SOLO CLIC: copia el mensaje y marca la fila como enviada.
                 // Rojo = falta enviar · Verde = ya enviado.
-                Tables\Columns\TextColumn::make('mensaje')->label('Mensaje')
-                    ->getStateUsing(fn (GuiaFoto $record) => $record->mensajeParaCliente())
-                    ->formatStateUsing(fn (GuiaFoto $record) => $record->enviado_at
-                        ? '✓ Enviado'
-                        : '📋 Copiar y enviar')
-                    ->badge()
-                    ->color(fn (GuiaFoto $record) => $record->enviado_at ? 'success' : 'danger')
-                    ->copyable()->copyMessage('✓ Copiado y marcado como enviado')
-                    ->action(fn (GuiaFoto $record) => $record->update(['enviado_at' => now()]))
-                    ->tooltip('Un clic: copia el mensaje y lo marca como enviado'),
+                Tables\Columns\ViewColumn::make('mensaje')->label('Mensaje')
+                    ->view('filament.tables.columns.copiar-enviar'),
 
                 Tables\Columns\TextColumn::make('lote')->label('Lote')
                     ->formatStateUsing(fn (GuiaFoto $record) => $record->loteBonito())
