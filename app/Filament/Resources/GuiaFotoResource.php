@@ -33,12 +33,17 @@ class GuiaFotoResource extends Resource
                     ->icon('heroicon-m-clipboard-document')->iconPosition('after')
                     ->tooltip('Clic para copiar la guía'),
 
-                // Estado: para no mandarle dos veces el enlace al mismo cliente.
-                Tables\Columns\TextColumn::make('enviado_at')->label('Estado')
-                    ->formatStateUsing(fn ($state) => $state ? '✓ Enviado' : '• Pendiente')
-                    ->color(fn ($state) => $state ? 'success' : 'warning')
-                    ->weight('bold')
-                    ->description(fn (GuiaFoto $record) => $record->enviado_at?->diffForHumans()),
+                // Copia el mensaje completo (leyenda + enlace + guía) con un clic.
+                Tables\Columns\TextColumn::make('mensaje')->label('Copiar')
+                    ->getStateUsing(fn (GuiaFoto $record) => $record->mensajeParaCliente())
+                    ->formatStateUsing(fn () => '📋 Mensaje + enlace')
+                    ->copyable()->copyMessage('✓ Mensaje copiado, ya podés pegarlo')
+                    ->color('primary')->weight('bold')
+                    ->tooltip('Copia el mensaje con la leyenda, el enlace y la guía'),
+
+                // Marca de enviado: se toca después de mandarlo, para no repetir.
+                Tables\Columns\ToggleColumn::make('enviado')->label('Enviado')
+                    ->tooltip('Marcá cuando ya se lo mandaste al cliente'),
 
                 Tables\Columns\TextColumn::make('lote')->label('Lote')
                     ->formatStateUsing(fn (GuiaFoto $record) => $record->loteBonito())
@@ -174,23 +179,6 @@ class GuiaFotoResource extends Resource
             // Las ya enviadas se ven atenuadas para distinguirlas de un vistazo.
             ->recordClasses(fn (GuiaFoto $record) => $record->enviado_at ? 'opacity-60' : null)
             ->actions([
-                // Copia el mensaje al portapapeles y marca la fila como enviada,
-                // para no mandarle dos veces el enlace al mismo cliente.
-                Tables\Actions\Action::make('copiar_mensaje')
-                    ->label(fn (GuiaFoto $record) => $record->enviado_at ? 'Copiar otra vez' : 'Copiar mensaje')
-                    ->icon('heroicon-o-clipboard-document')
-                    ->color(fn (GuiaFoto $record) => $record->enviado_at ? 'gray' : 'primary')
-                    ->extraAttributes(fn (GuiaFoto $record) => [
-                        'x-on:click' => 'window.navigator.clipboard.writeText(' . json_encode($record->mensajeParaCliente()) . ')',
-                    ])
-                    ->action(function (GuiaFoto $record) {
-                        $record->update(['enviado_at' => now()]);
-                        \Filament\Notifications\Notification::make()
-                            ->title('✓ Copiado y marcado como enviado')
-                            ->body('Guía ' . $record->guia)
-                            ->success()->send();
-                    }),
-
                 // Abre la etiqueta en grande para revisar que la guía y el teléfono estén bien.
                 Tables\Actions\Action::make('ver_foto')
                     ->label('Ver foto')->icon('heroicon-o-photo')->color('gray')

@@ -14,9 +14,20 @@ class GuiaFoto extends Model
 {
     protected $table = 'guia_fotos';
 
-    protected $fillable = ['guia', 'ruta', 'nombre', 'telefono', 'lote', 'enviado_at'];
+    protected $fillable = ['guia', 'ruta', 'nombre', 'telefono', 'lote', 'enviado_at', 'enviado'];
 
     protected $casts = ['enviado_at' => 'datetime'];
+
+    /** Interruptor "Enviado" de la tabla: guarda/limpia la fecha de envío. */
+    public function getEnviadoAttribute(): bool
+    {
+        return ! is_null($this->enviado_at);
+    }
+
+    public function setEnviadoAttribute($valor): void
+    {
+        $this->attributes['enviado_at'] = $valor ? now() : null;
+    }
 
     /** Nombre legible del lote: "04/08 7:15 a. m." */
     public function loteBonito(): string
