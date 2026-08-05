@@ -15,6 +15,7 @@ class GuiaFotoController extends Controller
             'foto'   => ['required', 'image', 'max:8192'], // hasta 8 MB
             'nombre'   => ['nullable', 'string', 'max:80'],  // leído de la etiqueta
             'telefono' => ['nullable', 'string', 'max:30'],
+            'lote'     => ['nullable', 'string', 'max:40'],  // agrupa las subidas juntas
         ]);
 
         $guia = preg_replace('/\D/', '', $data['guia']);
@@ -38,6 +39,7 @@ class GuiaFotoController extends Controller
             'ruta'     => $ruta,
             'nombre'   => trim((string) ($data['nombre'] ?? '')) ?: null,
             'telefono' => trim((string) ($data['telefono'] ?? '')) ?: null,
+            'lote'     => trim((string) ($data['lote'] ?? '')) ?: null,
         ]);
 
         // Limpieza: borra fotos con más de 5 días para no llenar el servidor.

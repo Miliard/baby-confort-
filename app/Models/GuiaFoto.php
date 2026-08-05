@@ -14,7 +14,20 @@ class GuiaFoto extends Model
 {
     protected $table = 'guia_fotos';
 
-    protected $fillable = ['guia', 'ruta', 'nombre', 'telefono'];
+    protected $fillable = ['guia', 'ruta', 'nombre', 'telefono', 'lote', 'enviado_at'];
+
+    protected $casts = ['enviado_at' => 'datetime'];
+
+    /** Nombre legible del lote: "04/08 7:15 a. m." */
+    public function loteBonito(): string
+    {
+        if (! $this->lote) return 'Sin lote';
+        try {
+            return \Illuminate\Support\Carbon::parse($this->lote)->format('d/m h:i A');
+        } catch (\Throwable $e) {
+            return $this->lote;
+        }
+    }
 
     /** Enlace de seguimiento de esta guía. */
     public function enlaceRastreo(): string

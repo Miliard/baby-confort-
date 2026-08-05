@@ -33,17 +33,20 @@ class GuiaFotoResource extends Resource
                     ->icon('heroicon-m-clipboard-document')->iconPosition('after')
                     ->tooltip('Clic para copiar la guía'),
 
-                // Un solo clic copia el mensaje listo: leyenda + enlace + guía.
-                // La leyenda va escrita en el texto (no depende de la vista previa de WhatsApp).
-                Tables\Columns\TextColumn::make('enlace')->label('Copiar')
-                    ->getStateUsing(fn (GuiaFoto $record) => $record->mensajeParaCliente())
-                    ->formatStateUsing(fn () => '📋 Mensaje + enlace')
-                    ->copyable()->copyMessage('✓ Mensaje copiado, ya podés pegarlo')
-                    ->color('primary')->weight('bold')
-                    ->tooltip('Copia la guía y el enlace de seguimiento juntos'),
+                // Estado: para no mandarle dos veces el enlace al mismo cliente.
+                Tables\Columns\TextColumn::make('enviado_at')->label('Estado')
+                    ->formatStateUsing(fn ($state) => $state ? '✓ Enviado' : '• Pendiente')
+                    ->color(fn ($state) => $state ? 'success' : 'warning')
+                    ->weight('bold')
+                    ->description(fn (GuiaFoto $record) => $record->enviado_at?->diffForHumans()),
+
+                Tables\Columns\TextColumn::make('lote')->label('Lote')
+                    ->formatStateUsing(fn (GuiaFoto $record) => $record->loteBonito())
+                    ->badge()->color('gray')->sortable()
+                    ->tooltip('Tanda en la que se subió esta foto'),
 
                 Tables\Columns\TextColumn::make('created_at')->label('Fecha')
-                    ->dateTime('d/m/Y H:i')->sortable(),
+                    ->dateTime('d/m/Y H:i')->sortable()->toggleable(isToggledHiddenByDefault: true),
 
                 // Se pueden escribir a mano cuando el OCR no los leyó (y así buscar por ellos).
                 // Busca por parte del nombre, sin importar mayúsculas ni acentos.
@@ -105,11 +108,11 @@ class GuiaFotoResource extends Resource
                         Tables\Actions\Action::make('abrir_foto')
                             ->modalHeading(fn (GuiaFoto $record) => 'Etiqueta de la guía ' . $record->guia)
                             ->modalContent(fn (GuiaFoto $record) => new \Illuminate\Support\HtmlString(
-                                '<img src="' . e($record->url()) . '" alt="Etiqueta" style="width:100%;border-radius:10px;display:block">'
+                                '<img src="' . e($record->url()) . '" alt="Etiqueta" style="width:100%;max-height:80vh;object-fit:contain;border-radius:10px;display:block">'
                             ))
                             ->modalSubmitAction(false)
                             ->modalCancelActionLabel('Cerrar')
-                            ->modalWidth('lg')
+                            ->modalWidth('7xl')
                     )
                     ->tooltip('Clic para ver la etiqueta en grande'),
             ])
@@ -130,18 +133,71 @@ class GuiaFotoResource extends Resource
                         };
                     }),
 
+                // Cada tanda de fotos subidas junta es un lote (mañana / tarde, etc.)
+                Tables\Filters\SelectFilter::make('lote')
+                    ->label('Lote de subida')
+                    ->options(function () {
+                        try {
+                            return GuiaFoto::query()
+                                ->whereNotNull('lote')
+                                ->select('lote')->distinct()
+                                ->orderByDesc('lote')->limit(30)->pluck('lote')
+                                ->mapWithKeys(function ($l) {
+                                    try {
+                                        $f = \Illuminate\Support\Carbon::parse($l);
+                                        return [$l => $f->format('d/m') . ' · ' . $f->format('h:i A')];
+                                    } catch (\Throwable $e) {
+                                        return [$l => $l];
+                                    }
+                                })->all();
+                        } catch (\Throwable $e) {
+                            return [];
+                        }
+                    })
+                    ->query(fn ($query, array $data) => filled($data['value'] ?? null)
+                        ? $query->where('lote', $data['value'])
+                        : $query),
+
+                Tables\Filters\SelectFilter::make('estado_envio')
+                    ->label('Estado')
+                    ->options(['pendiente' => 'Sin enviar', 'enviado' => 'Ya enviados'])
+                    ->query(fn ($query, array $data) => match ($data['value'] ?? null) {
+                        'pendiente' => $query->whereNull('enviado_at'),
+                        'enviado'   => $query->whereNotNull('enviado_at'),
+                        default     => $query,
+                    }),
+
                 Tables\Filters\Filter::make('sin_telefono')
                     ->label('Solo las que les falta el teléfono')
                     ->query(fn ($query) => $query->where(fn ($q) => $q->whereNull('telefono')->orWhere('telefono', ''))),
             ])
+            // Las ya enviadas se ven atenuadas para distinguirlas de un vistazo.
+            ->recordClasses(fn (GuiaFoto $record) => $record->enviado_at ? 'opacity-60' : null)
             ->actions([
+                // Copia el mensaje al portapapeles y marca la fila como enviada,
+                // para no mandarle dos veces el enlace al mismo cliente.
+                Tables\Actions\Action::make('copiar_mensaje')
+                    ->label(fn (GuiaFoto $record) => $record->enviado_at ? 'Copiar otra vez' : 'Copiar mensaje')
+                    ->icon('heroicon-o-clipboard-document')
+                    ->color(fn (GuiaFoto $record) => $record->enviado_at ? 'gray' : 'primary')
+                    ->extraAttributes(fn (GuiaFoto $record) => [
+                        'x-on:click' => 'window.navigator.clipboard.writeText(' . json_encode($record->mensajeParaCliente()) . ')',
+                    ])
+                    ->action(function (GuiaFoto $record) {
+                        $record->update(['enviado_at' => now()]);
+                        \Filament\Notifications\Notification::make()
+                            ->title('✓ Copiado y marcado como enviado')
+                            ->body('Guía ' . $record->guia)
+                            ->success()->send();
+                    }),
+
                 // Abre la etiqueta en grande para revisar que la guía y el teléfono estén bien.
                 Tables\Actions\Action::make('ver_foto')
                     ->label('Ver foto')->icon('heroicon-o-photo')->color('gray')
                     ->modalHeading(fn (GuiaFoto $record) => 'Etiqueta de la guía ' . $record->guia)
                     ->modalContent(fn (GuiaFoto $record) => new \Illuminate\Support\HtmlString(
                         '<img src="' . e($record->url()) . '" alt="Etiqueta" '
-                        . 'style="width:100%;border-radius:10px;display:block">'
+                        . 'style="width:100%;max-height:80vh;object-fit:contain;border-radius:10px;display:block">'
                         . '<div style="margin-top:10px;font-size:13px;color:#6b7280;text-align:center">'
                         . 'Guía <b>' . e($record->guia) . '</b>'
                         . ($record->telefono ? ' · Tel <b>' . e($record->telefono) . '</b>' : '')
@@ -150,7 +206,7 @@ class GuiaFotoResource extends Resource
                     ))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Cerrar')
-                    ->modalWidth('lg'),
+                    ->modalWidth('7xl'),
 
                 Tables\Actions\DeleteAction::make()->label('Borrar')
                     ->after(function (GuiaFoto $record) {
@@ -159,6 +215,16 @@ class GuiaFotoResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('marcar_enviados')
+                        ->label('Marcar como enviados')->icon('heroicon-o-check')->color('success')
+                        ->action(fn ($records) => $records->each->update(['enviado_at' => now()]))
+                        ->deselectRecordsAfterCompletion(),
+
+                    Tables\Actions\BulkAction::make('marcar_pendientes')
+                        ->label('Marcar como pendientes')->icon('heroicon-o-arrow-uturn-left')->color('warning')
+                        ->action(fn ($records) => $records->each->update(['enviado_at' => null]))
+                        ->deselectRecordsAfterCompletion(),
+
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])

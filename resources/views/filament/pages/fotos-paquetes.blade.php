@@ -152,6 +152,8 @@
             return d;
         };
 
+        let loteActual = null;
+
         // ---- Barra de progreso ----
         const caja    = document.getElementById('progreso-caja');
         const barra   = document.getElementById('progreso-barra');
@@ -172,6 +174,8 @@
             if (!files.length) return;
             ok = 0; fallo = 0;
             cont.innerHTML = '';
+            // Todas las fotos de esta tanda comparten el mismo lote.
+            loteActual = new Date().toISOString().slice(0, 19).replace('T', ' ');
             progreso(0, files.length, 'Procesando fotos…', '');
 
             let i = 0;
@@ -370,6 +374,7 @@
             fd.append('foto', file);
             if (datos && datos.nombre)   fd.append('nombre', datos.nombre);
             if (datos && datos.telefono) fd.append('telefono', datos.telefono);
+            if (loteActual)              fd.append('lote', loteActual);
             try {
                 const res = await fetch('{{ route('fotos.subir') }}', {
                     method: 'POST',
