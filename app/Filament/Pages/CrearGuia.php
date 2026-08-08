@@ -70,9 +70,30 @@ class CrearGuia extends Page implements HasForms
                 }),
 
             Forms\Components\TextInput::make('nombre')->label('2. Nombre del cliente')->required(),
+            // Al escribir el teléfono, si el cliente ya está en la libreta se llena todo solo.
             Forms\Components\TextInput::make('telefono')->label('3. Teléfono junto al nombre (ID del cliente)')
                 ->tel()->required()->placeholder('7777-7777')
-                ->helperText('El de quien pide. Va pegado al nombre en Sistrack para buscarlo por número.'),
+                ->helperText('El de quien pide. Si ya le enviaste antes, se llenan sus datos solos.')
+                ->live(onBlur: true)
+                ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                    $c = \App\Models\Cliente::buscar($state);
+                    if (! $c) return;
+
+                    // Solo rellena lo que esté vacío: no pisa lo que ya escribiste.
+                    foreach (['nombre', 'direccion', 'departamento'] as $campo) {
+                        if (trim((string) $get($campo)) === '' && ! empty($c[$campo])) {
+                            $set($campo, $c[$campo]);
+                        }
+                    }
+                    if (trim((string) $get('municipio')) === '' && ! empty($c['municipio'])) {
+                        $set('municipio', $c['municipio']);
+                    }
+
+                    Notification::make()
+                        ->title('👤 Cliente encontrado: ' . ($c['nombre'] ?: 'sin nombre'))
+                        ->body('Se llenaron sus datos. Revisá que la dirección siga igual.')
+                        ->success()->send();
+                }),
 
             Forms\Components\TextInput::make('telefono_recibe')->label('4. Teléfono para el repartidor')
                 ->tel()->placeholder('Al que debe llamar para entregar')
@@ -178,6 +199,15 @@ class CrearGuia extends Page implements HasForms
             'departamento'    => $d['departamento'],
             'descripcion'     => $d['descripcion'],
             'cobrar'          => (float) ($d['cobrar'] ?? 0),
+        ]);
+
+        // Se recuerda al cliente para la próxima vez (basta el teléfono).
+        \App\Models\Cliente::recordar([
+            'telefono'     => $d['telefono'] ?? '',
+            'nombre'       => $d['nombre'] ?? '',
+            'direccion'    => $d['direccion'] ?? '',
+            'municipio'    => $d['municipio'] ?? '',
+            'departamento' => $d['departamento'] ?? '',
         ]);
 
         $this->recargarLista();
