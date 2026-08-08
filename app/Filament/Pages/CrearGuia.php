@@ -12,21 +12,20 @@ use App\Services\OrdenWhatsappParser;
 use App\Services\SistrackExcel;
 
 /**
- * Prepara guías para Sistrack, pensada para usarse desde el teléfono.
+ * Todo el trabajo de guías en una sola pantalla, con tres secciones:
+ *   ✍️  Crear guía  → pegar la orden de WhatsApp, autocompletar por teléfono y armar el lote
+ *   📷  Fotos       → subir las etiquetas (lee el QR) para que el cliente vea su paquete
+ *   👥  Clientes    → libreta que se llena sola, para no volver a escribir los datos
  *
- * Flujo: pegar la "Orden de envío" de WhatsApp → se llenan los campos →
- * "Agregar a la lista". Se repite con varias órdenes y al final se descarga
- * UN Excel con todas para subirlo a Importación masiva de Sistrack.
- *
- * La lista vive en la sesión (no toca la base de datos ni crea pedidos).
+ * La lista de guías se guarda en la base, así no se pierde si se cae el internet.
  */
 class CrearGuia extends Page implements HasForms
 {
     use InteractsWithForms;
 
     protected static ?string $navigationIcon = 'heroicon-o-bolt';
-    protected static ?string $navigationLabel = 'Crear guías';
-    protected static ?string $title = 'Crear guías';
+    protected static ?string $navigationLabel = 'Guías';
+    protected static ?string $title = 'Guías';
     protected static ?int $navigationSort = 1;
 
     protected static string $view = 'filament.pages.crear-guia';
@@ -34,10 +33,61 @@ class CrearGuia extends Page implements HasForms
     public ?array $data = [];
     public array $lista = [];
 
+    /** Sección visible: crear | fotos | clientes */
+    public string $seccion = 'crear';
+
+    /** Buscador de la libreta de clientes */
+    public string $buscaCliente = '';
+
     public function mount(): void
     {
         $this->recargarLista();
         $this->form->fill();
+    }
+
+    /** Clientes de la libreta (filtrados por el buscador). */
+    public function getClientesProperty()
+    {
+        try {
+            if (! \Illuminate\Support\Facades\Schema::hasTable('clientes')) return collect();
+
+            $q = \App\Models\Cliente::query()->orderByDesc('updated_at');
+
+            if (trim($this->buscaCliente) !== '') {
+                $t = trim($this->buscaCliente);
+                $d = preg_replace('/\D/', '', $t);
+                $q->where(function ($w) use ($t, $d) {
+                    $w->where('nombre', 'like', '%' . $t . '%');
+                    if ($d !== '') $w->orWhere('telefono', 'like', '%' . $d . '%');
+                });
+            }
+
+            return $q->limit(40)->get();
+        } catch (\Throwable $e) {
+            return collect();
+        }
+    }
+
+    /** Trae los datos de un cliente al formulario de la guía. */
+    public function usarCliente(int $id): void
+    {
+        $c = \App\Models\Cliente::find($id);
+        if (! $c) return;
+
+        $this->form->fill([
+            'telefono'     => $c->telefono,
+            'nombre'       => $c->nombre,
+            'direccion'    => $c->direccion,
+            'departamento' => $c->departamento,
+            'municipio'    => $c->municipio,
+        ]);
+
+        $this->seccion = 'crear';
+
+        Notification::make()
+            ->title('👤 ' . ($c->nombre ?: $c->telefono))
+            ->body('Datos cargados. Solo falta qué lleva el paquete.')
+            ->success()->send();
     }
 
     public function form(Form $form): Form

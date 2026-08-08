@@ -17,6 +17,10 @@ use Filament\Tables\Table;
 class ClienteResource extends Resource
 {
     protected static ?string $model = Cliente::class;
+    // La libreta se usa desde la pestaña "Guías" (sección Clientes). Esta pantalla
+    // queda disponible para editar a fondo, pero fuera del menú para no duplicar.
+    protected static bool $shouldRegisterNavigation = false;
+
     protected static ?string $navigationIcon = 'heroicon-o-users';
     protected static ?string $navigationLabel = 'Clientes';
     protected static ?string $modelLabel = 'Cliente';

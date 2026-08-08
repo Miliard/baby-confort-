@@ -14,6 +14,10 @@ use Filament\Pages\Page;
  */
 class FotosPaquetes extends Page
 {
+    // Ahora vive dentro de la pestaña "Guías" (sección Fotos); se deja la página
+    // por si se quiere abrir sola, pero fuera del menú para no duplicar.
+    protected static bool $shouldRegisterNavigation = false;
+
     protected static ?string $navigationIcon = 'heroicon-o-camera';
     protected static ?string $navigationLabel = 'Fotos de paquetes';
     protected static ?string $title = 'Fotos de paquetes';
