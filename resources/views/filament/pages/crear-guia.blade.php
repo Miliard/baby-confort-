@@ -9,13 +9,43 @@
             <x-filament::tabs.item :active="$seccion === 'fotos'" wire:click="$set('seccion','fotos')" icon="heroicon-m-camera">
                 Fotos
             </x-filament::tabs.item>
-            <x-filament::tabs.item :active="$seccion === 'clientes'" wire:click="$set('seccion','clientes')" icon="heroicon-m-users">
-                Clientes
-            </x-filament::tabs.item>
         </x-filament::tabs>
 
         {{-- ─────────── CREAR GUÍA ─────────── --}}
         <div @class(['hidden' => $seccion !== 'crear'])>
+
+            {{-- Buscar un cliente ya guardado (si no está, se llena a mano abajo) --}}
+            <div class="mb-5">
+                <x-filament::input.wrapper prefix-icon="heroicon-m-magnifying-glass">
+                    <x-filament::input type="text" wire:model.live.debounce.400ms="buscaCliente"
+                        placeholder="¿Cliente conocido? Buscá por teléfono o nombre" />
+                </x-filament::input.wrapper>
+
+                @if(trim($buscaCliente) !== '')
+                    <div class="mt-2 space-y-2">
+                        @forelse($this->clientes->take(6) as $c)
+                            <button type="button" wire:click="usarCliente({{ $c->id }})"
+                                class="flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 text-left shadow-sm transition hover:border-primary-400 dark:border-white/10 dark:bg-gray-900">
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2">
+                                        <span class="truncate text-sm font-semibold text-gray-950 dark:text-white">{{ $c->nombre ?: 'Sin nombre' }}</span>
+                                        <x-filament::badge color="success" size="xs">{{ $c->veces }}</x-filament::badge>
+                                    </div>
+                                    <p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
+                                        {{ $c->telefono }} · {{ $c->municipio }}{{ $c->departamento ? ', ' . $c->departamento : '' }}
+                                    </p>
+                                </div>
+                                <x-filament::icon icon="heroicon-m-arrow-right-circle" class="h-5 w-5 flex-none text-primary-600" />
+                            </button>
+                        @empty
+                            <div class="rounded-xl border border-dashed border-gray-300 p-4 text-center text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
+                                No está guardado. Llená los datos abajo y quedará para la próxima. 👇
+                            </div>
+                        @endforelse
+                    </div>
+                @endif
+            </div>
+
             <form wire:submit="agregar">
                 {{ $this->form }}
 
@@ -118,42 +148,6 @@
             @include('filament.partials.subir-fotos')
         </div>
 
-        {{-- ─────────── CLIENTES ─────────── --}}
-        <div @class(['hidden' => $seccion !== 'clientes'])>
-            <p class="mb-3 text-sm text-gray-500 dark:text-gray-400">
-                Se guardan solos al crear guías. Tocá uno para cargar sus datos en el formulario.
-            </p>
-
-            <x-filament::input.wrapper prefix-icon="heroicon-m-magnifying-glass">
-                <x-filament::input type="text" wire:model.live.debounce.400ms="buscaCliente"
-                    placeholder="Buscar por teléfono o nombre" />
-            </x-filament::input.wrapper>
-
-            <div class="mt-3 space-y-2">
-                @forelse($this->clientes as $c)
-                    <button type="button" wire:click="usarCliente({{ $c->id }})"
-                        class="flex w-full items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 text-left shadow-sm transition hover:border-primary-400 dark:border-white/10 dark:bg-gray-900">
-                        <div class="min-w-0 flex-1">
-                            <div class="flex items-center gap-2">
-                                <span class="text-sm font-semibold text-gray-950 dark:text-white">{{ $c->nombre ?: 'Sin nombre' }}</span>
-                                <x-filament::badge color="success" size="xs">{{ $c->veces }} envíos</x-filament::badge>
-                            </div>
-                            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                {{ $c->telefono }} · {{ $c->municipio }}{{ $c->departamento ? ', ' . $c->departamento : '' }}
-                            </p>
-                            @if($c->direccion)
-                                <p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">{{ $c->direccion }}</p>
-                            @endif
-                        </div>
-                        <x-filament::icon icon="heroicon-m-arrow-right-circle" class="h-5 w-5 text-primary-600" />
-                    </button>
-                @empty
-                    <div class="rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">
-                        {{ trim($buscaCliente) !== '' ? 'No se encontró ningún cliente con eso.' : 'Todavía no hay clientes guardados. Se guardan solos al crear guías.' }}
-                    </div>
-                @endforelse
-            </div>
-        </div>
     </div>
 </x-filament-panels::page>
 

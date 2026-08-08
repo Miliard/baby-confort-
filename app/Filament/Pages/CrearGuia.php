@@ -83,6 +83,7 @@ class CrearGuia extends Page implements HasForms
         ]);
 
         $this->seccion = 'crear';
+        $this->buscaCliente = '';   // se cierra el buscador al elegirlo
 
         Notification::make()
             ->title('👤 ' . ($c->nombre ?: $c->telefono))
