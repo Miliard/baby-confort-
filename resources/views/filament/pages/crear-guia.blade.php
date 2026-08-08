@@ -53,7 +53,7 @@
                             @endif
                         </div>
                     </div>
-                    <button type="button" wire:click="quitar({{ $i }})"
+                    <button type="button" wire:click="quitar({{ $g['id'] ?? 0 }})"
                         style="background:none;border:none;color:#dc2626;font-size:18px;cursor:pointer;line-height:1;padding:2px 4px">×</button>
                 </div>
             @empty

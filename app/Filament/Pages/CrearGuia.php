@@ -36,7 +36,7 @@ class CrearGuia extends Page implements HasForms
 
     public function mount(): void
     {
-        $this->lista = session('guias_lista', []);
+        $this->recargarLista();
         $this->form->fill();
     }
 
@@ -167,35 +167,43 @@ class CrearGuia extends Page implements HasForms
             }
         }
 
-        // El más reciente queda de primero, para tenerlo a la vista.
-        array_unshift($this->lista, [
+        // Se guarda en la base: así no se pierde aunque se caiga el internet,
+        // se reinicie la página o se cambie de aplicación.
+        \App\Models\GuiaBorrador::create([
             'nombre'          => $d['nombre'],
             'telefono'        => $d['telefono'],
             'telefono_recibe' => $d['telefono_recibe'] ?? null,
-            'direccion'   => $d['direccion'],
-            'municipio'   => $d['municipio'],
-            'departamento'=> $d['departamento'],
-            'descripcion' => $d['descripcion'],
-            'cobrar'      => (float) ($d['cobrar'] ?? 0),
+            'direccion'       => $d['direccion'],
+            'municipio'       => $d['municipio'],
+            'departamento'    => $d['departamento'],
+            'descripcion'     => $d['descripcion'],
+            'cobrar'          => (float) ($d['cobrar'] ?? 0),
         ]);
 
-        session(['guias_lista' => $this->lista]);
+        $this->recargarLista();
         $this->form->fill();
 
-        Notification::make()->title('✅ Agregada (' . count($this->lista) . ' en la lista)')->success()->send();
+        Notification::make()->title('✅ Guardada (' . count($this->lista) . ' en la lista)')->success()->send();
     }
 
-    public function quitar(int $i): void
+    /** Vuelve a leer la lista desde la base. */
+    public function recargarLista(): void
     {
-        unset($this->lista[$i]);
-        $this->lista = array_values($this->lista);
-        session(['guias_lista' => $this->lista]);
+        $this->lista = \App\Models\GuiaBorrador::lista()
+            ->map(fn ($g) => $g->aFila() + ['id' => $g->id])
+            ->all();
+    }
+
+    public function quitar(int $id): void
+    {
+        \App\Models\GuiaBorrador::find($id)?->delete();
+        $this->recargarLista();
     }
 
     public function vaciar(): void
     {
-        $this->lista = [];
-        session()->forget('guias_lista');
+        try { \App\Models\GuiaBorrador::query()->delete(); } catch (\Throwable $e) {}
+        $this->recargarLista();
         Notification::make()->title('Lista vaciada')->success()->send();
     }
 
@@ -213,6 +221,7 @@ class CrearGuia extends Page implements HasForms
         // se fueron agregando.
         SistrackExcel::generarDesdeLista(array_reverse($this->lista), $path);
 
+        // La lista queda guardada por si hay que volver a bajarla; se limpia con "Vaciar".
         return response()->download($path, $nombre)->deleteFileAfterSend();
     }
 }
