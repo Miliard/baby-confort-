@@ -23,24 +23,36 @@ class GuiaFotoController extends Controller
             return response()->json(['ok' => false, 'error' => 'Guía no válida'], 422);
         }
 
-        // Una sola foto por guía: si ya había, se reemplaza (evita repetidas).
-        foreach (GuiaFoto::where('guia', $guia)->get() as $vieja) {
-            try {
-                \Illuminate\Support\Facades\Storage::disk('public')->delete($vieja->ruta);
-            } catch (\Throwable $e) {
-            }
-            $vieja->delete();
-        }
-
         $ruta = $request->file('foto')->store('paquetes', 'public');
 
-        $foto = GuiaFoto::create([
-            'guia'     => $guia,
-            'ruta'     => $ruta,
-            'nombre'   => trim((string) ($data['nombre'] ?? '')) ?: null,
-            'telefono' => trim((string) ($data['telefono'] ?? '')) ?: null,
-            'lote'     => trim((string) ($data['lote'] ?? '')) ?: null,
-        ]);
+        $nombreOcr   = trim((string) ($data['nombre'] ?? '')) ?: null;
+        $telefonoOcr = trim((string) ($data['telefono'] ?? '')) ?: null;
+        $loteFoto    = trim((string) ($data['lote'] ?? '')) ?: null;
+
+        // Si la guía ya existe (por ejemplo, vino del PDF), la foto se PEGA a ese
+        // registro. Así no se pierde el nombre ni el contenido del pedido.
+        $foto = GuiaFoto::where('guia', $guia)->first();
+
+        if ($foto) {
+            // Reemplaza la imagen anterior, si tenía.
+            if ($foto->ruta) {
+                try { \Illuminate\Support\Facades\Storage::disk('public')->delete($foto->ruta); } catch (\Throwable $e) {}
+            }
+            $foto->ruta = $ruta;
+            // Lo leído por OCR solo rellena lo que falte: nunca pisa los datos del PDF.
+            $foto->nombre   = $foto->nombre   ?: $nombreOcr;
+            $foto->telefono = $foto->telefono ?: $telefonoOcr;
+            $foto->lote     = $foto->lote     ?: $loteFoto;
+            $foto->save();
+        } else {
+            $foto = GuiaFoto::create([
+                'guia'     => $guia,
+                'ruta'     => $ruta,
+                'nombre'   => $nombreOcr,
+                'telefono' => $telefonoOcr,
+                'lote'     => $loteFoto,
+            ]);
+        }
 
         // Limpieza: borra fotos con más de 5 días para no llenar el servidor.
         static::limpiarViejas();
@@ -130,11 +142,13 @@ class GuiaFotoController extends Controller
             $registro = GuiaFoto::where('guia', $guia)->first();
 
             if ($registro) {
-                $registro->nombre    = $registro->nombre    ?: $nombre;
-                $registro->telefono  = $registro->telefono  ?: $telefono;
-                $registro->contenido = $registro->contenido ?: $contenido;
-                $registro->cobrar    = $registro->cobrar    ?: $cobrar;
-                $registro->lote      = $registro->lote      ?: $lote;
+                // El PDF manda: sus datos son texto exacto de Sistrack, mientras que
+                // los de la foto vienen de OCR y pueden estar mal leídos.
+                if ($nombre)    $registro->nombre    = $nombre;
+                if ($telefono)  $registro->telefono  = $telefono;
+                if ($contenido) $registro->contenido = $contenido;
+                if ($cobrar !== null) $registro->cobrar = $cobrar;
+                $registro->lote = $registro->lote ?: $lote;
                 $registro->save();
                 $actualizadas++;
             } else {
