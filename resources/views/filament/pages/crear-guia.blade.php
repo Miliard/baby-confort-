@@ -204,7 +204,15 @@
             const md = t.match(/^\s*([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ .'-]{2,40})\s*\|\s*([A-Za-zÁÉÍÓÚÑáéíóúñ .'-]{3,30})\s*$/m);
             if (md) { municipio = md[1].trim(); departamento = md[2].trim(); }
 
-            return { guia: g[1], nombre, telefono, direccion, municipio, departamento };
+            // Qué lleva el paquete y cuánto se cobra al entregar.
+            let contenido = null, cobrar = null;
+            const c = t.match(/Contenido del paquete[^:]*:\s*(.+)/i);
+            if (c) contenido = c[1].replace(/\s+/g, ' ').trim();
+
+            const co = t.match(/COBRAR AL ENTREGAR:\s*\$?\s*([\d.,]+)/i);
+            if (co) cobrar = parseFloat(co[1].replace(/,/g, ''));
+
+            return { guia: g[1], nombre, telefono, direccion, municipio, departamento, contenido, cobrar };
         }
 
         input.addEventListener('change', async () => {

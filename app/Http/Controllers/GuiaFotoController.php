@@ -107,6 +107,8 @@ class GuiaFotoController extends Controller
             'guias.*.guia'       => ['required', 'string', 'max:40'],
             'guias.*.nombre'     => ['nullable', 'string', 'max:120'],
             'guias.*.telefono'   => ['nullable', 'string', 'max:30'],
+            'guias.*.contenido'  => ['nullable', 'string', 'max:400'],
+            'guias.*.cobrar'     => ['nullable', 'numeric'],
             'guias.*.direccion'  => ['nullable', 'string', 'max:400'],
             'guias.*.municipio'  => ['nullable', 'string', 'max:80'],
             'guias.*.departamento' => ['nullable', 'string', 'max:80'],
@@ -120,24 +122,30 @@ class GuiaFotoController extends Controller
             $guia = preg_replace('/\D/', '', $g['guia']);
             if ($guia === '') continue;
 
-            $nombre   = trim((string) ($g['nombre'] ?? '')) ?: null;
-            $telefono = trim((string) ($g['telefono'] ?? '')) ?: null;
+            $nombre    = trim((string) ($g['nombre'] ?? '')) ?: null;
+            $telefono  = trim((string) ($g['telefono'] ?? '')) ?: null;
+            $contenido = trim((string) ($g['contenido'] ?? '')) ?: null;
+            $cobrar    = isset($g['cobrar']) && $g['cobrar'] !== '' ? (float) $g['cobrar'] : null;
 
             $registro = GuiaFoto::where('guia', $guia)->first();
 
             if ($registro) {
-                $registro->nombre   = $registro->nombre   ?: $nombre;
-                $registro->telefono = $registro->telefono ?: $telefono;
-                $registro->lote     = $registro->lote     ?: $lote;
+                $registro->nombre    = $registro->nombre    ?: $nombre;
+                $registro->telefono  = $registro->telefono  ?: $telefono;
+                $registro->contenido = $registro->contenido ?: $contenido;
+                $registro->cobrar    = $registro->cobrar    ?: $cobrar;
+                $registro->lote      = $registro->lote      ?: $lote;
                 $registro->save();
                 $actualizadas++;
             } else {
                 GuiaFoto::create([
-                    'guia'     => $guia,
-                    'ruta'     => null,        // la foto llega después
-                    'nombre'   => $nombre,
-                    'telefono' => $telefono,
-                    'lote'     => $lote,
+                    'guia'      => $guia,
+                    'ruta'      => null,        // la foto llega después
+                    'nombre'    => $nombre,
+                    'telefono'  => $telefono,
+                    'contenido' => $contenido,
+                    'cobrar'    => $cobrar,
+                    'lote'      => $lote,
                 ]);
                 $nuevas++;
             }

@@ -28,8 +28,13 @@
     .trk-form{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
     .trk-form input{flex:1;min-width:180px;padding:12px 14px;border:1px solid var(--borde);border-radius:12px;font-size:15px}
     .trk-form button{background:linear-gradient(135deg,var(--azul),var(--azul-osc));color:#fff;border:none;border-radius:12px;padding:12px 22px;font-weight:800;font-size:15px;cursor:pointer}
-    .saludo-cliente{margin-top:18px;background:linear-gradient(135deg,#eafaf2,#eaf5fc);border:1px solid var(--borde);border-radius:14px;padding:14px 16px;font-size:16px;font-weight:700;color:var(--azul-osc);text-align:center}
+    .saludo-cliente{margin-top:18px;background:linear-gradient(135deg,#eafaf2,#eaf5fc);border:1px solid var(--borde);border-radius:14px;padding:16px 18px;text-align:center}
     html.dark .saludo-cliente{background:#182338;border-color:var(--borde)}
+    .sc-hola{font-size:19px;font-weight:800;color:var(--azul-osc)}
+    .sc-sub{font-size:13.5px;color:var(--gris);margin-top:2px}
+    .sc-detalle{margin-top:12px;padding-top:12px;border-top:1px dashed var(--borde);text-align:left;display:flex;flex-direction:column;gap:6px}
+    .sc-item{font-size:14px;color:var(--texto);line-height:1.5}
+    .sc-item b{color:var(--azul-osc)}
     @media(max-width:460px){.trk-dot{width:48px;height:48px;font-size:22px}.trk-line,.trk-fill{top:23px}.trk-lbl{font-size:11.5px}}
 </style>
 <main class="trk-wrap">
@@ -43,13 +48,46 @@
     </form>
 
     @php
-        // Nombre leído de la etiqueta al subir la foto del paquete.
-        $nombreCliente = $guia ? \App\Models\GuiaFoto::nombreDeGuia($guia) : null;
-        $primerNombre  = $nombreCliente ? \Illuminate\Support\Str::of($nombreCliente)->trim()->before(' ')->title() : null;
+        // Datos del pedido: vienen del PDF de etiquetas o de la foto del paquete.
+        $datosGuia     = $guia ? \App\Models\GuiaFoto::datosDeGuia($guia) : null;
+        $nombreCliente = $datosGuia?->nombre;
+        // Se quitan marcas internas del negocio y tratamientos, para saludar bien.
+        $nombreLimpio = $nombreCliente
+            ? trim(preg_replace('/\b(aiwibi?|crbd?|cbrd?)\b/iu', '', $nombreCliente))
+            : null;
+        $nombreLimpio = $nombreLimpio
+            ? trim(preg_replace('/^\s*(col\.?|colonia|sra\.?|sr\.?|srta\.?|do[ñn]a|don|lic\.?|ing\.?|dra?\.?)\s+/iu', '', $nombreLimpio))
+            : null;
+
+        $primerNombre = null;
+        if ($nombreLimpio) {
+            // Primera palabra que parezca un nombre (al menos 3 letras).
+            foreach (preg_split('/\s+/u', $nombreLimpio) as $palabra) {
+                $p = trim($palabra, " .,-");
+                if (mb_strlen($p) >= 3 && preg_match('/^[\p{L}]+$/u', $p)) {
+                    $primerNombre = \Illuminate\Support\Str::title($p);
+                    break;
+                }
+            }
+        }
     @endphp
 
-    @if($guia && $etapa && $primerNombre)
-        <div class="saludo-cliente">¡Hola {{ $primerNombre }}! 👋 Aquí podés ver cómo va tu paquete.</div>
+    @if($guia && $etapa && ($primerNombre || $datosGuia?->contenido))
+        <div class="saludo-cliente">
+            @if($primerNombre)
+                <div class="sc-hola">¡Hola {{ $primerNombre }}! 👋</div>
+            @endif
+            <div class="sc-sub">Aquí podés ver cómo va tu paquete.</div>
+
+            @if($datosGuia?->contenido)
+                <div class="sc-detalle">
+                    <div class="sc-item">📦 <b>Tu pedido:</b> {{ $datosGuia->contenido }}</div>
+                    @if($datosGuia->cobrar > 0)
+                        <div class="sc-item">💵 <b>A pagar al recibir:</b> ${{ number_format($datosGuia->cobrar, 2) }}</div>
+                    @endif
+                </div>
+            @endif
+        </div>
     @endif
 
     @if($guia && $etapa)
