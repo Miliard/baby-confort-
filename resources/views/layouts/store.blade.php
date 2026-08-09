@@ -661,6 +661,161 @@ async function bcCopiarSoloImagen(url, boton){
     }
 }
 
+/**
+ * Arma una imagen con los datos escritos abajo (tipo, talla, unidades y precio),
+ * para poder mandar varias de golpe sin escribir nada en el chat.
+ * Devuelve un blob JPG.
+ */
+async function bcImagenConDatos(urlFoto, datos){
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    await new Promise(function(ok, mal){
+        img.onload = ok; img.onerror = mal; img.src = urlFoto;
+    });
+
+    // Lienzo cuadrado con la foto arriba y una franja blanca abajo.
+    const L = 1000;                      // ancho final
+    const franja = Math.round(L * 0.26); // alto de la franja
+    const c = document.createElement('canvas');
+    c.width = L; c.height = L + franja;
+    const x = c.getContext('2d');
+
+    // Fondo blanco (por si la foto tiene transparencias)
+    x.fillStyle = '#ffffff';
+    x.fillRect(0, 0, c.width, c.height);
+
+    // Foto centrada, sin deformar
+    const escala = Math.min(L / img.width, L / img.height);
+    const an = img.width * escala, al = img.height * escala;
+    x.drawImage(img, (L - an) / 2, (L - al) / 2, an, al);
+
+    // Línea que separa la foto de la franja
+    x.fillStyle = '#e2e8ee';
+    x.fillRect(0, L, L, 3);
+
+    const centro = L / 2;
+    let y = L + Math.round(franja * 0.30);
+
+    // 1) Tipo de producto y talla
+    x.fillStyle = '#2b3a4a';
+    x.font = 'bold 54px system-ui, Segoe UI, Arial';
+    x.textAlign = 'center';
+    let titulo = datos.tipo || '';
+    if (datos.talla) titulo += (titulo ? '  ·  ' : '') + 'Talla ' + datos.talla;
+    x.fillText(bcCortar(x, titulo, L - 60), centro, y);
+
+    // 2) Unidades
+    y += Math.round(franja * 0.26);
+    if (datos.unidades) {
+        x.fillStyle = '#6b7c8c';
+        x.font = '40px system-ui, Segoe UI, Arial';
+        x.fillText(datos.unidades + ' unidades', centro, y);
+    }
+
+    // 3) Precio
+    y += Math.round(franja * 0.30);
+    x.fillStyle = '#2f7fbf';
+    x.font = 'bold 66px system-ui, Segoe UI, Arial';
+    x.fillText('$' + Number(datos.precio || 0).toFixed(2), centro, y);
+
+    return await new Promise(function(res){ c.toBlob(res, 'image/jpeg', 0.92); });
+}
+
+// Recorta el texto si no cabe a lo ancho
+function bcCortar(ctx, texto, ancho){
+    let t = texto;
+    while (t.length > 4 && ctx.measureText(t).width > ancho) t = t.slice(0, -2);
+    return t === texto ? t : t + '…';
+}
+
+/**
+ * Manda TODAS las tallas de un solo golpe, cada imagen ya con sus datos escritos.
+ * Usa el "compartir" del sistema: se elige WhatsApp y van todas juntas, sin carpetas.
+ * Si el equipo no lo soporta, se bajan los archivos como respaldo.
+ */
+async function bcCompartirTallas(nombreProducto, tallas, fotoPorDefecto, boton){
+    const antes = boton ? boton.innerHTML : null;
+    const archivos = [];
+
+    for (let i = 0; i < tallas.length; i++) {
+        const t = tallas[i];
+        if (boton) boton.innerHTML = '⏳ Armando ' + (i + 1) + ' de ' + tallas.length + '…';
+        try {
+            const blob = await bcImagenConDatos(t.imagen || fotoPorDefecto, {
+                tipo: nombreProducto, talla: t.size, unidades: t.unidades, precio: t.price,
+            });
+            const nombre = (nombreProducto + ' ' + t.size).replace(/[^\w\sáéíóúñÁÉÍÓÚÑ-]/gi, '').trim() + '.jpg';
+            archivos.push(new File([blob], nombre, { type: 'image/jpeg' }));
+        } catch(e) { /* si una falla, seguimos */ }
+    }
+
+    if (!archivos.length) {
+        if (boton) { boton.innerHTML = '✕ No se pudieron armar'; setTimeout(function(){ boton.innerHTML = antes; }, 2500); }
+        return;
+    }
+
+    // 1) Compartir del sistema (elegís WhatsApp y van todas juntas)
+    try {
+        if (navigator.canShare && navigator.canShare({ files: archivos })) {
+            if (boton) boton.innerHTML = '📤 Elegí WhatsApp…';
+            await navigator.share({ files: archivos, title: nombreProducto });
+            if (boton) { boton.innerHTML = '✅ Enviadas'; setTimeout(function(){ boton.innerHTML = antes; }, 2500); }
+            return;
+        }
+    } catch(e) {
+        // si se cancela el diálogo, no se hace nada más
+        if (e && e.name === 'AbortError') { if (boton) boton.innerHTML = antes; return; }
+    }
+
+    // 2) Respaldo: se bajan (quedan en la barra de descargas para arrastrarlas)
+    if (boton) boton.innerHTML = '⬇️ Bajando…';
+    for (const f of archivos) {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(f);
+        a.download = f.name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function(){ URL.revokeObjectURL(a.href); }, 5000);
+        await new Promise(function(r){ setTimeout(r, 300); });
+    }
+    if (boton) {
+        boton.innerHTML = '✅ ' + archivos.length + ' listas abajo ⬇️';
+        setTimeout(function(){ boton.innerHTML = antes; }, 3200);
+    }
+}
+
+// Baja al equipo TODAS las tallas, cada una con sus datos escritos en la imagen.
+async function bcDescargarTallas(nombreProducto, tallas, fotoPorDefecto, boton){
+    const antes = boton ? boton.innerHTML : null;
+    let hechas = 0;
+
+    for (let i = 0; i < tallas.length; i++) {
+        const t = tallas[i];
+        if (boton) boton.innerHTML = '⏳ Armando ' + (i + 1) + ' de ' + tallas.length + '…';
+
+        try {
+            const blob = await bcImagenConDatos(t.imagen || fotoPorDefecto, {
+                tipo:     nombreProducto,
+                talla:    t.size,
+                unidades: t.unidades,
+                precio:   t.price,
+            });
+
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = (nombreProducto + ' ' + t.size).replace(/[^\w\sáéíóúñÁÉÍÓÚÑ-]/gi, '').trim() + '.jpg';
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(function(){ URL.revokeObjectURL(a.href); }, 5000);
+            hechas++;
+            await new Promise(function(r){ setTimeout(r, 350); }); // el navegador respira
+        } catch(e) { /* si una foto falla, seguimos con las demás */ }
+    }
+
+    if (boton) {
+        boton.innerHTML = hechas ? '✅ ' + hechas + ' imágenes listas' : '✕ No se pudieron armar';
+        setTimeout(function(){ boton.innerHTML = antes; }, 2600);
+    }
+}
+
 // Descarga la imagen al equipo, para arrastrarla al chat.
 async function bcDescargarImagen(url, nombre){
     if (!url) return;

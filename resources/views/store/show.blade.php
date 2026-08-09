@@ -218,6 +218,17 @@
             @endphp
             <button class="btn-compartir" @click="bcCopiarTexto(bcTextoProducto({!! $datosCompartir !!}), $event.currentTarget)">📋 Copiar el texto</button>
 
+            {{-- Manda TODAS las tallas de un golpe, con sus datos ya en la imagen --}}
+            <button class="btn-compartir" style="border-color:var(--teal);background:#eefaf8;color:var(--teal-osc)"
+                    @click="bcCompartirTallas(@js($product->name), sizes, fotos[0], $event.currentTarget)">
+                📤 Mandar todas las tallas ({{ $product->sizes->count() }})
+            </button>
+
+            <button class="btn-compartir btn-compartir-alt"
+                    @click="bcDescargarTallas(@js($product->name), sizes, fotos[0], $event.currentTarget)">
+                ⬇️ Solo descargarlas
+            </button>
+
             {{-- Para mandar la foto desde la computadora (WhatsApp Web) --}}
             <div class="fila-imagen">
                 <button class="btn-compartir btn-compartir-alt" style="margin-top:0"
