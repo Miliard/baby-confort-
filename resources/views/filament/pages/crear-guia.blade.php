@@ -49,9 +49,16 @@
             <form wire:submit="agregar">
                 {{ $this->form }}
 
-                <x-filament::button type="submit" size="lg" color="success" class="mt-4 w-full justify-center">
-                    ➕ Agregar a la lista
-                </x-filament::button>
+                <div class="mt-4 flex gap-2">
+                    <x-filament::button type="submit" size="lg" color="success" class="flex-1 justify-center">
+                        ➕ Agregar a la lista
+                    </x-filament::button>
+
+                    <x-filament::button type="button" size="lg" color="gray" outlined
+                        icon="heroicon-m-arrow-path" wire:click="limpiarCampos" title="Limpiar los campos">
+                        Limpiar
+                    </x-filament::button>
+                </div>
             </form>
 
             {{-- Lista acumulada (guardada en la base: no se pierde) --}}

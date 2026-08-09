@@ -229,6 +229,15 @@ class CrearGuia extends Page implements HasForms
         $this->agregar(true);
     }
 
+    /** Deja el formulario en blanco para empezar otra guía de cero. */
+    public function limpiarCampos(): void
+    {
+        $this->form->fill();
+        $this->buscaCliente = '';
+
+        Notification::make()->title('🧹 Campos limpios')->success()->send();
+    }
+
     public function agregar(bool $forzar = false): void
     {
         // Si falta algo, avisa y salta al primer campo vacío (no solo un mensaje).
