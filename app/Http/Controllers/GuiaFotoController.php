@@ -92,6 +92,66 @@ class GuiaFotoController extends Controller
         return $borradas;
     }
 
+    /**
+     * Registra las guías leídas del PDF de etiquetas de Sistrack.
+     * Cada una trae su guía, cliente y teléfono exactos (sin OCR), así la foto
+     * que se suba después se pega sola a la guía correcta.
+     *
+     * No toca la libreta de clientes: para llegar al PDF, el cliente ya se guardó
+     * al armar la guía.
+     */
+    public function importarPdf(Request $request)
+    {
+        $data = $request->validate([
+            'guias'              => ['required', 'array', 'min:1'],
+            'guias.*.guia'       => ['required', 'string', 'max:40'],
+            'guias.*.nombre'     => ['nullable', 'string', 'max:120'],
+            'guias.*.telefono'   => ['nullable', 'string', 'max:30'],
+            'guias.*.direccion'  => ['nullable', 'string', 'max:400'],
+            'guias.*.municipio'  => ['nullable', 'string', 'max:80'],
+            'guias.*.departamento' => ['nullable', 'string', 'max:80'],
+            'lote'               => ['nullable', 'string', 'max:40'],
+        ]);
+
+        $nuevas = 0; $actualizadas = 0;
+        $lote = trim((string) ($data['lote'] ?? '')) ?: now()->format('Y-m-d H:i:s');
+
+        foreach ($data['guias'] as $g) {
+            $guia = preg_replace('/\D/', '', $g['guia']);
+            if ($guia === '') continue;
+
+            $nombre   = trim((string) ($g['nombre'] ?? '')) ?: null;
+            $telefono = trim((string) ($g['telefono'] ?? '')) ?: null;
+
+            $registro = GuiaFoto::where('guia', $guia)->first();
+
+            if ($registro) {
+                $registro->nombre   = $registro->nombre   ?: $nombre;
+                $registro->telefono = $registro->telefono ?: $telefono;
+                $registro->lote     = $registro->lote     ?: $lote;
+                $registro->save();
+                $actualizadas++;
+            } else {
+                GuiaFoto::create([
+                    'guia'     => $guia,
+                    'ruta'     => null,        // la foto llega después
+                    'nombre'   => $nombre,
+                    'telefono' => $telefono,
+                    'lote'     => $lote,
+                ]);
+                $nuevas++;
+            }
+
+            // No se toca la libreta: el cliente ya se guardó al armar la guía.
+        }
+
+        return response()->json([
+            'ok'           => true,
+            'nuevas'       => $nuevas,
+            'actualizadas' => $actualizadas,
+        ]);
+    }
+
     /** Quita una foto (por si se subió una equivocada). */
     public function eliminar(GuiaFoto $foto)
     {

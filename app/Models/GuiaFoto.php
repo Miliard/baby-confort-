@@ -72,16 +72,28 @@ class GuiaFoto extends Model
         return 'https://wa.me/503' . $d . '?text=' . rawurlencode($this->mensajeParaCliente());
     }
 
-    /** Nombre del cliente asociado a una guía (leído de la etiqueta), si se tiene. */
+    /** Nombre del cliente asociado a una guía (del PDF o leído de la etiqueta). */
     public static function nombreDeGuia(?string $guia): ?string
     {
-        $g = static::deGuia($guia)->firstWhere(fn ($f) => filled($f->nombre));
-        return $g?->nombre;
+        $g = trim((string) $guia);
+        if ($g === '') return null;
+
+        try {
+            if (! Schema::hasTable('guia_fotos')) return null;
+            return static::where('guia', $g)->whereNotNull('nombre')->value('nombre');
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
-    public function url(): string
+    public function url(): ?string
     {
-        return '/storage/' . ltrim($this->ruta, '/');
+        return $this->ruta ? '/storage/' . ltrim($this->ruta, '/') : null;
+    }
+
+    public function tieneFoto(): bool
+    {
+        return filled($this->ruta);
     }
 
     /** Fotos de una guía (vacío si la tabla aún no existe). */
@@ -92,7 +104,8 @@ class GuiaFoto extends Model
 
         try {
             if (! Schema::hasTable('guia_fotos')) return collect();
-            return static::where('guia', $guia)->orderBy('id')->get();
+            // Solo las que ya tienen foto (las del PDF entran sin imagen).
+            return static::where('guia', $guia)->whereNotNull('ruta')->orderBy('id')->get();
         } catch (\Throwable $e) {
             return collect();
         }

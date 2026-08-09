@@ -6,6 +6,9 @@
             <x-filament::tabs.item :active="$seccion === 'crear'" wire:click="$set('seccion','crear')" icon="heroicon-m-pencil-square">
                 Crear guía
             </x-filament::tabs.item>
+            <x-filament::tabs.item :active="$seccion === 'pdf'" wire:click="$set('seccion','pdf')" icon="heroicon-m-document-text">
+                PDF guías
+            </x-filament::tabs.item>
             <x-filament::tabs.item :active="$seccion === 'fotos'" wire:click="$set('seccion','fotos')" icon="heroicon-m-camera">
                 Fotos
             </x-filament::tabs.item>
@@ -150,6 +153,11 @@
             </div>
         </div>
 
+        {{-- ─────────── PDF DE GUÍAS ─────────── --}}
+        <div @class(['hidden' => $seccion !== 'pdf'])>
+            @include('filament.partials.importar-pdf')
+        </div>
+
         {{-- ─────────── FOTOS ─────────── --}}
         <div @class(['hidden' => $seccion !== 'fotos'])>
             @include('filament.partials.subir-fotos')
@@ -160,6 +168,132 @@
 
 {{-- Si falta un campo, lo resalta y salta a él (útil en el teléfono) --}}
 @push('scripts')
+    {{-- Lector del PDF de etiquetas de Sistrack --}}
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+    <script>
+    (() => {
+        const input = document.getElementById('pdf-input');
+        if (!input) return;
+
+        const caja   = document.getElementById('pdf-progreso');
+        const barra  = document.getElementById('pdf-barra');
+        const texto  = document.getElementById('pdf-texto');
+        const num    = document.getElementById('pdf-num');
+        const salida = document.getElementById('pdf-resultado');
+        const token  = document.querySelector('meta[name="csrf-token"]')?.content;
+
+        // Saca los datos de una etiqueta a partir de su texto.
+        function leerEtiqueta(t) {
+            const g = t.match(/Orden\s*#\s*(\d+)/i);
+            if (!g) return null;
+
+            const para = t.match(/Para:\s*(.+)/i);
+            let telefono = null, nombre = null, direccion = null;
+
+            if (para) {
+                const linea = para[1].trim();
+                const m = linea.match(/^(?:\+?503[\s-]*)?([267]\d{3})[\s.-]?(\d{4})\s*(.*)$/);
+                if (m) { telefono = m[1] + ' ' + m[2]; nombre = m[3].trim(); }
+                else   { nombre = linea; }
+            }
+
+            const bloque = t.match(/Para:\s*.+\n([\s\S]*?)\nContenido del paquete/i);
+            if (bloque) direccion = bloque[1].replace(/\s+/g, ' ').trim();
+
+            let municipio = null, departamento = null;
+            const md = t.match(/^\s*([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ .'-]{2,40})\s*\|\s*([A-Za-zÁÉÍÓÚÑáéíóúñ .'-]{3,30})\s*$/m);
+            if (md) { municipio = md[1].trim(); departamento = md[2].trim(); }
+
+            return { guia: g[1], nombre, telefono, direccion, municipio, departamento };
+        }
+
+        input.addEventListener('change', async () => {
+            const file = input.files[0];
+            if (!file) return;
+
+            caja.classList.remove('hidden');
+            salida.innerHTML = '';
+            barra.style.width = '0%';
+            texto.textContent = 'Abriendo el PDF…';
+            num.textContent = '';
+
+            try {
+                pdfjsLib.GlobalWorkerOptions.workerSrc =
+                    'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+                const datos = new Uint8Array(await file.arrayBuffer());
+                const pdf   = await pdfjsLib.getDocument({ data: datos }).promise;
+
+                const guias = [];
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const pagina = await pdf.getPage(i);
+                    const cont   = await pagina.getTextContent();
+
+                    let t = '', ultimaY = null;
+                    for (const it of cont.items) {
+                        const y = Math.round(it.transform[5]);
+                        if (ultimaY !== null && Math.abs(y - ultimaY) > 2) t += '\n';
+                        t += it.str + ' ';
+                        ultimaY = y;
+                    }
+
+                    const e = leerEtiqueta(t);
+                    if (e) guias.push(e);
+
+                    barra.style.width = Math.round((i / pdf.numPages) * 100) + '%';
+                    num.textContent = i + ' de ' + pdf.numPages;
+                    texto.textContent = 'Leyendo etiqueta ' + i + '…';
+                }
+
+                if (!guias.length) {
+                    salida.innerHTML = '<div class="rounded-xl border border-danger-300 bg-danger-50 p-4 text-sm text-danger-700 dark:border-danger-500/50 dark:bg-danger-500/10 dark:text-danger-400">No se encontraron guías en ese PDF. ¿Es el archivo de etiquetas de Sistrack?</div>';
+                    texto.textContent = 'Sin resultados';
+                    input.value = '';
+                    return;
+                }
+
+                texto.textContent = 'Guardando ' + guias.length + ' guías…';
+
+                const res = await fetch('{{ route('guias.pdf') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': token,
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ guias, lote: new Date().toISOString().slice(0, 19).replace('T', ' ') }),
+                });
+                const r = await res.json();
+
+                if (r.ok) {
+                    texto.textContent = '¡Listo! ✅';
+                    const filas = guias.slice(0, 60).map(g =>
+                        '<tr class="border-t border-gray-100 dark:border-white/5">'
+                        + '<td class="py-1.5 pr-3 font-semibold">' + g.guia + '</td>'
+                        + '<td class="py-1.5 pr-3 text-gray-500 dark:text-gray-400">' + (g.telefono || '—') + '</td>'
+                        + '<td class="py-1.5 text-gray-500 dark:text-gray-400">' + (g.nombre || '—').slice(0, 26) + '</td>'
+                        + '</tr>').join('');
+
+                    salida.innerHTML =
+                      '<div class="rounded-xl border border-success-300 bg-success-50 p-4 dark:border-success-500/50 dark:bg-success-500/10">'
+                      + '<div class="text-sm font-bold text-success-700 dark:text-success-400">✅ ' + r.nuevas + ' guías nuevas · ' + r.actualizadas + ' ya estaban</div>'
+                      + '<div class="mt-1 text-xs text-success-700/80 dark:text-success-400/80">Sus clientes quedaron guardados en la libreta.</div>'
+                      + '<a href="{{ \App\Filament\Resources\GuiaFotoResource::getUrl() }}" class="mt-3 inline-block text-sm font-bold text-primary-600 hover:underline">Ver las guías y enviar los mensajes →</a>'
+                      + '</div>'
+                      + '<div class="mt-3 overflow-x-auto rounded-xl border border-gray-200 p-3 dark:border-white/10"><table class="w-full text-xs"><tbody>' + filas + '</tbody></table></div>';
+                } else {
+                    salida.innerHTML = '<div class="rounded-xl border border-danger-300 bg-danger-50 p-4 text-sm text-danger-700">No se pudieron guardar.</div>';
+                }
+            } catch (e) {
+                texto.textContent = 'Error';
+                salida.innerHTML = '<div class="rounded-xl border border-danger-300 bg-danger-50 p-4 text-sm text-danger-700">No se pudo leer el PDF: ' + e.message + '</div>';
+            }
+
+            input.value = '';
+        });
+    })();
+    </script>
+
     <script>
         document.addEventListener('livewire:init', () => {
             Livewire.on('enfocar-campo', (e) => {
