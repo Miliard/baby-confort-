@@ -31,6 +31,13 @@
         const t = bcTextoVarios(Object.values(this.sel));
         navigator.clipboard.writeText(t).then(() => { this.copiado = true; setTimeout(() => this.copiado = false, 2500); });
     },
+    // Baja una imagen por producto, con el nombre, la talla, las unidades y el precio escritos.
+    bajarSel(boton){
+        const items = Object.values(this.sel).map(d => ({
+            size: d.talla, unidades: d.unidades, price: d.precio, imagen: d.imagen, nombre: d.nombre,
+        }));
+        bcDescargarConDatos(items, boton);
+    },
 }">
     @if(count($items) === 0)
         <div class="sg-none" style="margin:24px 0">Por ahora no hay productos en {{ $titulo }}.
@@ -99,6 +106,11 @@
             <span x-text="copiado ? '✅ ¡Copiado! Pégalo en el chat de WhatsApp' : '📋 Copiar mensaje con todo'"></span>
             <small x-show="!copiado">(ideal en computadora, para mandarlo a varios clientes)</small>
         </button>
+        <button class="sel-op" @click="bajarSel($event.currentTarget)">
+            <span>⬇️ Bajar las fotos con los datos escritos</span>
+            <small>(para mandarlas juntas desde la computadora)</small>
+        </button>
+
         <div class="sel-panel-sub">O envía cada producto con su foto y su link:</div>
         <template x-for="(d, k) in sel" :key="k">
             <button class="sel-op sel-op-item" :class="enviados[k] ? 'ok' : ''"

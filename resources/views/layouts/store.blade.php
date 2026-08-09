@@ -783,6 +783,42 @@ async function bcCompartirTallas(nombreProducto, tallas, fotoPorDefecto, boton){
     }
 }
 
+/**
+ * Baja varios productos (cada uno con su propio nombre, talla, unidades y precio
+ * escritos en la imagen). Sirve para mandar de golpe todo lo que hay en una talla.
+ */
+async function bcDescargarConDatos(items, boton){
+    const antes = boton ? boton.innerHTML : null;
+    let hechas = 0;
+
+    for (let i = 0; i < items.length; i++) {
+        const t = items[i];
+        if (boton) boton.innerHTML = '⏳ Armando ' + (i + 1) + ' de ' + items.length + '…';
+
+        try {
+            const blob = await bcImagenConDatos(t.imagen, {
+                tipo: t.nombre, talla: t.size, unidades: t.unidades, precio: t.price,
+            });
+
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = ((t.nombre || 'producto') + ' ' + (t.size || ''))
+                .replace(/[^\w\sáéíóúñÁÉÍÓÚÑ-]/gi, '').trim() + '.jpg';
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(function(){ URL.revokeObjectURL(a.href); }, 5000);
+            hechas++;
+            await new Promise(function(r){ setTimeout(r, 350); });
+        } catch(e) { /* si una falla, seguimos con las demás */ }
+    }
+
+    if (boton) {
+        boton.innerHTML = hechas
+            ? '✅ ' + hechas + ' listas (abajo ⬇️)'
+            : '✕ No se pudieron armar';
+        setTimeout(function(){ boton.innerHTML = antes; }, 3000);
+    }
+}
+
 // Baja al equipo TODAS las tallas, cada una con sus datos escritos en la imagen.
 async function bcDescargarTallas(nombreProducto, tallas, fotoPorDefecto, boton){
     const antes = boton ? boton.innerHTML : null;
