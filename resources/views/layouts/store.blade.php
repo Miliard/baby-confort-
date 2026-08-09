@@ -774,8 +774,8 @@ async function bcCompartirTallas(nombreProducto, tallas, fotoPorDefecto, boton){
         a.href = URL.createObjectURL(f);
         a.download = f.name;
         document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(function(){ URL.revokeObjectURL(a.href); }, 5000);
-        await new Promise(function(r){ setTimeout(r, 300); });
+        setTimeout(function(){ URL.revokeObjectURL(a.href); }, 120000);
+        await new Promise(function(r){ setTimeout(r, 900); });
     }
     if (boton) {
         boton.innerHTML = '✅ ' + archivos.length + ' listas abajo ⬇️';
@@ -805,9 +805,9 @@ async function bcDescargarConDatos(items, boton){
             a.download = ((t.nombre || 'producto') + ' ' + (t.size || ''))
                 .replace(/[^\w\sáéíóúñÁÉÍÓÚÑ-]/gi, '').trim() + '.jpg';
             document.body.appendChild(a); a.click(); a.remove();
-            setTimeout(function(){ URL.revokeObjectURL(a.href); }, 5000);
+            setTimeout(function(){ URL.revokeObjectURL(a.href); }, 120000);
             hechas++;
-            await new Promise(function(r){ setTimeout(r, 350); });
+            await new Promise(function(r){ setTimeout(r, 900); });
         } catch(e) { /* si una falla, seguimos con las demás */ }
     }
 
@@ -840,9 +840,9 @@ async function bcDescargarTallas(nombreProducto, tallas, fotoPorDefecto, boton){
             a.href = URL.createObjectURL(blob);
             a.download = (nombreProducto + ' ' + t.size).replace(/[^\w\sáéíóúñÁÉÍÓÚÑ-]/gi, '').trim() + '.jpg';
             document.body.appendChild(a); a.click(); a.remove();
-            setTimeout(function(){ URL.revokeObjectURL(a.href); }, 5000);
+            setTimeout(function(){ URL.revokeObjectURL(a.href); }, 120000);
             hechas++;
-            await new Promise(function(r){ setTimeout(r, 350); }); // el navegador respira
+            await new Promise(function(r){ setTimeout(r, 900); }); // el navegador respira
         } catch(e) { /* si una foto falla, seguimos con las demás */ }
     }
 
@@ -862,7 +862,7 @@ async function bcDescargarImagen(url, nombre){
         a.href = URL.createObjectURL(blob);
         a.download = (nombre || 'producto').replace(/[^\w\sáéíóúñ-]/gi, '').trim().slice(0, 60) + '.jpg';
         document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+        setTimeout(function(){ URL.revokeObjectURL(a.href); }, 120000);
     } catch(e) {
         window.open(url, '_blank');
     }
