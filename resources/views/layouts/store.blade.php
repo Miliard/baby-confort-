@@ -271,6 +271,8 @@
         .btn-compartir:disabled{opacity:.85;cursor:default}
         /* El de copiar es el principal (azul); compartir queda como alternativa */
         .btn-compartir-alt{border-color:var(--borde);background:#fff;color:var(--gris);font-size:12.5px;padding:7px;margin-top:6px}
+        .fila-imagen{display:flex;gap:6px;margin-top:6px}
+        .fila-imagen .btn-compartir{flex:1;width:auto}
         .btn-compartir-alt:hover{background:#f7fafc}
         html.dark .btn-compartir-alt{background:#16202f;border-color:var(--borde);color:var(--gris)}
         .agotado-chip{position:absolute;top:10px;left:10px;z-index:3;background:#6b7c8c;color:#fff;font-weight:800;font-size:12px;padding:6px 12px;border-radius:999px;letter-spacing:.3px}
@@ -568,6 +570,11 @@ function bcCompartir(d){
         d.imagen ? [d.imagen] : []);
 }
 
+// Texto de UN producto (nombre, talla, precio y enlace)
+function bcTextoProducto(d){
+    return '🍼 ' + bcBloqueProducto(d) + '\n🚚 Entrega a domicilio en todo El Salvador';
+}
+
 // Copia el texto al portapapeles y avisa en el botón (sin abrir WhatsApp).
 async function bcCopiarTexto(texto, boton){
     try {
@@ -632,6 +639,42 @@ async function bcCopiarProducto(d, boton){
 function bcCopiarVarios(items, boton){
     if (!items.length) return;
     bcCopiarTexto(bcTextoVarios(items), boton);
+}
+
+// Copia SOLO la imagen (sin texto). Así WhatsApp Web no se queda solo con el texto.
+async function bcCopiarSoloImagen(url, boton){
+    if (!url) return;
+    const antes = boton ? boton.innerHTML : null;
+    if (boton) { boton.innerHTML = '⏳ Preparando…'; boton.disabled = true; }
+    try {
+        const png = await bcImagenPng(url);
+        await navigator.clipboard.write([ new ClipboardItem({ 'image/png': png }) ]);
+        if (boton) {
+            boton.innerHTML = '✅ Imagen copiada';
+            setTimeout(function(){ boton.innerHTML = antes; boton.disabled = false; }, 2000);
+        }
+    } catch(e) {
+        if (boton) {
+            boton.innerHTML = '✕ No se pudo copiar';
+            setTimeout(function(){ boton.innerHTML = antes; boton.disabled = false; }, 2200);
+        }
+    }
+}
+
+// Descarga la imagen al equipo, para arrastrarla al chat.
+async function bcDescargarImagen(url, nombre){
+    if (!url) return;
+    try {
+        const resp = await fetch(url, { mode: 'cors' });
+        const blob = await resp.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = (nombre || 'producto').replace(/[^\w\sáéíóúñ-]/gi, '').trim().slice(0, 60) + '.jpg';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+    } catch(e) {
+        window.open(url, '_blank');
+    }
 }
 
 // Texto completo de VARIOS productos (lista numerada con todos los detalles)

@@ -216,7 +216,16 @@
                     . "imagen: current || (fotos[0] || null)"
                     . "}";
             @endphp
-            <button class="btn-compartir" @click="bcCopiarProducto({!! $datosCompartir !!}, $event.currentTarget)">📋 Copiar foto + info</button>
+            <button class="btn-compartir" @click="bcCopiarTexto(bcTextoProducto({!! $datosCompartir !!}), $event.currentTarget)">📋 Copiar el texto</button>
+
+            {{-- Para mandar la foto desde la computadora (WhatsApp Web) --}}
+            <div class="fila-imagen">
+                <button class="btn-compartir btn-compartir-alt" style="margin-top:0"
+                        @click="bcCopiarSoloImagen(current || fotos[0], $event.currentTarget)">🖼️ Copiar la imagen</button>
+                <button class="btn-compartir btn-compartir-alt" style="margin-top:0"
+                        @click="bcDescargarImagen(current || fotos[0], @js($product->name) + (talla ? ' ' + talla : ''))">⬇️ Descargar</button>
+            </div>
+
             <button class="btn-compartir btn-compartir-alt" @click="bcCompartir({!! $datosCompartir !!})">📤 Compartir por WhatsApp</button>
             </div>
 
