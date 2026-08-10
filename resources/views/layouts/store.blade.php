@@ -271,6 +271,11 @@
         .btn-compartir:disabled{opacity:.85;cursor:default}
         /* El de copiar es el principal (azul); compartir queda como alternativa */
         .btn-compartir-alt{border-color:var(--borde);background:#fff;color:var(--gris);font-size:12.5px;padding:7px;margin-top:6px}
+        /* Discreto: solo lo usa quien vende, no debe competir con "Añadir al carrito" */
+        .btn-copiar-link{margin-top:10px;width:100%;border:1px solid var(--borde);background:transparent;color:var(--gris);border-radius:10px;padding:8px;font-weight:600;font-size:12.5px;cursor:pointer;transition:background .1s,color .1s}
+        .btn-copiar-link:hover{background:#f7fafc;color:var(--azul-osc)}
+        .btn-copiar-link:disabled{opacity:.9;cursor:default;color:var(--teal-osc);border-color:var(--teal)}
+        html.dark .btn-copiar-link:hover{background:#16202f;color:#7fb6ff}
         .fila-imagen{display:flex;gap:6px;margin-top:6px}
         .fila-imagen .btn-compartir{flex:1;width:auto}
         .btn-compartir-alt:hover{background:#f7fafc}

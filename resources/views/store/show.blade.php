@@ -216,15 +216,8 @@
                     . "imagen: current || (fotos[0] || null)"
                     . "}";
             @endphp
-            {{-- Solo COPIAN. No abren WhatsApp: el texto queda listo para pegar donde quieras. --}}
-            <button class="btn-compartir" style="border-color:var(--teal);background:#eefaf8;color:var(--teal-osc)"
-                    @click="bcCopiarTexto(bcTextoTallas(@js($product->name), sizes, @js(route('store.show', $product))), $event.currentTarget)">
-                📋 Copiar todas las tallas ({{ $product->sizes->count() }})
-            </button>
-
-            <button class="btn-compartir" @click="bcCopiarTexto(bcTextoProducto({!! $datosCompartir !!}), $event.currentTarget)">📋 Copiar solo esta talla</button>
-
-            <button class="btn-compartir btn-compartir-alt" @click="bcCompartir({!! $datosCompartir !!})">📤 Compartir por WhatsApp</button>
+            {{-- Un solo botón: copia el enlace con la talla, las unidades y el precio elegidos. --}}
+            <button class="btn-copiar-link" @click="bcCopiarTexto(bcTextoProducto({!! $datosCompartir !!}), $event.currentTarget)">🔗 Copiar el enlace</button>
             </div>
 
             <div class="metarow">

@@ -86,7 +86,7 @@
                         </div>
                         {{-- Compartir con un cliente por WhatsApp (ideal para vendedoras) --}}
                         <div class="share-row">
-                            <button class="btn-compartir" @click="bcCopiarTexto(bcTextoProducto(@js($shareData)), $event.currentTarget)">📋 Copiar</button>
+                            <button class="btn-copiar-link" @click="bcCopiarTexto(bcTextoProducto(@js($shareData)), $event.currentTarget)">🔗 Copiar</button>
                             <button class="btn-elegir" :class="sel[@js($selKey)] ? 'on' : ''"
                                 @click="toggleSel(@js($selKey), @js($shareData))">
                                 <span x-text="sel[@js($selKey)] ? '✅ Elegido' : '➕ Elegir'"></span>
@@ -129,13 +129,13 @@
 </main>
 
 <style>
-    /* Fila Compartir + Elegir: nunca se desborda de la tarjeta (2 columnas en teléfono) */
+    /* Fila Copiar + Elegir: discreta, no compite con "Agregar" (2 columnas en teléfono) */
     .share-row{display:flex;gap:8px;margin-top:8px}
-    .share-row .btn-compartir{margin-top:0;flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .share-row .btn-elegir{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .share-row .btn-copiar-link{margin-top:0;flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .share-row .btn-elegir{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:transparent;color:var(--gris);font-weight:600;font-size:12.5px;padding:8px}
     @media(max-width:600px){
         .share-row{gap:6px}
-        .share-row .btn-compartir,.share-row .btn-elegir{font-size:12px;padding:8px 4px}
+        .share-row .btn-copiar-link,.share-row .btn-elegir{font-size:12px;padding:8px 4px}
         /* Controles de cantidad más compactos para que la fila no se desborde */
         .pcard .qtybox{gap:5px}
         .pcard .qtybox button{width:24px;height:24px;font-size:14px}
