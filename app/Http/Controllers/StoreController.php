@@ -160,19 +160,25 @@ class StoreController extends Controller
             return $t;
         };
 
-        // --- Por talla: un mensaje con todos los productos de esa talla ---
-        $porTalla = [];
-        foreach ($productos as $p) {
-            foreach ($p->sizes as $s) {
-                if ((int) $s->quantity <= 0) continue;
-                $porTalla[$s->size][] = $bloque($p, $s);
-            }
-        }
-
+        // --- Por talla: TODOS los productos que existen en esa talla ---
+        // Se agrupa igual que la página /talla/{talla}: una talla "S/M" entra en S y en M.
         $tallas = [];
-        foreach ($porTalla as $talla => $bloques) {
+        foreach (['S', 'M', 'L', 'XL', 'XXL', 'XXXL'] as $talla) {
+            $bloques = [];
+            foreach ($productos as $p) {
+                foreach ($p->sizes as $s) {
+                    if ((int) $s->quantity <= 0) continue;
+                    $tokens = preg_split('/[\/\s\-]+/', strtoupper(trim($s->size)));
+                    if (in_array($talla, $tokens, true)) {
+                        $bloques[] = $bloque($p, $s);
+                    }
+                }
+            }
+            if (! $bloques) continue;
+
             $tallas[] = [
                 'nombre'    => 'Talla ' . $talla,
+                'talla'     => $talla,
                 'cantidad'  => count($bloques),
                 'texto'     => "\u{1F37C} *Disponible en talla {$talla}:*\n\n"
                              . implode("\n\n", $bloques)

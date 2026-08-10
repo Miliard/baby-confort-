@@ -15,6 +15,12 @@
                    style="{{ ($esBaby && $t === strtoupper($talla)) ? 'background:var(--azul);color:#fff;border-color:var(--azul)' : '' }}">Talla {{ $t }}</a>
             @endforeach
         </div>
+        @if($esBaby && count($items) > 0)
+            <button class="btn-copiar-link" style="max-width:340px;margin-top:14px"
+                    onclick="bcCopiarTalla(@js(strtoupper($talla)), this)">
+                🔗 Copiar los {{ count($items) }} productos de esta talla
+            </button>
+        @endif
     </div>
 </section>
 
@@ -26,7 +32,6 @@
     selCount(){ return Object.keys(this.sel).length },
     toggleSel(k, d){ if (this.sel[k]) delete this.sel[k]; else this.sel[k] = d; if (this.selCount() === 0) this.panel = false },
     limpiarSel(){ this.sel = {}; this.enviados = {}; this.panel = false },
-    compartirSel(){ bcCompartirVarios(Object.values(this.sel)); this.panel = false },
     copiarSel(){
         const t = bcTextoVarios(Object.values(this.sel));
         navigator.clipboard.writeText(t).then(() => { this.copiado = true; setTimeout(() => this.copiado = false, 2500); });
@@ -105,7 +110,6 @@
             <span x-text="copiado ? '✅ ¡Copiado! Ya podés pegarlo' : '📋 Copiar el mensaje con todo'"></span>
             <small x-show="!copiado">(no abre WhatsApp: solo lo copia para pegarlo)</small>
         </button>
-        <button class="sel-op" @click="compartirSel()">📤 Compartir por WhatsApp <small>(abre WhatsApp con las fotos)</small></button>
         <button class="sel-op" @click="bajarSel($event.currentTarget)">
             <span>⬇️ Bajar las fotos con los datos escritos</span>
             <small>(para mandarlas juntas desde la computadora)</small>
@@ -124,7 +128,7 @@
     <div class="sel-bar" x-show="selCount() > 0" x-transition style="display:none">
         <button class="sel-limpiar" @click="limpiarSel()" title="Quitar selección">✕</button>
         <span class="sel-txt"><b x-text="selCount()"></b> <span x-text="selCount() === 1 ? 'producto elegido' : 'productos elegidos'"></span></span>
-        <button class="sel-compartir" @click="panel = !panel">📤 Enviar</button>
+        <button class="sel-compartir" @click="panel = !panel">🔗 Copiar</button>
     </div>
 </main>
 

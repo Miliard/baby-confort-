@@ -883,19 +883,36 @@ function bcTextoVarios(items){
     return t;
 }
 
-// Texto con TODAS las tallas de un producto, cada una con su enlace.
-// Solo copia: no abre WhatsApp ni nada.
-function bcTextoTallas(nombreProducto, tallas, urlBase){
-    let t = '🍼 *' + nombreProducto + '*\n\n';
-    tallas.forEach(function(s){
-        t += '• Talla ' + s.size;
-        if (s.unidades) t += ' · ' + s.unidades + ' unidades';
-        t += ' — $' + Number(s.price).toFixed(2);
-        if (s.combo && s.combo.cantidad) t += ' · 🎉 ' + s.combo.cantidad + ' x $' + Number(s.combo.precio).toFixed(2);
-        t += '\n👉 ' + bcUrlConRev(urlBase + '?t=' + encodeURIComponent(s.size)) + '\n\n';
-    });
-    t += '🚚 Entrega a domicilio en todo El Salvador.';
-    return t;
+// Copia TODOS los productos que hay en una talla (S, M, L, XL, XXL, XXXL).
+// No es "todas las tallas de este producto": es "todos los productos de esta talla".
+// Los precios los pide en vivo a la tienda, así nunca copia un precio viejo.
+async function bcCopiarTalla(talla, boton){
+    if (!talla) return;
+    const antes = boton ? boton.innerHTML : null;
+    if (boton) { boton.innerHTML = '⏳ Buscando…'; boton.disabled = true; }
+
+    // "S/M" o "M - L" puede pertenecer a varios grupos: probamos cada pedazo.
+    const partes = String(talla).toUpperCase().split(/[\/\s\-]+/).filter(Boolean);
+
+    try {
+        const r = await fetch('/mensajes.json', { cache: 'no-store' });
+        const d = await r.json();
+        let item = null;
+        for (const p of partes) {
+            item = (d.tallas || []).find(function(x){ return String(x.talla).toUpperCase() === p; });
+            if (item) break;
+        }
+        if (boton) { boton.innerHTML = antes; boton.disabled = false; }
+        if (!item) {
+            if (boton) { boton.innerHTML = '✕ No hay productos en esa talla'; setTimeout(function(){ boton.innerHTML = antes; }, 2200); }
+            return;
+        }
+        // Le pega el código de revendedora a cada enlace, si viene con uno.
+        const texto = item.texto.replace(/https?:\/\/\S+/g, function(u){ return bcUrlConRev(u); });
+        await bcCopiarTexto(texto, boton);
+    } catch(e) {
+        if (boton) { boton.innerHTML = '✕ Sin conexión'; boton.disabled = false; setTimeout(function(){ boton.innerHTML = antes; }, 2200); }
+    }
 }
 
 // Compartir VARIOS productos en un solo mensaje

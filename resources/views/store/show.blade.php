@@ -216,8 +216,14 @@
                     . "imagen: current || (fotos[0] || null)"
                     . "}";
             @endphp
-            {{-- Un solo botón: copia el enlace con la talla, las unidades y el precio elegidos. --}}
+            {{-- Copia el enlace de la talla elegida, con sus unidades y su precio. --}}
             <button class="btn-copiar-link" @click="bcCopiarTexto(bcTextoProducto({!! $datosCompartir !!}), $event.currentTarget)">🔗 Copiar el enlace</button>
+
+            {{-- Copia TODOS los productos que hay en la talla elegida (no las tallas de este producto). --}}
+            <button class="btn-copiar-link" @click="bcCopiarTalla(talla || (sel().size || ''), $event.currentTarget)"
+                    x-show="talla || sel().size">
+                🔗 Copiar todo lo de la talla <span x-text="talla || sel().size"></span>
+            </button>
             </div>
 
             <div class="metarow">
