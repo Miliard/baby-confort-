@@ -32,6 +32,7 @@ Route::get('/privacidad', [StoreController::class, 'privacidad'])->name('store.p
 
 // Mapa del sitio para buscadores (SEO)
 Route::get('/sitemap.xml', [StoreController::class, 'sitemap'])->name('store.sitemap');
+Route::get('/mensajes.json', [StoreController::class, 'mensajes'])->name('store.mensajes');
 
 // Fotos de paquetes (solo con sesión iniciada en el panel)
 Route::middleware('auth')->group(function () {

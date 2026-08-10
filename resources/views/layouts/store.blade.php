@@ -878,6 +878,21 @@ function bcTextoVarios(items){
     return t;
 }
 
+// Texto con TODAS las tallas de un producto, cada una con su enlace.
+// Solo copia: no abre WhatsApp ni nada.
+function bcTextoTallas(nombreProducto, tallas, urlBase){
+    let t = '🍼 *' + nombreProducto + '*\n\n';
+    tallas.forEach(function(s){
+        t += '• Talla ' + s.size;
+        if (s.unidades) t += ' · ' + s.unidades + ' unidades';
+        t += ' — $' + Number(s.price).toFixed(2);
+        if (s.combo && s.combo.cantidad) t += ' · 🎉 ' + s.combo.cantidad + ' x $' + Number(s.combo.precio).toFixed(2);
+        t += '\n👉 ' + bcUrlConRev(urlBase + '?t=' + encodeURIComponent(s.size)) + '\n\n';
+    });
+    t += '🚚 Entrega a domicilio en todo El Salvador.';
+    return t;
+}
+
 // Compartir VARIOS productos en un solo mensaje
 function bcCompartirVarios(items){
     if (!items.length) return;

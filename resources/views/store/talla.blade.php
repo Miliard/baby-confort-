@@ -86,7 +86,7 @@
                         </div>
                         {{-- Compartir con un cliente por WhatsApp (ideal para vendedoras) --}}
                         <div class="share-row">
-                            <button class="btn-compartir" @click="bcCompartir(@js($shareData))">📤 Compartir</button>
+                            <button class="btn-compartir" @click="bcCopiarTexto(bcTextoProducto(@js($shareData)), $event.currentTarget)">📋 Copiar</button>
                             <button class="btn-elegir" :class="sel[@js($selKey)] ? 'on' : ''"
                                 @click="toggleSel(@js($selKey), @js($shareData))">
                                 <span x-text="sel[@js($selKey)] ? '✅ Elegido' : '➕ Elegir'"></span>
@@ -101,21 +101,21 @@
     {{-- Panel: elegir cómo compartir (todo junto o cada producto con su foto y su link) --}}
     <div class="sel-panel" x-show="panel && selCount() > 0" x-transition @click.away="panel = false" style="display:none">
         <div class="sel-panel-h">¿Cómo quieres enviarlos?</div>
-        <button class="sel-op" @click="compartirSel()">🧾 Todo en un solo mensaje <small>(las fotos van juntas)</small></button>
         <button class="sel-op" :class="copiado ? 'ok' : ''" @click="copiarSel()">
-            <span x-text="copiado ? '✅ ¡Copiado! Pégalo en el chat de WhatsApp' : '📋 Copiar mensaje con todo'"></span>
-            <small x-show="!copiado">(ideal en computadora, para mandarlo a varios clientes)</small>
+            <span x-text="copiado ? '✅ ¡Copiado! Ya podés pegarlo' : '📋 Copiar el mensaje con todo'"></span>
+            <small x-show="!copiado">(no abre WhatsApp: solo lo copia para pegarlo)</small>
         </button>
+        <button class="sel-op" @click="compartirSel()">📤 Compartir por WhatsApp <small>(abre WhatsApp con las fotos)</small></button>
         <button class="sel-op" @click="bajarSel($event.currentTarget)">
             <span>⬇️ Bajar las fotos con los datos escritos</span>
             <small>(para mandarlas juntas desde la computadora)</small>
         </button>
 
-        <div class="sel-panel-sub">O envía cada producto con su foto y su link:</div>
+        <div class="sel-panel-sub">O copia el mensaje de cada producto por separado:</div>
         <template x-for="(d, k) in sel" :key="k">
             <button class="sel-op sel-op-item" :class="enviados[k] ? 'ok' : ''"
-                @click="bcCompartir(d); enviados[k] = true">
-                <span x-text="(enviados[k] ? '✅' : '📤') + ' ' + d.nombre + ' — Talla ' + d.talla"></span>
+                @click="bcCopiarTexto(bcTextoProducto(d)); enviados[k] = true">
+                <span x-text="(enviados[k] ? '✅ Copiado — ' : '📋 ') + d.nombre + ' — Talla ' + d.talla"></span>
             </button>
         </template>
     </div>
@@ -124,7 +124,7 @@
     <div class="sel-bar" x-show="selCount() > 0" x-transition style="display:none">
         <button class="sel-limpiar" @click="limpiarSel()" title="Quitar selección">✕</button>
         <span class="sel-txt"><b x-text="selCount()"></b> <span x-text="selCount() === 1 ? 'producto elegido' : 'productos elegidos'"></span></span>
-        <button class="sel-compartir" @click="selCount() === 1 ? compartirSel() : panel = !panel">📤 Compartir</button>
+        <button class="sel-compartir" @click="panel = !panel">📤 Enviar</button>
     </div>
 </main>
 

@@ -135,6 +135,77 @@ class StoreController extends Controller
         return response($xml, 200)->header('Content-Type', 'application/xml');
     }
 
+    /**
+     * Mensajes listos para copiar y pegar en WhatsApp, agrupados por talla y por
+     * producto. Lo consume el programita de escritorio (Baby-Confort Enviar).
+     * Siempre trae los precios actuales del panel.
+     */
+    public function mensajes()
+    {
+        $productos = Product::with('sizes')->where('active', true)
+            ->orderBy('orden')->orderBy('id')->get();
+
+        $bloque = function ($p, $s) {
+            $t  = "\u{1F37C} *{$p->name}*\n";
+            $t .= "Talla {$s->size}";
+            if ($s->unidades) $t .= " \u{00B7} {$s->unidades} unidades";
+            $t .= "\n$" . number_format($s->price, 2);
+            if ($s->price_before && $s->price_before > $s->price) {
+                $t .= " (antes $" . number_format($s->price_before, 2) . ")";
+            }
+            if ($s->combo_qty && $s->combo_price) {
+                $t .= "\n\u{1F389} Combo {$s->combo_qty} x $" . number_format($s->combo_price, 2);
+            }
+            $t .= "\n\u{1F449} " . route('store.show', $p) . '?t=' . urlencode($s->size);
+            return $t;
+        };
+
+        // --- Por talla: un mensaje con todos los productos de esa talla ---
+        $porTalla = [];
+        foreach ($productos as $p) {
+            foreach ($p->sizes as $s) {
+                if ((int) $s->quantity <= 0) continue;
+                $porTalla[$s->size][] = $bloque($p, $s);
+            }
+        }
+
+        $tallas = [];
+        foreach ($porTalla as $talla => $bloques) {
+            $tallas[] = [
+                'nombre'    => 'Talla ' . $talla,
+                'cantidad'  => count($bloques),
+                'texto'     => "\u{1F37C} *Disponible en talla {$talla}:*\n\n"
+                             . implode("\n\n", $bloques)
+                             . "\n\n\u{1F69A} Entrega a domicilio en todo El Salvador.",
+            ];
+        }
+
+        // --- Por producto: un mensaje con todas sus tallas ---
+        $prods = [];
+        foreach ($productos as $p) {
+            $bloques = [];
+            foreach ($p->sizes as $s) {
+                if ((int) $s->quantity <= 0) continue;
+                $bloques[] = $bloque($p, $s);
+            }
+            if (! $bloques) continue;
+
+            $prods[] = [
+                'nombre'   => $p->name,
+                'cantidad' => count($bloques),
+                'texto'    => implode("\n\n", $bloques)
+                            . "\n\n\u{1F69A} Entrega a domicilio en todo El Salvador.",
+            ];
+        }
+
+        return response()->json([
+            'tienda'      => 'Baby-Confort',
+            'actualizado' => now()->format('d/m/Y H:i'),
+            'tallas'      => $tallas,
+            'productos'   => $prods,
+        ], 200, [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
     public function validarCupon(\Illuminate\Http\Request $request)
     {
         $cupon = \App\Models\Cupon::buscarActivo($request->query('codigo'));

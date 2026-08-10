@@ -216,26 +216,13 @@
                     . "imagen: current || (fotos[0] || null)"
                     . "}";
             @endphp
-            <button class="btn-compartir" @click="bcCopiarTexto(bcTextoProducto({!! $datosCompartir !!}), $event.currentTarget)">📋 Copiar el texto</button>
-
-            {{-- Manda TODAS las tallas de un golpe, con sus datos ya en la imagen --}}
+            {{-- Solo COPIAN. No abren WhatsApp: el texto queda listo para pegar donde quieras. --}}
             <button class="btn-compartir" style="border-color:var(--teal);background:#eefaf8;color:var(--teal-osc)"
-                    @click="bcCompartirTallas(@js($product->name), sizes, fotos[0], $event.currentTarget)">
-                📤 Mandar todas las tallas ({{ $product->sizes->count() }})
+                    @click="bcCopiarTexto(bcTextoTallas(@js($product->name), sizes, @js(route('store.show', $product))), $event.currentTarget)">
+                📋 Copiar todas las tallas ({{ $product->sizes->count() }})
             </button>
 
-            <button class="btn-compartir btn-compartir-alt"
-                    @click="bcDescargarTallas(@js($product->name), sizes, fotos[0], $event.currentTarget)">
-                ⬇️ Solo descargarlas
-            </button>
-
-            {{-- Para mandar la foto desde la computadora (WhatsApp Web) --}}
-            <div class="fila-imagen">
-                <button class="btn-compartir btn-compartir-alt" style="margin-top:0"
-                        @click="bcCopiarSoloImagen(current || fotos[0], $event.currentTarget)">🖼️ Copiar la imagen</button>
-                <button class="btn-compartir btn-compartir-alt" style="margin-top:0"
-                        @click="bcDescargarImagen(current || fotos[0], @js($product->name) + (talla ? ' ' + talla : ''))">⬇️ Descargar</button>
-            </div>
+            <button class="btn-compartir" @click="bcCopiarTexto(bcTextoProducto({!! $datosCompartir !!}), $event.currentTarget)">📋 Copiar solo esta talla</button>
 
             <button class="btn-compartir btn-compartir-alt" @click="bcCompartir({!! $datosCompartir !!})">📤 Compartir por WhatsApp</button>
             </div>
