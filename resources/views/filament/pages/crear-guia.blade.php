@@ -127,9 +127,19 @@
                                 </p>
                             </div>
 
-                            <x-filament::icon-button
-                                icon="heroicon-m-x-mark" color="danger" size="sm"
-                                wire:click="quitar({{ $g['id'] ?? 0 }})" label="Quitar de la lista" />
+                            <div class="flex flex-none items-center gap-1.5">
+                                {{-- Mensaje listo para el cliente: se puede mandar YA, sin esperar el PDF --}}
+                                <div x-data="{ ok: false, msg: @js(\App\Models\GuiaBorrador::mensajeCliente($g)) }">
+                                    <x-filament::button size="xs" color="gray"
+                                        x-on:click="navigator.clipboard.writeText(msg).then(() => { ok = true; setTimeout(() => ok = false, 2000) })">
+                                        <span x-text="ok ? '✅ Copiado' : '📋 Mensaje'"></span>
+                                    </x-filament::button>
+                                </div>
+
+                                <x-filament::icon-button
+                                    icon="heroicon-m-x-mark" color="danger" size="sm"
+                                    wire:click="quitar({{ $g['id'] ?? 0 }})" label="Quitar de la lista" />
+                            </div>
                         </div>
                     @empty
                         <div class="rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">

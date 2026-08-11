@@ -149,9 +149,16 @@ class GuiaFoto extends Model
         }
     }
 
-    /** Enlace de seguimiento de esta guía. */
+    /**
+     * Enlace de seguimiento. Si conocemos el teléfono se usa ese, porque le
+     * sirve al cliente para todos sus pedidos, no solo para este paquete.
+     */
     public function enlaceRastreo(): string
     {
+        $corto = static::telefonoCorto($this->telefono);
+        if ($corto && strlen($corto) === 8) {
+            return route('store.rastreo.guia') . '?tel=' . $corto;
+        }
         return route('store.rastreo.guia') . '?guia=' . $this->guia;
     }
 

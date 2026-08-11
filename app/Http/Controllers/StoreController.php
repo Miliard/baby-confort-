@@ -99,7 +99,9 @@ class StoreController extends Controller
      */
     public function rastreoGuia(\Illuminate\Http\Request $request)
     {
-        $busqueda = trim((string) $request->query('guia', ''));
+        // ?tel= viene del enlace que le mandamos al cliente (ya trae su número).
+        // ?guia= es lo que escribe a mano en la cajita.
+        $busqueda = trim((string) ($request->query('tel') ?: $request->query('guia', '')));
         $digitos  = preg_replace('/\D/', '', $busqueda);
 
         $guia      = '';
