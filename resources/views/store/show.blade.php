@@ -4,17 +4,19 @@
 @section('og_title', $product->name . ' — Baby-Confort')
 @section('og_desc', \Illuminate\Support\Str::limit(strip_tags($product->description ?? ''), 200))
 @php
-    $seoImgTmp = $product->imageUrl();
-    // Si el link trae ?t=talla y esa talla tiene su propia foto, la vista previa
-    // de WhatsApp/Facebook muestra la foto de ESA talla (no la principal).
-    $tShare = request('t');
-    if ($tShare) {
-        $sShare = $product->sizes->first(fn ($s) => \Illuminate\Support\Str::slug($s->size) === \Illuminate\Support\Str::slug($tShare));
-        if ($sShare && $sShare->imageUrl()) $seoImgTmp = $sShare->imageUrl();
-    }
-    $ogImgAbs = $seoImgTmp ? (\Illuminate\Support\Str::startsWith($seoImgTmp, 'http') ? $seoImgTmp : url($seoImgTmp)) : url('/og-image.png');
+    // La vista previa de WhatsApp/Facebook SIEMPRE sale de nuestro dominio.
+    // Si el link trae ?t=talla, se usa la foto de ESA talla.
+    $tShare   = request('t');
+    $ogImgAbs = $tShare
+        ? route('store.og', ['product' => $product, 'talla' => $tShare])
+        : route('store.og', ['product' => $product]);
+    // og:url conserva la talla: si no, WhatsApp guarda una sola vista previa
+    // para todas las tallas y siempre muestra la misma foto.
+    $ogUrlAbs = route('store.show', $product) . ($tShare ? '?t=' . urlencode($tShare) : '');
 @endphp
 @section('og_image_abs', $ogImgAbs)
+@section('og_url', $ogUrlAbs)
+@section('og_image_type', 'image/jpeg')
 
 @section('content')
 @php

@@ -34,6 +34,10 @@ Route::get('/privacidad', [StoreController::class, 'privacidad'])->name('store.p
 Route::get('/sitemap.xml', [StoreController::class, 'sitemap'])->name('store.sitemap');
 Route::get('/mensajes.json', [StoreController::class, 'mensajes'])->name('store.mensajes');
 
+// Foto de vista previa para WhatsApp/Facebook, servida desde nuestro dominio.
+Route::get('/og/producto/{product}/{talla?}', [\App\Http\Controllers\OgImageController::class, 'producto'])
+    ->where('talla', '.*')->name('store.og');
+
 // Fotos de paquetes (solo con sesión iniciada en el panel)
 Route::middleware('auth')->group(function () {
     Route::post('/fotos-paquete', [\App\Http\Controllers\GuiaFotoController::class, 'subir'])->name('fotos.subir');
