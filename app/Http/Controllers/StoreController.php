@@ -101,8 +101,9 @@ class StoreController extends Controller
     {
         // ?tel= viene del enlace que le mandamos al cliente (ya trae su número).
         // ?guia= es lo que escribe a mano en la cajita.
-        $busqueda = trim((string) ($request->query('tel') ?: $request->query('guia', '')));
-        $digitos  = preg_replace('/\D/', '', $busqueda);
+        $esTelefono = filled($request->query('tel'));
+        $busqueda   = trim((string) ($request->query('tel') ?: $request->query('guia', '')));
+        $digitos    = preg_replace('/\D/', '', $busqueda);
 
         $guia      = '';
         $opciones  = collect();   // varios paquetes del mismo teléfono
@@ -141,9 +142,10 @@ class StoreController extends Controller
                             $sinGuia = $pedido;
                         }
                     }
-                    // Si no es guía ni teléfono conocido, se rastrea tal cual:
-                    // puede ser una guía nueva que aún no hemos registrado.
-                    if (! $guia && ! $sinGuia && $opciones->isEmpty()) {
+                    // Si escribió a mano y no es un teléfono conocido, puede ser una
+                    // guía nueva que aún no registramos: se consulta tal cual.
+                    // Si vino del enlace con su teléfono, no: ahí sería mentirle.
+                    if (! $esTelefono && ! $guia && ! $sinGuia && $opciones->isEmpty()) {
                         $guia = $digitos;
                     }
                 }

@@ -333,8 +333,25 @@ class CrearGuia extends Page implements HasForms
     public function recargarLista(): void
     {
         $this->lista = \App\Models\GuiaBorrador::lista()
-            ->map(fn ($g) => $g->aFila() + ['id' => $g->id])
+            ->map(fn ($g) => $g->aFila() + [
+                'id'      => $g->id,
+                'enviado' => $g->yaEnviado(),
+            ])
             ->all();
+    }
+
+    /** Deja marcado que ya se le mandó el enlace de rastreo a ese cliente. */
+    public function marcarEnviado(int $id): void
+    {
+        $g = \App\Models\GuiaBorrador::find($id);
+        if (! $g) return;
+
+        // Siempre queda marcado como enviado: si vuelve a copiar el mensaje
+        // (por ejemplo para reenviarlo), no debe volverse a poner en rojo.
+        $g->enviado_at = now();
+        $g->save();
+
+        $this->recargarLista();
     }
 
     public function quitar(int $id): void

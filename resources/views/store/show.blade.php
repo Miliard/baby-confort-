@@ -17,6 +17,8 @@
 @section('og_image_abs', $ogImgAbs)
 @section('og_url', $ogUrlAbs)
 @section('og_image_type', 'image/jpeg')
+{{-- Las fotos de producto son cuadradas, no de 1200x630: mejor no declarar medidas. --}}
+@section('og_sin_medidas', '1')
 
 @section('content')
 @php

@@ -13,8 +13,13 @@
     <meta property="og:description" content="@yield('og_desc', 'Pañales y calzoncitos Aiwibi antialérgicos, alta absorción y protección de noche. Entrega en todo El Salvador. Pide fácil por WhatsApp.')">
     <meta property="og:image" content="@yield('og_image_abs', request()->schemeAndHttpHost() . '/' . trim(\Illuminate\Support\Facades\View::yieldContent('og_image', 'og-image.png'), '/'))">
     <meta property="og:image:type" content="@yield('og_image_type', 'image/png')">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
+    {{-- Solo se declaran las medidas cuando sabemos que son exactas: si no coinciden
+         con la foto real, WhatsApp descarta la vista previa y no muestra imagen. --}}
+    @hasSection('og_sin_medidas')
+    @else
+        <meta property="og:image:width" content="1200">
+        <meta property="og:image:height" content="630">
+    @endif
     <meta property="og:image:alt" content="@yield('og_title', 'Baby-Confort')">
     <meta property="og:locale" content="es_SV">
     <meta property="og:url" content="@yield('og_url', request()->url())">

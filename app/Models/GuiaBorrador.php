@@ -16,10 +16,16 @@ class GuiaBorrador extends Model
 
     protected $fillable = [
         'nombre', 'telefono', 'telefono_recibe', 'direccion',
-        'municipio', 'departamento', 'descripcion', 'cobrar',
+        'municipio', 'departamento', 'descripcion', 'cobrar', 'enviado_at',
     ];
 
-    protected $casts = ['cobrar' => 'decimal:2'];
+    protected $casts = ['cobrar' => 'decimal:2', 'enviado_at' => 'datetime'];
+
+    /** ¿Ya se le mandó el enlace de rastreo a este cliente? */
+    public function yaEnviado(): bool
+    {
+        return ! is_null($this->enviado_at ?? null);
+    }
 
     /** Lista guardada (vacía si la tabla aún no existe). */
     public static function lista()

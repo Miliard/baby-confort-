@@ -84,7 +84,23 @@
                     $conteoTel = collect($lista)
                         ->map(fn ($x) => preg_replace('/\D/', '', (string) ($x['telefono'] ?? '')))
                         ->countBy();
+                    $faltanMensaje = collect($lista)->reject(fn ($x) => $x['enviado'] ?? false)->count();
                 @endphp
+
+                @if(count($lista))
+                    <div @class([
+                        'mb-2 rounded-lg px-3 py-2 text-xs font-semibold',
+                        'bg-danger-50 text-danger-700 dark:bg-danger-500/10 dark:text-danger-400'    => $faltanMensaje > 0,
+                        'bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-400' => $faltanMensaje === 0,
+                    ])>
+                        @if($faltanMensaje > 0)
+                            📩 Falta mandarle el enlace a {{ $faltanMensaje }}
+                            {{ $faltanMensaje === 1 ? 'cliente' : 'clientes' }}
+                        @else
+                            ✅ Ya les mandaste el enlace a todos
+                        @endif
+                    </div>
+                @endif
 
                 <div class="space-y-2">
                     @forelse($lista as $g)
@@ -93,7 +109,7 @@
                             $rep = $tel !== '' && ($conteoTel[$tel] ?? 0) > 1;
                         @endphp
 
-                        <div @class([
+                        <div wire:key="guia-{{ $g['id'] ?? $loop->index }}" @class([
                             'flex items-start gap-3 rounded-xl border p-3 shadow-sm transition',
                             'bg-white dark:bg-gray-900',
                             'border-danger-300 dark:border-danger-500/50'   => $rep,
@@ -128,11 +144,14 @@
                             </div>
 
                             <div class="flex flex-none items-center gap-1.5">
-                                {{-- Mensaje listo para el cliente: se puede mandar YA, sin esperar el PDF --}}
-                                <div x-data="{ ok: false, msg: @js(\App\Models\GuiaBorrador::mensajeCliente($g)) }">
-                                    <x-filament::button size="xs" color="gray"
-                                        x-on:click="navigator.clipboard.writeText(msg).then(() => { ok = true; setTimeout(() => ok = false, 2000) })">
-                                        <span x-text="ok ? '✅ Copiado' : '📋 Mensaje'"></span>
+                                {{-- Mensaje listo para el cliente: se puede mandar YA, sin esperar el PDF.
+                                     Rojo = falta mandarlo · Verde = ya enviado. --}}
+                                <div x-data="{ msg: @js(\App\Models\GuiaBorrador::mensajeCliente($g)) }">
+                                    <x-filament::button
+                                        size="xs"
+                                        :color="($g['enviado'] ?? false) ? 'success' : 'danger'"
+                                        x-on:click.stop="navigator.clipboard.writeText(msg).then(() => $wire.marcarEnviado({{ $g['id'] ?? 0 }}))">
+                                        {{ ($g['enviado'] ?? false) ? '✅ Enlace enviado' : '📋 Copiar mensaje' }}
                                     </x-filament::button>
                                 </div>
 
