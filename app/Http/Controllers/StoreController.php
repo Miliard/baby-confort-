@@ -93,12 +93,65 @@ class StoreController extends Controller
         return view('store.rastreo', compact('order', 'etapa', 'historial'));
     }
 
+    /**
+     * Rastreo público. Acepta el número de guía O el teléfono del cliente.
+     * Con el teléfono no hace falta que le mandemos nada: él ya se lo sabe.
+     */
     public function rastreoGuia(\Illuminate\Http\Request $request)
     {
-        $guia  = trim((string) $request->query('guia', ''));
-        $etapa = $guia ? \App\Models\Order::etapaDeGuia($guia) : null;
+        $busqueda = trim((string) $request->query('guia', ''));
+        $digitos  = preg_replace('/\D/', '', $busqueda);
+
+        $guia      = '';
+        $opciones  = collect();   // varios paquetes del mismo teléfono
+        $sinGuia   = null;        // pedido confirmado que todavía no tiene guía
+
+        if ($digitos !== '') {
+            $esGuia = false;
+            try {
+                $esGuia = \Illuminate\Support\Facades\Schema::hasTable('guia_fotos')
+                    && \App\Models\GuiaFoto::where('guia', $digitos)->exists();
+            } catch (\Throwable $e) {
+            }
+
+            if ($esGuia) {
+                $guia = $digitos;
+            } else {
+                $opciones = \App\Models\GuiaFoto::porTelefono($digitos);
+
+                if ($opciones->count() === 1) {
+                    $guia = (string) $opciones->first()->guia;
+                    $opciones = collect();
+                } elseif ($opciones->isEmpty()) {
+                    // Sin guía todavía. Dos casos: la guía ya se armó y espera el
+                    // PDF, o el pedido se hizo en la tienda y aún no se procesa.
+                    $sinGuia = \App\Models\GuiaFoto::pendientePorTelefono($digitos);
+
+                    $corto = \App\Models\GuiaFoto::telefonoCorto($digitos);
+                    if (! $sinGuia && $corto && strlen($corto) === 8) {
+                        $limpio = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone,''),' ',''),'-',''),'(',''),')',''),'+','')";
+                        $pedido = \App\Models\Order::whereRaw("$limpio LIKE ?", ['%' . $corto])
+                            ->orderByDesc('id')->first();
+
+                        if ($pedido && $pedido->guia) {
+                            $guia = (string) $pedido->guia;
+                        } elseif ($pedido) {
+                            $sinGuia = $pedido;
+                        }
+                    }
+                    // Si no es guía ni teléfono conocido, se rastrea tal cual:
+                    // puede ser una guía nueva que aún no hemos registrado.
+                    if (! $guia && ! $sinGuia && $opciones->isEmpty()) {
+                        $guia = $digitos;
+                    }
+                }
+            }
+        }
+
+        $etapa     = $guia ? \App\Models\Order::etapaDeGuia($guia) : null;
         $historial = $guia ? \App\Models\Order::historialDeGuia($guia) : [];
-        return view('store.rastreo-guia', compact('guia', 'etapa', 'historial'));
+
+        return view('store.rastreo-guia', compact('guia', 'etapa', 'historial', 'busqueda', 'opciones', 'sinGuia'));
     }
 
     public function sitemap()

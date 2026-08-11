@@ -37,6 +37,96 @@ class GuiaFoto extends Model
         }
     }
 
+    /**
+     * Deja un teléfono en sus últimos 8 dígitos, que es lo que identifica
+     * a la persona en El Salvador. Así "+503 7123-4567", "7123 4567" y
+     * "50371234567" se reconocen como el mismo número.
+     */
+    public static function telefonoCorto(?string $telefono): ?string
+    {
+        $d = preg_replace('/\D/', '', (string) $telefono);
+        return strlen($d) >= 8 ? substr($d, -8) : ($d !== '' ? $d : null);
+    }
+
+    /**
+     * Todos los paquetes de un teléfono, del más nuevo al más viejo.
+     * Es la llave con la que el cliente rastrea sin necesitar código.
+     */
+    public static function porTelefono(?string $telefono)
+    {
+        $corto = static::telefonoCorto($telefono);
+        if (! $corto || strlen($corto) < 8) return collect();
+
+        try {
+            if (! Schema::hasTable('guia_fotos')) return collect();
+
+            // Se limpian los separadores dentro de la consulta: en la base hay
+            // números guardados como "7123-4567", "+503 7123 4567", etc.
+            $limpio = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(telefono,''),' ',''),'-',''),'(',''),')',''),'+','')";
+
+            return static::whereRaw("$limpio LIKE ?", ['%' . $corto])
+                ->whereNotNull('guia')->where('guia', '!=', '')
+                ->orderByDesc('id')
+                ->take(15)
+                ->get()
+                ->unique('guia')
+                ->values();
+        } catch (\Throwable $e) {
+            return collect();
+        }
+    }
+
+    /**
+     * Pedido ya armado que todavía no tiene número de guía (aún no se sube el
+     * Excel a Sistrack ni se importa el PDF). Sirve para decirle al cliente
+     * "tu pedido está confirmado" desde el primer momento.
+     */
+    public static function pendientePorTelefono(?string $telefono): ?self
+    {
+        $corto = static::telefonoCorto($telefono);
+        if (! $corto || strlen($corto) < 8) return null;
+
+        try {
+            if (! Schema::hasTable('guia_fotos')) return null;
+
+            $limpio = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(telefono,''),' ',''),'-',''),'(',''),')',''),'+','')";
+
+            return static::whereRaw("$limpio LIKE ?", ['%' . $corto])
+                ->where(function ($q) { $q->whereNull('guia')->orWhere('guia', ''); })
+                ->orderByDesc('id')
+                ->first();
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Registra el pedido apenas se arma la guía. Si ya hay uno pendiente del
+     * mismo teléfono, lo actualiza en vez de duplicar.
+     */
+    public static function registrarPendiente(array $datos): void
+    {
+        $telefono = trim((string) ($datos['telefono'] ?? ''));
+        if ($telefono === '') return;
+
+        try {
+            if (! Schema::hasTable('guia_fotos')) return;
+
+            $pendiente = static::pendientePorTelefono($telefono) ?? new static();
+
+            $pendiente->guia      = null;
+            $pendiente->telefono  = $telefono;
+            $pendiente->nombre    = trim((string) ($datos['nombre'] ?? '')) ?: $pendiente->nombre;
+            $pendiente->contenido = trim((string) ($datos['contenido'] ?? '')) ?: $pendiente->contenido;
+            if (isset($datos['cobrar']) && $datos['cobrar'] !== '') {
+                $pendiente->cobrar = (float) $datos['cobrar'];
+            }
+            $pendiente->save();
+        } catch (\Throwable $e) {
+            // Nunca debe impedir que se agregue la guía al lote.
+        }
+    }
+
     /** Interruptor "Enviado" de la tabla: guarda/limpia la fecha de envío. */
     public function getEnviadoAttribute(): bool
     {

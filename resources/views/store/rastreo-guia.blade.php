@@ -28,6 +28,14 @@
     .trk-form{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
     .trk-form input{flex:1;min-width:180px;padding:12px 14px;border:1px solid var(--borde);border-radius:12px;font-size:15px}
     .trk-form button{background:linear-gradient(135deg,var(--azul),var(--azul-osc));color:#fff;border:none;border-radius:12px;padding:12px 22px;font-weight:800;font-size:15px;cursor:pointer}
+    .trk-lista{margin-top:20px;display:flex;flex-direction:column;gap:10px}
+    .trk-lista-h{font-size:14.5px;font-weight:800;color:var(--texto);margin-bottom:2px}
+    .trk-lista-item{display:flex;flex-direction:column;gap:3px;background:#fff;border:1px solid var(--borde);border-radius:14px;padding:14px 16px;text-decoration:none;transition:border-color .1s,box-shadow .1s}
+    .trk-lista-item:hover{border-color:var(--azul);box-shadow:0 4px 14px rgba(20,40,60,.08)}
+    .trk-lista-item .tl-guia{font-weight:800;color:var(--azul-osc);font-size:15px}
+    .trk-lista-item .tl-cont{font-size:13px;color:var(--gris);line-height:1.4}
+    .trk-lista-item .tl-ver{font-size:12.5px;font-weight:700;color:var(--teal-osc);margin-top:4px}
+    html.dark .trk-lista-item{background:#121b2a}
     .saludo-cliente{margin-top:18px;background:linear-gradient(135deg,#eafaf2,#eaf5fc);border:1px solid var(--borde);border-radius:14px;padding:16px 18px;text-align:center}
     html.dark .saludo-cliente{background:#182338;border-color:var(--borde)}
     .sc-hola{font-size:19px;font-weight:800;color:var(--azul-osc)}
@@ -40,12 +48,59 @@
 <main class="trk-wrap">
     <a href="/" class="volver" style="color:var(--azul-osc);font-weight:700;text-decoration:none">← Volver a la tienda</a>
     <h1 style="margin:12px 0 4px;color:var(--texto)">Rastrea tu pedido 📦</h1>
-    <p style="color:var(--gris);margin:0">Ingresa tu número de guía para ver el estado de tu envío en vivo.</p>
+    <p style="color:var(--gris);margin:0">Escribe <b>tu número de teléfono</b> y verás en qué va tu envío. También funciona con el número de guía.</p>
 
     <form method="GET" action="{{ route('store.rastreo.guia') }}" class="trk-form">
-        <input type="text" name="guia" value="{{ $guia }}" placeholder="Número de guía (ej: 5009506)" required>
+        <input type="tel" name="guia" value="{{ $busqueda ?? $guia }}"
+               placeholder="Tu teléfono (ej: 7123-4567)" inputmode="numeric" required autofocus>
         <button type="submit">Rastrear</button>
     </form>
+
+    {{-- Varios paquetes con el mismo teléfono: que elija cuál --}}
+    @if(!empty($opciones) && $opciones->count() > 1)
+        <div class="trk-lista">
+            <div class="trk-lista-h">Encontramos {{ $opciones->count() }} paquetes con ese número. ¿Cuál querés ver?</div>
+            @foreach($opciones as $op)
+                <a class="trk-lista-item" href="{{ route('store.rastreo.guia') }}?guia={{ $op->guia }}">
+                    <span class="tl-guia">📦 Guía {{ $op->guia }}</span>
+                    @if($op->contenido)<span class="tl-cont">{{ \Illuminate\Support\Str::limit($op->contenido, 70) }}</span>@endif
+                    <span class="tl-ver">Ver estado →</span>
+                </a>
+            @endforeach
+        </div>
+    @endif
+
+    {{-- Pedido hecho en la tienda que todavía no ha salido a la empresa de envíos --}}
+    @if(!empty($sinGuia))
+        @php
+            $nomPrep = trim((string) ($sinGuia->nombre ?? $sinGuia->customer_name ?? ''));
+            $nomPrep = $nomPrep ? \Illuminate\Support\Str::title(\Illuminate\Support\Str::of($nomPrep)->trim()->before(' ')) : null;
+            $contPrep = $sinGuia->contenido ?? null;
+        @endphp
+        <div class="trk-estado" style="margin-top:20px">
+            <div class="e">✅ {{ $nomPrep ? '¡Hola ' . $nomPrep . '! Tu pedido está confirmado' : '¡Tu pedido está confirmado!' }}</div>
+            @if($contPrep)
+                <div style="font-size:14px;color:var(--texto);margin-top:8px">📦 {{ $contPrep }}</div>
+            @endif
+            <div style="font-size:14px;color:var(--gris);margin-top:6px">
+                Lo estamos preparando. En cuanto salga con la empresa de envíos, aquí mismo vas a ver
+                dónde va tu paquete. Volvé a consultar con este mismo número más tarde. 💙
+            </div>
+        </div>
+    @endif
+
+    {{-- No se encontró nada --}}
+    @if(!empty($busqueda) && empty($guia) && empty($sinGuia) && (empty($opciones) || $opciones->isEmpty()))
+        <div class="trk-estado" style="margin-top:20px">
+            <div class="e">🔍 No encontramos ese número</div>
+            <div style="font-size:14px;color:var(--gris);margin-top:6px">
+                Revisá que esté bien escrito, o probá con el número de guía.
+                Si seguís sin verlo,
+                <a href="https://wa.me/{{ config('babyconfort.whatsapp') }}?text={{ rawurlencode('Hola, no encuentro mi paquete al rastrearlo 📦') }}"
+                   target="_blank" style="color:var(--azul-osc);font-weight:700">escribinos por WhatsApp</a> y te ayudamos.
+            </div>
+        </div>
+    @endif
 
     @php
         // Datos del pedido: vienen del PDF de etiquetas o de la foto del paquete.

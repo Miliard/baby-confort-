@@ -304,6 +304,16 @@ class CrearGuia extends Page implements HasForms
             'cobrar'          => (float) ($d['cobrar'] ?? 0),
         ]);
 
+        // El cliente ya puede rastrear con su teléfono en este mismo momento:
+        // verá "pedido confirmado". El número de guía se rellena solo cuando
+        // se importe el PDF de etiquetas.
+        \App\Models\GuiaFoto::registrarPendiente([
+            'telefono'  => $d['telefono'] ?? '',
+            'nombre'    => $d['nombre'] ?? '',
+            'contenido' => $d['descripcion'] ?? '',
+            'cobrar'    => $d['cobrar'] ?? null,
+        ]);
+
         // Se recuerda al cliente para la próxima vez (basta el teléfono).
         \App\Models\Cliente::recordar([
             'telefono'     => $d['telefono'] ?? '',

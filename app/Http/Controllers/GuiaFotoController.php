@@ -127,7 +127,7 @@ class GuiaFotoController extends Controller
             'lote'               => ['nullable', 'string', 'max:40'],
         ]);
 
-        $nuevas = 0; $actualizadas = 0;
+        $nuevas = 0; $actualizadas = 0; $emparejadas = 0;
         $lote = trim((string) ($data['lote'] ?? '')) ?: now()->format('Y-m-d H:i:s');
 
         foreach ($data['guias'] as $g) {
@@ -140,6 +140,17 @@ class GuiaFotoController extends Controller
             $cobrar    = isset($g['cobrar']) && $g['cobrar'] !== '' ? (float) $g['cobrar'] : null;
 
             $registro = GuiaFoto::where('guia', $guia)->first();
+
+            // Si no existe con ese número, puede ser el pedido que ya se armó
+            // y quedó esperando su guía. Se le rellena en vez de duplicarlo.
+            if (! $registro && $telefono) {
+                $pendiente = GuiaFoto::pendientePorTelefono($telefono);
+                if ($pendiente) {
+                    $pendiente->guia = $guia;
+                    $pendiente->save();
+                    $registro = $pendiente;
+                }
+            }
 
             if ($registro) {
                 // El PDF manda: sus datos son texto exacto de Sistrack, mientras que
@@ -165,13 +176,49 @@ class GuiaFotoController extends Controller
             }
 
             // No se toca la libreta: el cliente ya se guardó al armar la guía.
+
+            // Empareja la guía con el pedido de la tienda usando el teléfono.
+            // Así el cliente rastrea con su número y ve el envío real, sin que
+            // le tengamos que mandar nada.
+            if ($telefono) $emparejadas += $this->emparejarPedido($guia, $telefono);
         }
 
         return response()->json([
             'ok'           => true,
             'nuevas'       => $nuevas,
             'actualizadas' => $actualizadas,
+            'emparejadas'  => $emparejadas,
         ]);
+    }
+
+    /**
+     * Le pone la guía al pedido de la tienda que tenga ese teléfono y aún no
+     * tenga guía. Se busca por los últimos 8 dígitos, para que dé igual cómo
+     * estaba escrito el número (con guion, con +503, con espacios).
+     */
+    private function emparejarPedido(string $guia, string $telefono): int
+    {
+        $corto = \App\Models\GuiaFoto::telefonoCorto($telefono);
+        if (! $corto || strlen($corto) !== 8) return 0;
+
+        try {
+            $limpio = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone,''),' ',''),'-',''),'(',''),')',''),'+','')";
+
+            $pedido = \App\Models\Order::whereRaw("$limpio LIKE ?", ['%' . $corto])
+                ->where(function ($q) {
+                    $q->whereNull('guia')->orWhere('guia', '');
+                })
+                ->orderByDesc('id')
+                ->first();
+
+            if (! $pedido) return 0;
+
+            $pedido->guia = $guia;
+            $pedido->save();
+            return 1;
+        } catch (\Throwable $e) {
+            return 0;
+        }
     }
 
     /** Quita una foto (por si se subió una equivocada). */

@@ -29,7 +29,7 @@
         <div class="gracias-pasos">
             <div class="gp"><span class="gp-n">1</span> Envíanos tu pedido tocando el botón verde de arriba.</div>
             <div class="gp"><span class="gp-n">2</span> Te confirmamos por WhatsApp y coordinamos la entrega (24 h hábiles).</div>
-            <div class="gp"><span class="gp-n">3</span> Sigue tu paquete en vivo con el enlace de rastreo. 📦</div>
+            <div class="gp"><span class="gp-n">3</span> Sigue tu paquete en vivo entrando a <b>Rastrea tu pedido</b> con tu número de teléfono. 📦</div>
         </div>
 
         <div class="gracias-btns">
