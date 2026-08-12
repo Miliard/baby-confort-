@@ -2,20 +2,33 @@
 <x-filament-panels::page wire:poll.90s>
     @php $r = $this->resumen; @endphp
 
-    @if($url === '')
+    @if(! $this->hayDatos)
         <x-filament::section>
-            <x-slot name="heading">Todavía no hay hoja conectada</x-slot>
+            <x-slot name="heading">Elegí cómo traer tus datos</x-slot>
 
-            <div class="space-y-3 text-sm text-gray-600 dark:text-gray-300">
-                <p>Para que este tablero se actualice solo, hay que publicar tu hoja de entregas:</p>
-                <ol class="ml-5 list-decimal space-y-1.5">
-                    <li>Subí el Excel a Google Drive y abrilo con <b>Google Sheets</b>.</li>
-                    <li>Menú <b>Archivo → Compartir → Publicar en la Web</b>.</li>
-                    <li>Elegí la hoja del año (por ejemplo <b>2026</b>) y el formato <b>CSV</b>.</li>
-                    <li>Tocá <b>Publicar</b> y copiá el enlace que te da.</li>
-                    <li>Volvé aquí y tocá <b>Conectar la hoja</b> arriba.</li>
-                </ol>
-                <p class="text-xs">Solo se publica esa hoja, y nadie la encuentra si no tiene el enlace exacto.</p>
+            <div class="grid gap-4 md:grid-cols-2">
+                <div class="rounded-xl border border-success-300 p-4 dark:border-success-500/40">
+                    <div class="text-sm font-bold text-success-700 dark:text-success-400">🔄 Automático — Google Sheets</div>
+                    <p class="mt-1 text-xs text-gray-500">Se actualiza solo. Lo configurás una vez y nunca más.</p>
+                    <ol class="mt-3 ml-4 list-decimal space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                        <li>Guardá tu Excel como <b>.xlsx</b> y subilo a Google Drive.</li>
+                        <li>Abrilo con <b>Hojas de cálculo de Google</b>.</li>
+                        <li><b>Archivo → Compartir → Publicar en la Web</b>.</li>
+                        <li>Elegí la hoja del año y el formato <b>CSV</b>. Publicar.</li>
+                        <li>Copiá el enlace y tocá <b>Conectar la hoja</b> arriba.</li>
+                    </ol>
+                </div>
+
+                <div class="rounded-xl border border-gray-200 p-4 dark:border-white/10">
+                    <div class="text-sm font-bold text-gray-700 dark:text-gray-200">📤 A mano — subir el CSV</div>
+                    <p class="mt-1 text-xs text-gray-500">Seguís en tu Excel de siempre, pero lo subís cada vez que querás el corte.</p>
+                    <ol class="mt-3 ml-4 list-decimal space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                        <li>En tu Excel: <b>Archivo → Exportar</b>.</li>
+                        <li>Elegí <b>Descargar como CSV UTF-8</b> (ese, no el otro).</li>
+                        <li>Tocá <b>Subir archivo</b> arriba y elegilo.</li>
+                    </ol>
+                    <p class="mt-3 text-xs text-gray-500">Se sube solo la hoja que tengas abierta en ese momento.</p>
+                </div>
             </div>
         </x-filament::section>
     @else
@@ -77,7 +90,7 @@
                         <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75"></span>
                         <span class="relative inline-flex h-2 w-2 rounded-full bg-white"></span>
                     </span>
-                    Leído de tu hoja {{ $this->leido }} · se actualiza solo
+                    {{ $this->leido }}
                 </div>
             @endif
         </div>
@@ -118,6 +131,9 @@
                         <span class="block text-xs text-gray-500">
                             {{ $r['envios'] }} envíos × ${{ number_format($r['porEnvio'], 2) }}
                             @if($r['sinCobro'] > 0) · incluye {{ $r['sinCobro'] }} sin cobro @endif
+                            @if(count($r['cancelados'] ?? []) > 0)
+                                · {{ count($r['cancelados']) }} con nota en CANCELACIÓN no cuentan
+                            @endif
                         </span>
                     </span>
                     <span class="text-lg font-bold text-danger-600">− ${{ number_format($r['descuento'], 2) }}</span>

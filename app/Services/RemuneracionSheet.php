@@ -30,6 +30,34 @@ class RemuneracionSheet
         return static::lectura($url, $refrescar)['filas'];
     }
 
+    /** Dónde se guarda el CSV que se sube a mano. */
+    public static function rutaArchivo(): string
+    {
+        return storage_path('app/remuneracion.csv');
+    }
+
+    /** Filas del archivo subido a mano (vacío si no hay). */
+    public static function filasDeArchivo(): array
+    {
+        $ruta = static::rutaArchivo();
+        if (! is_file($ruta)) return [];
+
+        return Cache::remember('remun_archivo_' . filemtime($ruta), 3600, function () use ($ruta) {
+            $bytes = file_get_contents($ruta);
+            // Excel exporta en Windows-1252 si no se elige "CSV UTF-8".
+            if (! mb_check_encoding($bytes, 'UTF-8')) {
+                $bytes = mb_convert_encoding($bytes, 'UTF-8', 'Windows-1252');
+            }
+            return static::parsear($bytes);
+        });
+    }
+
+    public static function archivoSubidoEn(): ?Carbon
+    {
+        $ruta = static::rutaArchivo();
+        return is_file($ruta) ? Carbon::createFromTimestamp(filemtime($ruta)) : null;
+    }
+
     /** Cuándo se leyó la hoja por última vez (null si nunca). */
     public static function leidoEn(string $url): ?Carbon
     {
@@ -86,6 +114,7 @@ class RemuneracionSheet
         $cOrden  = $col(['# ORDEN', 'ORDEN', 'N ORDEN', 'GUIA', 'GUÍA']);
         $cMonto  = $col(['MONTO']);
         $cZona   = $col(['ZONA DE ENTREGA', 'ZONA', 'DEPARTAMENTO']);
+        $cCanc   = $col(['CANCELACION', 'CANCELACIÓN']);
 
         if ($cNombre === null || $cMonto === null) return [];
 
@@ -94,13 +123,19 @@ class RemuneracionSheet
             $nombre = trim((string) ($f[$cNombre] ?? ''));
             if ($nombre === '') continue;
 
+            // Si la fila trae nota en CANCELACION (por ejemplo "DEPOSITO A TIENDA")
+            // no fue un envío del courier: no se cuenta ni se le cobra el flete.
+            $cancel = $cCanc !== null ? trim((string) ($f[$cCanc] ?? '')) : '';
+
             $filas[] = [
-                'fecha'  => $cFecha !== null ? static::fecha($f[$cFecha] ?? '') : null,
-                'nombre' => $nombre,
-                'orden'  => $cOrden !== null ? trim((string) ($f[$cOrden] ?? '')) : '',
-                'zona'   => $cZona  !== null ? trim((string) ($f[$cZona]  ?? '')) : '',
-                'monto'  => static::numero($f[$cMonto] ?? ''),
-                'aiwibi' => static::esAiwibi($nombre),
+                'fecha'     => $cFecha !== null ? static::fecha($f[$cFecha] ?? '') : null,
+                'nombre'    => $nombre,
+                'orden'     => $cOrden !== null ? trim((string) ($f[$cOrden] ?? '')) : '',
+                'zona'      => $cZona  !== null ? trim((string) ($f[$cZona]  ?? '')) : '',
+                'monto'     => static::numero($f[$cMonto] ?? ''),
+                'cancelado' => $cancel !== '',
+                'nota'      => $cancel,
+                'aiwibi'    => static::esAiwibi($nombre),
             ];
         }
 
@@ -184,12 +219,16 @@ class RemuneracionSheet
         $comisionPct = $comisionPct ?? self::COMISION;
         $porEnvio    = $porEnvio    ?? self::POR_ENVIO;
 
-        $sel = array_values(array_filter($filas, function ($f) use ($desde, $hasta) {
+        $todas = array_values(array_filter($filas, function ($f) use ($desde, $hasta) {
             if (! $f['aiwibi']) return false;
             if ($desde && (! $f['fecha'] || $f['fecha'] < $desde)) return false;
             if ($hasta && (! $f['fecha'] || $f['fecha'] > $hasta)) return false;
             return true;
         }));
+
+        // Las canceladas (nota en CANCELACION) se apartan: no pagan flete.
+        $cancelados = array_values(array_filter($todas, fn ($f) => $f['cancelado'] ?? false));
+        $sel        = array_values(array_filter($todas, fn ($f) => ! ($f['cancelado'] ?? false)));
 
         $efectivo = 0.0;
         $enEfectivo = 0;
@@ -205,6 +244,7 @@ class RemuneracionSheet
 
         return [
             'filas'       => $sel,
+            'cancelados'  => $cancelados,
             'envios'      => $envios,
             'enEfectivo'  => $enEfectivo,
             'sinCobro'    => $envios - $enEfectivo,

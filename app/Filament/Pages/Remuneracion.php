@@ -77,6 +77,37 @@ class Remuneracion extends Page
                     Notification::make()->title('Hoja conectada')->success()->send();
                 }),
 
+            Action::make('subir')
+                ->label('Subir archivo')
+                ->icon('heroicon-o-arrow-up-tray')
+                ->color('gray')
+                ->modalHeading('Subir el CSV de tu hoja')
+                ->modalDescription('En Excel: Archivo → Exportar → Descargar como CSV UTF-8. Elegí ese, no el otro, para que no se dañen las tildes. Se sube solo la hoja que tengas abierta.')
+                ->form([
+                    \Filament\Forms\Components\FileUpload::make('archivo')
+                        ->label('Archivo CSV')
+                        ->acceptedFileTypes(['text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel'])
+                        ->storeFiles(false)
+                        ->required(),
+                ])
+                ->action(function (array $data) {
+                    $subido = $data['archivo'];
+                    try {
+                        $bytes = $subido->get();
+                        file_put_contents(RemuneracionSheet::rutaArchivo(), $bytes);
+                        touch(RemuneracionSheet::rutaArchivo());
+
+                        $n = count(RemuneracionSheet::filasDeArchivo());
+                        Notification::make()
+                            ->title($n > 0 ? $n . ' entregas leídas' : 'No se encontraron entregas')
+                            ->body($n > 0 ? null : 'Revisá que el archivo tenga la fila de encabezados con "NOMBRE DE CLIENTE".')
+                            ->{$n > 0 ? 'success' : 'warning'}()
+                            ->send();
+                    } catch (\Throwable $e) {
+                        Notification::make()->title('No se pudo leer el archivo')->danger()->send();
+                    }
+                }),
+
             Action::make('actualizar')
                 ->label('Actualizar ahora')
                 ->icon('heroicon-o-arrow-path')
@@ -106,18 +137,30 @@ class Remuneracion extends Page
         };
     }
 
-    /** Texto tipo "hace 2 minutos", para saber que el tablero está vivo. */
+    /** ¿Hay alguna fuente de datos configurada? */
+    public function getHayDatosProperty(): bool
+    {
+        return $this->url !== '' || is_file(RemuneracionSheet::rutaArchivo());
+    }
+
+    /** De dónde salen los números y desde cuándo. */
     public function getLeidoProperty(): ?string
     {
-        if ($this->url === '') return null;
+        if ($this->url !== '') {
+            $at = RemuneracionSheet::leidoEn($this->url);
+            return $at ? 'Leído de tu hoja de Google ' . $at->diffForHumans() . ' · se actualiza solo' : null;
+        }
 
-        $at = RemuneracionSheet::leidoEn($this->url);
-        return $at ? $at->diffForHumans() : null;
+        $at = RemuneracionSheet::archivoSubidoEn();
+        return $at ? 'Del archivo que subiste ' . $at->diffForHumans() . ' · hay que volver a subirlo para verlo al día' : null;
     }
 
     public function getResumenProperty(): array
     {
-        $filas = $this->url === '' ? [] : RemuneracionSheet::filas($this->url);
+        // La hoja conectada manda; si no hay, se usa el archivo subido a mano.
+        $filas = $this->url !== ''
+            ? RemuneracionSheet::filas($this->url)
+            : RemuneracionSheet::filasDeArchivo();
 
         return RemuneracionSheet::calcular(
             $filas,
