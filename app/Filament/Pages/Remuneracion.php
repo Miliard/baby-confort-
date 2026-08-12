@@ -81,30 +81,47 @@ class Remuneracion extends Page
                 ->label('Subir archivo')
                 ->icon('heroicon-o-arrow-up-tray')
                 ->color('gray')
-                ->modalHeading('Subir el CSV de tu hoja')
-                ->modalDescription('En Excel: Archivo → Exportar → Descargar como CSV UTF-8. Elegí ese, no el otro, para que no se dañen las tildes. Se sube solo la hoja que tengas abierta.')
+                ->modalHeading('Subir tu hoja de entregas')
+                ->modalDescription('Sirve el Excel tal cual (.xlsx), el .ods o un CSV. Si subís un CSV desde Excel, elegí "CSV UTF-8" para que no se dañen las tildes.')
                 ->form([
                     \Filament\Forms\Components\FileUpload::make('archivo')
-                        ->label('Archivo CSV')
-                        ->acceptedFileTypes(['text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel'])
+                        ->label('Archivo (Excel, ODS o CSV)')
+                        ->acceptedFileTypes([
+                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                            'application/vnd.ms-excel',
+                            'application/vnd.oasis.opendocument.spreadsheet',
+                            'text/csv', 'text/plain', 'application/csv',
+                        ])
                         ->storeFiles(false)
+                        ->maxSize(20480)
                         ->required(),
                 ])
                 ->action(function (array $data) {
                     $subido = $data['archivo'];
                     try {
-                        $bytes = $subido->get();
-                        file_put_contents(RemuneracionSheet::rutaArchivo(), $bytes);
-                        touch(RemuneracionSheet::rutaArchivo());
+                        $ext = strtolower($subido->getClientOriginalExtension() ?: 'csv');
+                        RemuneracionSheet::guardarArchivo($subido->get(), $ext);
 
-                        $n = count(RemuneracionSheet::filasDeArchivo());
-                        Notification::make()
-                            ->title($n > 0 ? $n . ' entregas leídas' : 'No se encontraron entregas')
-                            ->body($n > 0 ? null : 'Revisá que el archivo tenga la fila de encabezados con "NOMBRE DE CLIENTE".')
-                            ->{$n > 0 ? 'success' : 'warning'}()
-                            ->send();
+                        $filas  = RemuneracionSheet::filasDeArchivo();
+                        $n      = count($filas);
+                        $aiwibi = count(array_filter($filas, fn ($f) => $f['aiwibi']));
+
+                        if ($n > 0) {
+                            Notification::make()
+                                ->title($n . ' entregas leídas')
+                                ->body($aiwibi . ' son de AIWIBI.')
+                                ->success()->send();
+                        } else {
+                            Notification::make()
+                                ->title('No se encontraron entregas')
+                                ->body('El archivo debe tener una fila de encabezados con "NOMBRE DE CLIENTE" y una columna "MONTO". Si tu Excel es .xlsb, guardalo como .xlsx primero.')
+                                ->warning()->persistent()->send();
+                        }
                     } catch (\Throwable $e) {
-                        Notification::make()->title('No se pudo leer el archivo')->danger()->send();
+                        Notification::make()
+                            ->title('No se pudo leer el archivo')
+                            ->body($e->getMessage())
+                            ->danger()->persistent()->send();
                     }
                 }),
 
@@ -140,7 +157,7 @@ class Remuneracion extends Page
     /** ¿Hay alguna fuente de datos configurada? */
     public function getHayDatosProperty(): bool
     {
-        return $this->url !== '' || is_file(RemuneracionSheet::rutaArchivo());
+        return $this->url !== '' || RemuneracionSheet::rutaArchivo() !== null;
     }
 
     /** De dónde salen los números y desde cuándo. */

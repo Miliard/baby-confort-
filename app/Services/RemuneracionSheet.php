@@ -30,19 +30,51 @@ class RemuneracionSheet
         return static::lectura($url, $refrescar)['filas'];
     }
 
-    /** Dónde se guarda el CSV que se sube a mano. */
-    public static function rutaArchivo(): string
+    /** Carpeta donde queda el archivo que se sube a mano. */
+    public static function carpetaArchivo(): string
     {
-        return storage_path('app/remuneracion.csv');
+        $dir = storage_path('app/remuneracion');
+        if (! is_dir($dir)) @mkdir($dir, 0775, true);
+        return $dir;
     }
 
-    /** Filas del archivo subido a mano (vacío si no hay). */
+    /** El archivo subido, sea cual sea su extensión (null si no hay). */
+    public static function rutaArchivo(): ?string
+    {
+        foreach (glob(static::carpetaArchivo() . '/hoja.*') ?: [] as $f) {
+            if (is_file($f)) return $f;
+        }
+        // Compatibilidad con la versión anterior, que guardaba un CSV suelto.
+        $viejo = storage_path('app/remuneracion.csv');
+        return is_file($viejo) ? $viejo : null;
+    }
+
+    /** Borra lo anterior y guarda el archivo nuevo con su extensión. */
+    public static function guardarArchivo(string $bytes, string $extension): string
+    {
+        foreach (glob(static::carpetaArchivo() . '/hoja.*') ?: [] as $f) @unlink($f);
+        @unlink(storage_path('app/remuneracion.csv'));
+
+        $ext  = strtolower(preg_replace('/[^a-z0-9]/i', '', $extension)) ?: 'csv';
+        $ruta = static::carpetaArchivo() . '/hoja.' . $ext;
+        file_put_contents($ruta, $bytes);
+
+        return $ruta;
+    }
+
+    /** Filas del archivo subido a mano. Entiende Excel, ODS y CSV. */
     public static function filasDeArchivo(): array
     {
         $ruta = static::rutaArchivo();
-        if (! is_file($ruta)) return [];
+        if (! $ruta || ! is_file($ruta)) return [];
 
-        return Cache::remember('remun_archivo_' . filemtime($ruta), 3600, function () use ($ruta) {
+        return Cache::remember('remun_archivo_' . md5($ruta . filemtime($ruta)), 3600, function () use ($ruta) {
+            $ext = strtolower(pathinfo($ruta, PATHINFO_EXTENSION));
+
+            if (in_array($ext, ['xlsx', 'xlsm', 'ods'], true)) {
+                return static::parsearTabla(static::leerConSpout($ruta, $ext));
+            }
+
             $bytes = file_get_contents($ruta);
             // Excel exporta en Windows-1252 si no se elige "CSV UTF-8".
             if (! mb_check_encoding($bytes, 'UTF-8')) {
@@ -52,10 +84,57 @@ class RemuneracionSheet
         });
     }
 
+    /**
+     * Lee un Excel u ODS y devuelve las filas de la hoja que tenga los
+     * encabezados. Si ninguna los tiene, devuelve la más larga.
+     */
+    private static function leerConSpout(string $ruta, string $ext): array
+    {
+        $lector = $ext === 'ods'
+            ? new \OpenSpout\Reader\ODS\Reader()
+            : new \OpenSpout\Reader\XLSX\Reader();
+
+        $mejor = [];
+
+        try {
+            $lector->open($ruta);
+            foreach ($lector->getSheetIterator() as $hoja) {
+                $filas = [];
+                $tieneEncabezado = false;
+
+                foreach ($hoja->getRowIterator() as $fila) {
+                    $celdas = array_map(function ($v) {
+                        if ($v instanceof \DateTimeInterface) return $v->format('Y-m-d');
+                        return is_scalar($v) || $v === null ? (string) $v : '';
+                    }, $fila->toArray());
+
+                    $filas[] = $celdas;
+
+                    if (! $tieneEncabezado
+                        && str_contains(mb_strtoupper(implode('|', $celdas)), 'NOMBRE DE CLIENTE')) {
+                        $tieneEncabezado = true;
+                    }
+                }
+
+                // Se prefiere la hoja con encabezados; si hay varias, la más larga.
+                if ($tieneEncabezado && count($filas) > count($mejor)) {
+                    $mejor = $filas;
+                } elseif (! $mejor && count($filas) > 0) {
+                    $mejor = $filas;
+                }
+            }
+            $lector->close();
+        } catch (\Throwable $e) {
+            return $mejor;
+        }
+
+        return $mejor;
+    }
+
     public static function archivoSubidoEn(): ?Carbon
     {
         $ruta = static::rutaArchivo();
-        return is_file($ruta) ? Carbon::createFromTimestamp(filemtime($ruta)) : null;
+        return $ruta && is_file($ruta) ? Carbon::createFromTimestamp(filemtime($ruta)) : null;
     }
 
     /** Cuándo se leyó la hoja por última vez (null si nunca). */
@@ -90,6 +169,12 @@ class RemuneracionSheet
             if (trim($l) === '') continue;
             $tabla[] = str_getcsv($l);
         }
+        return static::parsearTabla($tabla);
+    }
+
+    /** Toma una tabla ya leída (de CSV, Excel u ODS) y saca las entregas. */
+    public static function parsearTabla(array $tabla): array
+    {
         if (! $tabla) return [];
 
         // La hoja trae título y estadísticas arriba: se busca la fila de encabezados.
