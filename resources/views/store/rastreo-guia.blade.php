@@ -28,6 +28,13 @@
     .trk-form{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
     .trk-form input{flex:1;min-width:180px;padding:12px 14px;border:1px solid var(--borde);border-radius:12px;font-size:15px}
     .trk-form button{background:linear-gradient(135deg,var(--azul),var(--azul-osc));color:#fff;border:none;border-radius:12px;padding:12px 22px;font-weight:800;font-size:15px;cursor:pointer}
+    .trk-antes{margin-top:18px}
+    .trk-antes summary{cursor:pointer;font-size:13.5px;font-weight:700;color:var(--gris);padding:8px 2px;list-style:none}
+    .trk-antes summary::-webkit-details-marker{display:none}
+    .trk-antes summary::before{content:'▸ ';color:var(--azul-osc)}
+    .trk-antes[open] summary::before{content:'▾ '}
+    .trk-antes summary:hover{color:var(--azul-osc)}
+    .trk-antes .trk-lista{margin-top:8px}
     .trk-lista{margin-top:20px;display:flex;flex-direction:column;gap:10px}
     .trk-lista-h{font-size:14.5px;font-weight:800;color:var(--texto);margin-bottom:2px}
     .trk-lista-item{display:flex;flex-direction:column;gap:3px;background:#fff;border:1px solid var(--borde);border-radius:14px;padding:14px 16px;text-decoration:none;transition:border-color .1s,box-shadow .1s}
@@ -56,19 +63,6 @@
         <button type="submit">Rastrear</button>
     </form>
 
-    {{-- Varios paquetes con el mismo teléfono: que elija cuál --}}
-    @if(!empty($opciones) && $opciones->count() > 1)
-        <div class="trk-lista">
-            <div class="trk-lista-h">Encontramos {{ $opciones->count() }} paquetes con ese número. ¿Cuál querés ver?</div>
-            @foreach($opciones as $op)
-                <a class="trk-lista-item" href="{{ route('store.rastreo.guia') }}?guia={{ $op->guia }}">
-                    <span class="tl-guia">📦 Guía {{ $op->guia }}</span>
-                    @if($op->contenido)<span class="tl-cont">{{ \Illuminate\Support\Str::limit($op->contenido, 70) }}</span>@endif
-                    <span class="tl-ver">Ver estado →</span>
-                </a>
-            @endforeach
-        </div>
-    @endif
 
     {{-- Pedido hecho en la tienda que todavía no ha salido a la empresa de envíos --}}
     @if(!empty($sinGuia))
@@ -127,16 +121,24 @@
         }
     @endphp
 
-    @if($guia && $etapa && ($primerNombre || $datosGuia?->contenido))
+    @php
+        // Sistrack a veces manda "N/A" cuando no se llenó el detalle: no se muestra.
+        $contenidoUtil = trim((string) ($datosGuia->contenido ?? ''));
+        if (in_array(strtoupper($contenidoUtil), ['', 'N/A', 'NA', '-', '.', 'NULL'])) {
+            $contenidoUtil = null;
+        }
+    @endphp
+
+    @if($guia && $etapa && ($primerNombre || $contenidoUtil))
         <div class="saludo-cliente">
             @if($primerNombre)
                 <div class="sc-hola">¡Hola {{ $primerNombre }}! 👋</div>
             @endif
             <div class="sc-sub">Aquí podés ver cómo va tu paquete.</div>
 
-            @if($datosGuia?->contenido)
+            @if($contenidoUtil)
                 <div class="sc-detalle">
-                    <div class="sc-item">📦 <b>Tu pedido:</b> {{ $datosGuia->contenido }}</div>
+                    <div class="sc-item">📦 <b>Tu pedido:</b> {{ $contenidoUtil }}</div>
                     @if($datosGuia->cobrar > 0)
                         <div class="sc-item">💵 <b>A pagar al recibir:</b> ${{ number_format($datosGuia->cobrar, 2) }}</div>
                     @endif
@@ -173,6 +175,25 @@
         @include('store.partials.foto-paquete', ['guiaFoto' => $guia])
 
         @include('store.partials.historial')
+
+        {{-- Envíos anteriores del mismo teléfono, discretos y plegados --}}
+        @if(!empty($opciones) && $opciones->isNotEmpty())
+            <details class="trk-antes">
+                <summary>Ver mis envíos anteriores ({{ $opciones->count() }})</summary>
+                <div class="trk-lista">
+                    @foreach($opciones as $op)
+                        @php $contOp = trim((string) $op->contenido); @endphp
+                        <a class="trk-lista-item" href="{{ route('store.rastreo.guia') }}?guia={{ $op->guia }}">
+                            <span class="tl-guia">📦 Guía {{ $op->guia }}</span>
+                            @if($contOp !== '' && ! in_array(strtoupper($contOp), ['N/A', 'NA', '-', '.']))
+                                <span class="tl-cont">{{ \Illuminate\Support\Str::limit($contOp, 70) }}</span>
+                            @endif
+                            <span class="tl-ver">Ver estado →</span>
+                        </a>
+                    @endforeach
+                </div>
+            </details>
+        @endif
     @endif
 
     @include('store.partials.recomendados')

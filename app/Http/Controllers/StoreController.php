@@ -122,10 +122,12 @@ class StoreController extends Controller
             } else {
                 $opciones = \App\Models\GuiaFoto::porTelefono($digitos);
 
-                if ($opciones->count() === 1) {
-                    $guia = (string) $opciones->first()->guia;
-                    $opciones = collect();
-                } elseif ($opciones->isEmpty()) {
+                if ($opciones->isNotEmpty()) {
+                    // Se muestra el paquete más reciente. Los anteriores quedan
+                    // abajo, discretos: casi siempre son guías que se rehicieron.
+                    $guia     = (string) $opciones->first()->guia;
+                    $opciones = $opciones->slice(1)->values();
+                } else {
                     // Sin guía todavía. Dos casos: la guía ya se armó y espera el
                     // PDF, o el pedido se hizo en la tienda y aún no se procesa.
                     $sinGuia = \App\Models\GuiaFoto::pendientePorTelefono($digitos);
