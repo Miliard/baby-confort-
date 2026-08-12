@@ -106,6 +106,15 @@ class Remuneracion extends Page
         };
     }
 
+    /** Texto tipo "hace 2 minutos", para saber que el tablero está vivo. */
+    public function getLeidoProperty(): ?string
+    {
+        if ($this->url === '') return null;
+
+        $at = RemuneracionSheet::leidoEn($this->url);
+        return $at ? $at->diffForHumans() : null;
+    }
+
     public function getResumenProperty(): array
     {
         $filas = $this->url === '' ? [] : RemuneracionSheet::filas($this->url);

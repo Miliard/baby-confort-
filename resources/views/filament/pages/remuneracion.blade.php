@@ -1,4 +1,5 @@
-<x-filament-panels::page>
+{{-- wire:poll relee el tablero solo, sin que haya que recargar la página --}}
+<x-filament-panels::page wire:poll.90s>
     @php $r = $this->resumen; @endphp
 
     @if($url === '')
@@ -69,6 +70,16 @@
                     · todo el historial
                 @endif
             </div>
+
+            @if($this->leido)
+                <div class="mt-3 flex items-center gap-1.5 text-xs opacity-80">
+                    <span class="relative flex h-2 w-2">
+                        <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75"></span>
+                        <span class="relative inline-flex h-2 w-2 rounded-full bg-white"></span>
+                    </span>
+                    Leído de tu hoja {{ $this->leido }} · se actualiza solo
+                </div>
+            @endif
         </div>
 
         {{-- Cómo se llegó a ese número, paso por paso --}}

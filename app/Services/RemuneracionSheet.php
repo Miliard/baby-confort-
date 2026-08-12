@@ -21,20 +21,35 @@ class RemuneracionSheet
     public const COMISION   = 2.5;     // % de comisión (se puede cambiar en el panel)
     public const POR_ENVIO  = 3.40;    // $ por envío, aunque venga en cero
 
-    /** Filas de la hoja, ya limpias. Se cachean para no pedirlas en cada clic. */
+    /** Cada cuánto se vuelve a leer la hoja, en segundos. */
+    public const REFRESCO = 180;   // 3 minutos
+
+    /** Filas de la hoja, ya limpias. Se releen solas cada pocos minutos. */
     public static function filas(string $url, bool $refrescar = false): array
+    {
+        return static::lectura($url, $refrescar)['filas'];
+    }
+
+    /** Cuándo se leyó la hoja por última vez (null si nunca). */
+    public static function leidoEn(string $url): ?Carbon
+    {
+        $at = static::lectura($url)['at'] ?? null;
+        return $at ? Carbon::createFromTimestamp($at) : null;
+    }
+
+    private static function lectura(string $url, bool $refrescar = false): array
     {
         $clave = 'remun_' . md5($url);
         if ($refrescar) Cache::forget($clave);
 
-        return Cache::remember($clave, 1800, function () use ($url) {
+        return Cache::remember($clave, static::REFRESCO, function () use ($url) {
             try {
                 $r = Http::timeout(30)->get($url);
-                if (! $r->successful()) return [];
-                return static::parsear($r->body());
+                $filas = $r->successful() ? static::parsear($r->body()) : [];
             } catch (\Throwable $e) {
-                return [];
+                $filas = [];
             }
+            return ['filas' => $filas, 'at' => time()];
         });
     }
 
