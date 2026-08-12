@@ -102,9 +102,12 @@ class GuiaBorrador extends Model
             'cinco' => '5', 'cuatro' => '4', 'tres' => '3', 'dos' => '2', 'uno' => '1',
         ];
 
+        // Se corta por salto de línea, coma, punto y coma o " + ".
         $partes = [];
-        foreach (preg_split('/\s*[,;]\s*|\s+\+\s+/u', $t) as $p) {
-            $p = trim($p, " \t\n\r.-\u{2022}");
+        foreach (preg_split('/\r\n|\n|\r|\s*[,;]\s*|\s+\+\s+/u', $t) as $p) {
+            // Quita viñetas o guiones que ya trajera el texto pegado.
+            $p = preg_replace('/^[\s\-\x{2013}\x{2014}\x{00B7}\x{2022}*>»]+/u', '', (string) $p);
+            $p = trim($p, " \t.\u{00A0}");
             if ($p === '') continue;
 
             // "cincuenta 50" → "50" (el dictado escribe el número dos veces)
