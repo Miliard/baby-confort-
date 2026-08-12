@@ -55,26 +55,70 @@ class GuiaBorrador extends Model
             }
         }
 
-        $t  = $primero ? "\u{A1}Hola {$primero}! \u{1F499} Gracias por tu pedido.\n" : "\u{A1}Gracias por tu pedido! \u{1F499}\n";
+        // Saludo
+        $t = $primero
+            ? "\u{A1}Hola {$primero}! \u{1F499}\n\n"
+            : "\u{A1}Hola! \u{1F499}\n\n";
 
-        if (trim((string) ($fila['descripcion'] ?? '')) !== '') {
-            $t .= "\u{1F4E6} " . trim($fila['descripcion']) . "\n";
+        // Lo que lleva: una línea por producto, no todo en un párrafo
+        $productos = static::partirDescripcion($fila['descripcion'] ?? '');
+        if ($productos) {
+            $t .= "*Tu pedido:*\n";
+            foreach ($productos as $p) {
+                $t .= "\u{2022} {$p}\n";
+            }
+            $t .= "\n";
         }
 
+        // Pago y entrega, cada dato en su renglón
         $cobrar = (float) ($fila['cobrar'] ?? 0);
         $t .= $cobrar > 0
-            ? "\u{1F4B5} Al recibir cancel\u{E1}s $" . number_format($cobrar, 2) . "\n"
-            : "\u{2705} Ya est\u{E1} pagado\n";
+            ? "*A pagar al recibir:* $" . number_format($cobrar, 2) . "\n"
+            : "*Pago:* Ya est\u{E1} cancelado \u{2705}\n";
 
-        // El enlace ya lleva su teléfono: el cliente solo toca y ve su paquete.
-        $enlace = static::enlaceRastreo($fila['telefono'] ?? null);
+        $entrega = trim((string) \App\Models\Setting::get('envio_tiempo', '24 horas h\u{E1}biles')) ?: '24 horas hábiles';
+        $t .= "*Entrega:* {$entrega}\n\n";
 
-        $t .= "\nYa lo estamos preparando. Entregamos en 24 horas h\u{E1}biles.\n\n"
-            . "Pod\u{E9}s ver en qu\u{E9} va tu paquete cuando quer\u{E1}s, solo tocando aqu\u{ED}:\n"
-            . "\u{1F449} " . $enlace . "\n\n"
-            . "Guard\u{E1} este enlace: te sirve para este pedido y para los que vengan. \u{1F499}";
+        // El enlace va solo en su renglón: si lleva emoji pegado, WhatsApp lo parte feo.
+        $t .= "*Segu\u{ED} tu paquete aqu\u{ED}:*\n"
+            . static::enlaceRastreo($fila['telefono'] ?? null) . "\n\n"
+            . "Guard\u{E1} este enlace, te sirve para este pedido y para los que vengan \u{1F499}";
 
         return $t;
+    }
+
+    /**
+     * Parte "2 Calzoncito Magic talla XXL, 1 paquete de 50 unidades" en líneas
+     * separadas y limpia repeticiones tipo "cincuenta 50" que deja el dictado.
+     */
+    public static function partirDescripcion(?string $texto): array
+    {
+        $t = trim((string) $texto);
+        if ($t === '') return [];
+
+        $numeros = [
+            'cincuenta' => '50', 'cuarenta' => '40', 'treinta' => '30', 'veinte' => '20',
+            'diez' => '10', 'nueve' => '9', 'ocho' => '8', 'siete' => '7', 'seis' => '6',
+            'cinco' => '5', 'cuatro' => '4', 'tres' => '3', 'dos' => '2', 'uno' => '1',
+        ];
+
+        $partes = [];
+        foreach (preg_split('/\s*[,;]\s*|\s+\+\s+/u', $t) as $p) {
+            $p = trim($p, " \t\n\r.-\u{2022}");
+            if ($p === '') continue;
+
+            // "cincuenta 50" → "50" (el dictado escribe el número dos veces)
+            foreach ($numeros as $palabra => $cifra) {
+                $p = preg_replace('/\b' . $palabra . '\s+' . $cifra . '\b/iu', $cifra, $p);
+                $p = preg_replace('/\b' . $cifra . '\s+' . $palabra . '\b/iu', $cifra, $p);
+            }
+
+            $p = preg_replace('/\s{2,}/u', ' ', $p);
+            $p = preg_replace('/\btalla\s+/iu', 'talla ', $p);
+            $partes[] = \Illuminate\Support\Str::ucfirst($p);
+        }
+
+        return $partes;
     }
 
     /** Enlace de rastreo con el teléfono ya puesto (no hay nada que escribir). */
