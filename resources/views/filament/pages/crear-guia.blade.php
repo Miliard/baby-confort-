@@ -49,18 +49,32 @@
                 @endif
             </div>
 
-            <form wire:submit="agregar">
+            <form wire:submit="agregar" id="bc-formulario">
+                @if($editando)
+                    <div class="mb-3 flex items-center gap-2 rounded-xl border border-warning-300 bg-warning-50 px-3 py-2 text-sm font-semibold text-warning-700 dark:border-warning-500/40 dark:bg-warning-500/10 dark:text-warning-400">
+                        ✏️ Estás corrigiendo una guía de la lista
+                    </div>
+                @endif
+
                 {{ $this->form }}
 
                 <div class="mt-4 flex gap-2">
-                    <x-filament::button type="submit" size="lg" color="success" class="flex-1 justify-center">
-                        ➕ Agregar a la lista
+                    <x-filament::button type="submit" size="lg"
+                        :color="$editando ? 'warning' : 'success'" class="flex-1 justify-center">
+                        {{ $editando ? '💾 Guardar cambios' : '➕ Agregar a la lista' }}
                     </x-filament::button>
 
-                    <x-filament::button type="button" size="lg" color="gray" outlined
-                        icon="heroicon-m-arrow-path" wire:click="limpiarCampos" title="Limpiar los campos">
-                        Limpiar
-                    </x-filament::button>
+                    @if($editando)
+                        <x-filament::button type="button" size="lg" color="gray" outlined
+                            icon="heroicon-m-x-mark" wire:click="cancelarEdicion" title="Cancelar la corrección">
+                            Cancelar
+                        </x-filament::button>
+                    @else
+                        <x-filament::button type="button" size="lg" color="gray" outlined
+                            icon="heroicon-m-arrow-path" wire:click="limpiarCampos" title="Limpiar los campos">
+                            Limpiar
+                        </x-filament::button>
+                    @endif
                 </div>
             </form>
 
@@ -156,8 +170,13 @@
                                 </div>
 
                                 <x-filament::icon-button
+                                    icon="heroicon-m-pencil-square" color="warning" size="sm"
+                                    wire:click="editar({{ $g['id'] ?? 0 }})" label="Corregir esta guía" />
+
+                                <x-filament::icon-button
                                     icon="heroicon-m-x-mark" color="danger" size="sm"
-                                    wire:click="quitar({{ $g['id'] ?? 0 }})" label="Quitar de la lista" />
+                                    wire:click="quitar({{ $g['id'] ?? 0 }})"
+                                    wire:confirm="¿Quitar esta guía de la lista?" label="Quitar de la lista" />
                             </div>
                         </div>
                     @empty
@@ -347,6 +366,14 @@
                     caja.style.boxShadow = '0 0 0 3px rgba(239,68,68,.45)';
                     setTimeout(() => { caja.style.boxShadow = ''; }, 1800);
                 }, 60);
+            });
+
+            // Al tocar el lápiz de una guía, sube al formulario para no buscarlo.
+            Livewire.on('ir-al-formulario', () => {
+                setTimeout(() => {
+                    const f = document.getElementById('bc-formulario');
+                    if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 120);
             });
         });
     </script>

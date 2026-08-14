@@ -36,6 +36,9 @@ class CrearGuia extends Page implements HasForms
     /** Sección visible: crear | fotos | clientes */
     public string $seccion = 'crear';
 
+    /** ID de la guía que se está corrigiendo (null = se está creando una nueva). */
+    public ?int $editando = null;
+
     /** Buscador de la libreta de clientes */
     public string $buscaCliente = '';
 
@@ -234,8 +237,48 @@ class CrearGuia extends Page implements HasForms
     {
         $this->form->fill();
         $this->buscaCliente = '';
+        $this->editando = null;
 
         Notification::make()->title('🧹 Campos limpios')->success()->send();
+    }
+
+    /** Sube una guía de la lista al formulario para corregirla. */
+    public function editar(int $id): void
+    {
+        $g = \App\Models\GuiaBorrador::find($id);
+        if (! $g) {
+            Notification::make()->title('Esa guía ya no está en la lista')->warning()->send();
+            $this->recargarLista();
+            return;
+        }
+
+        $this->editando = $g->id;
+        $this->form->fill([
+            'nombre'          => $g->nombre,
+            'telefono'        => $g->telefono,
+            'telefono_recibe' => $g->telefono_recibe,
+            'direccion'       => $g->direccion,
+            'municipio'       => $g->municipio,
+            'departamento'    => $g->departamento,
+            'descripcion'     => $g->descripcion,
+            'cobrar'          => (float) $g->cobrar,
+        ]);
+
+        $this->dispatch('ir-al-formulario');
+
+        Notification::make()
+            ->title('✏️ Corrigiendo la guía de ' . $g->nombre)
+            ->body('Cambiá lo que necesités y tocá "Guardar cambios".')
+            ->info()->send();
+    }
+
+    /** Sale del modo corrección sin tocar nada. */
+    public function cancelarEdicion(): void
+    {
+        $this->editando = null;
+        $this->form->fill();
+
+        Notification::make()->title('Corrección cancelada')->success()->send();
     }
 
     public function agregar(bool $forzar = false): void
@@ -258,6 +301,51 @@ class CrearGuia extends Page implements HasForms
         }
 
         $d = $this->form->getState();
+
+        // ---- Modo corrección: se actualiza la guía en vez de crear otra ----
+        if ($this->editando) {
+            $g = \App\Models\GuiaBorrador::find($this->editando);
+            if (! $g) {
+                $this->editando = null;
+                Notification::make()->title('Esa guía ya no está en la lista')->warning()->send();
+                $this->recargarLista();
+                return;
+            }
+
+            $g->fill([
+                'nombre'          => $d['nombre'],
+                'telefono'        => $d['telefono'],
+                'telefono_recibe' => $d['telefono_recibe'] ?? null,
+                'direccion'       => $d['direccion'],
+                'municipio'       => $d['municipio'],
+                'departamento'    => $d['departamento'],
+                'descripcion'     => $d['descripcion'],
+                'cobrar'          => (float) ($d['cobrar'] ?? 0),
+            ])->save();
+
+            // Se actualiza también lo que ve el cliente al rastrear.
+            \App\Models\GuiaFoto::registrarPendiente([
+                'telefono'  => $d['telefono'] ?? '',
+                'nombre'    => $d['nombre'] ?? '',
+                'contenido' => $d['descripcion'] ?? '',
+                'cobrar'    => $d['cobrar'] ?? null,
+            ]);
+
+            \App\Models\Cliente::recordar([
+                'telefono'     => $d['telefono'] ?? '',
+                'nombre'       => $d['nombre'] ?? '',
+                'direccion'    => $d['direccion'] ?? '',
+                'municipio'    => $d['municipio'] ?? '',
+                'departamento' => $d['departamento'] ?? '',
+            ]);
+
+            $this->editando = null;
+            $this->recargarLista();
+            $this->form->fill();
+
+            Notification::make()->title('✅ Guía corregida')->success()->send();
+            return;
+        }
 
         // Evita meter dos veces la misma guía en el lote. Se compara por el ID del
         // cliente (su teléfono). Si es el mismo cliente pero otro pedido, se puede forzar.
