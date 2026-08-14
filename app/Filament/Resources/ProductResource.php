@@ -92,11 +92,22 @@ class ProductResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\ImageColumn::make('image')->label('Foto')->circular(),
-                Tables\Columns\TextColumn::make('name')->label('Nombre')->searchable()->wrap(),
+                // El buscador mira nombre, marca Y tallas: escribir "XXL" trae los
+                // productos que existen en esa talla.
+                Tables\Columns\TextColumn::make('name')->label('Nombre')->wrap()
+                    ->searchable(query: function (\Illuminate\Database\Eloquent\Builder $query, string $search) {
+                        return $query->where(function ($q) use ($search) {
+                            $q->where('name', 'like', "%{$search}%")
+                              ->orWhere('brand', 'like', "%{$search}%")
+                              ->orWhereHas('sizes', fn ($s) => $s->where('size', 'like', "%{$search}%"));
+                        });
+                    }),
                 Tables\Columns\TextColumn::make('brand')->label('Marca')->toggleable(),
                 Tables\Columns\SelectColumn::make('categoria')->label('Categoría')
                     ->options(\App\Models\Product::categoriaLabels())->placeholder('Sin categoría'),
-                Tables\Columns\TextColumn::make('sizes_count')->counts('sizes')->label('Tallas'),
+                Tables\Columns\TextColumn::make('sizes.size')->label('Tallas')
+                    ->badge()->limitList(5)->expandableLimitedList()
+                    ->color(fn ($state) => 'gray'),
                 Tables\Columns\IconColumn::make('active')->label('Activo')->boolean(),
             ])
             ->reorderable('orden')
@@ -104,6 +115,34 @@ class ProductResource extends Resource
             ->filters([
                 Tables\Filters\TernaryFilter::make('active')->label('Activo'),
                 Tables\Filters\SelectFilter::make('categoria')->label('Categoría')->options(\App\Models\Product::categoriaLabels()),
+
+                // Filtro por talla: se arma solo con las tallas que existen.
+                Tables\Filters\SelectFilter::make('talla')
+                    ->label('Talla')
+                    ->options(function () {
+                        try {
+                            return \App\Models\ProductSize::query()
+                                ->select('size')->distinct()->orderBy('size')
+                                ->pluck('size', 'size')->all();
+                        } catch (\Throwable $e) {
+                            return [];
+                        }
+                    })
+                    ->query(fn ($query, array $data) => filled($data['value'] ?? null)
+                        ? $query->whereHas('sizes', fn ($s) => $s->where('size', $data['value']))
+                        : $query),
+
+                // Para encontrar rápido lo que hay que reponer.
+                Tables\Filters\TernaryFilter::make('agotado')
+                    ->label('Existencia')
+                    ->placeholder('Todos')
+                    ->trueLabel('Sin existencia')
+                    ->falseLabel('Con existencia')
+                    ->queries(
+                        true:  fn ($query) => $query->whereDoesntHave('sizes', fn ($s) => $s->where('quantity', '>', 0)),
+                        false: fn ($query) => $query->whereHas('sizes', fn ($s) => $s->where('quantity', '>', 0)),
+                        blank: fn ($query) => $query,
+                    ),
             ])
             ->actions([Tables\Actions\EditAction::make(), Tables\Actions\DeleteAction::make()])
             ->bulkActions([Tables\Actions\BulkActionGroup::make([

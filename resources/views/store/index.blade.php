@@ -11,15 +11,58 @@
     $indiceBusqueda = $products->map(fn ($p) => \Illuminate\Support\Str::lower(
         $p->name . ' ' . ($p->brand ?? '') . ' ' . \Illuminate\Support\Str::limit(strip_tags($p->description ?? ''), 160, '')
     ))->values();
+
+    // Tallas disponibles de cada producto (solo las que tienen existencia).
+    // Van aparte porque "L" es una letra suelta: si se buscara dentro del texto,
+    // coincidiría con casi todo.
+    $indiceTallas = $products->map(function ($p) {
+        $tokens = [];
+        foreach ($p->sizes as $s) {
+            if ((int) $s->quantity <= 0) continue;
+            $texto = \Illuminate\Support\Str::lower(trim($s->size));
+            $tokens[] = $texto;
+            foreach (preg_split('/[\/\s\-]+/', $texto) as $t) {
+                if ($t !== '') $tokens[] = $t;
+            }
+        }
+        return array_values(array_unique($tokens));
+    })->values();
 @endphp
-<div x-data="{ q: '', productos: @js($indiceBusqueda) }">
+<div x-data="{
+    q: '',
+    productos: @js($indiceBusqueda),
+    tallas: @js($indiceTallas),
+    coincide(i) {
+        const q = this.q.toLowerCase().trim();
+        if (q === '') return true;
+
+        const texto    = this.productos[i] || '';
+        const palabras = texto.split(/\s+/);
+        const tallas   = this.tallas[i] || [];
+
+        // Cada palabra que escriba el cliente tiene que encajar en algo.
+        return q.split(/\s+/).filter(Boolean).every(function (t) {
+            if (t === 'talla' || t === 'tallas') return true;
+            if (tallas.indexOf(t) !== -1) return true;
+            // Una sola letra solo puede ser una talla (S, M, L): si no, saldría todo.
+            if (t.length === 1) return false;
+            if (palabras.some(function (w) { return w.indexOf(t) === 0; })) return true;
+            return t.length >= 4 && texto.indexOf(t) !== -1;
+        });
+    },
+    sinResultados() {
+        if (this.q.trim() === '') return false;
+        for (let i = 0; i < this.productos.length; i++) if (this.coincide(i)) return false;
+        return true;
+    },
+}">
 <section class="hero">
     <div class="contenedor">
         <h1>Todo para el confort de tu bebé 👶</h1>
         <p>Pañales y calzoncitos premium, suaves y de alta absorción. Elige tu producto y haz tu pedido en minutos.</p>
         <div class="buscador-wrap">
             <span class="buscador-ic">🔍</span>
-            <input x-model="q" type="text" class="buscador" placeholder="Buscar pañales, pachas, toallitas…">
+            <input x-model="q" type="text" class="buscador" placeholder="Buscar por producto o talla: pañales, XXL, pachas…">
             <button class="buscador-x" x-show="q" @click="q = ''" style="display:none">✕</button>
         </div>
         <div class="pills" x-show="q.trim() === ''">
@@ -52,7 +95,7 @@
     <div class="grid">
         @foreach ($products as $p)
             <a class="pcard" href="{{ route('store.show', $p) }}"
-               x-show="q.trim() === '' || @js($indiceBusqueda[$loop->index]).includes(q.toLowerCase().trim())">
+               x-show="coincide({{ $loop->index }})">
                 @php $sinStock = $p->sizes->isNotEmpty() && ! $p->sizes->contains(fn ($s) => (int) $s->quantity > 0); @endphp
                 <div class="img">@if($p->oferta && ! $sinStock)<span class="oferta-bubble">{{ $p->oferta }}</span>@endif @if($sinStock)<span class="agotado-chip">Agotado</span>@endif<img src="{{ $p->imageUrl() }}" alt="{{ $p->name }}" loading="lazy" @if($sinStock) style="filter:grayscale(.7);opacity:.7" @endif></div>
                 <div class="body">
@@ -66,7 +109,7 @@
     </div>
 
     <div class="sg-none" style="margin:24px 0;display:none"
-         x-show="q.trim() !== '' && productos.filter(n => n.includes(q.toLowerCase().trim())).length === 0">
+         x-show="sinResultados()">
         No encontramos productos con "<span x-text="q"></span>".
         <a style="color:var(--teal-osc);font-weight:700" target="_blank"
            href="https://wa.me/{{ config('babyconfort.whatsapp') }}?text=Hola%2C%20busco%20un%20producto">Pregúntanos por WhatsApp</a>.
