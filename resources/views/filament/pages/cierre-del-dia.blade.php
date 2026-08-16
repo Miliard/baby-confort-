@@ -226,13 +226,106 @@
                     </x-filament::section>
                 @endif
 
-                @if($r['aiwibiBultos'] > 0)
-                    <div class="bc-card" style="padding:11px 14px;font-size:11.5px;opacity:.75">
-                        Aparte de tus cuentas: {{ $r['aiwibiBultos'] }}
-                        {{ $r['aiwibiBultos'] === 1 ? 'bulto de AIWIBI' : 'bultos de AIWIBI' }}
-                        por ${{ number_format($r['aiwibiDepositado'], 2) }}. Esa plata no es tuya — va en Remuneración.
+                {{-- ── Remuneración AIWIBI ── --}}
+                @php $m = $this->remuneracion; @endphp
+                <x-filament::section compact>
+                    <x-slot name="heading">Remuneración AIWIBI</x-slot>
+                    <x-slot name="description">Esa plata no es tuya: se cobra al entregar y hay que devolverla.</x-slot>
+
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:flex-end;margin-bottom:10px">
+                        <div>
+                            <label class="bc-lbl">Desde</label>
+                            <input type="date" wire:model.live="remDesde" class="bc-campo" style="width:145px">
+                        </div>
+                        <div>
+                            <label class="bc-lbl">Hasta</label>
+                            <input type="date" wire:model.live="remHasta" class="bc-campo" style="width:145px">
+                        </div>
+                        <x-filament::button size="xs" color="gray" wire:click="remPeriodo('dia')">Este día</x-filament::button>
+                        <x-filament::button size="xs" color="gray" wire:click="remPeriodo('semana')">Semana</x-filament::button>
+                        <x-filament::button size="xs" color="gray" wire:click="remPeriodo('mes')">Mes</x-filament::button>
+                        <x-filament::button size="xs" color="gray" wire:click="remPeriodo('anterior')">Mes pasado</x-filament::button>
+                        <x-filament::button size="xs" color="gray" wire:click="remPeriodo('todo')">Todo</x-filament::button>
+
+                        <div style="margin-left:auto;display:flex;gap:6px">
+                            <div>
+                                <label class="bc-lbl">Comisión %</label>
+                                <input type="number" step="0.01" min="0" wire:model.live.debounce.600ms="remComision"
+                                       class="bc-campo" style="width:80px">
+                            </div>
+                            <div>
+                                <label class="bc-lbl">Por envío $</label>
+                                <input type="number" step="0.01" min="0" wire:model.live.debounce.600ms="remPorEnvio"
+                                       class="bc-campo" style="width:85px">
+                            </div>
+                        </div>
                     </div>
-                @endif
+
+                    @if($m['envios'] === 0)
+                        <div style="padding:18px 0;text-align:center;font-size:12.5px;opacity:.6">
+                            No hay entregas de AIWIBI en ese período.
+                        </div>
+                    @else
+                        <div class="bc-2" style="align-items:start">
+                            <div class="bc-card" style="background:#16a34a;border-color:transparent;color:#fff">
+                                <div class="bc-et" style="opacity:.85">Total a pagar</div>
+                                <div class="bc-n">${{ number_format($m['aPagar'], 2) }}</div>
+                                <div class="bc-sub" style="opacity:.9">
+                                    {{ $m['envios'] }} envíos
+                                    @if($m['sinCobro'] > 0) · {{ $m['sinCobro'] }} sin cobro @endif
+                                    @if($m['devueltos'] > 0) · {{ $m['devueltos'] }} devueltos no cuentan @endif
+                                </div>
+                            </div>
+
+                            <div style="font-size:12.5px">
+                                <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(125,140,160,.15)">
+                                    <span>Cobrado</span><b>${{ number_format($m['cobrado'], 2) }}</b>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(125,140,160,.15)">
+                                    <span>Comisión {{ rtrim(rtrim(number_format($m['comisionPct'], 2), '0'), '.') }}%</span>
+                                    <b style="color:#dc2626">− ${{ number_format($m['comision'], 2) }}</b>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(125,140,160,.15)">
+                                    <span>{{ $m['envios'] }} × ${{ number_format($m['porEnvio'], 2) }}</span>
+                                    <b style="color:#dc2626">− ${{ number_format($m['descuento'], 2) }}</b>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;padding:7px 0 0">
+                                    <b>Total</b><b style="color:#16a34a">${{ number_format($m['aPagar'], 2) }}</b>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top:10px" x-data="{ ok: false, txt: @js($this->remTexto) }">
+                            <x-filament::button size="sm"
+                                x-on:click="navigator.clipboard.writeText(txt).then(() => { ok = true; setTimeout(() => ok = false, 2500) })">
+                                <span x-text="ok ? '✅ ¡Copiado! Pegalo en el chat' : '📋 Copiar el detalle para mandarlo'"></span>
+                            </x-filament::button>
+                        </div>
+
+                        <details style="margin-top:10px">
+                            <summary style="cursor:pointer;font-size:12.5px;opacity:.7">
+                                Ver las {{ $m['envios'] }} entregas
+                            </summary>
+                            <div style="max-height:300px;overflow:auto;margin-top:8px">
+                                <table class="bc-tabla">
+                                    <thead>
+                                        <tr><th>Fecha</th><th>Cliente</th><th>Zona</th><th style="text-align:right">Monto</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($m['filas'] as $f)
+                                            <tr>
+                                                <td style="white-space:nowrap;opacity:.6">{{ $f->fecha->format('d/m') }}</td>
+                                                <td>{{ $f->nombre }}<span style="display:block;font-size:11px;opacity:.55">{{ $f->orden }}</span></td>
+                                                <td style="opacity:.6">{{ $f->zona }}</td>
+                                                <td style="text-align:right;font-weight:600">${{ number_format($f->monto, 2) }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </details>
+                    @endif
+                </x-filament::section>
 
                 <div class="bc-2">
                     @if(count($this->depositos) > 0)

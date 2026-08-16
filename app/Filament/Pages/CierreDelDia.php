@@ -42,11 +42,94 @@ class CierreDelDia extends Page
     public string $bloqueCantidad = '';
     public string $bloqueCosto = '';
 
+    /** Remuneración AIWIBI: rango y condiciones */
+    public string $remDesde = '';
+    public string $remHasta = '';
+    public float  $remComision = 2.5;
+    public float  $remPorEnvio = 3.40;
+
     public function mount(): void
     {
         $fechas = CierreDia::fechasCargadas(1);
         $this->fecha = $fechas[0] ?? now()->toDateString();
         $this->cargarCampos();
+
+        $this->remDesde    = now()->startOfMonth()->toDateString();
+        $this->remHasta    = now()->toDateString();
+        $this->remComision = (float) \App\Models\Setting::get('remun_comision', 2.5);
+        $this->remPorEnvio = (float) \App\Models\Setting::get('remun_por_envio', 3.40);
+    }
+
+    public function updatedRemComision($v): void
+    {
+        \App\Models\Setting::put('remun_comision', (float) $v);
+    }
+
+    public function updatedRemPorEnvio($v): void
+    {
+        \App\Models\Setting::put('remun_por_envio', (float) $v);
+    }
+
+    /** Atajos de período para la remuneración. */
+    public function remPeriodo(string $cual): void
+    {
+        $hoy = now();
+        [$this->remDesde, $this->remHasta] = match ($cual) {
+            'dia'      => [$this->fecha, $this->fecha],
+            'semana'   => [$hoy->copy()->startOfWeek()->toDateString(), $hoy->toDateString()],
+            'mes'      => [$hoy->copy()->startOfMonth()->toDateString(), $hoy->toDateString()],
+            'anterior' => [$hoy->copy()->subMonthNoOverflow()->startOfMonth()->toDateString(),
+                           $hoy->copy()->subMonthNoOverflow()->endOfMonth()->toDateString()],
+            default    => ['', ''],
+        };
+    }
+
+    public function getRemuneracionProperty(): array
+    {
+        return CierreDia::remuneracion(
+            $this->remDesde ?: null,
+            $this->remHasta ?: null,
+            $this->remComision,
+            $this->remPorEnvio,
+        );
+    }
+
+    /** El corte en texto, listo para pegárselo a quien hay que pagarle. */
+    public function getRemTextoProperty(): string
+    {
+        $m = $this->remuneracion;
+
+        $periodo = ($this->remDesde || $this->remHasta)
+            ? 'Del ' . ($this->remDesde ? \Illuminate\Support\Carbon::parse($this->remDesde)->format('d/m/Y') : 'inicio')
+              . ' al ' . ($this->remHasta ? \Illuminate\Support\Carbon::parse($this->remHasta)->format('d/m/Y') : 'hoy')
+            : 'Todo el historial';
+
+        $t  = "\u{1F4E6} *REMUNERACI\u{D3}N AIWIBI*\n" . $periodo . "\n";
+        $t .= str_repeat('-', 28) . "\n\n";
+
+        foreach ($m['filas'] as $f) {
+            $t .= $f->fecha->format('d/m') . '  ' . trim($f->nombre) . "\n";
+            $t .= '     Gu' . "\u{ED}" . 'a ' . $f->orden;
+            if ($f->zona) $t .= ' ' . "\u{B7}" . ' ' . $f->zona;
+            $t .= "\n     $" . number_format($f->monto, 2) . "\n\n";
+        }
+
+        $pct = rtrim(rtrim(number_format($m['comisionPct'], 2), '0'), '.');
+
+        $t .= str_repeat('-', 28) . "\n";
+        $t .= "Env\u{ED}os: {$m['envios']}";
+        if ($m['sinCobro'] > 0)  $t .= " ({$m['sinCobro']} sin cobro)";
+        if ($m['devueltos'] > 0) $t .= " \u{B7} {$m['devueltos']} devueltos no cuentan";
+        $t .= "\n";
+        $t .= 'Cobrado: $' . number_format($m['cobrado'], 2) . "\n";
+        $t .= "Comisi\u{F3}n {$pct}%: -$" . number_format($m['comision'], 2) . "\n";
+        $t .= 'Subtotal: $' . number_format($m['subtotal'], 2) . "\n";
+        $t .= "Env\u{ED}os {$m['envios']} x $" . number_format($m['porEnvio'], 2)
+            . ': -$' . number_format($m['descuento'], 2) . "\n";
+        $t .= str_repeat('-', 28) . "\n";
+        $t .= '*TOTAL A PAGAR: $' . number_format($m['aPagar'], 2) . '*';
+
+        return $t;
     }
 
     private function cargarCampos(): void

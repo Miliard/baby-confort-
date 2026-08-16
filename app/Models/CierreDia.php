@@ -94,6 +94,62 @@ class CierreDia extends Model
         ];
     }
 
+    /**
+     * Remuneración de AIWIBI en un rango de fechas, con los mismos datos que
+     * se pegan en el Cierre del día. Esa plata no es del negocio: se cobra al
+     * entregar y hay que devolverla, menos la comisión y el flete.
+     */
+    public static function remuneracion(
+        ?string $desde,
+        ?string $hasta,
+        float $comisionPct = 2.5,
+        float $porEnvio = 3.40,
+    ): array {
+        $vacio = [
+            'filas' => collect(), 'envios' => 0, 'devueltos' => 0, 'sinCobro' => 0,
+            'cobrado' => 0.0, 'comision' => 0.0, 'subtotal' => 0.0,
+            'descuento' => 0.0, 'aPagar' => 0.0,
+            'comisionPct' => $comisionPct, 'porEnvio' => $porEnvio,
+        ];
+
+        if (! ExpressEntrega::hayTabla()) return $vacio;
+
+        try {
+            $q = ExpressEntrega::where('aiwibi', true);
+            if ($desde) $q->whereDate('fecha', '>=', $desde);
+            if ($hasta) $q->whereDate('fecha', '<=', $hasta);
+            $todas = $q->orderBy('fecha')->orderBy('nombre')->get();
+        } catch (\Throwable $e) {
+            return $vacio;
+        }
+
+        if ($todas->isEmpty()) return $vacio;
+
+        // Lo devuelto no se entregó: no se cobra flete por eso.
+        $devueltos = $todas->where('caso', 'devolucion');
+        $filas     = $todas->where('caso', '!=', 'devolucion')->values();
+
+        $cobrado   = (float) $filas->sum('monto');
+        $envios    = $filas->count();
+        $comision  = round($cobrado * ($comisionPct / 100), 2);
+        $subtotal  = round($cobrado - $comision, 2);
+        $descuento = round($envios * $porEnvio, 2);
+
+        return [
+            'filas'       => $filas,
+            'envios'      => $envios,
+            'devueltos'   => $devueltos->count(),
+            'sinCobro'    => $filas->where('monto', 0)->count(),
+            'cobrado'     => round($cobrado, 2),
+            'comision'    => $comision,
+            'subtotal'    => $subtotal,
+            'descuento'   => $descuento,
+            'aPagar'      => round($subtotal - $descuento, 2),
+            'comisionPct' => $comisionPct,
+            'porEnvio'    => $porEnvio,
+        ];
+    }
+
     /** Fechas que ya tienen entregas cargadas, de la más nueva a la más vieja. */
     public static function fechasCargadas(int $limite = 30): array
     {

@@ -14,10 +14,17 @@ use Filament\Pages\Page;
  */
 class Remuneracion extends Page
 {
+    /**
+     * Pantalla vieja: leía de una hoja de Google aparte, así que nunca cuadraba
+     * con lo que se pega en el Cierre del día. La remuneración ahora vive ahí,
+     * con los mismos datos. Esta se deja oculta por si hiciera falta el archivo.
+     */
+    protected static bool $shouldRegisterNavigation = false;
+
     protected static ?string $navigationIcon  = 'heroicon-o-banknotes';
-    protected static ?string $navigationLabel = 'Remuneración';
-    protected static ?string $title           = 'Remuneración AIWIBI';
-    protected static ?int    $navigationSort  = 2;
+    protected static ?string $navigationLabel = 'Remuneración (vieja)';
+    protected static ?string $title           = 'Remuneración AIWIBI (versión vieja)';
+    protected static ?int    $navigationSort  = 90;
 
     protected static string $view = 'filament.pages.remuneracion';
 
