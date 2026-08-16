@@ -11,7 +11,13 @@
         <textarea wire:model="pegado" rows="6" placeholder="13-ago&#9;BABY CONFORT -200&#9;5370975&#9;Luz Villatoro&#9;Corinto&#9;$ 52,00&#9;$ 1,04&#9;$ 50,96"
             class="w-full rounded-xl border-gray-300 font-mono text-xs dark:border-white/10 dark:bg-white/5"></textarea>
 
-        <div class="mt-3">
+        <div class="mt-3 flex flex-wrap items-end gap-3">
+            <div>
+                <label class="mb-1 block text-xs font-medium text-gray-500">¿Qué día te lo depositaron?</label>
+                <input type="date" wire:model="fechaDeposito"
+                    class="rounded-lg border-gray-300 text-sm dark:border-white/10 dark:bg-white/5">
+                <p class="mt-1 text-xs text-gray-400">Opcional. Sirve para cuadrar la caja.</p>
+            </div>
             <x-filament::button wire:click="procesar" icon="heroicon-o-arrow-down-tray">
                 Procesar el pegado
             </x-filament::button>
@@ -171,6 +177,32 @@
                 </div>
             @endif
         </x-filament::section>
+
+        {{-- ---------- Depósitos: la caja, que es otro reloj ---------- --}}
+        @if(count($this->depositos) > 0)
+            <x-filament::section collapsible collapsed>
+                <x-slot name="heading">Depósitos recibidos</x-slot>
+                <x-slot name="description">
+                    Un depósito suele cubrir varias fechas de entrega. Aquí ves cuál cubrió cuáles.
+                </x-slot>
+
+                <div class="space-y-2">
+                    @foreach($this->depositos as $d)
+                        <div class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 p-3 dark:border-white/10">
+                            <div>
+                                <div class="text-sm font-semibold text-gray-950 dark:text-white">
+                                    {{ \Illuminate\Support\Carbon::parse($d['fecha'])->translatedFormat('d \d\e F') }}
+                                </div>
+                                <div class="mt-0.5 text-xs text-gray-500">
+                                    {{ $d['bultos'] }} bultos · entregas del {{ implode(', ', $d['entregas']) }}
+                                </div>
+                            </div>
+                            <div class="text-lg font-bold text-success-600">${{ number_format($d['monto'], 2) }}</div>
+                        </div>
+                    @endforeach
+                </div>
+            </x-filament::section>
+        @endif
 
         {{-- ---------- Detalle ---------- --}}
         <x-filament::section collapsible collapsed>

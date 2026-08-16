@@ -21,8 +21,24 @@ class CierreDelDia extends Page
 
     protected static string $view = 'filament.pages.cierre-del-dia';
 
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            \App\Filament\Widgets\ResumenSemanaStats::class,
+            \App\Filament\Widgets\ResultadoDiarioChart::class,
+        ];
+    }
+
+    public function getHeaderWidgetsColumns(): int|array
+    {
+        return 1;
+    }
+
     /** Texto que se pega de Express */
     public string $pegado = '';
+
+    /** Qué día entró la plata de ese pegado (el depósito cubre varias entregas) */
+    public string $fechaDeposito = '';
 
     /** Fecha que se está mirando */
     public string $fecha = '';
@@ -75,16 +91,23 @@ class CierreDelDia extends Page
         }
 
         $nuevas = 0; $repetidas = 0;
+        $deposito = trim($this->fechaDeposito) ?: null;
 
         foreach ($filas as $f) {
             $huella = ExpressPegado::huella($f);
 
-            if (ExpressEntrega::where('huella', $huella)->exists()) {
+            $existente = ExpressEntrega::where('huella', $huella)->first();
+            if ($existente) {
+                // Si antes no se sabía cuándo entró la plata, ahora se anota.
+                if ($deposito && ! $existente->fecha_deposito) {
+                    $existente->fecha_deposito = $deposito;
+                    $existente->save();
+                }
                 $repetidas++;
                 continue;
             }
 
-            ExpressEntrega::create($f + ['huella' => $huella]);
+            ExpressEntrega::create($f + ['huella' => $huella, 'fecha_deposito' => $deposito]);
             $nuevas++;
         }
 
@@ -161,6 +184,33 @@ class CierreDelDia extends Page
         return ExpressEntrega::whereDate('fecha', $this->fecha)
             ->where('aiwibi', false)->where('monto', 0)->whereNull('caso')
             ->orderBy('id')->get();
+    }
+
+    /**
+     * Los depósitos: qué día entró plata, cuánto, y qué fechas de entrega cubrió.
+     * Sirve para cuadrar la caja, que es otra pregunta distinta a "¿gané hoy?".
+     */
+    public function getDepositosProperty(): array
+    {
+        if (! ExpressEntrega::hayTabla()) return [];
+
+        $filas = ExpressEntrega::whereNotNull('fecha_deposito')
+            ->where('aiwibi', false)
+            ->orderByDesc('fecha_deposito')
+            ->get()
+            ->groupBy(fn ($e) => $e->fecha_deposito->toDateString());
+
+        $out = [];
+        foreach ($filas as $fecha => $grupo) {
+            $out[] = [
+                'fecha'   => $fecha,
+                'monto'   => round((float) $grupo->sum('total'), 2),
+                'bultos'  => $grupo->count(),
+                'entregas'=> $grupo->pluck('fecha')->map(fn ($f) => $f->format('d/m'))->unique()->sort()->values()->all(),
+            ];
+        }
+
+        return array_slice($out, 0, 12);
     }
 
     public function getEntregasProperty()

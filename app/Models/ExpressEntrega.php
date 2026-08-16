@@ -15,12 +15,13 @@ class ExpressEntrega extends Model
     protected $table = 'express_entregas';
 
     protected $fillable = [
-        'fecha', 'orden', 'nombre', 'zona', 'monto', 'comision', 'total',
+        'fecha', 'fecha_deposito', 'orden', 'nombre', 'zona', 'monto', 'comision', 'total',
         'aiwibi', 'caso', 'transferido', 'huella',
     ];
 
     protected $casts = [
-        'fecha'       => 'date',
+        'fecha'          => 'date',
+        'fecha_deposito' => 'date',
         'monto'       => 'decimal:2',
         'comision'    => 'decimal:2',
         'total'       => 'decimal:2',
