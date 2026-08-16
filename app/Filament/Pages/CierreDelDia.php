@@ -21,6 +21,9 @@ class CierreDelDia extends Page
 
     protected static string $view = 'filament.pages.cierre-del-dia';
 
+    /** Ancho completo: si no, las dos columnas no caben y todo se apila. */
+    protected ?string $maxContentWidth = 'full';
+
     protected function getHeaderWidgets(): array
     {
         return [\App\Filament\Widgets\ResumenSemanaStats::class];

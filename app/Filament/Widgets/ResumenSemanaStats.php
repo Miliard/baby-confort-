@@ -32,19 +32,19 @@ class ResumenSemanaStats extends StatsOverviewWidget
         $dias = count($fechas);
 
         return [
-            Stat::make('Entró', '$' . number_format($entro, 2))
+            Stat::make('Entró · últimos días', '$' . number_format($entro, 2))
                 ->description($dias . ' ' . ($dias === 1 ? 'día cargado' : 'días cargados'))
                 ->descriptionIcon('heroicon-m-arrow-trending-up')
                 ->color('info'),
 
-            Stat::make('Resultado', '$' . number_format($resultado, 2))
+            Stat::make('Resultado · últimos días', '$' . number_format($resultado, 2))
                 ->description($sinProveedor > 0
                     ? $sinProveedor . ' ' . ($sinProveedor === 1 ? 'día sin cargar el proveedor' : 'días sin cargar el proveedor')
                     : 'Todos los días completos')
                 ->descriptionIcon($sinProveedor > 0 ? 'heroicon-m-exclamation-triangle' : 'heroicon-m-check-circle')
                 ->color($sinProveedor > 0 ? 'warning' : ($resultado >= 0 ? 'success' : 'danger')),
 
-            Stat::make('Bultos', (string) $bultos)
+            Stat::make('Bultos · últimos días', (string) $bultos)
                 ->description('Costo: $' . number_format($bultos * CierreDia::COSTO_BULTO, 2))
                 ->descriptionIcon('heroicon-m-cube')
                 ->color('gray'),

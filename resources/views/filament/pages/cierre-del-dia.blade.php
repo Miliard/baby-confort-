@@ -18,10 +18,10 @@
         </div>
 
         {{-- ═══════════ Las cuatro tarjetas ═══════════ --}}
-        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
 
             {{-- Resultado --}}
-            <div class="rounded-2xl p-4 text-white shadow {{ $r['resultado'] >= 0 ? 'bg-success-600' : 'bg-danger-600' }}">
+            <div class="rounded-2xl p-4 text-white shadow" style="background: {{ $r['resultado'] >= 0 ? '#16a34a' : '#dc2626' }}">
                 <div class="text-[11px] uppercase tracking-wide opacity-80">
                     Resultado {{ \Illuminate\Support\Carbon::parse($fecha)->format('d/m') }}
                 </div>
@@ -49,25 +49,24 @@
             </div>
 
             {{-- Guías restantes --}}
-            <div @class([
-                'rounded-2xl border p-4 shadow-sm',
-                'border-danger-300 bg-danger-50 dark:border-danger-500/40 dark:bg-danger-500/10'     => $s['hay'] && $s['restantes'] <= 50,
-                'border-warning-300 bg-warning-50 dark:border-warning-500/40 dark:bg-warning-500/10' => $s['hay'] && $s['restantes'] > 50 && $s['restantes'] <= 150,
-                'border-gray-200 bg-white dark:border-white/10 dark:bg-gray-900'                     => ! $s['hay'] || $s['restantes'] > 150,
-            ])>
+            @php
+                $colGuia = ! $s['hay'] ? null : ($s['restantes'] <= 50 ? '#dc2626' : ($s['restantes'] <= 150 ? '#d97706' : null));
+            @endphp
+            <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-gray-900"
+                 @if($colGuia) style="border-color: {{ $colGuia }}; background: {{ $colGuia }}1a" @endif>
                 <div class="text-[11px] uppercase tracking-wide text-gray-500">Guías restantes</div>
                 @if($s['hay'])
                     <div class="mt-0.5 text-3xl font-extrabold tracking-tight text-gray-950 dark:text-white">
                         {{ $s['restantes'] }}
                     </div>
                     <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-white/10">
-                        <div class="h-full rounded-full {{ $s['restantes'] <= 50 ? 'bg-danger-500' : ($s['restantes'] <= 150 ? 'bg-warning-500' : 'bg-success-500') }}"
-                             style="width: {{ $s['porcentaje'] }}%"></div>
+                        <div class="h-full rounded-full"
+                             style="width: {{ $s['porcentaje'] }}%; background: {{ $s['restantes'] <= 50 ? '#dc2626' : ($s['restantes'] <= 150 ? '#d97706' : '#16a34a') }}"></div>
                     </div>
                     <div class="mt-1 text-[11.5px] text-gray-500">
                         {{ $s['usadas'] }} de {{ $s['compradas'] }} usadas · ${{ number_format($s['costoBulto'], 2) }} c/u
                         @if($s['restantes'] <= 50)
-                            <span class="block font-semibold text-danger-600">¡Comprá más!</span>
+                            <span class="block font-semibold" style="color:#dc2626">¡Comprá más!</span>
                         @endif
                     </div>
                 @else
@@ -78,11 +77,8 @@
             </div>
 
             {{-- Sin monto --}}
-            <div @class([
-                'rounded-2xl border p-4 shadow-sm',
-                'border-warning-300 bg-warning-50 dark:border-warning-500/40 dark:bg-warning-500/10' => $this->pendientes->count() > 0,
-                'border-gray-200 bg-white dark:border-white/10 dark:bg-gray-900'                     => $this->pendientes->count() === 0,
-            ])>
+            <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-gray-900"
+                 @if($this->pendientes->count() > 0) style="border-color:#d97706; background:#d977061a" @endif>
                 <div class="text-[11px] uppercase tracking-wide text-gray-500">Sin monto</div>
                 <div class="mt-0.5 text-3xl font-extrabold tracking-tight text-gray-950 dark:text-white">
                     {{ $this->pendientes->count() }}
@@ -99,10 +95,10 @@
     @endif
 
     {{-- ═══════════ Dos columnas ═══════════ --}}
-    <div class="grid gap-3 xl:grid-cols-12">
+    <div class="grid gap-3 lg:grid-cols-12">
 
         {{-- ---------- Izquierda: meter datos ---------- --}}
-        <div class="space-y-3 xl:col-span-4">
+        <div class="space-y-3 lg:col-span-4">
 
             <x-filament::section compact collapsible :collapsed="count($this->fechas) > 0">
                 <x-slot name="heading">1 · Pegar liquidación</x-slot>
@@ -174,7 +170,7 @@
         </div>
 
         {{-- ---------- Derecha: ver ---------- --}}
-        <div class="space-y-3 xl:col-span-8">
+        <div class="space-y-3 lg:col-span-8">
 
             @if(count($this->fechas) === 0)
                 <x-filament::section>
@@ -192,7 +188,7 @@
                         <div class="grid gap-2 md:grid-cols-2">
                             @foreach($this->pendientes as $p)
                                 <div wire:key="pend-{{ $p->id }}" x-data="{ monto: '' }"
-                                     class="rounded-lg border border-warning-300 p-2.5 dark:border-warning-500/40">
+                                     class="rounded-lg border p-2.5" style="border-color:#d97706; background:#d977060d">
                                     <div class="text-sm font-semibold text-gray-950 dark:text-white">{{ $p->nombre }}</div>
                                     <div class="mt-0.5 text-xs text-gray-500">Guía {{ $p->orden }} · {{ $p->zona }}</div>
 
