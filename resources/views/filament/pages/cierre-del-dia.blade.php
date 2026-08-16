@@ -101,7 +101,7 @@
             </div>
 
             <div class="bc-card" @if($colGuia) style="border-color: {{ $colGuia }}; background: {{ $colGuia }}1a" @endif>
-                <div class="bc-et">Guías restantes</div>
+                <div class="bc-et">{{ $s['hay'] ? 'Guías restantes' : 'Guías usadas' }}</div>
                 @if($s['hay'])
                     <div class="bc-n">{{ $s['restantes'] }}</div>
                     <div class="bc-barra">
@@ -112,7 +112,11 @@
                         @if($s['restantes'] <= 50)<span style="display:block;font-weight:700;color:#dc2626">¡Comprá más!</span>@endif
                     </div>
                 @else
-                    <div class="bc-sub" style="margin-top:8px">Cargá tu paquete de guías en el cuadro <b>3</b> de la izquierda.</div>
+                    <div class="bc-n">{{ $s['usadasTotal'] ?? 0 }}</div>
+                    <div class="bc-sub">
+                        bultos ya consumidos.
+                        <span style="display:block">Cargá tu paquete en el cuadro <b>3</b> para ver cuántas te quedan.</span>
+                    </div>
                 @endif
             </div>
 
@@ -198,8 +202,15 @@
                         <label class="bc-lbl">Costo ($)</label>
                         <input type="number" step="0.01" min="0" wire:model="bloqueCosto" placeholder="1400" class="bc-campo" style="width:105px">
                     </div>
+                    <div>
+                        <label class="bc-lbl">Desde qué día cuenta</label>
+                        <input type="date" wire:model="bloqueFecha" class="bc-campo" style="width:150px">
+                    </div>
                     <x-filament::button size="sm" wire:click="agregarBloque" icon="heroicon-o-plus">Cargar</x-filament::button>
                 </div>
+                <p style="margin-top:6px;font-size:11px;opacity:.55">
+                    Poné la fecha en que empezaste a usar ese paquete. Si la dejás vacía, cuenta desde hoy.
+                </p>
 
                 @if($this->bloques->count() > 0)
                     <div style="margin-top:10px;display:flex;flex-direction:column;gap:5px">

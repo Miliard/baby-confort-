@@ -48,9 +48,20 @@ class BloqueGuia extends Model
      */
     public static function saldo(): array
     {
+        // Los bultos registrados en total, haya bloque o no: eso es lo que ya
+        // se consumió y siempre se puede mostrar.
+        $usadasTotal = 0;
+        if (ExpressEntrega::hayTabla()) {
+            try {
+                $usadasTotal = ExpressEntrega::where('duplicado', false)->count();
+            } catch (\Throwable $e) {
+            }
+        }
+
         $vacio = [
             'hay' => false, 'compradas' => 0, 'usadas' => 0, 'restantes' => 0,
             'porcentaje' => 0, 'costoBulto' => CierreDia::COSTO_BULTO, 'desde' => null,
+            'usadasTotal' => $usadasTotal,
         ];
 
         if (! static::hayTabla()) return $vacio;
@@ -64,7 +75,10 @@ class BloqueGuia extends Model
 
         if (ExpressEntrega::hayTabla()) {
             try {
-                $usadas += ExpressEntrega::whereDate('fecha', '>=', $desde->toDateString())->count();
+                // Los renglones que Express repitió por error (TYP) no son bultos
+                // de verdad: no consumen guía ni se pagan.
+                $usadas += ExpressEntrega::whereDate('fecha', '>=', $desde->toDateString())
+                    ->where('duplicado', false)->count();
             } catch (\Throwable $e) {
             }
         }
@@ -72,13 +86,14 @@ class BloqueGuia extends Model
         $restantes = max(0, $compradas - $usadas);
 
         return [
-            'hay'        => true,
-            'compradas'  => $compradas,
-            'usadas'     => $usadas,
-            'restantes'  => $restantes,
-            'porcentaje' => $compradas > 0 ? (int) round($restantes / $compradas * 100) : 0,
-            'costoBulto' => static::costoBulto(),
-            'desde'      => $desde->toDateString(),
+            'hay'         => true,
+            'compradas'   => $compradas,
+            'usadas'      => $usadas,
+            'restantes'   => $restantes,
+            'porcentaje'  => $compradas > 0 ? (int) round($restantes / $compradas * 100) : 0,
+            'costoBulto'  => static::costoBulto(),
+            'desde'       => $desde->toDateString(),
+            'usadasTotal' => $usadasTotal,
         ];
     }
 }

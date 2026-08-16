@@ -45,6 +45,7 @@ class CierreDelDia extends Page
     /** Alta de un bloque de guías comprado a Express */
     public string $bloqueCantidad = '';
     public string $bloqueCosto = '';
+    public string $bloqueFecha = '';
 
     /** Remuneración AIWIBI: solo las condiciones; el rango es el de arriba */
     public float  $remComision = 2.5;
@@ -270,13 +271,15 @@ class CierreDelDia extends Page
         }
 
         \App\Models\BloqueGuia::create([
-            'fecha'    => now()->toDateString(),
+            // Desde esa fecha se empiezan a descontar los bultos entregados.
+            'fecha'    => trim($this->bloqueFecha) ?: now()->toDateString(),
             'cantidad' => $cant,
             'costo'    => $costo,
         ]);
 
         $this->bloqueCantidad = '';
         $this->bloqueCosto = '';
+        $this->bloqueFecha = '';
 
         Notification::make()
             ->title($cant . ' guías cargadas')
