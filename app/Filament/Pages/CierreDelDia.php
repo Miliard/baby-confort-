@@ -24,16 +24,6 @@ class CierreDelDia extends Page
     /** Ancho completo: si no, las dos columnas no caben y todo se apila. */
     protected ?string $maxContentWidth = 'full';
 
-    protected function getHeaderWidgets(): array
-    {
-        return [\App\Filament\Widgets\ResumenSemanaStats::class];
-    }
-
-    public function getHeaderWidgetsColumns(): int|array
-    {
-        return 1;
-    }
-
     /** Texto que se pega de Express */
     public string $pegado = '';
 

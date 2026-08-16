@@ -12,6 +12,9 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
  */
 class ResumenSemanaStats extends StatsOverviewWidget
 {
+    /** Ya no se usa: se quitó de la pantalla. No debe aparecer sola en el panel. */
+    protected static bool $isDiscovered = false;
+
     protected static ?string $pollingInterval = null;
     protected int|string|array $columnSpan = 'full';
 

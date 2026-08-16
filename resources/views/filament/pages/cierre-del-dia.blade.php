@@ -108,11 +108,7 @@
                     style="font-family:ui-monospace,Consolas,monospace;font-size:11px;resize:vertical"
                     placeholder="13-ago&#9;BABY CONFORT -200&#9;5370975&#9;Luz Villatoro&#9;Corinto&#9;$ 52,00&#9;$ 1,04&#9;$ 50,96"></textarea>
 
-                <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
-                    <div>
-                        <label class="bc-lbl">Día del depósito</label>
-                        <input type="date" wire:model="fechaDeposito" class="bc-campo" style="width:150px">
-                    </div>
+                <div style="margin-top:8px">
                     <x-filament::button size="sm" wire:click="procesar" icon="heroicon-o-arrow-down-tray">
                         Procesar
                     </x-filament::button>
@@ -229,8 +225,6 @@
                         </div>
                     </x-filament::section>
                 @endif
-
-                @livewire(\App\Filament\Widgets\ResultadoDiarioChart::class)
 
                 @if($r['aiwibiBultos'] > 0)
                     <div class="bc-card" style="padding:11px 14px;font-size:11.5px;opacity:.75">

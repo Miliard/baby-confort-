@@ -12,6 +12,9 @@ use Illuminate\Support\Carbon;
  */
 class ResultadoDiarioChart extends ChartWidget
 {
+    /** Ya no se usa: se quitó de la pantalla. No debe aparecer sola en el panel. */
+    protected static bool $isDiscovered = false;
+
     protected static ?string $heading = 'Resultado por día';
     protected static ?string $maxHeight = '260px';
     protected int|string|array $columnSpan = 'full';
