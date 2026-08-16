@@ -38,7 +38,7 @@
             <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
                 <div class="bc-dias">
                     @foreach(['dia' => 'Día', 'semana' => 'Semana', 'quincena' => 'Quincena',
-                              'mes' => 'Mes', 'ano' => 'Año'] as $k => $et)
+                              'mes' => 'Mes', 'ano' => 'Año', 'rango' => 'Personalizado'] as $k => $et)
                         <x-filament::button size="xs" :color="$vista === $k ? 'primary' : 'gray'"
                             wire:click="verVista('{{ $k }}')">{{ $et }}</x-filament::button>
                     @endforeach
@@ -59,6 +59,23 @@
                         label="Borrar este período" />
                 </div>
             </div>
+
+            @if($vista === 'rango')
+                <div style="margin-top:9px;padding-top:9px;border-top:1px solid rgba(125,140,160,.2);
+                            display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
+                    <div>
+                        <label class="bc-lbl">Desde</label>
+                        <input type="date" wire:model.live="desdeLibre" class="bc-campo" style="width:150px">
+                    </div>
+                    <div>
+                        <label class="bc-lbl">Hasta</label>
+                        <input type="date" wire:model.live="hastaLibre" class="bc-campo" style="width:150px">
+                    </div>
+                    <span style="font-size:11.5px;opacity:.55;padding-bottom:8px">
+                        Elegí el rango exacto que le vas a remunerar al socio.
+                    </span>
+                </div>
+            @endif
 
             @if($vista === 'dia')
                 <div class="bc-dias" style="margin-top:9px;padding-top:9px;border-top:1px solid rgba(125,140,160,.2)">

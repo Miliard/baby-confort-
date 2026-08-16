@@ -34,8 +34,12 @@ class CierreDelDia extends Page
     /** Fecha ancla que se está mirando */
     public string $fecha = '';
 
-    /** Cómo se agrupa lo que se ve: dia | semana | quincena | mes | ano */
+    /** Cómo se agrupa lo que se ve: dia | semana | quincena | mes | ano | rango */
     public string $vista = 'dia';
+
+    /** Fechas del período personalizado (cuando vista = rango) */
+    public string $desdeLibre = '';
+    public string $hastaLibre = '';
 
     /** Campos del día (se guardan al escribir) */
     public string $proveedor = '';
@@ -328,12 +332,27 @@ class CierreDelDia extends Page
 
     public function verVista(string $vista): void
     {
-        $this->vista = in_array($vista, ['dia', 'semana', 'quincena', 'mes', 'ano'], true) ? $vista : 'dia';
+        $this->vista = in_array($vista, ['dia', 'semana', 'quincena', 'mes', 'ano', 'rango'], true) ? $vista : 'dia';
+
+        // Al entrar al personalizado, se arranca con el mes en curso.
+        if ($this->vista === 'rango' && $this->desdeLibre === '') {
+            $this->desdeLibre = now()->startOfMonth()->toDateString();
+            $this->hastaLibre = now()->toDateString();
+        }
     }
 
     /** Mueve el período hacia atrás (-1) o hacia adelante (+1). */
     public function mover(int $pasos): void
     {
+        // El personalizado se mueve completo: se corre tantos días como dure.
+        if ($this->vista === 'rango') {
+            [$d, $h] = $this->rango();
+            $dias = \Illuminate\Support\Carbon::parse($d)->diffInDays(\Illuminate\Support\Carbon::parse($h)) + 1;
+            $this->desdeLibre = \Illuminate\Support\Carbon::parse($d)->addDays($dias * $pasos)->toDateString();
+            $this->hastaLibre = \Illuminate\Support\Carbon::parse($h)->addDays($dias * $pasos)->toDateString();
+            return;
+        }
+
         $f = \Illuminate\Support\Carbon::parse($this->fecha ?: now());
 
         $f = match ($this->vista) {
@@ -352,6 +371,12 @@ class CierreDelDia extends Page
     public function rango(): array
     {
         $f = \Illuminate\Support\Carbon::parse($this->fecha ?: now());
+
+        if ($this->vista === 'rango') {
+            $d = $this->desdeLibre ?: $f->toDateString();
+            $h = $this->hastaLibre ?: $d;
+            return $h < $d ? [$h, $d] : [$d, $h];   // por si se invierten
+        }
 
         return match ($this->vista) {
             'semana'   => [$f->copy()->startOfWeek()->toDateString(), $f->copy()->endOfWeek()->toDateString()],
@@ -377,6 +402,7 @@ class CierreDelDia extends Page
                           . $cd->translatedFormat('F Y'),
             'mes'      => ucfirst($cd->translatedFormat('F \d\e Y')),
             'ano'      => 'Año ' . $cd->format('Y'),
+            'rango'    => 'Del ' . $cd->format('d/m/Y') . ' al ' . $ch->format('d/m/Y'),
             default    => $cd->translatedFormat('l d \d\e F'),
         };
     }
