@@ -30,8 +30,11 @@ class CierreDelDia extends Page
     /** Qué día entró la plata de ese pegado (el depósito cubre varias entregas) */
     public string $fechaDeposito = '';
 
-    /** Fecha que se está mirando */
+    /** Fecha ancla que se está mirando */
     public string $fecha = '';
+
+    /** Cómo se agrupa lo que se ve: dia | semana | quincena | mes | ano */
+    public string $vista = 'dia';
 
     /** Campos del día (se guardan al escribir) */
     public string $proveedor = '';
@@ -42,9 +45,7 @@ class CierreDelDia extends Page
     public string $bloqueCantidad = '';
     public string $bloqueCosto = '';
 
-    /** Remuneración AIWIBI: rango y condiciones */
-    public string $remDesde = '';
-    public string $remHasta = '';
+    /** Remuneración AIWIBI: solo las condiciones; el rango es el de arriba */
     public float  $remComision = 2.5;
     public float  $remPorEnvio = 3.40;
 
@@ -54,8 +55,6 @@ class CierreDelDia extends Page
         $this->fecha = $fechas[0] ?? now()->toDateString();
         $this->cargarCampos();
 
-        $this->remDesde    = now()->startOfMonth()->toDateString();
-        $this->remHasta    = now()->toDateString();
         $this->remComision = (float) \App\Models\Setting::get('remun_comision', 2.5);
         $this->remPorEnvio = (float) \App\Models\Setting::get('remun_por_envio', 3.40);
     }
@@ -70,37 +69,17 @@ class CierreDelDia extends Page
         \App\Models\Setting::put('remun_por_envio', (float) $v);
     }
 
-    /** Atajos de período para la remuneración. */
-    public function remPeriodo(string $cual): void
-    {
-        $hoy = now();
-        [$this->remDesde, $this->remHasta] = match ($cual) {
-            'dia'      => [$this->fecha, $this->fecha],
-            'semana'   => [$hoy->copy()->startOfWeek()->toDateString(), $hoy->toDateString()],
-            'mes'      => [$hoy->copy()->startOfMonth()->toDateString(), $hoy->toDateString()],
-            'anterior' => [$hoy->copy()->subMonthNoOverflow()->startOfMonth()->toDateString(),
-                           $hoy->copy()->subMonthNoOverflow()->endOfMonth()->toDateString()],
-            default    => ['', ''],
-        };
-    }
-
     /** Qué producto sale más, por cantidad de paquetes. Usa el mismo rango. */
     public function getVendidosProperty(): array
     {
-        return \App\Services\ProductosVendidos::ranking(
-            $this->remDesde ?: null,
-            $this->remHasta ?: null,
-        );
+        [$d, $h] = $this->rango();
+        return \App\Services\ProductosVendidos::ranking($d, $h);
     }
 
     public function getRemuneracionProperty(): array
     {
-        return CierreDia::remuneracion(
-            $this->remDesde ?: null,
-            $this->remHasta ?: null,
-            $this->remComision,
-            $this->remPorEnvio,
-        );
+        [$d, $h] = $this->rango();
+        return CierreDia::remuneracion($d, $h, $this->remComision, $this->remPorEnvio);
     }
 
     /** El corte en texto, listo para pegárselo a quien hay que pagarle. */
@@ -108,10 +87,9 @@ class CierreDelDia extends Page
     {
         $m = $this->remuneracion;
 
-        $periodo = ($this->remDesde || $this->remHasta)
-            ? 'Del ' . ($this->remDesde ? \Illuminate\Support\Carbon::parse($this->remDesde)->format('d/m/Y') : 'inicio')
-              . ' al ' . ($this->remHasta ? \Illuminate\Support\Carbon::parse($this->remHasta)->format('d/m/Y') : 'hoy')
-            : 'Todo el historial';
+        [$d, $h] = $this->rango();
+        $periodo = 'Del ' . \Illuminate\Support\Carbon::parse($d)->format('d/m/Y')
+                 . ' al ' . \Illuminate\Support\Carbon::parse($h)->format('d/m/Y');
 
         $t  = "\u{1F4E6} *REMUNERACI\u{D3}N AIWIBI*\n" . $periodo . "\n";
         $t .= str_repeat('-', 28) . "\n\n";
@@ -294,6 +272,63 @@ class CierreDelDia extends Page
         $this->cargarCampos();
     }
 
+    // ---------------- Período que se está mirando ----------------
+
+    public function verVista(string $vista): void
+    {
+        $this->vista = in_array($vista, ['dia', 'semana', 'quincena', 'mes', 'ano'], true) ? $vista : 'dia';
+    }
+
+    /** Mueve el período hacia atrás (-1) o hacia adelante (+1). */
+    public function mover(int $pasos): void
+    {
+        $f = \Illuminate\Support\Carbon::parse($this->fecha ?: now());
+
+        $f = match ($this->vista) {
+            'semana'   => $f->addWeeks($pasos),
+            'quincena' => $f->addDays(15 * $pasos),
+            'mes'      => $f->addMonthsNoOverflow($pasos),
+            'ano'      => $f->addYears($pasos),
+            default    => $f->addDays($pasos),
+        };
+
+        $this->fecha = $f->toDateString();
+        $this->cargarCampos();
+    }
+
+    /** [desde, hasta] del período elegido. */
+    public function rango(): array
+    {
+        $f = \Illuminate\Support\Carbon::parse($this->fecha ?: now());
+
+        return match ($this->vista) {
+            'semana'   => [$f->copy()->startOfWeek()->toDateString(), $f->copy()->endOfWeek()->toDateString()],
+            'quincena' => $f->day <= 15
+                ? [$f->copy()->startOfMonth()->toDateString(), $f->copy()->startOfMonth()->addDays(14)->toDateString()]
+                : [$f->copy()->startOfMonth()->addDays(15)->toDateString(), $f->copy()->endOfMonth()->toDateString()],
+            'mes'      => [$f->copy()->startOfMonth()->toDateString(), $f->copy()->endOfMonth()->toDateString()],
+            'ano'      => [$f->copy()->startOfYear()->toDateString(), $f->copy()->endOfYear()->toDateString()],
+            default    => [$f->toDateString(), $f->toDateString()],
+        };
+    }
+
+    /** Cómo se lee el período en pantalla. */
+    public function getEtiquetaPeriodoProperty(): string
+    {
+        [$d, $h] = $this->rango();
+        $cd = \Illuminate\Support\Carbon::parse($d);
+        $ch = \Illuminate\Support\Carbon::parse($h);
+
+        return match ($this->vista) {
+            'semana'   => 'Semana del ' . $cd->format('d/m') . ' al ' . $ch->format('d/m/Y'),
+            'quincena' => ($cd->day === 1 ? 'Primera' : 'Segunda') . ' quincena de '
+                          . $cd->translatedFormat('F Y'),
+            'mes'      => ucfirst($cd->translatedFormat('F \d\e Y')),
+            'ano'      => 'Año ' . $cd->format('Y'),
+            default    => $cd->translatedFormat('l d \d\e F'),
+        };
+    }
+
     /** Explica qué pasó con un bulto que vino en $0. */
     public function marcarCaso(int $id, string $caso, $monto = null): void
     {
@@ -337,7 +372,8 @@ class CierreDelDia extends Page
 
     public function getResumenProperty(): array
     {
-        return CierreDia::resumen($this->fecha);
+        [$d, $h] = $this->rango();
+        return CierreDia::resumenRango($d, $h);
     }
 
     public function getFechasProperty(): array
@@ -349,9 +385,11 @@ class CierreDelDia extends Page
     {
         if (! ExpressEntrega::hayTabla()) return collect();
 
-        return ExpressEntrega::whereDate('fecha', $this->fecha)
+        [$d, $h] = $this->rango();
+
+        return ExpressEntrega::whereDate('fecha', '>=', $d)->whereDate('fecha', '<=', $h)
             ->where('aiwibi', false)->where('monto', 0)->whereNull('caso')
-            ->orderBy('id')->get();
+            ->orderBy('fecha')->orderBy('id')->get();
     }
 
     /**
@@ -385,7 +423,9 @@ class CierreDelDia extends Page
     {
         if (! ExpressEntrega::hayTabla()) return collect();
 
-        return ExpressEntrega::whereDate('fecha', $this->fecha)
-            ->orderByDesc('monto')->orderBy('nombre')->get();
+        [$d, $h] = $this->rango();
+
+        return ExpressEntrega::whereDate('fecha', '>=', $d)->whereDate('fecha', '<=', $h)
+            ->orderBy('fecha')->orderByDesc('monto')->orderBy('nombre')->get();
     }
 }

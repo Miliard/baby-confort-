@@ -95,6 +95,75 @@ class CierreDia extends Model
     }
 
     /**
+     * Lo mismo que resumen(), pero para un rango de fechas: semana, quincena,
+     * mes o año. Junta las entregas del rango y los gastos de cada día.
+     */
+    public static function resumenRango(string $desde, string $hasta): array
+    {
+        $vacio = [
+            'desde' => $desde, 'hasta' => $hasta, 'dias' => 0,
+            'bultos' => 0, 'guias' => 0, 'cobrado' => 0.0, 'comision' => 0.0,
+            'depositado' => 0.0, 'transferido' => 0.0, 'costoBultos' => 0.0,
+            'proveedor' => 0.0, 'gastos' => 0.0, 'resultado' => 0.0, 'pendientes' => 0,
+            'aiwibiBultos' => 0, 'aiwibiDepositado' => 0.0,
+            'costoBulto' => self::COSTO_BULTO, 'sinProveedor' => 0,
+        ];
+
+        if (! ExpressEntrega::hayTabla()) return $vacio;
+
+        try {
+            $todas = ExpressEntrega::whereDate('fecha', '>=', $desde)
+                ->whereDate('fecha', '<=', $hasta)->get();
+        } catch (\Throwable $e) {
+            return $vacio;
+        }
+
+        if ($todas->isEmpty()) return $vacio;
+
+        $mias   = $todas->where('aiwibi', false);
+        $aiwibi = $todas->where('aiwibi', true);
+
+        $costoBulto = \App\Models\BloqueGuia::costoBulto();
+
+        // Lo que solo se sabe día por día.
+        $proveedor = 0.0; $gastos = 0.0; $sinProveedor = 0;
+        $dias = $mias->groupBy(fn ($e) => $e->fecha->toDateString());
+
+        foreach ($dias as $dia => $delDia) {
+            $c = static::hayTabla() ? static::paraFecha($dia) : null;
+            $p = (float) ($c->proveedor ?? 0);
+            $proveedor += $p;
+            $gastos    += (float) ($c->gastos ?? 0);
+            if ($p == 0) $sinProveedor++;
+        }
+
+        $depositado  = (float) $mias->sum('total');
+        $transferido = (float) $mias->sum('transferido');
+        $costoBultos = round($mias->count() * $costoBulto, 2);
+
+        return [
+            'desde'            => $desde,
+            'hasta'            => $hasta,
+            'dias'             => $dias->count(),
+            'bultos'           => $mias->count(),
+            'guias'            => $mias->pluck('orden')->unique()->count(),
+            'cobrado'          => round((float) $mias->sum('monto'), 2),
+            'comision'         => round((float) $mias->sum('comision'), 2),
+            'depositado'       => round($depositado, 2),
+            'transferido'      => round($transferido, 2),
+            'costoBultos'      => $costoBultos,
+            'costoBulto'       => $costoBulto,
+            'proveedor'        => round($proveedor, 2),
+            'gastos'           => round($gastos, 2),
+            'resultado'        => round($depositado + $transferido - $costoBultos - $proveedor - $gastos, 2),
+            'pendientes'       => $mias->filter(fn ($e) => $e->estaPendiente())->count(),
+            'sinProveedor'     => $sinProveedor,
+            'aiwibiBultos'     => $aiwibi->count(),
+            'aiwibiDepositado' => round((float) $aiwibi->sum('total'), 2),
+        ];
+    }
+
+    /**
      * Remuneración de AIWIBI en un rango de fechas, con los mismos datos que
      * se pegan en el Cierre del día. Esa plata no es del negocio: se cobra al
      * entregar y hay que devolverla, menos la comisión y el flete.

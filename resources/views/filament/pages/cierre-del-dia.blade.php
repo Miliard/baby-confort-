@@ -33,26 +33,56 @@
     </style>
 
     @if(count($this->fechas) > 0)
-        {{-- ── Barra de días ── --}}
-        <div class="bc-dias">
-            <span style="font-size:12px;opacity:.6;margin-right:2px">Día:</span>
-            @foreach($this->fechas as $f)
-                <x-filament::button size="xs" :color="$f === $fecha ? 'primary' : 'gray'"
-                    wire:click="verFecha('{{ $f }}')">
-                    {{ \Illuminate\Support\Carbon::parse($f)->format('d/m') }}
-                </x-filament::button>
-            @endforeach
+        {{-- ── Qué período se está viendo ── --}}
+        <div class="bc-card" style="padding:12px 14px">
+            <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+                <div class="bc-dias">
+                    @foreach(['dia' => 'Día', 'semana' => 'Semana', 'quincena' => 'Quincena',
+                              'mes' => 'Mes', 'ano' => 'Año'] as $k => $et)
+                        <x-filament::button size="xs" :color="$vista === $k ? 'primary' : 'gray'"
+                            wire:click="verVista('{{ $k }}')">{{ $et }}</x-filament::button>
+                    @endforeach
+                </div>
+
+                <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+                    <x-filament::icon-button icon="heroicon-m-chevron-left" size="sm" color="gray"
+                        wire:click="mover(-1)" label="Anterior" />
+                    <b style="font-size:13.5px;min-width:200px;text-align:center">
+                        {{ $this->etiquetaPeriodo }}
+                    </b>
+                    <x-filament::icon-button icon="heroicon-m-chevron-right" size="sm" color="gray"
+                        wire:click="mover(1)" label="Siguiente" />
+                </div>
+            </div>
+
+            @if($vista === 'dia')
+                <div class="bc-dias" style="margin-top:9px;padding-top:9px;border-top:1px solid rgba(125,140,160,.2)">
+                    <span style="font-size:11.5px;opacity:.6;margin-right:2px">Días cargados:</span>
+                    @foreach($this->fechas as $f)
+                        <x-filament::button size="xs" :color="$f === $fecha ? 'primary' : 'gray'"
+                            wire:click="verFecha('{{ $f }}')">
+                            {{ \Illuminate\Support\Carbon::parse($f)->format('d/m') }}
+                        </x-filament::button>
+                    @endforeach
+                </div>
+            @endif
         </div>
 
         {{-- ── Las cuatro tarjetas ── --}}
         <div class="bc-kpis">
 
             <div class="bc-card" style="background: {{ $r['resultado'] >= 0 ? '#16a34a' : '#dc2626' }}; border-color: transparent; color:#fff">
-                <div class="bc-et" style="opacity:.85">Resultado {{ \Illuminate\Support\Carbon::parse($fecha)->format('d/m') }}</div>
+                <div class="bc-et" style="opacity:.85">Resultado del período</div>
                 <div class="bc-n">${{ number_format($r['resultado'], 2) }}</div>
                 <div class="bc-sub" style="opacity:.9">
                     {{ $r['bultos'] }} bultos · {{ $r['guias'] }} guías
-                    @if($r['proveedor'] == 0)<span style="display:block;font-weight:700">⚠️ falta el proveedor</span>@endif
+                    @if(($r['dias'] ?? 0) > 1) · {{ $r['dias'] }} días @endif
+                    @if(($r['sinProveedor'] ?? 0) > 0)
+                        <span style="display:block;font-weight:700">
+                            ⚠️ {{ $r['sinProveedor'] }}
+                            {{ $r['sinProveedor'] === 1 ? 'día sin el proveedor' : 'días sin el proveedor' }}
+                        </span>
+                    @endif
                 </div>
             </div>
 
@@ -88,7 +118,7 @@
                     @if($this->pendientes->count() > 0)
                         Falta decir qué pasó con {{ $this->pendientes->count() === 1 ? 'este' : 'estos' }}
                     @else
-                        Todo el día está explicado ✅
+                        Todo el período está explicado ✅
                     @endif
                 </div>
             </div>
@@ -117,7 +147,8 @@
 
             @if(count($this->fechas) > 0)
                 <x-filament::section compact>
-                    <x-slot name="heading">2 · Lo que salió ese día</x-slot>
+                    <x-slot name="heading">2 · Lo que salió el {{ \Illuminate\Support\Carbon::parse($fecha)->format('d/m/Y') }}</x-slot>
+                    <x-slot name="description">Se guarda día por día, aunque estés viendo la semana o el mes.</x-slot>
 
                     <div class="bc-2">
                         <div>
@@ -231,7 +262,7 @@
                 <x-filament::section compact collapsible>
                     <x-slot name="heading">Lo que más se vende</x-slot>
                     <x-slot name="description">
-                        Por cantidad de paquetes, no por dinero. Usa el mismo rango de fechas de abajo.
+                        Por cantidad de paquetes, no por dinero. {{ $this->etiquetaPeriodo }}.
                     </x-slot>
 
                     @if($v['total'] === 0)
@@ -332,21 +363,10 @@
                     <x-slot name="description">Esa plata no es tuya: se cobra al entregar y hay que devolverla.</x-slot>
 
                     <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:flex-end;margin-bottom:10px">
-                        <div>
-                            <label class="bc-lbl">Desde</label>
-                            <input type="date" wire:model.live="remDesde" class="bc-campo" style="width:145px">
+                        <div style="flex:1;min-width:180px;font-size:12px;opacity:.65">
+                            {{ $this->etiquetaPeriodo }}
                         </div>
-                        <div>
-                            <label class="bc-lbl">Hasta</label>
-                            <input type="date" wire:model.live="remHasta" class="bc-campo" style="width:145px">
-                        </div>
-                        <x-filament::button size="xs" color="gray" wire:click="remPeriodo('dia')">Este día</x-filament::button>
-                        <x-filament::button size="xs" color="gray" wire:click="remPeriodo('semana')">Semana</x-filament::button>
-                        <x-filament::button size="xs" color="gray" wire:click="remPeriodo('mes')">Mes</x-filament::button>
-                        <x-filament::button size="xs" color="gray" wire:click="remPeriodo('anterior')">Mes pasado</x-filament::button>
-                        <x-filament::button size="xs" color="gray" wire:click="remPeriodo('todo')">Todo</x-filament::button>
-
-                        <div style="margin-left:auto;display:flex;gap:6px">
+                        <div style="display:flex;gap:6px">
                             <div>
                                 <label class="bc-lbl">Comisión %</label>
                                 <input type="number" step="0.01" min="0" wire:model.live.debounce.600ms="remComision"
@@ -404,8 +424,8 @@
                             <x-filament::button size="sm" color="gray" tag="a" target="_blank"
                                 icon="heroicon-o-printer"
                                 :href="route('remuneracion.imprimir', [
-                                    'desde'    => $remDesde ?: null,
-                                    'hasta'    => $remHasta ?: null,
+                                    'desde'    => $this->rango()[0],
+                                    'hasta'    => $this->rango()[1],
                                     'comision' => $remComision,
                                     'porEnvio' => $remPorEnvio,
                                 ])">
