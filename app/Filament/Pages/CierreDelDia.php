@@ -23,10 +23,7 @@ class CierreDelDia extends Page
 
     protected function getHeaderWidgets(): array
     {
-        return [
-            \App\Filament\Widgets\ResumenSemanaStats::class,
-            \App\Filament\Widgets\ResultadoDiarioChart::class,
-        ];
+        return [\App\Filament\Widgets\ResumenSemanaStats::class];
     }
 
     public function getHeaderWidgetsColumns(): int|array
@@ -157,6 +154,26 @@ class CierreDelDia extends Page
             ? (float) str_replace(',', '.', (string) ($monto ?: 0))
             : null;
         $e->save();
+    }
+
+    /** Deshace la respuesta de un bulto en $0 para volver a contestarla. */
+    public function desmarcarCaso(int $id): void
+    {
+        $e = ExpressEntrega::find($id);
+        if (! $e) return;
+
+        $e->caso = null;
+        $e->transferido = null;
+        $e->save();
+
+        Notification::make()->title('Listo, volvé a contestarlo')->success()->send();
+    }
+
+    /** Borra un renglón suelto (si se pegó uno que no iba). */
+    public function borrarEntrega(int $id): void
+    {
+        ExpressEntrega::find($id)?->delete();
+        Notification::make()->title('Bulto borrado')->success()->send();
     }
 
     public function borrarFecha(): void
