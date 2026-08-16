@@ -180,6 +180,32 @@ class CierreDelDia extends Page
         return \App\Models\BloqueGuia::saldo();
     }
 
+    /** Los bloques cargados, para poder revisarlos y borrar el que esté mal. */
+    public function getBloquesProperty()
+    {
+        if (! \App\Models\BloqueGuia::hayTabla()) return collect();
+
+        return \App\Models\BloqueGuia::orderByDesc('fecha')->orderByDesc('id')->get();
+    }
+
+    public function borrarBloque(int $id): void
+    {
+        \App\Models\BloqueGuia::find($id)?->delete();
+        Notification::make()->title('Bloque borrado')->success()->send();
+    }
+
+    /** Cambia (o quita) el día del depósito de todo el día que se está viendo. */
+    public function fijarDeposito(): void
+    {
+        $nueva = trim($this->fechaDeposito) ?: null;
+
+        ExpressEntrega::whereDate('fecha', $this->fecha)->update(['fecha_deposito' => $nueva]);
+
+        Notification::make()
+            ->title($nueva ? 'Depósito puesto al ' . \Illuminate\Support\Carbon::parse($nueva)->format('d/m/Y') : 'Fecha de depósito quitada')
+            ->success()->send();
+    }
+
     public function verFecha(string $fecha): void
     {
         $this->fecha = $fecha;

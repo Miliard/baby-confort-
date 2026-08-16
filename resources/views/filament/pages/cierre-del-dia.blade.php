@@ -137,6 +137,14 @@
                         <input type="text" wire:model="nota" placeholder="Nota (opcional)" class="bc-campo">
                     </div>
 
+                    <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:flex-end">
+                        <div>
+                            <label class="bc-lbl">Día del depósito de esta fecha</label>
+                            <input type="date" wire:model="fechaDeposito" class="bc-campo" style="width:150px">
+                        </div>
+                        <x-filament::button size="xs" color="gray" wire:click="fijarDeposito">Fijar</x-filament::button>
+                    </div>
+
                     <div style="margin-top:8px">
                         <x-filament::button size="sm" wire:click="guardarDia" icon="heroicon-o-check">
                             Guardar
@@ -160,6 +168,28 @@
                     </div>
                     <x-filament::button size="sm" wire:click="agregarBloque" icon="heroicon-o-plus">Cargar</x-filament::button>
                 </div>
+
+                @if($this->bloques->count() > 0)
+                    <div style="margin-top:10px;display:flex;flex-direction:column;gap:5px">
+                        @foreach($this->bloques as $b)
+                            <div wire:key="blo-{{ $b->id }}"
+                                 style="display:flex;justify-content:space-between;align-items:center;gap:8px;
+                                        font-size:12px;padding:6px 8px;border-radius:8px;
+                                        border:1px solid rgba(125,140,160,.25)">
+                                <span>
+                                    <b>{{ $b->cantidad }}</b> guías · ${{ number_format($b->costo, 2) }}
+                                    <span style="opacity:.6">
+                                        ({{ number_format($b->costo / max(1, $b->cantidad), 2) }} c/u ·
+                                        {{ $b->fecha->format('d/m/Y') }})
+                                    </span>
+                                </span>
+                                <x-filament::icon-button icon="heroicon-m-trash" size="xs" color="danger"
+                                    wire:click="borrarBloque({{ $b->id }})"
+                                    wire:confirm="¿Borrar este bloque de guías?" label="Borrar bloque" />
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
             </x-filament::section>
         </div>
 
