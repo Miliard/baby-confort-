@@ -157,8 +157,16 @@
         </x-filament::section>
 
         {{-- Detalle --}}
-        <x-filament::section collapsible collapsed>
-            <x-slot name="heading">Ver las {{ count($r['filas']) }} entregas</x-slot>
+        <x-filament::section>
+            <x-slot name="heading">Detalle de las {{ count($r['filas']) }} entregas</x-slot>
+            <x-slot name="description">Lo que le vas a mandar a quien tenés que pagarle.</x-slot>
+
+            <div class="mb-3" x-data="{ ok: false, txt: @js($this->detalleTexto) }">
+                <x-filament::button size="sm" :color="'primary'"
+                    x-on:click="navigator.clipboard.writeText(txt).then(() => { ok = true; setTimeout(() => ok = false, 2500) })">
+                    <span x-text="ok ? '✅ ¡Copiado! Pegalo en el chat' : '📋 Copiar el detalle para mandarlo'"></span>
+                </x-filament::button>
+            </div>
 
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">

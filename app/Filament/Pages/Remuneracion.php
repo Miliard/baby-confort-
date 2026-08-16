@@ -172,6 +172,49 @@ class Remuneracion extends Page
         return $at ? 'Del archivo que subiste ' . $at->diffForHumans() . ' · hay que volver a subirlo para verlo al día' : null;
     }
 
+    /**
+     * El corte completo en texto, listo para pegarle a la persona a la que
+     * hay que pagarle: cada entrega con su fecha, guía, cliente y monto,
+     * y al final el cálculo.
+     */
+    public function getDetalleTextoProperty(): string
+    {
+        $r = $this->resumen;
+
+        $periodo = $this->desde || $this->hasta
+            ? 'Del ' . ($this->desde ? \Illuminate\Support\Carbon::parse($this->desde)->format('d/m/Y') : 'inicio')
+              . ' al ' . ($this->hasta ? \Illuminate\Support\Carbon::parse($this->hasta)->format('d/m/Y') : 'hoy')
+            : 'Todo el historial';
+
+        $t  = "\u{1F4E6} *REMUNERACI\u{D3}N AIWIBI*\n";
+        $t .= $periodo . "\n";
+        $t .= str_repeat('-', 28) . "\n\n";
+
+        foreach ($r['filas'] as $f) {
+            $fecha = $f['fecha'] ? \Illuminate\Support\Carbon::parse($f['fecha'])->format('d/m') : '--/--';
+            $t .= $fecha . '  ' . trim($f['nombre']);
+            if (! empty($f['orden']))  $t .= "\n     Gu\u{ED}a " . $f['orden'];
+            if (! empty($f['zona']))   $t .= ' \u{B7} ' . $f['zona'];
+            $t .= "\n     $" . number_format($f['monto'], 2) . "\n\n";
+        }
+
+        $pct = rtrim(rtrim(number_format($r['comisionPct'], 2), '0'), '.');
+
+        $t .= str_repeat('-', 28) . "\n";
+        $t .= "Env\u{ED}os: {$r['envios']}";
+        if ($r['sinCobro'] > 0) $t .= " ({$r['sinCobro']} sin cobro)";
+        $t .= "\n";
+        $t .= 'Cobrado: $' . number_format($r['efectivo'], 2) . "\n";
+        $t .= "Comisi\u{F3}n {$pct}%: -$" . number_format($r['comision'], 2) . "\n";
+        $t .= 'Subtotal: $' . number_format($r['subtotal'], 2) . "\n";
+        $t .= "Env\u{ED}os {$r['envios']} x $" . number_format($r['porEnvio'], 2)
+            . ': -$' . number_format($r['descuento'], 2) . "\n";
+        $t .= str_repeat('-', 28) . "\n";
+        $t .= '*TOTAL A PAGAR: $' . number_format($r['aPagar'], 2) . '*';
+
+        return $t;
+    }
+
     public function getResumenProperty(): array
     {
         // La hoja conectada manda; si no hay, se usa el archivo subido a mano.

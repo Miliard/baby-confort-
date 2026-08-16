@@ -2,14 +2,108 @@
     @php
         $r = $this->resumen;
         $s = $this->saldoGuias;
+        $entro = $r['depositado'] + $r['transferido'];
     @endphp
 
-    <div class="grid gap-4 xl:grid-cols-12">
+    @if(count($this->fechas) > 0)
+        {{-- ═══════════ Barra de días ═══════════ --}}
+        <div class="flex flex-wrap items-center gap-1.5">
+            <span class="mr-1 text-xs text-gray-500">Día:</span>
+            @foreach($this->fechas as $f)
+                <x-filament::button size="xs" :color="$f === $fecha ? 'primary' : 'gray'"
+                    wire:click="verFecha('{{ $f }}')">
+                    {{ \Illuminate\Support\Carbon::parse($f)->format('d/m') }}
+                </x-filament::button>
+            @endforeach
+        </div>
 
-        {{-- ═══════════ IZQUIERDA: meter datos ═══════════ --}}
+        {{-- ═══════════ Las cuatro tarjetas ═══════════ --}}
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+
+            {{-- Resultado --}}
+            <div class="rounded-2xl p-4 text-white shadow {{ $r['resultado'] >= 0 ? 'bg-success-600' : 'bg-danger-600' }}">
+                <div class="text-[11px] uppercase tracking-wide opacity-80">
+                    Resultado {{ \Illuminate\Support\Carbon::parse($fecha)->format('d/m') }}
+                </div>
+                <div class="mt-0.5 text-3xl font-extrabold tracking-tight">${{ number_format($r['resultado'], 2) }}</div>
+                <div class="mt-1 text-[11.5px] opacity-90">
+                    {{ $r['bultos'] }} bultos · {{ $r['guias'] }} guías
+                    @if($r['proveedor'] == 0)
+                        <span class="block font-semibold">⚠️ falta el proveedor</span>
+                    @endif
+                </div>
+            </div>
+
+            {{-- Entró --}}
+            <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-gray-900">
+                <div class="text-[11px] uppercase tracking-wide text-gray-500">Entró</div>
+                <div class="mt-0.5 text-3xl font-extrabold tracking-tight text-gray-950 dark:text-white">
+                    ${{ number_format($entro, 2) }}
+                </div>
+                <div class="mt-1 text-[11.5px] text-gray-500">
+                    Express cobró ${{ number_format($r['cobrado'], 2) }} y se quedó ${{ number_format($r['comision'], 2) }}
+                    @if($r['transferido'] > 0)
+                        <span class="block">+ ${{ number_format($r['transferido'], 2) }} por transferencia</span>
+                    @endif
+                </div>
+            </div>
+
+            {{-- Guías restantes --}}
+            <div @class([
+                'rounded-2xl border p-4 shadow-sm',
+                'border-danger-300 bg-danger-50 dark:border-danger-500/40 dark:bg-danger-500/10'     => $s['hay'] && $s['restantes'] <= 50,
+                'border-warning-300 bg-warning-50 dark:border-warning-500/40 dark:bg-warning-500/10' => $s['hay'] && $s['restantes'] > 50 && $s['restantes'] <= 150,
+                'border-gray-200 bg-white dark:border-white/10 dark:bg-gray-900'                     => ! $s['hay'] || $s['restantes'] > 150,
+            ])>
+                <div class="text-[11px] uppercase tracking-wide text-gray-500">Guías restantes</div>
+                @if($s['hay'])
+                    <div class="mt-0.5 text-3xl font-extrabold tracking-tight text-gray-950 dark:text-white">
+                        {{ $s['restantes'] }}
+                    </div>
+                    <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-white/10">
+                        <div class="h-full rounded-full {{ $s['restantes'] <= 50 ? 'bg-danger-500' : ($s['restantes'] <= 150 ? 'bg-warning-500' : 'bg-success-500') }}"
+                             style="width: {{ $s['porcentaje'] }}%"></div>
+                    </div>
+                    <div class="mt-1 text-[11.5px] text-gray-500">
+                        {{ $s['usadas'] }} de {{ $s['compradas'] }} usadas · ${{ number_format($s['costoBulto'], 2) }} c/u
+                        @if($s['restantes'] <= 50)
+                            <span class="block font-semibold text-danger-600">¡Comprá más!</span>
+                        @endif
+                    </div>
+                @else
+                    <div class="mt-2 text-[11.5px] text-gray-500">
+                        Cargá tu paquete de guías en el cuadro <b>3</b> de la izquierda.
+                    </div>
+                @endif
+            </div>
+
+            {{-- Sin monto --}}
+            <div @class([
+                'rounded-2xl border p-4 shadow-sm',
+                'border-warning-300 bg-warning-50 dark:border-warning-500/40 dark:bg-warning-500/10' => $this->pendientes->count() > 0,
+                'border-gray-200 bg-white dark:border-white/10 dark:bg-gray-900'                     => $this->pendientes->count() === 0,
+            ])>
+                <div class="text-[11px] uppercase tracking-wide text-gray-500">Sin monto</div>
+                <div class="mt-0.5 text-3xl font-extrabold tracking-tight text-gray-950 dark:text-white">
+                    {{ $this->pendientes->count() }}
+                </div>
+                <div class="mt-1 text-[11.5px] text-gray-500">
+                    @if($this->pendientes->count() > 0)
+                        Falta decir qué pasó con {{ $this->pendientes->count() === 1 ? 'este' : 'estos' }}
+                    @else
+                        Todo el día está explicado ✅
+                    @endif
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- ═══════════ Dos columnas ═══════════ --}}
+    <div class="grid gap-3 xl:grid-cols-12">
+
+        {{-- ---------- Izquierda: meter datos ---------- --}}
         <div class="space-y-3 xl:col-span-4">
 
-            {{-- 1 · Pegar --}}
             <x-filament::section compact collapsible :collapsed="count($this->fechas) > 0">
                 <x-slot name="heading">1 · Pegar liquidación</x-slot>
 
@@ -30,22 +124,8 @@
             </x-filament::section>
 
             @if(count($this->fechas) > 0)
-                {{-- 2 · Día --}}
                 <x-filament::section compact>
-                    <x-slot name="heading">2 · Día</x-slot>
-                    <div class="flex flex-wrap gap-1">
-                        @foreach($this->fechas as $f)
-                            <x-filament::button size="xs" :color="$f === $fecha ? 'primary' : 'gray'"
-                                wire:click="verFecha('{{ $f }}')">
-                                {{ \Illuminate\Support\Carbon::parse($f)->format('d/m') }}
-                            </x-filament::button>
-                        @endforeach
-                    </div>
-                </x-filament::section>
-
-                {{-- 3 · Lo que salió --}}
-                <x-filament::section compact>
-                    <x-slot name="heading">3 · Lo que salió ese día</x-slot>
+                    <x-slot name="heading">2 · Lo que salió ese día</x-slot>
 
                     <div class="grid grid-cols-2 gap-2">
                         <div>
@@ -72,9 +152,8 @@
                 </x-filament::section>
             @endif
 
-            {{-- 4 · Bloque de guías --}}
             <x-filament::section compact collapsible :collapsed="$s['hay']">
-                <x-slot name="heading">4 · Comprar guías</x-slot>
+                <x-slot name="heading">3 · Comprar guías</x-slot>
 
                 <div class="flex flex-wrap items-end gap-2">
                     <div>
@@ -94,7 +173,7 @@
             </x-filament::section>
         </div>
 
-        {{-- ═══════════ DERECHA: ver ═══════════ --}}
+        {{-- ---------- Derecha: ver ---------- --}}
         <div class="space-y-3 xl:col-span-8">
 
             @if(count($this->fechas) === 0)
@@ -104,66 +183,10 @@
                     </div>
                 </x-filament::section>
             @else
-                {{-- Fila de tarjetas --}}
-                <div class="grid gap-3 sm:grid-cols-3">
-
-                    {{-- Resultado --}}
-                    <div class="rounded-2xl p-4 text-white shadow {{ $r['resultado'] >= 0 ? 'bg-success-600' : 'bg-danger-600' }}">
-                        <div class="text-xs opacity-90">Resultado {{ \Illuminate\Support\Carbon::parse($fecha)->format('d/m') }}</div>
-                        <div class="mt-0.5 text-3xl font-bold tracking-tight">${{ number_format($r['resultado'], 2) }}</div>
-                        <div class="mt-1 text-xs opacity-90">
-                            {{ $r['bultos'] }} bultos · {{ $r['guias'] }} guías
-                            @if($r['proveedor'] == 0)<span class="block">⚠️ falta el proveedor</span>@endif
-                        </div>
-                    </div>
-
-                    {{-- Guías restantes --}}
-                    <div @class([
-                        'rounded-2xl border p-4 shadow-sm',
-                        'border-danger-300 bg-danger-50 dark:border-danger-500/40 dark:bg-danger-500/10'   => $s['hay'] && $s['restantes'] <= 50,
-                        'border-warning-300 bg-warning-50 dark:border-warning-500/40 dark:bg-warning-500/10' => $s['hay'] && $s['restantes'] > 50 && $s['restantes'] <= 150,
-                        'border-gray-200 bg-white dark:border-white/10 dark:bg-gray-900'                     => ! $s['hay'] || $s['restantes'] > 150,
-                    ])>
-                        <div class="text-xs text-gray-500">Guías restantes</div>
-                        @if($s['hay'])
-                            <div class="mt-0.5 text-3xl font-bold text-gray-950 dark:text-white">{{ $s['restantes'] }}</div>
-                            <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-white/10">
-                                <div class="h-full rounded-full {{ $s['restantes'] <= 50 ? 'bg-danger-500' : ($s['restantes'] <= 150 ? 'bg-warning-500' : 'bg-success-500') }}"
-                                     style="width: {{ $s['porcentaje'] }}%"></div>
-                            </div>
-                            <div class="mt-1 text-xs text-gray-500">
-                                {{ $s['usadas'] }} de {{ $s['compradas'] }} usadas · ${{ number_format($s['costoBulto'], 2) }} c/u
-                                @if($s['restantes'] <= 50)<span class="block font-semibold text-danger-600">¡Comprá más!</span>@endif
-                            </div>
-                        @else
-                            <div class="mt-2 text-xs text-gray-500">
-                                Cargá tu paquete de guías en el cuadro <b>4</b> de la izquierda.
-                            </div>
-                        @endif
-                    </div>
-
-                    {{-- Clientes sin monto --}}
-                    <div @class([
-                        'rounded-2xl border p-4 shadow-sm',
-                        'border-warning-300 bg-warning-50 dark:border-warning-500/40 dark:bg-warning-500/10' => $this->pendientes->count() > 0,
-                        'border-gray-200 bg-white dark:border-white/10 dark:bg-gray-900'                     => $this->pendientes->count() === 0,
-                    ])>
-                        <div class="text-xs text-gray-500">Sin monto</div>
-                        <div class="mt-0.5 text-3xl font-bold text-gray-950 dark:text-white">{{ $this->pendientes->count() }}</div>
-                        <div class="mt-1 text-xs text-gray-500">
-                            @if($this->pendientes->count() > 0)
-                                Express no cobró nada por estos. Contestá abajo 👇
-                            @else
-                                Todos los bultos del día están explicados ✅
-                            @endif
-                        </div>
-                    </div>
-                </div>
-
-                {{-- Los clientes sin monto, con sus botones --}}
+                {{-- Clientes sin monto --}}
                 @if($this->pendientes->count() > 0)
                     <x-filament::section compact>
-                        <x-slot name="heading">Clientes a los que no les aparece el monto</x-slot>
+                        <x-slot name="heading">⚠️ Clientes a los que no les aparece el monto</x-slot>
                         <x-slot name="description">Decime qué pasó con cada uno para que la cuenta cierre.</x-slot>
 
                         <div class="grid gap-2 md:grid-cols-2">
@@ -195,58 +218,18 @@
                     </x-filament::section>
                 @endif
 
-                {{-- Gráfica + desglose, lado a lado --}}
-                <div class="grid gap-3 lg:grid-cols-2">
-                    <div>@livewire(\App\Filament\Widgets\ResultadoDiarioChart::class)</div>
+                {{-- Gráfica --}}
+                @livewire(\App\Filament\Widgets\ResultadoDiarioChart::class)
 
-                    <x-filament::section compact>
-                        <x-slot name="heading">Cómo sale ese número</x-slot>
+                @if($r['aiwibiBultos'] > 0)
+                    <div class="rounded-xl border border-gray-200 bg-white p-2.5 text-xs text-gray-500 dark:border-white/10 dark:bg-gray-900">
+                        Aparte de tus cuentas: {{ $r['aiwibiBultos'] }}
+                        {{ $r['aiwibiBultos'] === 1 ? 'bulto de AIWIBI' : 'bultos de AIWIBI' }}
+                        por ${{ number_format($r['aiwibiDepositado'], 2) }}. Esa plata no es tuya — va en Remuneración.
+                    </div>
+                @endif
 
-                        @php
-                            $lineas = [[
-                                'et' => 'Express depositó', 'v' => $r['depositado'], 's' => '+',
-                                'sub' => 'cobró $' . number_format($r['cobrado'], 2) . ' · se quedó $' . number_format($r['comision'], 2),
-                            ]];
-                            if ($r['transferido'] > 0) {
-                                $lineas[] = ['et' => 'Te transfirieron', 'v' => $r['transferido'], 's' => '+', 'sub' => 'de los que vinieron en $0'];
-                            }
-                            $lineas[] = ['et' => 'Bultos', 'v' => $r['costoBultos'], 's' => '−',
-                                         'sub' => $r['bultos'] . ' × $' . number_format($r['costoBulto'], 2)];
-                            $lineas[] = ['et' => 'Proveedor', 'v' => $r['proveedor'], 's' => '−',
-                                         'sub' => $r['proveedor'] == 0 ? 'sin cargar' : null];
-                            if ($r['gastos'] > 0) $lineas[] = ['et' => 'Otros gastos', 'v' => $r['gastos'], 's' => '−', 'sub' => null];
-                        @endphp
-
-                        <div class="space-y-0.5 text-sm">
-                            @foreach($lineas as $l)
-                                <div class="flex items-center justify-between border-b border-gray-100 py-1 dark:border-white/10">
-                                    <span>
-                                        <span class="text-gray-700 dark:text-gray-200">{{ $l['et'] }}</span>
-                                        @if($l['sub'])<span class="block text-xs text-gray-400">{{ $l['sub'] }}</span>@endif
-                                    </span>
-                                    <span class="whitespace-nowrap font-semibold {{ $l['s'] === '−' ? 'text-danger-600' : '' }}">
-                                        {{ $l['s'] }} ${{ number_format($l['v'], 2) }}
-                                    </span>
-                                </div>
-                            @endforeach
-
-                            <div class="flex items-center justify-between pt-1.5">
-                                <span class="font-bold">Resultado</span>
-                                <span class="text-lg font-extrabold {{ $r['resultado'] >= 0 ? 'text-success-600' : 'text-danger-600' }}">
-                                    ${{ number_format($r['resultado'], 2) }}
-                                </span>
-                            </div>
-                        </div>
-
-                        @if($r['aiwibiBultos'] > 0)
-                            <div class="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-500 dark:bg-white/5">
-                                Aparte: {{ $r['aiwibiBultos'] }} de AIWIBI por ${{ number_format($r['aiwibiDepositado'], 2) }} — va en Remuneración.
-                            </div>
-                        @endif
-                    </x-filament::section>
-                </div>
-
-                {{-- Lo que casi no se abre, plegado --}}
+                {{-- Plegados --}}
                 <div class="grid gap-3 lg:grid-cols-2">
                     @if(count($this->depositos) > 0)
                         <x-filament::section compact collapsible collapsed>
