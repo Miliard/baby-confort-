@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\CierreDia;
 use App\Models\ExpressEntrega;
 use App\Services\ExpressPegado;
+use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 
@@ -48,6 +49,48 @@ class CierreDelDia extends Page
     /** Remuneración AIWIBI: solo las condiciones; el rango es el de arriba */
     public float  $remComision = 2.5;
     public float  $remPorEnvio = 3.40;
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('limpiarTodo')
+                ->label('Empezar de cero')
+                ->icon('heroicon-o-trash')
+                ->color('danger')
+                ->outlined()
+                ->requiresConfirmation()
+                ->modalHeading('¿Borrar todo lo cargado?')
+                ->modalDescription('Se borran TODAS las entregas de Express y los datos del proveedor de todos los días. Los bloques de guías y la libreta de clientes no se tocan. Sirve para limpiar las pruebas y arrancar con datos de verdad.')
+                ->modalSubmitActionLabel('Sí, borrar todo')
+                ->action(function () {
+                    $entregas = 0; $dias = 0;
+
+                    try {
+                        if (ExpressEntrega::hayTabla()) {
+                            $entregas = ExpressEntrega::count();
+                            ExpressEntrega::query()->delete();
+                        }
+                        if (CierreDia::hayTabla()) {
+                            $dias = CierreDia::count();
+                            CierreDia::query()->delete();
+                        }
+                    } catch (\Throwable $e) {
+                        Notification::make()->title('No se pudo borrar')->body($e->getMessage())->danger()->send();
+                        return;
+                    }
+
+                    $this->fecha = now()->toDateString();
+                    $this->proveedor = '';
+                    $this->gastos = '';
+                    $this->nota = '';
+
+                    Notification::make()
+                        ->title('Todo limpio')
+                        ->body($entregas . ' entregas y ' . $dias . ' días borrados.')
+                        ->success()->send();
+                }),
+        ];
+    }
 
     public function mount(): void
     {
