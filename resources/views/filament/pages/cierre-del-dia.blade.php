@@ -496,16 +496,22 @@
                                 </thead>
                                 <tbody>
                                     @foreach($this->entregas as $e)
-                                        <tr wire:key="ent-{{ $e->id }}" @if($e->aiwibi) style="opacity:.5" @endif>
+                                        <tr wire:key="ent-{{ $e->id }}"
+                                            @if($e->duplicado) style="opacity:.35;text-decoration:line-through"
+                                            @elseif($e->aiwibi) style="opacity:.5" @endif>
                                             <td>
                                                 {{ $e->nombre }}
-                                                <span style="display:block;font-size:11px;opacity:.55">{{ $e->orden }}</span>
+                                                <span style="display:block;font-size:11px;opacity:.55">
+                                                    {{ $e->orden }}
+                                                    @if($e->nota) · {{ $e->nota }} @endif
+                                                </span>
                                             </td>
                                             <td style="text-align:right;font-weight:600 @if($e->monto <= 0);opacity:.5 @endif">
                                                 ${{ number_format($e->monto, 2) }}
                                             </td>
                                             <td style="font-size:11px;opacity:.7">
-                                                @if($e->aiwibi) AIWIBI
+                                                @if($e->duplicado) Repetido por Express
+                                                @elseif($e->aiwibi) AIWIBI
                                                 @elseif($e->caso === 'transferencia') Transferido ${{ number_format($e->transferido, 2) }}
                                                 @elseif($e->caso) {{ \App\Models\ExpressEntrega::CASOS[$e->caso] ?? $e->caso }}
                                                 @endif

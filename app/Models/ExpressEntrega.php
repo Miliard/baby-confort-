@@ -16,7 +16,7 @@ class ExpressEntrega extends Model
 
     protected $fillable = [
         'fecha', 'fecha_deposito', 'orden', 'nombre', 'zona', 'monto', 'comision', 'total',
-        'aiwibi', 'caso', 'transferido', 'huella',
+        'nota', 'duplicado', 'aiwibi', 'caso', 'transferido', 'huella',
     ];
 
     protected $casts = [
@@ -27,6 +27,7 @@ class ExpressEntrega extends Model
         'total'       => 'decimal:2',
         'transferido' => 'decimal:2',
         'aiwibi'      => 'boolean',
+        'duplicado'   => 'boolean',
     ];
 
     public const CASOS = [
@@ -47,7 +48,8 @@ class ExpressEntrega extends Model
     /** Bultos en $0 que no son AIWIBI y todavía no se han explicado. */
     public function estaPendiente(): bool
     {
-        return ! $this->aiwibi
+        return ! $this->duplicado
+            && ! $this->aiwibi
             && (float) $this->monto == 0.0
             && empty($this->caso);
     }

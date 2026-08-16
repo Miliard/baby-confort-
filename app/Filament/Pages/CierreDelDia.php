@@ -200,8 +200,14 @@ class CierreDelDia extends Page
         $nuevas = 0; $repetidas = 0;
         $deposito = trim($this->fechaDeposito) ?: null;
 
+        // Si el mismo renglón viene repetido dentro del pegado (dos bultos
+        // idénticos), se numeran para que no se pisen entre ellos.
+        $vistas = [];
+
         foreach ($filas as $f) {
-            $huella = ExpressPegado::huella($f);
+            $base = ExpressPegado::huella($f);
+            $vistas[$base] = ($vistas[$base] ?? 0) + 1;
+            $huella = $vistas[$base] > 1 ? md5($base . '#' . $vistas[$base]) : $base;
 
             $existente = ExpressEntrega::where('huella', $huella)->first();
             if ($existente) {
@@ -457,7 +463,7 @@ class CierreDelDia extends Page
         [$d, $h] = $this->rango();
 
         return ExpressEntrega::whereDate('fecha', '>=', $d)->whereDate('fecha', '<=', $h)
-            ->where('aiwibi', false)->where('monto', 0)->whereNull('caso')
+            ->where('aiwibi', false)->where('duplicado', false)->where('monto', 0)->whereNull('caso')
             ->orderBy('fecha')->orderBy('id')->get();
     }
 

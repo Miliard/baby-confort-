@@ -61,16 +61,21 @@ class ExpressPegado
             // Si el total viniera vacío, se deduce.
             if ($tot === 0.0 && $monto > 0) $tot = round($monto - $com, 2);
 
+            // La última columna trae explicaciones de Express.
+            $nota = trim($g(8));
+
             $filas[] = [
-                'fecha'    => $fecha,
-                'orden'    => trim($g(2)),
-                'nombre'   => $nombre,
-                'zona'     => trim($g(4)),
-                'monto'    => $monto,
-                'comision' => $com,
-                'total'    => $tot,
-                'aiwibi'   => static::esAiwibi($nombre),
-            ];
+                'fecha'     => $fecha,
+                'orden'     => trim($g(2)),
+                'nombre'    => $nombre,
+                'zona'      => trim($g(4)),
+                'monto'     => $monto,
+                'comision'  => $com,
+                'total'     => $tot,
+                'nota'      => $nota !== '' ? $nota : null,
+                'duplicado' => static::esDuplicado($nota),
+                'aiwibi'    => static::esAiwibi($nombre),
+            ] + static::deLaNota($nota);
         }
 
         return $filas;
@@ -81,6 +86,35 @@ class ExpressPegado
         return (bool) preg_match('/AIWIB[IY]\s*\.?\s*$/iu', trim($nombre));
     }
 
+    /**
+     * Express marca con "TYP" los renglones que repitió por error: son el mismo
+     * bulto anotado dos veces. No se cuentan ni se pagan.
+     */
+    public static function esDuplicado(?string $nota): bool
+    {
+        return (bool) preg_match('/\bTYP\b/i', (string) $nota);
+    }
+
+    /**
+     * Lee la nota y, si explica por qué el bulto vino en $0, lo contesta solo.
+     * "DEPOSITO A TIENDA POR $27,50" -> te lo pagaron directo, $27.50.
+     */
+    public static function deLaNota(?string $nota): array
+    {
+        $n = trim((string) $nota);
+        if ($n === '') return [];
+
+        if (preg_match('/DEP[O\x{00D3}]SITO\s+A\s+(?:TIENDA|AJ)/iu', $n)) {
+            $monto = null;
+            if (preg_match('/\$\s*([\d.,]+)/', $n, $m)) {
+                $monto = static::numero($m[1]);
+            }
+            return ['caso' => 'transferencia', 'transferido' => $monto];
+        }
+
+        return [];
+    }
+
     /** Huella para no guardar dos veces el mismo renglón si se pega de nuevo. */
     public static function huella(array $f): string
     {
@@ -89,6 +123,7 @@ class ExpressPegado
             mb_strtolower(trim($f['zona'] ?? '')),
             number_format($f['monto'], 2, '.', ''),
             number_format($f['total'], 2, '.', ''),
+            mb_strtolower(trim($f['nota'] ?? '')),
         ]));
     }
 
