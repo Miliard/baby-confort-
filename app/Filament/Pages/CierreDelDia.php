@@ -405,6 +405,32 @@ class CierreDelDia extends Page
         Notification::make()->title('Bulto borrado')->success()->send();
     }
 
+    /** Borra lo que se está viendo: el día, la semana, la quincena, el mes o el año. */
+    public function borrarPeriodo(): void
+    {
+        [$d, $h] = $this->rango();
+
+        $n = 0;
+        try {
+            $n = ExpressEntrega::whereDate('fecha', '>=', $d)->whereDate('fecha', '<=', $h)->count();
+            ExpressEntrega::whereDate('fecha', '>=', $d)->whereDate('fecha', '<=', $h)->delete();
+
+            if (CierreDia::hayTabla()) {
+                CierreDia::whereDate('fecha', '>=', $d)->whereDate('fecha', '<=', $h)->delete();
+            }
+        } catch (\Throwable $e) {
+            Notification::make()->title('No se pudo borrar')->body($e->getMessage())->danger()->send();
+            return;
+        }
+
+        $this->cargarCampos();
+
+        Notification::make()
+            ->title($n . ' bultos borrados')
+            ->body($this->etiquetaPeriodo)
+            ->success()->send();
+    }
+
     public function borrarFecha(): void
     {
         ExpressEntrega::whereDate('fecha', $this->fecha)->delete();

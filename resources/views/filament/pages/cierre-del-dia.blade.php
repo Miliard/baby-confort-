@@ -52,6 +52,11 @@
                     </b>
                     <x-filament::icon-button icon="heroicon-m-chevron-right" size="sm" color="gray"
                         wire:click="mover(1)" label="Siguiente" />
+
+                    <x-filament::icon-button icon="heroicon-m-trash" size="sm" color="danger"
+                        wire:click="borrarPeriodo"
+                        wire:confirm="¿Borrar todo lo cargado de este período? Podés volver a pegarlo."
+                        label="Borrar este período" />
                 </div>
             </div>
 
