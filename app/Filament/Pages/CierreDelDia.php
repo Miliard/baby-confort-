@@ -45,6 +45,10 @@ class CierreDelDia extends Page
     public string $gastos = '';
     public string $nota = '';
 
+    /** Alta de un bloque de guías comprado a Express */
+    public string $bloqueCantidad = '';
+    public string $bloqueCosto = '';
+
     public function mount(): void
     {
         $fechas = CierreDia::fechasCargadas(1);
@@ -135,6 +139,42 @@ class CierreDelDia extends Page
         $c->save();
 
         Notification::make()->title('Guardado')->success()->send();
+    }
+
+    /** Registra un paquete de guías comprado (ej: 500 por $1,400). */
+    public function agregarBloque(): void
+    {
+        $cant  = (int) $this->bloqueCantidad;
+        $costo = (float) str_replace(',', '.', $this->bloqueCosto ?: '0');
+
+        if ($cant < 1 || $costo <= 0) {
+            Notification::make()->title('Poné la cantidad y el costo')->warning()->send();
+            return;
+        }
+
+        if (! \App\Models\BloqueGuia::hayTabla()) {
+            Notification::make()->title('Falta correr las migraciones')->danger()->send();
+            return;
+        }
+
+        \App\Models\BloqueGuia::create([
+            'fecha'    => now()->toDateString(),
+            'cantidad' => $cant,
+            'costo'    => $costo,
+        ]);
+
+        $this->bloqueCantidad = '';
+        $this->bloqueCosto = '';
+
+        Notification::make()
+            ->title($cant . ' guías cargadas')
+            ->body('Cada bulto sale a $' . number_format($costo / $cant, 2))
+            ->success()->send();
+    }
+
+    public function getSaldoGuiasProperty(): array
+    {
+        return \App\Models\BloqueGuia::saldo();
     }
 
     public function verFecha(string $fecha): void
