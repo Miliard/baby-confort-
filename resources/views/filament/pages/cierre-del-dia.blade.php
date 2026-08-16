@@ -226,6 +226,65 @@
                     </x-filament::section>
                 @endif
 
+                {{-- ── Lo que más se vende ── --}}
+                @php $v = $this->vendidos; @endphp
+                <x-filament::section compact collapsible>
+                    <x-slot name="heading">Lo que más se vende</x-slot>
+                    <x-slot name="description">
+                        Por cantidad de paquetes, no por dinero. Usa el mismo rango de fechas de abajo.
+                    </x-slot>
+
+                    @if($v['total'] === 0)
+                        <div style="padding:18px 0;text-align:center;font-size:12.5px;opacity:.6">
+                            Todavía no hay guías con contenido en ese período.
+                        </div>
+                    @else
+                        @php $tope = $v['items'][0]['unidades'] ?? 1; @endphp
+
+                        <div style="display:flex;flex-direction:column;gap:7px">
+                            @foreach(array_slice($v['items'], 0, 12) as $i => $it)
+                                <div>
+                                    <div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px">
+                                        <span>
+                                            <b style="opacity:.4">{{ $i + 1 }}.</b>
+                                            {{ $it['producto'] }}
+                                            @if($it['talla'])
+                                                <b style="opacity:.7">· {{ $it['talla'] }}</b>
+                                            @endif
+                                            <span style="opacity:.5">· en {{ $it['veces'] }} {{ $it['veces'] === 1 ? 'guía' : 'guías' }}</span>
+                                        </span>
+                                        <b style="white-space:nowrap">{{ $it['unidades'] }}</b>
+                                    </div>
+                                    <div class="bc-barra" style="margin-top:3px">
+                                        <i style="width: {{ max(3, round($it['unidades'] / $tope * 100)) }}%; background:#4aa3df"></i>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        <div style="margin-top:10px;font-size:11.5px;opacity:.6">
+                            {{ $v['total'] }} paquetes en {{ $v['guias'] }} guías.
+                        </div>
+
+                        @if(count($v['sinIdentificar']) > 0)
+                            <details style="margin-top:8px">
+                                <summary style="cursor:pointer;font-size:12px;color:#d97706">
+                                    ⚠️ {{ count($v['sinIdentificar']) }} textos que no pude identificar
+                                </summary>
+                                <div style="margin-top:6px;font-size:11.5px;opacity:.75;line-height:1.7">
+                                    @foreach($v['sinIdentificar'] as $texto => $cant)
+                                        <div>· {{ $texto }} <b>({{ $cant }})</b></div>
+                                    @endforeach
+                                    <div style="margin-top:6px;opacity:.7">
+                                        Estos no entran en el conteo. Si alguno es un producto tuyo,
+                                        revisá que el nombre en el catálogo se parezca a como lo escribís.
+                                    </div>
+                                </div>
+                            </details>
+                        @endif
+                    @endif
+                </x-filament::section>
+
                 {{-- ── Remuneración AIWIBI ── --}}
                 @php $m = $this->remuneracion; @endphp
                 <x-filament::section compact>

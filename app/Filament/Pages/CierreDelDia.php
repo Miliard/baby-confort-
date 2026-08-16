@@ -84,6 +84,15 @@ class CierreDelDia extends Page
         };
     }
 
+    /** Qué producto sale más, por cantidad de paquetes. Usa el mismo rango. */
+    public function getVendidosProperty(): array
+    {
+        return \App\Services\ProductosVendidos::ranking(
+            $this->remDesde ?: null,
+            $this->remHasta ?: null,
+        );
+    }
+
     public function getRemuneracionProperty(): array
     {
         return CierreDia::remuneracion(

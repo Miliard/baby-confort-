@@ -21,6 +21,16 @@ class GuiaFoto extends Model
 
     protected $casts = ['enviado_at' => 'datetime', 'cobrar' => 'decimal:2'];
 
+    /** ¿Existe la tabla y ya tiene la columna de contenido? */
+    public static function hayTablaContenido(): bool
+    {
+        try {
+            return Schema::hasTable('guia_fotos') && Schema::hasColumn('guia_fotos', 'contenido');
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
     /** Datos del pedido (contenido y monto) asociados a una guía. */
     public static function datosDeGuia(?string $guia): ?self
     {
