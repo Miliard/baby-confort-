@@ -239,27 +239,67 @@
                             Todavía no hay guías con contenido en ese período.
                         </div>
                     @else
-                        @php $tope = $v['items'][0]['unidades'] ?? 1; @endphp
+                        @php
+                            // Los 8 que más salen; el resto se junta en "Otros".
+                            $colores = ['#4aa3df','#2fb2ac','#7c6ff0','#e0a33b','#e5695f',
+                                        '#3fa66b','#d764a8','#5c8ae6','#94a3b8'];
+                            $tajadas = [];
+                            foreach (array_slice($v['items'], 0, 8) as $k => $it) {
+                                $tajadas[] = [
+                                    'et'  => $it['producto'] . ($it['talla'] ? ' · ' . $it['talla'] : ''),
+                                    'n'   => $it['unidades'],
+                                    'sub' => 'en ' . $it['veces'] . ($it['veces'] === 1 ? ' guía' : ' guías'),
+                                    'col' => $colores[$k],
+                                ];
+                            }
+                            $resto = array_sum(array_column(array_slice($v['items'], 8), 'unidades'));
+                            if ($resto > 0) {
+                                $tajadas[] = ['et' => 'Otros (' . (count($v['items']) - 8) . ')',
+                                              'n' => $resto, 'sub' => null, 'col' => $colores[8]];
+                            }
 
-                        <div style="display:flex;flex-direction:column;gap:7px">
-                            @foreach(array_slice($v['items'], 0, 12) as $i => $it)
-                                <div>
-                                    <div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px">
-                                        <span>
-                                            <b style="opacity:.4">{{ $i + 1 }}.</b>
-                                            {{ $it['producto'] }}
-                                            @if($it['talla'])
-                                                <b style="opacity:.7">· {{ $it['talla'] }}</b>
-                                            @endif
-                                            <span style="opacity:.5">· en {{ $it['veces'] }} {{ $it['veces'] === 1 ? 'guía' : 'guías' }}</span>
+                            // Dona en SVG: cada tajada es un pedazo del borde de un círculo.
+                            $radio = 62;
+                            $vuelta = 2 * M_PI * $radio;
+                            $acum = 0;
+                        @endphp
+
+                        <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center">
+                            <svg viewBox="0 0 170 170" style="width:170px;height:170px;flex:none">
+                                <g transform="rotate(-90 85 85)">
+                                    @foreach($tajadas as $t)
+                                        @php
+                                            $largo = $v['total'] > 0 ? ($t['n'] / $v['total']) * $vuelta : 0;
+                                        @endphp
+                                        <circle cx="85" cy="85" r="{{ $radio }}" fill="none"
+                                                stroke="{{ $t['col'] }}" stroke-width="30"
+                                                stroke-dasharray="{{ round($largo, 2) }} {{ round($vuelta, 2) }}"
+                                                stroke-dashoffset="{{ round(-$acum, 2) }}"></circle>
+                                        @php $acum += $largo; @endphp
+                                    @endforeach
+                                </g>
+                                <text x="85" y="80" text-anchor="middle" font-size="26" font-weight="800"
+                                      fill="currentColor">{{ $v['total'] }}</text>
+                                <text x="85" y="96" text-anchor="middle" font-size="10"
+                                      fill="currentColor" opacity=".6">paquetes</text>
+                            </svg>
+
+                            <div style="flex:1;min-width:230px;display:flex;flex-direction:column;gap:5px">
+                                @foreach($tajadas as $t)
+                                    <div style="display:flex;align-items:center;gap:8px;font-size:12.5px">
+                                        <span style="width:11px;height:11px;border-radius:3px;flex:none;
+                                                     background:{{ $t['col'] }}"></span>
+                                        <span style="flex:1;min-width:0">
+                                            {{ $t['et'] }}
+                                            @if($t['sub'])<span style="opacity:.5"> · {{ $t['sub'] }}</span>@endif
                                         </span>
-                                        <b style="white-space:nowrap">{{ $it['unidades'] }}</b>
+                                        <b style="white-space:nowrap">{{ $t['n'] }}</b>
+                                        <span style="opacity:.5;width:38px;text-align:right;white-space:nowrap">
+                                            {{ round($t['n'] / max(1, $v['total']) * 100) }}%
+                                        </span>
                                     </div>
-                                    <div class="bc-barra" style="margin-top:3px">
-                                        <i style="width: {{ max(3, round($it['unidades'] / $tope * 100)) }}%; background:#4aa3df"></i>
-                                    </div>
-                                </div>
-                            @endforeach
+                                @endforeach
+                            </div>
                         </div>
 
                         <div style="margin-top:10px;font-size:11.5px;opacity:.6">
