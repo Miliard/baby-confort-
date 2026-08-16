@@ -5,10 +5,10 @@
 <title>Remuneración AIWIBI {{ $periodo }}</title>
 <style>
     *{box-sizing:border-box}
-    body{margin:0;padding:28px 30px;background:#fff;color:#1b2a3a;
+    body{margin:0;padding:30px 44px;background:#fff;color:#1b2a3a;
          font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-size:12.5px;line-height:1.45}
-    .cab{display:flex;justify-content:space-between;align-items:flex-start;
-         border-bottom:2px solid #1b2a3a;padding-bottom:12px;margin-bottom:18px}
+    .cab{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;
+         border-bottom:2px solid #1b2a3a;padding:0 4px 14px;margin-bottom:20px}
     h1{font-size:20px;margin:0 0 3px}
     .sub{font-size:12px;color:#6b7c8c}
     .tot{text-align:right}
@@ -16,21 +16,21 @@
     .tot .n{font-size:26px;font-weight:800;color:#16a34a;line-height:1.1}
     table{width:100%;border-collapse:collapse;margin-bottom:18px}
     th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#6b7c8c;
-       border-bottom:1.5px solid #d7dfe7;padding:6px 8px 6px 0}
-    td{padding:5px 8px 5px 0;border-bottom:1px solid #eef2f6;vertical-align:top}
-    td.der,th.der{text-align:right;padding-right:0}
+       border-bottom:1.5px solid #d7dfe7;padding:7px 10px 7px 2px}
+    td{padding:6px 10px 6px 2px;border-bottom:1px solid #eef2f6;vertical-align:top}
+    td.der,th.der{text-align:right;padding-right:4px}
     .guia{font-size:10.5px;color:#94a3b8}
-    .cuenta{width:320px;margin-left:auto}
+    .cuenta{width:330px;margin-left:auto;padding-right:4px}
     .lin{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #eef2f6}
     .lin.fin{border-bottom:none;border-top:2px solid #1b2a3a;margin-top:4px;padding-top:8px;font-size:15px}
     .lin b.neg{color:#dc2626}
-    .pie{margin-top:26px;font-size:10.5px;color:#94a3b8;border-top:1px solid #eef2f6;padding-top:10px}
-    .barra{position:fixed;top:0;left:0;right:0;background:#1b2a3a;color:#fff;padding:9px 16px;
+    .pie{margin-top:28px;font-size:10.5px;color:#94a3b8;border-top:1px solid #eef2f6;padding:10px 4px 0}
+    .barra{position:fixed;top:0;left:0;right:0;background:#1b2a3a;color:#fff;padding:10px 24px;
            font-size:13px;display:flex;justify-content:space-between;align-items:center}
     .barra button{border:none;border-radius:7px;padding:6px 14px;font-weight:700;font-size:12.5px;
                   cursor:pointer;background:#4aa3df;color:#fff}
     body{padding-top:60px}
-    @media print{ .barra{display:none} body{padding:0} @page{margin:14mm} }
+    @media print{ .barra{display:none} body{padding:0} @page{margin:18mm 16mm} }
 </style>
 </head>
 <body>
