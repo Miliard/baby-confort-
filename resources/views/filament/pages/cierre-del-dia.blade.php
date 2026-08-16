@@ -295,10 +295,22 @@
                             </div>
                         </div>
 
-                        <div style="margin-top:10px" x-data="{ ok: false, txt: @js($this->remTexto) }">
+                        <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px"
+                             x-data="{ ok: false, txt: @js($this->remTexto) }">
                             <x-filament::button size="sm"
                                 x-on:click="navigator.clipboard.writeText(txt).then(() => { ok = true; setTimeout(() => ok = false, 2500) })">
-                                <span x-text="ok ? '✅ ¡Copiado! Pegalo en el chat' : '📋 Copiar el detalle para mandarlo'"></span>
+                                <span x-text="ok ? '✅ ¡Copiado! Pegalo en el chat' : '📋 Copiar para WhatsApp'"></span>
+                            </x-filament::button>
+
+                            <x-filament::button size="sm" color="gray" tag="a" target="_blank"
+                                icon="heroicon-o-printer"
+                                :href="route('remuneracion.imprimir', [
+                                    'desde'    => $remDesde ?: null,
+                                    'hasta'    => $remHasta ?: null,
+                                    'comision' => $remComision,
+                                    'porEnvio' => $remPorEnvio,
+                                ])">
+                                Descargar PDF
                             </x-filament::button>
                         </div>
 

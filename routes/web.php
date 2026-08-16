@@ -34,6 +34,27 @@ Route::get('/privacidad', [StoreController::class, 'privacidad'])->name('store.p
 Route::get('/sitemap.xml', [StoreController::class, 'sitemap'])->name('store.sitemap');
 Route::get('/mensajes.json', [StoreController::class, 'mensajes'])->name('store.mensajes');
 
+// Hoja imprimible de la remuneración (el navegador la guarda como PDF).
+// Solo para quien esté dentro del panel.
+Route::get('/remuneracion/imprimir', function (\Illuminate\Http\Request $request) {
+    $desde = $request->query('desde') ?: null;
+    $hasta = $request->query('hasta') ?: null;
+
+    $m = \App\Models\CierreDia::remuneracion(
+        $desde,
+        $hasta,
+        (float) ($request->query('comision') ?: 2.5),
+        (float) ($request->query('porEnvio') ?: 3.40),
+    );
+
+    $periodo = ($desde || $hasta)
+        ? 'Del ' . ($desde ? \Illuminate\Support\Carbon::parse($desde)->format('d/m/Y') : 'inicio')
+          . ' al ' . ($hasta ? \Illuminate\Support\Carbon::parse($hasta)->format('d/m/Y') : 'hoy')
+        : 'Todo el historial';
+
+    return view('remuneracion-imprimir', compact('m', 'periodo'));
+})->middleware(['web', 'auth'])->name('remuneracion.imprimir');
+
 // Foto de vista previa para WhatsApp/Facebook, servida desde nuestro dominio.
 Route::get('/og/producto/{product}/{talla?}', [\App\Http\Controllers\OgImageController::class, 'producto'])
     ->where('talla', '.*')->name('store.og');
