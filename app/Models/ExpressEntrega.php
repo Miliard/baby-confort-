@@ -48,8 +48,7 @@ class ExpressEntrega extends Model
     /** Bultos en $0 que no son AIWIBI y todavía no se han explicado. */
     public function estaPendiente(): bool
     {
-        return ! $this->duplicado
-            && ! $this->aiwibi
+        return ! $this->aiwibi
             && (float) $this->monto == 0.0
             && empty($this->caso);
     }

@@ -492,7 +492,7 @@ class CierreDelDia extends Page
         [$d, $h] = $this->rango();
 
         return ExpressEntrega::whereDate('fecha', '>=', $d)->whereDate('fecha', '<=', $h)
-            ->where('aiwibi', false)->where('duplicado', false)->where('monto', 0)->whereNull('caso')
+            ->where('aiwibi', false)->where('monto', 0)->whereNull('caso')
             ->orderBy('fecha')->orderBy('id')->get();
     }
 

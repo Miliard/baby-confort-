@@ -534,14 +534,25 @@ function bcUrlConRev(url){
 }
 
 // Bloque de texto de UN producto (se usa solo y en la lista de varios)
+// Los nombres del catálogo traen emojis (👶 📌) que chocan con los del mensaje
+// y lo dejan cargado. Para compartir se manda el nombre limpio.
+function bcNombreLimpio(nombre){
+    return String(nombre || '')
+        .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{2190}-\u{21FF}]/gu, '')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/^[\s\-–—·]+|[\s\-–—·]+$/g, '')
+        .trim();
+}
+
+// Bloque corto: se usa cuando se mandan varios productos en una lista.
 function bcBloqueProducto(d){
-    let t = '*' + d.nombre + '* — Talla ' + d.talla + '\n';
-    t += '💵 $' + Number(d.precio).toFixed(2);
+    let t = '*' + bcNombreLimpio(d.nombre) + '* — Talla ' + d.talla + '\n';
+    t += '$' + Number(d.precio).toFixed(2);
     if (d.antes) t += ' (antes $' + Number(d.antes).toFixed(2) + ')';
-    if (d.unidades) t += ' · 📦 ' + d.unidades + ' unidades';
+    if (d.unidades) t += ' · ' + d.unidades + ' unidades';
     t += '\n';
-    if (d.combo) t += '🎉 Combo: ' + d.combo.cantidad + ' x $' + Number(d.combo.precio).toFixed(2) + '\n';
-    t += '👉 ' + bcUrlConRev(d.url);
+    if (d.combo) t += 'Combo: ' + d.combo.cantidad + ' x $' + Number(d.combo.precio).toFixed(2) + '\n';
+    t += bcUrlConRev(d.url);
     return t;
 }
 
@@ -581,8 +592,26 @@ function bcCompartir(d){
 }
 
 // Texto de UN producto (nombre, talla, precio y enlace)
+// Mensaje de UN producto: cada dato en su renglón, el enlace solo al final.
+// Así WhatsApp no lo apelmaza y el cliente lee de un vistazo qué le mandan.
 function bcTextoProducto(d){
-    return '🍼 ' + bcBloqueProducto(d) + '\n🚚 Entrega a domicilio en todo El Salvador';
+    let t = '*' + bcNombreLimpio(d.nombre) + '*\n\n';
+
+    if (d.talla)    t += '*Talla:* ' + d.talla + '\n';
+    if (d.unidades) t += '*Contiene:* ' + d.unidades + ' unidades\n';
+
+    t += '*Precio:* $' + Number(d.precio).toFixed(2);
+    if (d.antes) t += '  ~$' + Number(d.antes).toFixed(2) + '~';
+    t += '\n';
+
+    if (d.combo) {
+        t += '*Oferta:* ' + d.combo.cantidad + ' por $' + Number(d.combo.precio).toFixed(2) + '\n';
+    }
+
+    t += '\n*Miralo aquí:*\n' + bcUrlConRev(d.url) + '\n\n';
+    t += '🚚 Entrega a domicilio en todo El Salvador';
+
+    return t;
 }
 
 // Copia el texto al portapapeles y avisa en el botón (sin abrir WhatsApp).

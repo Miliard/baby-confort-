@@ -7,7 +7,11 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Los paquetes de guías que se le compran a Express (por ejemplo 500 por $1,400).
- * Express cobra POR BULTO, así que cada bulto entregado descuenta una.
+ *
+ * Ojo con la diferencia:
+ *  - Express COBRA por bulto, incluidos los recargos "TYP" (Tamaño y Peso).
+ *  - Pero del lote solo se descuenta una guía por bulto real: el recargo TYP
+ *    se cobra sobre la misma guía, no consume una nueva.
  */
 class BloqueGuia extends Model
 {
@@ -48,8 +52,9 @@ class BloqueGuia extends Model
      */
     public static function saldo(): array
     {
-        // Los bultos registrados en total, haya bloque o no: eso es lo que ya
-        // se consumió y siempre se puede mostrar.
+        // Guías consumidas del lote. Los "TYP" (Tamaño y Peso) NO cuentan aquí:
+        // Express vuelve a cobrar la misma guía por exceso de carga, pero no
+        // gasta una guía nueva del paquete comprado.
         $usadasTotal = 0;
         if (ExpressEntrega::hayTabla()) {
             try {
@@ -75,8 +80,7 @@ class BloqueGuia extends Model
 
         if (ExpressEntrega::hayTabla()) {
             try {
-                // Los renglones que Express repitió por error (TYP) no son bultos
-                // de verdad: no consumen guía ni se pagan.
+                // Sin los TYP: cobran, pero no gastan guía del lote.
                 $usadas += ExpressEntrega::whereDate('fecha', '>=', $desde->toDateString())
                     ->where('duplicado', false)->count();
             } catch (\Throwable $e) {

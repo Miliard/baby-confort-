@@ -16,7 +16,8 @@ return new class extends Migration
             if (! Schema::hasColumn('express_entregas', 'nota')) {
                 $table->string('nota', 300)->nullable()->after('total');
             }
-            // Los renglones marcados TYP son repeticiones del mismo bulto.
+            // Marca los renglones "TYP" (Tamaño y Peso): recargos que Express
+            // cobra aparte cuando el bulto se pasa de los límites de carga.
             if (! Schema::hasColumn('express_entregas', 'duplicado')) {
                 $table->boolean('duplicado')->default(false)->after('nota');
             }

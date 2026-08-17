@@ -87,8 +87,9 @@ class ExpressPegado
     }
 
     /**
-     * Express marca con "TYP" los renglones que repitió por error: son el mismo
-     * bulto anotado dos veces. No se cuentan ni se pagan.
+     * "TYP" es Tamaño y Peso: Express vuelve a cobrar la misma guía porque el
+     * bulto se pasó de los límites de carga. SÍ se cobra: es un renglón real.
+     * Se marca solo para poder distinguirlo en pantalla.
      */
     public static function esDuplicado(?string $nota): bool
     {

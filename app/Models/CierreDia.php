@@ -58,7 +58,7 @@ class CierreDia extends Model
 
         if (! ExpressEntrega::hayTabla()) return $vacio;
 
-        $todas = ExpressEntrega::whereDate('fecha', $fecha)->where('duplicado', false)->get();
+        $todas = ExpressEntrega::whereDate('fecha', $fecha)->get();
         if ($todas->isEmpty()) return $vacio;
 
         $mias   = $todas->where('aiwibi', false);
@@ -113,7 +113,7 @@ class CierreDia extends Model
 
         try {
             $todas = ExpressEntrega::whereDate('fecha', '>=', $desde)
-                ->whereDate('fecha', '<=', $hasta)->where('duplicado', false)->get();
+                ->whereDate('fecha', '<=', $hasta)->get();
         } catch (\Throwable $e) {
             return $vacio;
         }
@@ -184,7 +184,7 @@ class CierreDia extends Model
         if (! ExpressEntrega::hayTabla()) return $vacio;
 
         try {
-            $q = ExpressEntrega::where('aiwibi', true)->where('duplicado', false);
+            $q = ExpressEntrega::where('aiwibi', true);
             if ($desde) $q->whereDate('fecha', '>=', $desde);
             if ($hasta) $q->whereDate('fecha', '<=', $hasta);
             $todas = $q->orderBy('fecha')->orderBy('nombre')->get();
