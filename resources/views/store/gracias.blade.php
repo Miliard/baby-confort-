@@ -8,8 +8,16 @@
         <h1>¡Ya casi, {{ \Illuminate\Support\Str::of($order->customer_name)->before(' ') }}!</h1>
         <p class="gracias-sub">Tu pedido <b>#{{ $order->id }}</b> quedó guardado. <b>Falta un paso:</b> envíanoslo por WhatsApp para confirmarlo y coordinar la entrega. 👇</p>
 
-        <a class="gracias-cta" href="{{ $waUrl }}" target="_blank" rel="noopener">📲 Enviar mi pedido por WhatsApp</a>
+        <a id="bc-wa" class="gracias-cta" href="{{ $waUrl }}" target="_blank" rel="noopener">📲 Enviar mi pedido por WhatsApp</a>
         <div class="gracias-cta-hint">Toca el botón verde y luego dale <b>Enviar</b> en WhatsApp. Sin ese paso no recibimos tu pedido.</div>
+
+        {{-- Respaldo: aparece solo si tocó el botón y siguió aquí (WhatsApp no abrió) --}}
+        <div id="bc-respaldo" class="gracias-respaldo" style="display:none">
+            <div class="gr-resp-t">¿No se abrió WhatsApp? 🤔</div>
+            <p>Copia tu pedido y mándanoslo tú al <b>{{ $telefonoLegible }}</b>. Llega igual.</p>
+            <textarea id="bc-mensaje" readonly>{{ $mensajeWa }}</textarea>
+            <button type="button" class="gr-resp-btn" onclick="bcCopiarPedido(this)">📋 Copiar mi pedido</button>
+        </div>
 
         <div class="gracias-resumen">
             <div class="gr-titulo">Resumen de tu pedido</div>
@@ -62,12 +70,46 @@
     .gbtn{border-radius:12px;padding:14px;font-weight:800;font-size:15px}
     .gbtn-track{background:var(--azul);color:#fff}
     .gbtn-more{background:#fff;border:1px solid var(--borde);color:var(--texto)}
+    .gracias-respaldo{background:#fff8e6;border:1px solid #f0d9a8;border-radius:14px;padding:16px;margin:-8px 0 22px;text-align:left}
+    .gr-resp-t{font-weight:800;font-size:15px;margin-bottom:4px}
+    .gracias-respaldo p{margin:0 0 10px;font-size:13.5px;color:var(--gris);line-height:1.5}
+    .gracias-respaldo textarea{display:none}
+    .gr-resp-btn{width:100%;border:none;border-radius:11px;padding:13px;background:var(--azul);
+                 color:#fff;font-weight:800;font-size:14.5px;cursor:pointer}
+    html.dark .gracias-respaldo{background:rgba(224,163,59,.10);border-color:rgba(224,163,59,.4)}
     html.dark .gracias-card{background:#16202f;border-color:var(--borde)}
     html.dark .gbtn-more{background:#16202f;color:var(--texto);border-color:var(--borde)}
 </style>
 <script>
-    // Intento de abrir WhatsApp automáticamente (si el navegador lo permite).
-    // Si lo bloquea, el botón verde grande queda como la forma segura de enviarlo.
-    (function(){ try { window.open(@js($waUrl), '_blank'); } catch(e){} })();
+    // Nada de abrir WhatsApp solo: los teléfonos lo bloquean y el cliente cree
+    // que ya mandó el pedido. El botón verde es el único camino, y si WhatsApp
+    // no abre queda el respaldo de copiar el mensaje.
+    document.addEventListener('DOMContentLoaded', function () {
+        var boton   = document.getElementById('bc-wa');
+        var respaldo = document.getElementById('bc-respaldo');
+        if (!boton || !respaldo) return;
+
+        // El respaldo aparece unos segundos después de tocar el botón: si
+        // WhatsApp abrió bien, el cliente ya no está mirando esta pantalla.
+        boton.addEventListener('click', function () {
+            setTimeout(function () { respaldo.style.display = 'block'; }, 2500);
+        });
+    });
+
+    function bcCopiarPedido(boton){
+        var texto = document.getElementById('bc-mensaje').value;
+        var listo = function () {
+            boton.textContent = '✅ ¡Copiado! Pégalo en WhatsApp';
+            setTimeout(function () { boton.textContent = '📋 Copiar mi pedido'; }, 3000);
+        };
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(texto).then(listo, function () {});
+        } else {
+            var t = document.getElementById('bc-mensaje');
+            t.style.display = 'block'; t.select();
+            try { document.execCommand('copy'); listo(); } catch (e) {}
+            t.style.display = 'none';
+        }
+    }
 </script>
 @endsection

@@ -287,7 +287,18 @@ class StoreController extends Controller
     public function gracias(\App\Models\Order $order)
     {
         $waUrl = $order->whatsappUrl();
-        return view('store.gracias', compact('order', 'waUrl'));
+
+        // Respaldo para cuando WhatsApp no abre solo (pasa en el navegador de
+        // Facebook/Instagram): el cliente copia el mensaje y lo manda él.
+        $mensajeWa = $order->mensajeWhatsApp();
+
+        $tel = preg_replace('/\D/', '', (string) config('babyconfort.whatsapp'));
+        if (strlen($tel) === 11 && str_starts_with($tel, '503')) $tel = substr($tel, 3);
+        $telefonoLegible = strlen($tel) === 8
+            ? substr($tel, 0, 4) . '-' . substr($tel, 4)
+            : (string) config('babyconfort.whatsapp');
+
+        return view('store.gracias', compact('order', 'waUrl', 'mensajeWa', 'telefonoLegible'));
     }
 
     public function nosotros()
