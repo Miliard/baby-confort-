@@ -54,8 +54,8 @@ class GuiaFotoController extends Controller
             ]);
         }
 
-        // Limpieza: borra fotos con más de 5 días para no llenar el servidor.
-        static::limpiarViejas();
+        // Limpieza: quita del disco las imágenes ya vencidas (una vez al día).
+        static::limpiarSiTocaHoy();
 
         // Si esa guía ya está en un pedido, se devuelve el teléfono del cliente
         // para poder copiarlo y buscarlo rápido.
@@ -83,25 +83,96 @@ class GuiaFotoController extends Controller
     }
 
     /**
-     * Borra las fotos con más de 5 días (archivo + registro). Se ejecuta sola
-     * cada vez que se sube una foto, así no hace falta una tarea programada.
+     * Borra del disco las IMÁGENES con más días de los permitidos, pero deja el
+     * registro intacto.
+     *
+     * Antes se borraba la fila entera, y eso se llevaba puesto el nombre, el
+     * teléfono y el contenido del pedido: el cliente que rastreaba a los seis
+     * días no encontraba nada, y el "producto más vendido" solo contaba la
+     * última semana. La imagen es lo único que pesa; el texto no ocupa casi
+     * nada y sirve para siempre.
      */
-    public static function limpiarViejas(int $dias = 5): int
+    public static function limpiarViejas(?int $dias = null): int
     {
+        $dias = $dias ?? static::diasDeFotos();
         $borradas = 0;
+
         try {
-            $viejas = GuiaFoto::where('created_at', '<', now()->subDays($dias))->get();
-            foreach ($viejas as $f) {
-                try {
-                    \Illuminate\Support\Facades\Storage::disk('public')->delete($f->ruta);
-                } catch (\Throwable $e) {
-                }
-                $f->delete();
-                $borradas++;
+            $tieneMarca = \Illuminate\Support\Facades\Schema::hasColumn('guia_fotos', 'foto_borrada_at');
+
+            GuiaFoto::whereNotNull('ruta')->where('ruta', '!=', '')
+                ->where('created_at', '<', now()->subDays($dias))
+                ->chunkById(200, function ($viejas) use (&$borradas, $tieneMarca) {
+                    foreach ($viejas as $f) {
+                        try {
+                            \Illuminate\Support\Facades\Storage::disk('public')->delete($f->ruta);
+                        } catch (\Throwable $e) {
+                        }
+                        $f->ruta = null;
+                        if ($tieneMarca) $f->foto_borrada_at = now();
+                        $f->save();
+                        $borradas++;
+                    }
+                });
+        } catch (\Throwable $e) {
+        }
+
+        return $borradas;
+    }
+
+    /** Cuántos días se guarda la foto del paquete (se puede cambiar en Ajustes). */
+    public static function diasDeFotos(): int
+    {
+        try {
+            $d = (int) \App\Models\Setting::get('fotos_dias', 30);
+        } catch (\Throwable $e) {
+            $d = 30;
+        }
+        return $d > 0 ? $d : 30;
+    }
+
+    /**
+     * Corre la limpieza como mucho una vez al día. Se llama al subir fotos, que
+     * es lo que se hace a diario, así funciona aunque el servidor no tenga una
+     * tarea programada corriendo.
+     */
+    public static function limpiarSiTocaHoy(): void
+    {
+        try {
+            $hoy = now()->toDateString();
+            if (\App\Models\Setting::get('fotos_limpieza_dia') === $hoy) return;
+
+            \App\Models\Setting::put('fotos_limpieza_dia', $hoy);
+            static::limpiarViejas();
+        } catch (\Throwable $e) {
+        }
+    }
+
+    /** Cuánto ocupan hoy las fotos guardadas (para verlo en pantalla). */
+    public static function espacioUsado(): array
+    {
+        $bytes = 0;
+        $conFoto = 0;
+
+        try {
+            $disco = \Illuminate\Support\Facades\Storage::disk('public');
+            foreach ($disco->files('paquetes') as $archivo) {
+                $bytes += (int) $disco->size($archivo);
+                $conFoto++;
             }
         } catch (\Throwable $e) {
         }
-        return $borradas;
+
+        $mb = $bytes / 1048576;
+
+        return [
+            'archivos' => $conFoto,
+            'bytes'    => $bytes,
+            'legible'  => $mb >= 1024
+                ? number_format($mb / 1024, 2) . ' GB'
+                : number_format($mb, 1) . ' MB',
+            'dias'     => static::diasDeFotos(),
+        ];
     }
 
     /**

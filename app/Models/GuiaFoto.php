@@ -16,10 +16,14 @@ class GuiaFoto extends Model
 
     protected $fillable = [
         'guia', 'ruta', 'nombre', 'telefono', 'contenido', 'cobrar',
-        'lote', 'enviado_at', 'enviado',
+        'lote', 'enviado_at', 'enviado', 'foto_borrada_at',
     ];
 
-    protected $casts = ['enviado_at' => 'datetime', 'cobrar' => 'decimal:2'];
+    protected $casts = [
+        'enviado_at'      => 'datetime',
+        'foto_borrada_at' => 'datetime',
+        'cobrar'          => 'decimal:2',
+    ];
 
     /** ¿Existe la tabla y ya tiene la columna de contenido? */
     public static function hayTablaContenido(): bool

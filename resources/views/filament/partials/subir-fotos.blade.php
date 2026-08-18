@@ -27,6 +27,22 @@
 {{-- Solo se listan las que NO se pudieron leer, para escribir la guía a mano --}}
 <div id="resultados" class="mt-3 flex flex-col gap-2"></div>
 
+{{-- Cuánto ocupan las fotos y hasta cuándo se guardan --}}
+@php $espacio = \App\Http\Controllers\GuiaFotoController::espacioUsado(); @endphp
+<div class="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm dark:border-white/10 dark:bg-white/5">
+    <div class="flex items-center justify-between gap-3">
+        <span class="text-gray-500 dark:text-gray-400">Fotos guardadas ahora</span>
+        <span class="font-bold text-gray-950 dark:text-white">
+            {{ $espacio['archivos'] }} · {{ $espacio['legible'] }}
+        </span>
+    </div>
+    <p class="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+        Cada foto se guarda <b>{{ $espacio['dias'] }} días</b> y después se borra sola del disco.
+        Los datos del pedido (guía, cliente, teléfono y qué llevaba) <b>no se borran nunca</b>:
+        el rastreo y el ranking de productos siguen funcionando aunque la imagen ya no esté.
+    </p>
+</div>
+
 <div class="mt-5 text-center">
     <x-filament::link :href="\App\Filament\Resources\GuiaFotoResource::getUrl()" icon="heroicon-m-photo">
         Ver todas las guías con foto

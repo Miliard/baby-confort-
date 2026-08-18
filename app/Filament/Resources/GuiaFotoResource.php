@@ -113,6 +113,29 @@ class GuiaFotoResource extends Resource
                             ->modalWidth('7xl')
                     )
                     ->tooltip('Clic para ver la etiqueta en grande'),
+
+                // Aviso de cuánto le queda a la imagen antes de borrarse del disco.
+                // Los datos del pedido se quedan; solo se va la foto.
+                Tables\Columns\TextColumn::make('vence')->label('Foto')
+                    ->badge()
+                    ->state(function (GuiaFoto $record) {
+                        if (! $record->ruta) return 'Ya borrada';
+
+                        $dias = \App\Http\Controllers\GuiaFotoController::diasDeFotos();
+                        $faltan = (int) ceil(now()->diffInDays(
+                            $record->created_at?->copy()->addDays($dias) ?? now(), false
+                        ));
+
+                        if ($faltan <= 0) return 'Se borra hoy';
+                        return $faltan === 1 ? 'Queda 1 día' : "Quedan {$faltan} días";
+                    })
+                    ->color(fn (GuiaFoto $record) => match (true) {
+                        ! $record->ruta => 'gray',
+                        now()->diffInDays($record->created_at ?? now()) >= \App\Http\Controllers\GuiaFotoController::diasDeFotos() - 5 => 'danger',
+                        default => 'success',
+                    })
+                    ->tooltip('Después de este tiempo se borra solo la imagen. La guía, el cliente y qué llevaba se quedan guardados.')
+                    ->toggleable(),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('cuando')
