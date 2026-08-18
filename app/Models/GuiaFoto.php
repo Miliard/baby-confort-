@@ -113,6 +113,10 @@ class GuiaFoto extends Model
     /**
      * Registra el pedido apenas se arma la guía. Si ya hay uno pendiente del
      * mismo teléfono, lo actualiza en vez de duplicar.
+     *
+     * 'telefono_anterior' se usa cuando se corrige una guía y el número cambió:
+     * así se mueve el pedido que ya existía en vez de dejar uno huérfano con el
+     * teléfono viejo (que el cliente equivocado seguiría viendo al rastrear).
      */
     public static function registrarPendiente(array $datos): void
     {
@@ -122,7 +126,13 @@ class GuiaFoto extends Model
         try {
             if (! Schema::hasTable('guia_fotos')) return;
 
-            $pendiente = static::pendientePorTelefono($telefono) ?? new static();
+            $anterior = trim((string) ($datos['telefono_anterior'] ?? ''));
+            $cambio   = $anterior !== ''
+                && static::telefonoCorto($anterior) !== static::telefonoCorto($telefono);
+
+            $pendiente = static::pendientePorTelefono($telefono)
+                ?? ($cambio ? static::pendientePorTelefono($anterior) : null)
+                ?? new static();
 
             $pendiente->guia      = null;
             $pendiente->telefono  = $telefono;

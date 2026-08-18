@@ -160,11 +160,16 @@
                             <div class="flex flex-none items-center gap-1.5">
                                 {{-- Mensaje listo para el cliente: se puede mandar YA, sin esperar el PDF.
                                      Rojo = falta mandarlo · Verde = ya enviado. --}}
-                                <div x-data="{ msg: @js(\App\Models\GuiaBorrador::mensajeCliente($g)) }">
+                                {{-- El mensaje viaja en un atributo, NO en el estado de Alpine.
+                                     Alpine solo llena su estado la primera vez que dibuja la fila:
+                                     si se guardara ahí, al corregir la guía el botón seguiría
+                                     copiando el texto viejo. En el atributo, Livewire lo refresca. --}}
+                                <div x-data="{}">
                                     <x-filament::button
                                         size="xs"
                                         :color="($g['enviado'] ?? false) ? 'success' : 'danger'"
-                                        x-on:click.stop="navigator.clipboard.writeText(msg).then(() => $wire.marcarEnviado({{ $g['id'] ?? 0 }}))">
+                                        data-msg="{{ \App\Models\GuiaBorrador::mensajeCliente($g) }}"
+                                        x-on:click.stop="bcCopiarGuia($el, {{ $g['id'] ?? 0 }}, $wire)">
                                         {{ ($g['enviado'] ?? false) ? '✅ Enlace enviado' : '📋 Copiar mensaje' }}
                                     </x-filament::button>
                                 </div>
@@ -216,6 +221,38 @@
 
 {{-- Si falta un campo, lo resalta y salta a él (útil en el teléfono) --}}
 @push('scripts')
+    <script>
+    // Copia el mensaje del cliente leyéndolo del atributo en el momento del clic.
+    // Así siempre sale la versión corregida más reciente, no la que había cuando
+    // se dibujó la fila. Solo se marca como enviado si de verdad se copió.
+    window.bcCopiarGuia = async function (boton, id, wire) {
+        const texto = boton.dataset.msg || '';
+        if (!texto) return;
+
+        let copiado = false;
+        try {
+            await navigator.clipboard.writeText(texto);
+            copiado = true;
+        } catch (e) {
+            // Respaldo para navegadores viejos o conexiones sin candado.
+            const ta = document.createElement('textarea');
+            ta.value = texto;
+            ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { copiado = document.execCommand('copy'); } catch (err) {}
+            ta.remove();
+        }
+
+        if (!copiado) {
+            alert('No se pudo copiar. Tocá y mantené sobre el mensaje para copiarlo a mano.');
+            return;
+        }
+
+        if (id && wire) wire.marcarEnviado(id);
+    };
+    </script>
+
     {{-- Lector del PDF de etiquetas de Sistrack --}}
     <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
     <script>

@@ -312,6 +312,10 @@ class CrearGuia extends Page implements HasForms
                 return;
             }
 
+            // Se guarda el teléfono que tenía ANTES: si lo estamos corrigiendo,
+            // hay que actualizar el pedido pendiente de ese número, no crear otro.
+            $telefonoAnterior = $g->telefono;
+
             $g->fill([
                 'nombre'          => $d['nombre'],
                 'telefono'        => $d['telefono'],
@@ -325,10 +329,11 @@ class CrearGuia extends Page implements HasForms
 
             // Se actualiza también lo que ve el cliente al rastrear.
             \App\Models\GuiaFoto::registrarPendiente([
-                'telefono'  => $d['telefono'] ?? '',
-                'nombre'    => $d['nombre'] ?? '',
-                'contenido' => $d['descripcion'] ?? '',
-                'cobrar'    => $d['cobrar'] ?? null,
+                'telefono'          => $d['telefono'] ?? '',
+                'nombre'            => $d['nombre'] ?? '',
+                'contenido'         => $d['descripcion'] ?? '',
+                'cobrar'            => $d['cobrar'] ?? null,
+                'telefono_anterior' => $telefonoAnterior,
             ]);
 
             \App\Models\Cliente::recordar([
