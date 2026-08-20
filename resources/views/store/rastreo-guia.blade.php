@@ -147,6 +147,12 @@
         </div>
     @endif
 
+    {{-- La foto va arriba del todo: es lo primero que el cliente quiere ver
+         (y lo que nos sirve a nosotros para confirmar a dónde salió el bulto). --}}
+    @if($guia && $etapa)
+        @include('store.partials.foto-paquete', ['guiaFoto' => $guia])
+    @endif
+
     @if($guia && $etapa)
         <div class="trk">
             <div class="trk-line"></div>
@@ -171,8 +177,6 @@
                 · <a href="https://expresselsalvador.sistrack.net/track/{{ $guia }}" target="_blank" rel="noopener" style="color:var(--azul-osc);font-weight:700">Detalle del courier ↗</a>
             </div>
         </div>
-
-        @include('store.partials.foto-paquete', ['guiaFoto' => $guia])
 
         @include('store.partials.historial')
 
