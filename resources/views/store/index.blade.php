@@ -28,7 +28,7 @@
         return array_values(array_unique($tokens));
     })->values();
 @endphp
-<div x-data="{
+<div class="bc-portada" x-data="{
     q: '',
     productos: @js($indiceBusqueda),
     tallas: @js($indiceTallas),
@@ -86,7 +86,7 @@
 </div>
 @endif
 
-<div class="contenedor" x-show="q.trim() === ''">@include('store.partials.size-guide')</div>
+<div class="contenedor bc-tallas" x-show="q.trim() === ''">@include('store.partials.size-guide')</div>
 
 <main class="contenedor">
     <h2 class="seccion-titulo" x-text="q.trim() === '' ? 'Nuestros productos' : 'Resultados de tu búsqueda'"></h2>
@@ -118,6 +118,13 @@
 </div>
 
 <style>
+    /* En el teléfono, el menú de tallas va PRIMERO: es lo que el cliente
+       necesita tocar, y con el buscador arriba casi nadie bajaba a buscarlo.
+       En pantalla grande se ve todo de una, así que ahí no se cambia nada. */
+    @media(max-width:820px){
+        .bc-portada{display:flex;flex-direction:column}
+        .bc-portada > .bc-tallas{order:-1;margin-top:14px}
+    }
     .buscador-wrap{position:relative;max-width:560px;margin:16px auto 4px}
     @media(min-width:821px){.hero .contenedor{text-align:center}.hero p{margin-left:auto;margin-right:auto}.pills{justify-content:center}.cat-chips{justify-content:center}}
     .buscador{width:100%;padding:13px 40px 13px 42px;border:1px solid var(--borde);border-radius:999px;font-size:15px;background:#fff;box-shadow:0 2px 8px rgba(47,127,191,.06)}

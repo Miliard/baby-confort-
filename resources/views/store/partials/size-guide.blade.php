@@ -1,12 +1,11 @@
 @php
-    $bebe = [
-        'S'    => '4–8 kg · 9–18 lb',
-        'M'    => '6–11 kg · 13–24 lb',
-        'L'    => '9–14 kg · 20–31 lb',
-        'XL'   => '12–17 kg · 26–37 lb',
-        'XXL'  => '15–21 kg · 33–46 lb',
-        'XXXL' => '18–25 kg · 39–55 lb',
-    ];
+    // Los pesos viven en config/tallas_peso.php: una sola fuente para la tienda
+    // y para la tabla de precios del admin.
+    $pesos = config('tallas_peso', []);
+    $bebe  = [];
+    foreach (['S', 'M', 'L', 'XL', 'XXL', 'XXXL'] as $t) {
+        if (! empty($pesos[$t])) $bebe[$t] = $pesos[$t];
+    }
     $especiales = \App\Models\ProductSize::query()
         ->whereHas('product', fn ($q) => $q->where('active', true))
         ->where('size', 'like', '%año%')
