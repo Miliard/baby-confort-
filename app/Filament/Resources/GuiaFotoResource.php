@@ -102,6 +102,14 @@ class GuiaFotoResource extends Resource
 
                 Tables\Columns\ImageColumn::make('ruta')->label('Foto')
                     ->disk('public')->height(42)->square()
+                    // Sin esto, las guías sin foto muestran el ícono de imagen
+                    // rota y parece un error. Ahora sale un recuadro neutro.
+                    ->defaultImageUrl('data:image/svg+xml;utf8,' . rawurlencode(
+                        '<svg xmlns="http://www.w3.org/2000/svg" width="42" height="42">'
+                        . '<rect width="42" height="42" rx="6" fill="#e7ebf0"/>'
+                        . '<path d="M13 26l5-6 4 4 3-3 4 5z" fill="#b9c3cf"/>'
+                        . '<circle cx="16" cy="16" r="2.5" fill="#b9c3cf"/></svg>'
+                    ))
                     ->action(
                         Tables\Actions\Action::make('abrir_foto')
                             ->modalHeading(fn (GuiaFoto $record) => 'Etiqueta de la guía ' . $record->guia)
@@ -119,7 +127,13 @@ class GuiaFotoResource extends Resource
                 Tables\Columns\TextColumn::make('vence')->label('Foto')
                     ->badge()
                     ->state(function (GuiaFoto $record) {
-                        if (! $record->ruta) return 'Ya borrada';
+                        // Tres estados distintos, que antes se confundían en uno:
+                        //  · nunca se subió foto (la guía entró por el PDF)
+                        //  · se subió y ya se venció
+                        //  · está y le quedan X días
+                        if (! $record->ruta) {
+                            return $record->foto_borrada_at ? 'Ya borrada' : 'Falta subirla';
+                        }
 
                         $dias = \App\Http\Controllers\GuiaFotoController::diasDeFotos();
                         $faltan = (int) ceil(now()->diffInDays(
@@ -129,12 +143,19 @@ class GuiaFotoResource extends Resource
                         if ($faltan <= 0) return 'Se borra hoy';
                         return $faltan === 1 ? 'Queda 1 día' : "Quedan {$faltan} días";
                     })
-                    ->color(fn (GuiaFoto $record) => match (true) {
-                        ! $record->ruta => 'gray',
-                        now()->diffInDays($record->created_at ?? now()) >= \App\Http\Controllers\GuiaFotoController::diasDeFotos() - 5 => 'danger',
-                        default => 'success',
+                    ->color(function (GuiaFoto $record) {
+                        if (! $record->ruta) {
+                            return $record->foto_borrada_at ? 'gray' : 'warning';
+                        }
+                        $dias = \App\Http\Controllers\GuiaFotoController::diasDeFotos();
+                        return now()->diffInDays($record->created_at ?? now()) >= $dias - 5
+                            ? 'danger' : 'success';
                     })
-                    ->tooltip('Después de este tiempo se borra solo la imagen. La guía, el cliente y qué llevaba se quedan guardados.')
+                    ->tooltip(fn (GuiaFoto $record) => $record->ruta
+                        ? 'Pasado este tiempo se borra solo la imagen. La guía, el cliente y qué llevaba se quedan guardados.'
+                        : ($record->foto_borrada_at
+                            ? 'La imagen se venció y se borró del disco. Los datos del pedido siguen guardados.'
+                            : 'Esta guía todavía no tiene foto: subila desde Guías → Fotos.'))
                     ->toggleable(),
             ])
             ->filters([
