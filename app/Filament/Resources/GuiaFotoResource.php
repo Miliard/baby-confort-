@@ -299,9 +299,20 @@ class GuiaFotoResource extends Resource
                 Tables\Actions\Action::make('ver_foto')
                     ->label('Ver foto')->icon('heroicon-o-photo')->color('gray')
                     ->modalHeading(fn (GuiaFoto $record) => 'Etiqueta de la guía ' . $record->guia)
+                    // Si no hay foto se dice con palabras, en vez de mostrar el
+                    // ícono de imagen rota, que parece una falla del sistema.
                     ->modalContent(fn (GuiaFoto $record) => new \Illuminate\Support\HtmlString(
-                        '<img src="' . e($record->url()) . '" alt="Etiqueta" '
-                        . 'style="width:100%;max-height:80vh;object-fit:contain;border-radius:10px;display:block">'
+                        ($record->ruta
+                            ? '<img src="' . e($record->url()) . '" alt="Etiqueta" '
+                              . 'style="width:100%;max-height:80vh;object-fit:contain;border-radius:10px;display:block">'
+                            : '<div style="padding:34px 20px;text-align:center;border:1px dashed #9ca3af;'
+                              . 'border-radius:12px;color:#6b7280;font-size:14.5px;line-height:1.6">'
+                              . ($record->foto_borrada_at
+                                    ? '🗓️ Esta foto ya cumplió su tiempo y se borró del disco.<br>'
+                                      . 'Los datos del pedido siguen guardados.'
+                                    : '📷 Esta guía todavía no tiene foto.<br>'
+                                      . 'Usá el botón <b>Subir foto</b> de esta misma fila.')
+                              . '</div>')
                         . '<div style="margin-top:10px;font-size:13px;color:#6b7280;text-align:center">'
                         . 'Guía <b>' . e($record->guia) . '</b>'
                         . ($record->telefono ? ' · Tel <b>' . e($record->telefono) . '</b>' : '')

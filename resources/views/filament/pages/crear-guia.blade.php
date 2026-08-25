@@ -770,18 +770,22 @@
         // pasarse del límite de subida de PHP. Con el lado largo en 1600 px
         // la etiqueta se sigue leyendo perfecto y pesa unos 300 KB: sube
         // rápido con datos móviles y ocupa mucho menos disco.
+        // Además de achicar, SIEMPRE reescribe a JPG si el formato no es
+        // JPG ni PNG: los iPhone guardan en HEIC y el servidor no lo acepta.
         function achicar(file, img) {
             return new Promise((listo) => {
                 try {
                     if (!img || !img.width || !img.height) return listo(file);
-                    if (file.size <= 900 * 1024) return listo(file);   // ya es liviana
+
+                    const yaEsBuena = file.type === 'image/jpeg' || file.type === 'image/png';
+                    if (yaEsBuena && file.size <= 900 * 1024) return listo(file);
 
                     const c = aCanvas(img, 1600);
                     if (!c.width || !c.height) return listo(file);
 
                     c.toBlob((blob) => {
-                        // Solo se usa si de verdad quedó más liviana.
-                        listo(blob && blob.size > 0 && blob.size < file.size ? blob : file);
+                        if (!blob || blob.size === 0) return listo(file);
+                        listo((yaEsBuena && blob.size >= file.size) ? file : blob);
                     }, 'image/jpeg', 0.82);
                 } catch (e) {
                     listo(file);

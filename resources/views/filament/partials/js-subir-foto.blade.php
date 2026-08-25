@@ -16,12 +16,18 @@
     const TOKEN = document.querySelector('meta[name="csrf-token"]')?.content;
     const RUTA  = @js(route('fotos.subir'));
 
-    // Achica la foto a 1600 px de lado largo. Una foto de teléfono pasa de
-    // unos 6 MB a unos 300 KB, y la etiqueta se sigue leyendo perfecto.
+    // Achica la foto a 1600 px de lado largo Y la reescribe siempre como JPG.
+    //
+    // Lo segundo es clave para los teléfonos: los iPhone guardan en HEIC y
+    // algunos Android en WEBP, formatos que el servidor no acepta. Al pasarla
+    // por el lienzo del navegador sale JPG, que sí acepta. Antes esto solo se
+    // hacía con las fotos pesadas, así que una foto liviana en HEIC se mandaba
+    // tal cual y el servidor la rechazaba.
     function achicar(file) {
         return new Promise((listo) => {
             try {
-                if (file.size <= 900 * 1024) return listo(file);
+                const yaEsBuena = file.type === 'image/jpeg' || file.type === 'image/png';
+                if (yaEsBuena && file.size <= 900 * 1024) return listo(file);
 
                 const url = URL.createObjectURL(file);
                 const img = new Image();
@@ -34,13 +40,19 @@
                         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
                         c.toBlob((blob) => {
                             URL.revokeObjectURL(url);
-                            listo(blob && blob.size > 0 && blob.size < file.size ? blob : file);
+                            if (!blob || blob.size === 0) return listo(file);
+                            // Si el original ya era JPG/PNG y pesaba menos, se
+                            // deja el original. Si venía en HEIC o WEBP, se usa
+                            // el convertido aunque pese un poco más.
+                            listo((yaEsBuena && blob.size >= file.size) ? file : blob);
                         }, 'image/jpeg', 0.82);
                     } catch (e) {
                         URL.revokeObjectURL(url);
                         listo(file);
                     }
                 };
+                // Si el navegador no sabe abrir ese formato, se manda el original
+                // y que el servidor diga por qué no lo acepta.
                 img.onerror = () => { URL.revokeObjectURL(url); listo(file); };
                 img.src = url;
             } catch (e) {
