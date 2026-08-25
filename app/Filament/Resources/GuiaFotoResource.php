@@ -216,6 +216,52 @@ class GuiaFotoResource extends Resource
             // Las ya enviadas se ven atenuadas para distinguirlas de un vistazo.
             ->recordClasses(fn (GuiaFoto $record) => $record->enviado_at ? 'opacity-60' : null)
             ->actions([
+                // Subir la foto a mano, para esta guía en concreto. Sirve cuando
+                // el QR no se dejó leer o cuando ya sabés de quién es la foto y
+                // la querés pegar directo, sin pasar por la lectura en lote.
+                Tables\Actions\Action::make('subir_foto')
+                    ->label(fn (GuiaFoto $record) => $record->ruta ? 'Cambiar foto' : 'Subir foto')
+                    ->icon('heroicon-o-camera')
+                    ->color(fn (GuiaFoto $record) => $record->ruta ? 'gray' : 'primary')
+                    ->modalHeading(fn (GuiaFoto $record) => 'Foto de la guía ' . $record->guia)
+                    ->modalDescription(fn (GuiaFoto $record) => trim(
+                        ($record->nombre ?: 'Sin nombre') . ' · ' . ($record->telefono ?: 'sin teléfono')
+                    ))
+                    ->modalSubmitActionLabel('Guardar foto')
+                    ->form([
+                        \Filament\Forms\Components\FileUpload::make('foto')
+                            ->label('Foto del paquete')
+                            ->helperText('Se achica sola antes de subir, así no se traba.')
+                            ->image()
+                            ->required()
+                            ->disk('public')
+                            ->directory('paquetes')
+                            ->maxSize(12288)
+                            // Se reduce en el navegador: las fotos del teléfono
+                            // pesan de más y el servidor las rechaza.
+                            ->imageResizeMode('contain')
+                            ->imageResizeTargetWidth('1600')
+                            ->imageResizeTargetHeight('1600')
+                            ->imageResizeUpscale(false),
+                    ])
+                    ->action(function (GuiaFoto $record, array $data) {
+                        $anterior = $record->ruta;
+
+                        $record->ruta = $data['foto'];
+                        $record->foto_borrada_at = null;   // vuelve a contar desde hoy
+                        $record->save();
+
+                        // La vieja se borra después, para no dejar basura en el disco.
+                        if ($anterior && $anterior !== $record->ruta) {
+                            try { Storage::disk('public')->delete($anterior); } catch (\Throwable $e) {}
+                        }
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('📷 Foto guardada')
+                            ->body('Ya se ve en el enlace de seguimiento de la guía ' . $record->guia . '.')
+                            ->success()->send();
+                    }),
+
                 // Abre la etiqueta en grande para revisar que la guía y el teléfono estén bien.
                 Tables\Actions\Action::make('ver_foto')
                     ->label('Ver foto')->icon('heroicon-o-photo')->color('gray')
@@ -236,6 +282,67 @@ class GuiaFotoResource extends Resource
                 Tables\Actions\DeleteAction::make()->label('Borrar')
                     ->after(function (GuiaFoto $record) {
                         try { Storage::disk('public')->delete($record->ruta); } catch (\Throwable $e) {}
+                    }),
+            ])
+            // Para cuando la guía todavía no está en esta lista: se escribe el
+            // número y se le pega la foto. Si ya existe, no se duplica.
+            ->headerActions([
+                Tables\Actions\Action::make('subir_suelta')
+                    ->label('Subir foto por número')
+                    ->icon('heroicon-o-camera')
+                    ->modalHeading('Subir una foto a mano')
+                    ->modalDescription('Escribí el número de guía que ves en la etiqueta y elegí la foto.')
+                    ->modalSubmitActionLabel('Guardar foto')
+                    ->form([
+                        \Filament\Forms\Components\TextInput::make('guia')
+                            ->label('Número de guía')
+                            ->required()
+                            ->numeric()
+                            ->helperText('El que aparece impreso en la etiqueta.'),
+
+                        \Filament\Forms\Components\FileUpload::make('foto')
+                            ->label('Foto del paquete')
+                            ->image()
+                            ->required()
+                            ->disk('public')
+                            ->directory('paquetes')
+                            ->maxSize(12288)
+                            ->imageResizeMode('contain')
+                            ->imageResizeTargetWidth('1600')
+                            ->imageResizeTargetHeight('1600')
+                            ->imageResizeUpscale(false),
+                    ])
+                    ->action(function (array $data) {
+                        $guia = preg_replace('/\D/', '', (string) $data['guia']);
+
+                        if ($guia === '') {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Ese número de guía no es válido')->danger()->send();
+                            return;
+                        }
+
+                        $registro = GuiaFoto::where('guia', $guia)->first();
+                        $nueva    = ! $registro;
+
+                        if ($nueva) {
+                            $registro = new GuiaFoto(['guia' => $guia]);
+                        }
+
+                        $anterior = $registro->ruta;
+                        $registro->ruta = $data['foto'];
+                        $registro->foto_borrada_at = null;
+                        $registro->save();
+
+                        if ($anterior && $anterior !== $registro->ruta) {
+                            try { Storage::disk('public')->delete($anterior); } catch (\Throwable $e) {}
+                        }
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('📷 Foto guardada')
+                            ->body($nueva
+                                ? 'Se creó la guía ' . $guia . ' con su foto. Si después subís el PDF, se le completan el nombre y el teléfono.'
+                                : 'Se pegó a la guía ' . $guia . ', que ya estaba en la lista.')
+                            ->success()->persistent()->send();
                     }),
             ])
             ->bulkActions([
