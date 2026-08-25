@@ -594,7 +594,7 @@
                         if (!v) return;
                         inp.disabled = true; btn.disabled = true; fila.remove();
                         const datos = await leerDatosCliente(img);
-                        await subir(file, v, est, acc, datos);
+                        await subir(file, v, est, acc, datos, img);
                         try { if (window.Livewire) Livewire.dispatch('$refresh'); } catch (e) {}
                     };
                     btn.addEventListener('click', mandar);
@@ -609,10 +609,32 @@
 
                 progreso(i - 1, files.length, 'Guía ' + guia + ' · leyendo datos…');
                 const datos = await leerDatosCliente(img);
-                await subir(file, guia, null, null, datos);
+                const r = await subir(file, guia, null, null, datos, img);
+
+                // Si falló, ANTES no se veía nada: la tarjeta solo se creaba
+                // cuando el QR no se leía. Ahora la falla se muestra y se puede
+                // reintentar sin volver a elegir la foto.
+                if (r && !r.ok) {
+                    const card = tarjeta(file.name + ' · guía ' + guia, url);
+                    const est2 = card.querySelector('.estado');
+                    const acc2 = card.querySelector('.acciones');
+                    est2.innerHTML = '<span style="color:#dc2626">✕ ' + (r.error || 'No se pudo subir') + '</span>';
+
+                    const rb = document.createElement('button');
+                    rb.type = 'button'; rb.textContent = '🔄 Reintentar';
+                    rb.style.cssText = 'background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer';
+                    rb.addEventListener('click', async () => {
+                        rb.disabled = true;
+                        est2.textContent = 'Reintentando…';
+                        const r2 = await subir(file, guia, est2, acc2, datos, img);
+                        rb.disabled = false;
+                        if (r2 && r2.ok) rb.remove();
+                    });
+                    acc2.appendChild(rb);
+                }
 
                 progreso(i, files.length, 'Procesando fotos…',
-                    '✅ ' + ok + ' guardadas' + (fallo ? ' · <b style="color:#dc2626">✕ ' + fallo + ' sin leer</b>' : ''));
+                    '✅ ' + ok + ' guardadas' + (fallo ? ' · <b style="color:#dc2626">✕ ' + fallo + ' sin subir</b>' : ''));
             }
 
             input.value = '';
@@ -743,11 +765,38 @@
             }
         }
 
-        async function subir(file, guia, est, acc, datos) {
+        // Achica la foto antes de mandarla. Las cámaras de teléfono sacan
+        // imágenes de 4 a 10 MB y el servidor las rechaza en silencio por
+        // pasarse del límite de subida de PHP. Con el lado largo en 1600 px
+        // la etiqueta se sigue leyendo perfecto y pesa unos 300 KB: sube
+        // rápido con datos móviles y ocupa mucho menos disco.
+        function achicar(file, img) {
+            return new Promise((listo) => {
+                try {
+                    if (!img || !img.width || !img.height) return listo(file);
+                    if (file.size <= 900 * 1024) return listo(file);   // ya es liviana
+
+                    const c = aCanvas(img, 1600);
+                    if (!c.width || !c.height) return listo(file);
+
+                    c.toBlob((blob) => {
+                        // Solo se usa si de verdad quedó más liviana.
+                        listo(blob && blob.size > 0 && blob.size < file.size ? blob : file);
+                    }, 'image/jpeg', 0.82);
+                } catch (e) {
+                    listo(file);
+                }
+            });
+        }
+
+        async function subir(file, guia, est, acc, datos, img) {
             if (est) est.textContent = 'Subiendo guía ' + guia + '…';
+
+            const liviana = await achicar(file, img);
+
             const fd = new FormData();
             fd.append('guia', guia);
-            fd.append('foto', file);
+            fd.append('foto', liviana, 'guia-' + guia + '.jpg');
             if (datos && datos.nombre)   fd.append('nombre', datos.nombre);
             if (datos && datos.telefono) fd.append('telefono', datos.telefono);
             if (loteActual)              fd.append('lote', loteActual);
@@ -757,7 +806,23 @@
                     headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
                     body: fd,
                 });
-                const data = await res.json();
+
+                // El servidor no siempre responde JSON: si la foto se pasa del
+                // límite de PHP devuelve una página de error, y antes eso se
+                // veía como "error de conexión", que despistaba.
+                const crudo = await res.text();
+                let data = null;
+                try { data = JSON.parse(crudo); } catch (e) {}
+
+                if (!data) {
+                    fallo++;
+                    const motivo = res.status === 413 ? 'La foto pesa demasiado para el servidor'
+                                 : res.status === 419 ? 'La sesión venció: recargá la página'
+                                 : 'El servidor respondió mal (' + res.status + ')';
+                    if (est) est.innerHTML = '<span style="color:#dc2626">✕ ' + motivo + '</span>';
+                    return { ok: false, error: motivo };
+                }
+
                 if (data.ok) {
                     ok++;
                     if (est) est.innerHTML = `<span style="color:#059669">✓ Guía ${data.guia}</span>`;
@@ -780,13 +845,20 @@
                         ver.style.cssText = 'background:#f1f5f9;border:1px solid #e5e7eb;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;color:#334155;text-decoration:none';
                         acc.appendChild(ver);
                     }
+                    return { ok: true };
                 } else {
                     fallo++;
-                    if (est) est.innerHTML = '<span style="color:#dc2626">✕ ' + (data.error || 'Error al subir') + '</span>';
+                    // Laravel manda los errores de validación en "errors".
+                    const motivo = data.error
+                        || (data.errors && Object.values(data.errors)[0] && Object.values(data.errors)[0][0])
+                        || data.message || 'Error al subir';
+                    if (est) est.innerHTML = '<span style="color:#dc2626">✕ ' + motivo + '</span>';
+                    return { ok: false, error: motivo };
                 }
             } catch (e) {
                 fallo++;
                 if (est) est.innerHTML = '<span style="color:#dc2626">✕ Error de conexión</span>';
+                return { ok: false, error: 'Error de conexión' };
             }
         }
     })();
