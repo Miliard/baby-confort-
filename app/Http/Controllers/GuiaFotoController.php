@@ -7,6 +7,14 @@ use Illuminate\Http\Request;
 
 class GuiaFotoController extends Controller
 {
+    /**
+     * Sello de versión del módulo de fotos. Se muestra en pantalla para saber
+     * si el navegador está usando el código nuevo o una copia vieja guardada
+     * en caché, que es lo más difícil de detectar a ojo.
+     */
+    public const VERSION = '2026-08-25-a';
+
+
     /** Guarda una foto de paquete y la asocia al número de guía leído del QR. */
     public function subir(Request $request)
     {
