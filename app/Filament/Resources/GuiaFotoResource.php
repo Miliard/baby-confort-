@@ -22,6 +22,67 @@ class GuiaFotoResource extends Resource
     protected static ?string $pluralModelLabel = 'Guías con foto';
     protected static ?int $navigationSort = 3;
 
+    /**
+     * Deja la ruta de la foto lista para guardar.
+     *
+     * Filament devuelve el archivo subido de tres formas distintas según la
+     * versión y el contexto: como texto con la ruta, como arreglo, o como
+     * archivo temporal sin guardar. Aquí se normalizan las tres, porque si no
+     * la foto "se sube" pero no queda pegada a la guía.
+     */
+    public static function rutaDeFoto($valor): ?string
+    {
+        if (is_array($valor)) {
+            $valor = reset($valor) ?: null;
+        }
+
+        if ($valor instanceof \Livewire\Features\SupportFileUploads\TemporaryUploadedFile) {
+            try {
+                $valor = $valor->store('paquetes', 'public');
+            } catch (\Throwable $e) {
+                return null;
+            }
+        }
+
+        if ($valor instanceof \Illuminate\Http\UploadedFile) {
+            try {
+                $valor = $valor->store('paquetes', 'public');
+            } catch (\Throwable $e) {
+                return null;
+            }
+        }
+
+        $ruta = is_string($valor) ? trim($valor) : '';
+
+        return $ruta !== '' ? ltrim($ruta, '/') : null;
+    }
+
+    /** Guarda la foto en el registro sin depender de columnas que quizá no existan. */
+    public static function pegarFoto(GuiaFoto $registro, ?string $ruta): bool
+    {
+        if (! $ruta) return false;
+
+        $anterior = $registro->ruta;
+        $registro->ruta = $ruta;
+
+        // La marca de borrado es una columna nueva: si la migración todavía no
+        // corrió en el servidor, tocarla haría fallar el guardado entero.
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasColumn('guia_fotos', 'foto_borrada_at')) {
+                $registro->foto_borrada_at = null;
+            }
+        } catch (\Throwable $e) {
+        }
+
+        $registro->save();
+
+        if ($anterior && $anterior !== $ruta) {
+            try { Storage::disk('public')->delete($anterior); } catch (\Throwable $e) {}
+        }
+
+        return true;
+    }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -245,15 +306,14 @@ class GuiaFotoResource extends Resource
                             ->imageResizeUpscale(false),
                     ])
                     ->action(function (GuiaFoto $record, array $data) {
-                        $anterior = $record->ruta;
+                        $ruta = static::rutaDeFoto($data['foto'] ?? null);
 
-                        $record->ruta = $data['foto'];
-                        $record->foto_borrada_at = null;   // vuelve a contar desde hoy
-                        $record->save();
-
-                        // La vieja se borra después, para no dejar basura en el disco.
-                        if ($anterior && $anterior !== $record->ruta) {
-                            try { Storage::disk('public')->delete($anterior); } catch (\Throwable $e) {}
+                        if (! static::pegarFoto($record, $ruta)) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se pudo guardar la foto')
+                                ->body('El archivo no llegó completo. Probá de nuevo con una foto más liviana.')
+                                ->danger()->persistent()->send();
+                            return;
                         }
 
                         \Filament\Notifications\Notification::make()
@@ -325,16 +385,18 @@ class GuiaFotoResource extends Resource
                         $nueva    = ! $registro;
 
                         if ($nueva) {
-                            $registro = new GuiaFoto(['guia' => $guia]);
+                            $registro = new GuiaFoto();
+                            $registro->guia = $guia;
                         }
 
-                        $anterior = $registro->ruta;
-                        $registro->ruta = $data['foto'];
-                        $registro->foto_borrada_at = null;
-                        $registro->save();
+                        $ruta = static::rutaDeFoto($data['foto'] ?? null);
 
-                        if ($anterior && $anterior !== $registro->ruta) {
-                            try { Storage::disk('public')->delete($anterior); } catch (\Throwable $e) {}
+                        if (! static::pegarFoto($registro, $ruta)) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se pudo guardar la foto')
+                                ->body('El archivo no llegó completo. Probá de nuevo con una foto más liviana.')
+                                ->danger()->persistent()->send();
+                            return;
                         }
 
                         \Filament\Notifications\Notification::make()
