@@ -297,13 +297,11 @@ class GuiaFotoResource extends Resource
                             ->required()
                             ->disk('public')
                             ->directory('paquetes')
-                            ->maxSize(12288)
-                            // Se reduce en el navegador: las fotos del teléfono
-                            // pesan de más y el servidor las rechaza.
-                            ->imageResizeMode('contain')
-                            ->imageResizeTargetWidth('1600')
-                            ->imageResizeTargetHeight('1600')
-                            ->imageResizeUpscale(false),
+                            // OJO: no usar imageResize*. El redimensionado de
+                            // Filament rompe el nombre del archivo temporal de
+                            // Livewire y la subida muere con
+                            // "Unable to retrieve the file_size ... livewire-tmp".
+                            ->maxSize(8192),
                     ])
                     ->action(function (GuiaFoto $record, array $data) {
                         $ruta = static::rutaDeFoto($data['foto'] ?? null);
@@ -366,11 +364,11 @@ class GuiaFotoResource extends Resource
                             ->required()
                             ->disk('public')
                             ->directory('paquetes')
-                            ->maxSize(12288)
-                            ->imageResizeMode('contain')
-                            ->imageResizeTargetWidth('1600')
-                            ->imageResizeTargetHeight('1600')
-                            ->imageResizeUpscale(false),
+                            // OJO: no usar imageResize*. El redimensionado de
+                            // Filament rompe el nombre del archivo temporal de
+                            // Livewire y la subida muere con
+                            // "Unable to retrieve the file_size ... livewire-tmp".
+                            ->maxSize(8192),
                     ])
                     ->action(function (array $data) {
                         $guia = preg_replace('/\D/', '', (string) $data['guia']);
