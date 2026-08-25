@@ -55,6 +55,13 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
-            ]);
+            ])
+            // Script de la subida manual de fotos. Va en el panel entero para
+            // que esté listo cuando se abre la ventana (dentro de una ventana
+            // de Filament los <script> no siempre llegan a ejecutarse).
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::BODY_END,
+                fn (): string => view('filament.partials.js-subir-foto')->render(),
+            );
     }
 }

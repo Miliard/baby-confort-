@@ -288,37 +288,12 @@ class GuiaFotoResource extends Resource
                     ->modalDescription(fn (GuiaFoto $record) => trim(
                         ($record->nombre ?: 'Sin nombre') . ' · ' . ($record->telefono ?: 'sin teléfono')
                     ))
-                    ->modalSubmitActionLabel('Guardar foto')
-                    ->form([
-                        \Filament\Forms\Components\FileUpload::make('foto')
-                            ->label('Foto del paquete')
-                            ->helperText('Se achica sola antes de subir, así no se traba.')
-                            ->image()
-                            ->required()
-                            ->disk('public')
-                            ->directory('paquetes')
-                            // OJO: no usar imageResize*. El redimensionado de
-                            // Filament rompe el nombre del archivo temporal de
-                            // Livewire y la subida muere con
-                            // "Unable to retrieve the file_size ... livewire-tmp".
-                            ->maxSize(8192),
-                    ])
-                    ->action(function (GuiaFoto $record, array $data) {
-                        $ruta = static::rutaDeFoto($data['foto'] ?? null);
-
-                        if (! static::pegarFoto($record, $ruta)) {
-                            \Filament\Notifications\Notification::make()
-                                ->title('No se pudo guardar la foto')
-                                ->body('El archivo no llegó completo. Probá de nuevo con una foto más liviana.')
-                                ->danger()->persistent()->send();
-                            return;
-                        }
-
-                        \Filament\Notifications\Notification::make()
-                            ->title('📷 Foto guardada')
-                            ->body('Ya se ve en el enlace de seguimiento de la guía ' . $record->guia . '.')
-                            ->success()->send();
-                    }),
+                    ->modalContent(fn (GuiaFoto $record) => view(
+                        'filament.partials.subir-foto-caja',
+                        ['guia' => $record->guia]
+                    ))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar'),
 
                 // Abre la etiqueta en grande para revisar que la guía y el teléfono estén bien.
                 Tables\Actions\Action::make('ver_foto')
@@ -350,60 +325,9 @@ class GuiaFotoResource extends Resource
                     ->icon('heroicon-o-camera')
                     ->modalHeading('Subir una foto a mano')
                     ->modalDescription('Escribí el número de guía que ves en la etiqueta y elegí la foto.')
-                    ->modalSubmitActionLabel('Guardar foto')
-                    ->form([
-                        \Filament\Forms\Components\TextInput::make('guia')
-                            ->label('Número de guía')
-                            ->required()
-                            ->numeric()
-                            ->helperText('El que aparece impreso en la etiqueta.'),
-
-                        \Filament\Forms\Components\FileUpload::make('foto')
-                            ->label('Foto del paquete')
-                            ->image()
-                            ->required()
-                            ->disk('public')
-                            ->directory('paquetes')
-                            // OJO: no usar imageResize*. El redimensionado de
-                            // Filament rompe el nombre del archivo temporal de
-                            // Livewire y la subida muere con
-                            // "Unable to retrieve the file_size ... livewire-tmp".
-                            ->maxSize(8192),
-                    ])
-                    ->action(function (array $data) {
-                        $guia = preg_replace('/\D/', '', (string) $data['guia']);
-
-                        if ($guia === '') {
-                            \Filament\Notifications\Notification::make()
-                                ->title('Ese número de guía no es válido')->danger()->send();
-                            return;
-                        }
-
-                        $registro = GuiaFoto::where('guia', $guia)->first();
-                        $nueva    = ! $registro;
-
-                        if ($nueva) {
-                            $registro = new GuiaFoto();
-                            $registro->guia = $guia;
-                        }
-
-                        $ruta = static::rutaDeFoto($data['foto'] ?? null);
-
-                        if (! static::pegarFoto($registro, $ruta)) {
-                            \Filament\Notifications\Notification::make()
-                                ->title('No se pudo guardar la foto')
-                                ->body('El archivo no llegó completo. Probá de nuevo con una foto más liviana.')
-                                ->danger()->persistent()->send();
-                            return;
-                        }
-
-                        \Filament\Notifications\Notification::make()
-                            ->title('📷 Foto guardada')
-                            ->body($nueva
-                                ? 'Se creó la guía ' . $guia . ' con su foto. Si después subís el PDF, se le completan el nombre y el teléfono.'
-                                : 'Se pegó a la guía ' . $guia . ', que ya estaba en la lista.')
-                            ->success()->persistent()->send();
-                    }),
+                    ->modalContent(fn () => view('filament.partials.subir-foto-caja', ['guia' => null]))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
