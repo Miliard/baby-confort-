@@ -482,17 +482,39 @@
             return null;
         }
 
+        // Ninguna espera se puede quedar colgada. Si un paso tarda de más se
+        // sigue con un valor de respaldo. Sin esto, la pantalla se quedaba
+        // "pegada" sin mostrar ningún error, que es como se veía la falla.
+        function conLimite(promesa, ms, respaldo) {
+            return Promise.race([
+                promesa,
+                new Promise((r) => setTimeout(() => r(respaldo), ms)),
+            ]);
+        }
+
         // Lee el texto de la parte de arriba de la etiqueta (donde va "Para: nombre teléfono")
         // para sacar el número del cliente. Se hace una sola vez y en zona recortada, para que sea rápido.
+        //
+        // OJO: esto descarga un modelo de reconocimiento de texto desde internet.
+        // Si la descarga se traba, la espera nunca termina y TODA la subida se
+        // detiene ahí. Por eso arriba está el límite de tiempo: el nombre y el
+        // teléfono son un extra; la foto es lo importante y debe subir igual.
         let lector = null;
         async function leerDatosCliente(img) {
             try {
                 if (typeof Tesseract === 'undefined') return {};
-                if (!lector) lector = await Tesseract.createWorker('eng');
+                if (!lector) {
+                    lector = await conLimite(Tesseract.createWorker('eng'), 15000, null);
+                    if (!lector) return {};
+                }
 
                 const c = recorte(img, img.width * 0.03, img.height * 0.10, img.width * 0.95, img.height * 0.25,
                                   Math.min(2, 1700 / (img.width * 0.95)));
-                const { data } = await lector.recognize(c);
+
+                const res = await conLimite(lector.recognize(c), 12000, null);
+                if (!res) return {};
+
+                const data = res.data;
                 const t = (data.text || '').replace(/\s+/g, ' ');
 
                 const tel = t.match(/(?:^|[^\d])([267]\d{3})[\s.-]?(\d{4})(?![\d])/);
@@ -608,7 +630,7 @@
                 }
 
                 progreso(i - 1, files.length, 'Guía ' + guia + ' · leyendo datos…');
-                const datos = await leerDatosCliente(img);
+                const datos = await conLimite(leerDatosCliente(img), 15000, {});
                 const r = await subir(file, guia, null, null, datos, img);
 
                 // Si falló, ANTES no se veía nada: la tarjeta solo se creaba
@@ -796,7 +818,8 @@
         async function subir(file, guia, est, acc, datos, img) {
             if (est) est.textContent = 'Subiendo guía ' + guia + '…';
 
-            const liviana = await achicar(file, img);
+            // Si achicar tarda de más, se manda la foto tal como vino.
+            const liviana = await conLimite(achicar(file, img), 8000, file);
 
             const fd = new FormData();
             fd.append('guia', guia);
@@ -804,12 +827,20 @@
             if (datos && datos.nombre)   fd.append('nombre', datos.nombre);
             if (datos && datos.telefono) fd.append('telefono', datos.telefono);
             if (loteActual)              fd.append('lote', loteActual);
+
+            // Y si el servidor no contesta en 60 segundos, se corta esta foto y
+            // se sigue con la siguiente, en vez de detener toda la tanda.
+            const corte = new AbortController();
+            const reloj = setTimeout(() => corte.abort(), 60000);
+
             try {
                 const res = await fetch('{{ route('fotos.subir') }}', {
                     method: 'POST',
                     headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
                     body: fd,
+                    signal: corte.signal,
                 });
+                clearTimeout(reloj);
 
                 // El servidor no siempre responde JSON: si la foto se pasa del
                 // límite de PHP devuelve una página de error, y antes eso se
@@ -860,9 +891,13 @@
                     return { ok: false, error: motivo };
                 }
             } catch (e) {
+                clearTimeout(reloj);
                 fallo++;
-                if (est) est.innerHTML = '<span style="color:#dc2626">✕ Error de conexión</span>';
-                return { ok: false, error: 'Error de conexión' };
+                const motivo = e.name === 'AbortError'
+                    ? 'El servidor no respondió en 60 s'
+                    : 'Error de conexión';
+                if (est) est.innerHTML = '<span style="color:#dc2626">✕ ' + motivo + '</span>';
+                return { ok: false, error: motivo };
             }
         }
     })();

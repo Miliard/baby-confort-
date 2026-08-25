@@ -16,6 +16,17 @@
     const TOKEN = document.querySelector('meta[name="csrf-token"]')?.content;
     const RUTA  = @js(route('fotos.subir'));
 
+    // Ninguna espera puede quedarse colgada para siempre. Si un paso tarda más
+    // de la cuenta se sigue con un valor de respaldo. Esto es lo que evita que
+    // la pantalla "se quede pegada" sin decir nada, que es como se veía la
+    // falla: no había error, había una espera infinita.
+    function conLimite(promesa, ms, respaldo) {
+        return Promise.race([
+            promesa,
+            new Promise((r) => setTimeout(() => r(respaldo), ms)),
+        ]);
+    }
+
     // Achica la foto a 1600 px de lado largo Y la reescribe siempre como JPG.
     //
     // Lo segundo es clave para los teléfonos: los iPhone guardan en HEIC y
@@ -81,7 +92,8 @@
         boton.disabled = true;
         decir('Achicando la foto…', '#6b7280');
 
-        const liviana = await achicar(file);
+        // Si achicar tarda más de 8 segundos, se manda la foto original.
+        const liviana = await conLimite(achicar(file), 8000, file);
 
         decir('Subiendo (' + Math.round(liviana.size / 1024) + ' KB)…', '#6b7280');
 
@@ -89,12 +101,18 @@
         fd.append('guia', guia);
         fd.append('foto', liviana, 'guia-' + guia + '.jpg');
 
+        // Y si el servidor no contesta en 60 segundos, se corta y se avisa.
+        const corte = new AbortController();
+        const reloj = setTimeout(() => corte.abort(), 60000);
+
         try {
             const res   = await fetch(RUTA, {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': TOKEN, 'Accept': 'application/json' },
                 body: fd,
+                signal: corte.signal,
             });
+            clearTimeout(reloj);
             const crudo = await res.text();
 
             let data = null;
@@ -121,8 +139,11 @@
             decir('✓ Guardada. Actualizando la lista…', '#059669');
             setTimeout(() => window.location.reload(), 700);
         } catch (e) {
+            clearTimeout(reloj);
             boton.disabled = false;
-            decir('✕ Error de conexión.', '#dc2626');
+            decir(e.name === 'AbortError'
+                ? '✕ El servidor no respondió en 60 segundos. Probá con menos peso o mejor señal.'
+                : '✕ Error de conexión.', '#dc2626');
         }
     };
 })();
