@@ -12,7 +12,7 @@ class GuiaFotoController extends Controller
      * si el navegador está usando el código nuevo o una copia vieja guardada
      * en caché, que es lo más difícil de detectar a ojo.
      */
-    public const VERSION = '2026-08-25-e';
+    public const VERSION = '2026-08-25-f';
 
 
     /**
@@ -353,6 +353,54 @@ class GuiaFotoController extends Controller
             'dias'         => static::diasDeFotos(),
             'masVieja'     => $masVieja,
             'promedio'     => $conFoto > 0 ? static::legible($bytes / $conFoto) : '—',
+        ];
+    }
+
+    /**
+     * Lo que el propio PHP dice de sí mismo. Sin esto solo se puede adivinar:
+     * el disco puede tener terabytes libres y aun así fallar la subida por el
+     * límite de tamaño, por la carpeta temporal llena o por permisos.
+     */
+    public static function limitesDelServidor(): array
+    {
+        $temp = ini_get('upload_tmp_dir') ?: sys_get_temp_dir();
+
+        $libreTemp = 0;
+        try { $libreTemp = (float) (@disk_free_space($temp) ?: 0); } catch (\Throwable $e) {}
+
+        $carpeta = storage_path('app/public/paquetes');
+
+        // Prueba real: escribir un archivo con contenido y volver a leerlo.
+        $prueba = 'no se pudo probar';
+        try {
+            $nombre = 'paquetes/.prueba-' . uniqid() . '.txt';
+            $texto  = str_repeat('B', 1024);   // 1 KB
+            $disco  = \Illuminate\Support\Facades\Storage::disk('public');
+
+            $ok = $disco->put($nombre, $texto);
+            if (! $ok) {
+                $prueba = '❌ no dejó escribir';
+            } else {
+                $tam = (int) $disco->size($nombre);
+                $prueba = $tam === 1024 ? '✅ escribe y lee bien' : "❌ escribió {$tam} bytes de 1024";
+                $disco->delete($nombre);
+            }
+        } catch (\Throwable $e) {
+            $prueba = '❌ ' . $e->getMessage();
+        }
+
+        return [
+            'subida_max'   => ini_get('upload_max_filesize'),
+            'post_max'     => ini_get('post_max_size'),
+            'memoria'      => ini_get('memory_limit'),
+            'archivos_max' => ini_get('max_file_uploads'),
+            'tiempo_max'   => ini_get('max_execution_time'),
+            'temp'         => $temp,
+            'temp_escribe' => is_writable($temp) ? 'sí' : 'NO',
+            'temp_libre'   => $libreTemp > 0 ? static::legible($libreTemp) : 'no se pudo leer',
+            'carpeta'      => $carpeta,
+            'carpeta_escribe' => is_writable($carpeta) ? 'sí' : 'NO',
+            'prueba'       => $prueba,
         ];
     }
 
