@@ -1,1 +1,1 @@
-web: php artisan storage:link --force; php artisan migrate --force; PHP_CLI_SERVER_WORKERS=12 php artisan serve --host 0.0.0.0 --port $PORT
+web: php artisan storage:link --force; php artisan migrate --force; PHP_CLI_SERVER_WORKERS=12 php -d upload_max_filesize=25M -d post_max_size=30M -d memory_limit=512M -d max_execution_time=120 -d max_file_uploads=40 -S 0.0.0.0:$PORT -t public server.php

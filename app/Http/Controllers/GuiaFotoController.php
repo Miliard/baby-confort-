@@ -12,7 +12,7 @@ class GuiaFotoController extends Controller
      * si el navegador está usando el código nuevo o una copia vieja guardada
      * en caché, que es lo más difícil de detectar a ojo.
      */
-    public const VERSION = '2026-08-25-f';
+    public const VERSION = '2026-08-25-g';
 
 
     /**
@@ -371,20 +371,35 @@ class GuiaFotoController extends Controller
         $carpeta = storage_path('app/public/paquetes');
 
         // Prueba real: escribir un archivo con contenido y volver a leerlo.
+        // Se usa PHP directo (no la capa de Laravel) para que el sistema diga
+        // el motivo exacto: "sin espacio", "permiso denegado", lo que sea.
+        // La capa de Laravel se lo traga y solo devuelve falso.
         $prueba = 'no se pudo probar';
         try {
-            $nombre = 'paquetes/.prueba-' . uniqid() . '.txt';
-            $texto  = str_repeat('B', 1024);   // 1 KB
-            $disco  = \Illuminate\Support\Facades\Storage::disk('public');
-
-            $ok = $disco->put($nombre, $texto);
-            if (! $ok) {
-                $prueba = '❌ no dejó escribir';
-            } else {
-                $tam = (int) $disco->size($nombre);
-                $prueba = $tam === 1024 ? '✅ escribe y lee bien' : "❌ escribió {$tam} bytes de 1024";
-                $disco->delete($nombre);
+            if (! is_dir($carpeta)) {
+                @mkdir($carpeta, 0775, true);
             }
+
+            $archivo = $carpeta . '/.prueba-' . uniqid() . '.txt';
+            $texto   = str_repeat('B', 1024);   // 1 KB
+
+            $motivo = null;
+            set_error_handler(function ($n, $m) use (&$motivo) { $motivo = $m; return true; });
+            $escritos = file_put_contents($archivo, $texto);
+            restore_error_handler();
+
+            if ($escritos === false) {
+                $prueba = '❌ no dejó escribir · ' . ($motivo ?: 'sin motivo del sistema');
+            } elseif ($escritos !== 1024) {
+                $prueba = "❌ solo escribió {$escritos} bytes de 1024 · " . ($motivo ?: 'disco lleno o con cupo');
+            } else {
+                $leido = @filesize($archivo);
+                $prueba = $leido === 1024
+                    ? '✅ escribe y lee bien'
+                    : "❌ escribió bien pero al leer da {$leido} bytes";
+            }
+
+            @unlink($archivo);
         } catch (\Throwable $e) {
             $prueba = '❌ ' . $e->getMessage();
         }
