@@ -12,7 +12,7 @@ class GuiaFotoController extends Controller
      * si el navegador está usando el código nuevo o una copia vieja guardada
      * en caché, que es lo más difícil de detectar a ojo.
      */
-    public const VERSION = '2026-08-25-d';
+    public const VERSION = '2026-08-25-e';
 
 
     /**
@@ -322,9 +322,23 @@ class GuiaFotoController extends Controller
         } catch (\Throwable $e) {
         }
 
+        // Algunos servidores no dejan consultar el espacio libre; se prueban
+        // varias rutas antes de darlo por perdido.
         $libre = 0;
+        foreach ([storage_path('app/public'), storage_path(), base_path(), '/'] as $donde) {
+            try {
+                $n = @disk_free_space($donde);
+                if ($n && $n > 0) { $libre = (float) $n; break; }
+            } catch (\Throwable $e) {
+            }
+        }
+
+        // Fecha de la foto más vieja: sirve para saber cuánto se libera si se
+        // acorta el tiempo que se guardan.
+        $masVieja = null;
         try {
-            $libre = (float) (disk_free_space(storage_path('app/public')) ?: 0);
+            $masVieja = GuiaFoto::whereNotNull('ruta')->where('ruta', '!=', '')
+                ->min('created_at');
         } catch (\Throwable $e) {
         }
 
@@ -337,7 +351,39 @@ class GuiaFotoController extends Controller
             'libreLegible' => $libre > 0 ? static::legible($libre) : 'no se pudo leer',
             'apretado'     => $libre > 0 && $libre < 200 * 1048576,   // menos de 200 MB
             'dias'         => static::diasDeFotos(),
+            'masVieja'     => $masVieja,
+            'promedio'     => $conFoto > 0 ? static::legible($bytes / $conFoto) : '—',
         ];
+    }
+
+    /**
+     * Cambia cuántos días se guardan las fotos y aplica el cambio en el acto.
+     *
+     * Es la palanca para cuando el disco se llena: bajar de 30 a 7 días libera
+     * de golpe todo lo viejo, sin tocar lo reciente ni perder ningún dato del
+     * pedido (guía, cliente, teléfono y contenido se quedan siempre).
+     */
+    public function cambiarDias(Request $request)
+    {
+        $dias = (int) $request->input('dias', 30);
+        $dias = max(1, min(365, $dias));
+
+        try {
+            \App\Models\Setting::put('fotos_dias', $dias);
+        } catch (\Throwable $e) {
+            return back()->with('bc_mal', 'No se pudo guardar el ajuste: ' . $e->getMessage());
+        }
+
+        $antes    = static::espacioUsado();
+        $borradas = static::limpiarViejas($dias);
+        $ahora    = static::espacioUsado();
+
+        $liberado = static::legible(max(0, $antes['bytes'] - $ahora['bytes']));
+
+        return back()->with('bc_ok', sprintf(
+            'Las fotos ahora se guardan %d días. Se borraron %d imágenes viejas y se liberaron %s. Quedan %d fotos (%s).',
+            $dias, $borradas, $liberado, $ahora['archivos'], $ahora['legible']
+        ));
     }
 
     /**

@@ -56,13 +56,34 @@
         @csrf
         <div style="font-size:14px;line-height:1.7;margin-bottom:12px">
             <b>Disco del servidor</b><br>
-            Fotos: {{ $esp['archivos'] }} · {{ $esp['legible'] }}<br>
-            Espacio libre: <b>{{ $esp['libreLegible'] }}</b>
+            Fotos: {{ $esp['archivos'] }} · {{ $esp['legible'] }}
+            <span style="color:#94a3b8">({{ $esp['promedio'] }} cada una)</span><br>
+            Espacio libre: <b>{{ $esp['libreLegible'] }}</b><br>
+            Se guardan <b>{{ $esp['dias'] }} días</b>
+            @if($esp['masVieja'])
+                · la más vieja es del {{ \Illuminate\Support\Carbon::parse($esp['masVieja'])->format('d/m/Y') }}
+            @endif
             @if($esp['vacios'] > 0)
                 <br><b style="color:#f5c4b3">{{ $esp['vacios'] }} fotos quedaron vacías (el disco se llenó).</b>
             @endif
         </div>
         <button type="submit" style="background:#2e9e6b">🧹 Liberar espacio</button>
+    </form>
+
+    {{-- Palanca principal cuando el disco se llena: acortar el tiempo que se
+         guardan las fotos. No se pierde ningún dato del pedido, solo imágenes
+         viejas que ya no vas a consultar. --}}
+    <form method="POST" action="{{ route('fotos.dias') }}">
+        @csrf
+        <label for="dias">Guardar las fotos por</label>
+        <input type="text" id="dias" name="dias" inputmode="numeric"
+               value="{{ $esp['dias'] }}" style="margin-bottom:8px">
+        <div style="font-size:12.5px;color:#7d8ba0;margin-bottom:12px;line-height:1.6">
+            Bajalo a <b>7</b> si el disco está lleno: borra las imágenes de más de una semana
+            y libera espacio al instante. La guía, el cliente, el teléfono y qué llevaba
+            <b>no se borran nunca</b>.
+        </div>
+        <button type="submit" style="background:#4aa3df">Aplicar y limpiar ahora</button>
     </form>
 
     {{-- Formulario de toda la vida: lo manda el navegador, no JavaScript.

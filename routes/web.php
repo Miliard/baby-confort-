@@ -68,6 +68,7 @@ Route::middleware('auth')->group(function () {
 
     // Borra fotos vacías, vacía el registro de errores y aplica la retención.
     Route::post('/liberar-espacio', [\App\Http\Controllers\GuiaFotoController::class, 'liberar'])->name('fotos.liberar');
+    Route::post('/dias-fotos', [\App\Http\Controllers\GuiaFotoController::class, 'cambiarDias'])->name('fotos.dias');
 
     Route::post('/fotos-paquete', [\App\Http\Controllers\GuiaFotoController::class, 'subir'])->name('fotos.subir');
     Route::post('/guias-pdf', [\App\Http\Controllers\GuiaFotoController::class, 'importarPdf'])->name('guias.pdf');
