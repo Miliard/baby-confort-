@@ -61,6 +61,11 @@ Route::get('/og/producto/{product}/{talla?}', [\App\Http\Controllers\OgImageCont
 
 // Fotos de paquetes (solo con sesión iniciada en el panel)
 Route::middleware('auth')->group(function () {
+    // Página de respaldo: formulario simple, sin JavaScript. Si la subida
+    // normal se traba, esta siempre debería funcionar.
+    Route::get('/subir-foto', [\App\Http\Controllers\GuiaFotoController::class, 'formularioSimple'])->name('fotos.simple');
+    Route::post('/subir-foto', [\App\Http\Controllers\GuiaFotoController::class, 'guardarSimple'])->name('fotos.simple.guardar');
+
     Route::post('/fotos-paquete', [\App\Http\Controllers\GuiaFotoController::class, 'subir'])->name('fotos.subir');
     Route::post('/guias-pdf', [\App\Http\Controllers\GuiaFotoController::class, 'importarPdf'])->name('guias.pdf');
     Route::delete('/fotos-paquete/{foto}', [\App\Http\Controllers\GuiaFotoController::class, 'eliminar'])->name('fotos.eliminar');

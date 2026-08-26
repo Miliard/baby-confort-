@@ -12,8 +12,87 @@ class GuiaFotoController extends Controller
      * si el navegador está usando el código nuevo o una copia vieja guardada
      * en caché, que es lo más difícil de detectar a ojo.
      */
-    public const VERSION = '2026-08-25-b';
+    public const VERSION = '2026-08-25-c';
 
+
+    /**
+     * Página simple para subir una foto, sin JavaScript de por medio.
+     *
+     * La subida normal hace varias cosas antes de mandar la foto: lee el QR,
+     * lee el texto de la etiqueta, achica la imagen. Cualquiera de esos pasos
+     * puede trabarse y dejar todo detenido sin mostrar un error.
+     *
+     * Esta página no hace nada de eso: es un formulario de toda la vida, lo
+     * manda el navegador. Si acá funciona, el problema está en aquellos pasos.
+     * Si acá tampoco, el problema es del servidor. No hay medias tintas.
+     */
+    public function formularioSimple()
+    {
+        $ultimas = collect();
+        try {
+            $ultimas = GuiaFoto::whereNotNull('ruta')->where('ruta', '!=', '')
+                ->orderByDesc('updated_at')->limit(5)->get();
+        } catch (\Throwable $e) {
+        }
+
+        return view('fotos-simple', compact('ultimas'));
+    }
+
+    /** Recibe la foto del formulario simple y la guarda. */
+    public function guardarSimple(Request $request)
+    {
+        $request->validate([
+            'guia' => ['required', 'string', 'max:40'],
+            // Sin la regla "image": esa rechaza formatos de teléfono como HEIC.
+            // Se aceptan y se guardan igual; lo que importa es tener la foto.
+            'foto' => ['required', 'file', 'max:20480'],
+        ], [
+            'foto.max'      => 'La foto pesa más de 20 MB. Sacale una más liviana.',
+            'foto.required' => 'No llegó ninguna foto. Puede que sea demasiado pesada para el servidor.',
+        ]);
+
+        $guia = preg_replace('/\D/', '', (string) $request->input('guia'));
+        if ($guia === '') {
+            return back()->with('bc_mal', 'Ese número de guía no es válido.')->withInput();
+        }
+
+        try {
+            $ruta = $request->file('foto')->store('paquetes', 'public');
+        } catch (\Throwable $e) {
+            return back()->with('bc_mal', 'No se pudo guardar el archivo: ' . $e->getMessage())->withInput();
+        }
+
+        $registro = GuiaFoto::where('guia', $guia)->first();
+        $nueva    = ! $registro;
+
+        if ($nueva) {
+            $registro = new GuiaFoto();
+            $registro->guia = $guia;
+        }
+
+        $anterior = $registro->ruta;
+        $registro->ruta = $ruta;
+
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasColumn('guia_fotos', 'foto_borrada_at')) {
+                $registro->foto_borrada_at = null;
+            }
+        } catch (\Throwable $e) {
+        }
+
+        $registro->save();
+
+        if ($anterior && $anterior !== $ruta) {
+            try { \Illuminate\Support\Facades\Storage::disk('public')->delete($anterior); } catch (\Throwable $e) {}
+        }
+
+        return redirect()->route('fotos.simple')->with(
+            'bc_ok',
+            $nueva
+                ? "Guía {$guia} creada con su foto."
+                : "Foto guardada en la guía {$guia}. Ya se ve en el enlace del cliente."
+        );
+    }
 
     /** Guarda una foto de paquete y la asocia al número de guía leído del QR. */
     public function subir(Request $request)

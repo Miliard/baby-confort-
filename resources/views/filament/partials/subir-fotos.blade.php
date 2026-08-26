@@ -4,6 +4,21 @@
     para saber a qué guía pertenece, y la foto queda visible para el cliente en su enlace de seguimiento.
 </p>
 
+{{-- Camino de respaldo, arriba de todo: si la subida en lote se traba, este
+     formulario simple no depende de nada que se pueda trabar. --}}
+<a href="{{ route('fotos.simple') }}"
+   class="mb-4 flex items-center justify-between gap-3 rounded-xl border border-warning-300 bg-warning-50 p-4 dark:border-warning-500/40 dark:bg-warning-500/10">
+    <span>
+        <span class="block text-sm font-bold text-warning-700 dark:text-warning-400">
+            ¿Se traba al subir? Usá la página simple
+        </span>
+        <span class="block text-xs text-warning-700/80 dark:text-warning-400/80">
+            Una foto a la vez, escribiendo la guía a mano. Sin lectura de QR: no se puede trabar.
+        </span>
+    </span>
+    <span class="flex-none text-lg text-warning-600">→</span>
+</a>
+
 <label for="fotos-input"
     class="block cursor-pointer rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-6 text-center transition hover:border-primary-500 dark:border-white/20 dark:bg-white/5">
     <div class="text-4xl leading-none">📷</div>
