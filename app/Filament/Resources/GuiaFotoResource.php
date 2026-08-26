@@ -171,21 +171,15 @@ class GuiaFotoResource extends Resource
                         . '<path d="M13 26l5-6 4 4 3-3 4 5z" fill="#b9c3cf"/>'
                         . '<circle cx="16" cy="16" r="2.5" fill="#b9c3cf"/></svg>'
                     ))
-                    ->action(
-                        Tables\Actions\Action::make('abrir_foto')
-                            ->modalHeading(fn (GuiaFoto $record) => 'Etiqueta de la guía ' . $record->guia)
-                            ->modalContent(fn (GuiaFoto $record) => new \Illuminate\Support\HtmlString(
-                                '<img src="' . e($record->url()) . '" alt="Etiqueta" style="width:100%;max-height:80vh;object-fit:contain;border-radius:10px;display:block">'
-                            ))
-                            ->modalSubmitAction(false)
-                            ->modalCancelActionLabel('Cerrar')
-                            ->modalWidth('7xl')
-                    )
-                    ->tooltip('Clic para ver la etiqueta en grande'),
+                    // Sin ventana propia: el botón "Ver foto" de la fila ya hace
+                    // eso, y teníamos dos caminos para lo mismo.
+                    ->tooltip('La foto de esta guía'),
 
                 // Aviso de cuánto le queda a la imagen antes de borrarse del disco.
                 // Los datos del pedido se quedan; solo se va la foto.
-                Tables\Columns\TextColumn::make('vence')->label('Foto')
+                // Se llama "Estado", no "Foto": al lado ya hay otra columna
+                // "Foto" con la miniatura y dos con el mismo nombre confunden.
+                Tables\Columns\TextColumn::make('vence')->label('Estado')
                     ->badge()
                     ->state(function (GuiaFoto $record) {
                         // Tres estados distintos, que antes se confundían en uno:

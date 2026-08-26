@@ -29,9 +29,12 @@ class ListGuiaFotos extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            // Un solo subidor: el de Guías → Fotos. Antes esto llevaba a una
+            // página aparte con una copia vieja del subidor, que no tenía la
+            // compresión ni los límites de tiempo.
             Actions\Action::make('subir')
                 ->label('📷 Subir fotos')
-                ->url(fn () => \App\Filament\Pages\FotosPaquetes::getUrl()),
+                ->url(fn () => \App\Filament\Pages\CrearGuia::getUrl() . '?seccion=fotos'),
         ];
     }
 }

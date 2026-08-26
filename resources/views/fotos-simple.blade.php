@@ -86,22 +86,6 @@
         <button type="submit" style="background:#4aa3df">Aplicar y limpiar ahora</button>
     </form>
 
-    {{-- Lo que el servidor dice de sí mismo. Sin esto solo se puede adivinar. --}}
-    @php $lim = \App\Http\Controllers\GuiaFotoController::limitesDelServidor(); @endphp
-    <div style="background:#182236;border:1px solid rgba(255,255,255,.10);border-radius:14px;
-                padding:14px;margin-bottom:16px;font-size:13px;line-height:1.8">
-        <b style="font-size:14px">Límites del servidor</b><br>
-        Tamaño máximo por archivo: <b>{{ $lim['subida_max'] }}</b><br>
-        Tamaño máximo del envío: <b>{{ $lim['post_max'] }}</b><br>
-        Archivos por envío: <b>{{ $lim['archivos_max'] }}</b> ·
-        Tiempo máximo: <b>{{ $lim['tiempo_max'] }}s</b><br>
-        Carpeta temporal: <span style="color:#94a3b8">{{ $lim['temp'] }}</span><br>
-        ¿Se puede escribir ahí?: <b>{{ $lim['temp_escribe'] }}</b> ·
-        libre: <b>{{ $lim['temp_libre'] }}</b><br>
-        ¿Se puede escribir en la carpeta de fotos?: <b>{{ $lim['carpeta_escribe'] }}</b><br>
-        Prueba de escritura real: <b>{{ $lim['prueba'] }}</b>
-    </div>
-
     {{-- Formulario de toda la vida: lo manda el navegador, no JavaScript.
          Si esto no funciona, el problema está en el servidor y no hay
          ninguna otra pieza a la que culpar. --}}

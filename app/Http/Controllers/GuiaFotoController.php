@@ -12,7 +12,7 @@ class GuiaFotoController extends Controller
      * si el navegador está usando el código nuevo o una copia vieja guardada
      * en caché, que es lo más difícil de detectar a ojo.
      */
-    public const VERSION = '2026-08-25-g';
+    public const VERSION = '2026-08-26-a';
 
 
     /**

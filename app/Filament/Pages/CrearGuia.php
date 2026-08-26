@@ -44,6 +44,12 @@ class CrearGuia extends Page implements HasForms
 
     public function mount(): void
     {
+        // Se puede llegar directo a una pestaña: /admin/crear-guia?seccion=fotos
+        $pedida = (string) request()->query('seccion', '');
+        if (in_array($pedida, ['crear', 'pdf', 'fotos'], true)) {
+            $this->seccion = $pedida;
+        }
+
         $this->recargarLista();
         $this->form->fill();
     }
