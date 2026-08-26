@@ -12,8 +12,58 @@ class GuiaFotoController extends Controller
      * si el navegador está usando el código nuevo o una copia vieja guardada
      * en caché, que es lo más difícil de detectar a ojo.
      */
-    public const VERSION = '2026-08-25-c';
+    public const VERSION = '2026-08-25-d';
 
+
+    /**
+     * Guarda el archivo Y COMPRUEBA que de verdad quedó escrito.
+     *
+     * Esto es lo que faltaba y costó días de búsqueda: cuando el disco está
+     * lleno, guardar NO lanza ningún error (el disco 'public' tiene los avisos
+     * apagados). Devuelve false, el archivo queda creado pero vacío, y ese
+     * false se guardaba en la base como si fuera una ruta. Resultado: el
+     * sistema respondía "foto guardada" y no había ninguna foto.
+     *
+     * Devuelve la ruta, o null con el motivo en $error.
+     */
+    private static function guardarArchivo($archivo, ?string &$error = null): ?string
+    {
+        $error = null;
+
+        try {
+            $ruta = $archivo->store('paquetes', 'public');
+        } catch (\Throwable $e) {
+            $error = 'No se pudo escribir en el disco: ' . $e->getMessage();
+            return null;
+        }
+
+        if (! $ruta || ! is_string($ruta)) {
+            $error = 'El disco del servidor no aceptó el archivo. Probablemente esté lleno.';
+            return null;
+        }
+
+        try {
+            $disco = \Illuminate\Support\Facades\Storage::disk('public');
+
+            if (! $disco->exists($ruta)) {
+                $error = 'El archivo no quedó guardado. El disco del servidor puede estar lleno.';
+                return null;
+            }
+
+            if ((int) $disco->size($ruta) === 0) {
+                // Se borra el cascarón vacío para no dejar basura.
+                try { $disco->delete($ruta); } catch (\Throwable $e) {}
+                $error = 'La foto quedó vacía: el disco del servidor está lleno. '
+                       . 'Usá el botón "Liberar espacio" en Guías → Fotos.';
+                return null;
+            }
+        } catch (\Throwable $e) {
+            $error = 'No se pudo comprobar el archivo: ' . $e->getMessage();
+            return null;
+        }
+
+        return $ruta;
+    }
 
     /**
      * Página simple para subir una foto, sin JavaScript de por medio.
@@ -56,10 +106,9 @@ class GuiaFotoController extends Controller
             return back()->with('bc_mal', 'Ese número de guía no es válido.')->withInput();
         }
 
-        try {
-            $ruta = $request->file('foto')->store('paquetes', 'public');
-        } catch (\Throwable $e) {
-            return back()->with('bc_mal', 'No se pudo guardar el archivo: ' . $e->getMessage())->withInput();
+        $ruta = static::guardarArchivo($request->file('foto'), $error);
+        if (! $ruta) {
+            return back()->with('bc_mal', $error)->withInput();
         }
 
         $registro = GuiaFoto::where('guia', $guia)->first();
@@ -110,7 +159,11 @@ class GuiaFotoController extends Controller
             return response()->json(['ok' => false, 'error' => 'Guía no válida'], 422);
         }
 
-        $ruta = $request->file('foto')->store('paquetes', 'public');
+        $ruta = static::guardarArchivo($request->file('foto'), $error);
+        if (! $ruta) {
+            // 507 = no queda espacio. Antes esto devolvía "ok" con la foto vacía.
+            return response()->json(['ok' => false, 'error' => $error], 507);
+        }
 
         $nombreOcr   = trim((string) ($data['nombre'] ?? '')) ?: null;
         $telefonoOcr = trim((string) ($data['telefono'] ?? '')) ?: null;
@@ -235,31 +288,123 @@ class GuiaFotoController extends Controller
         }
     }
 
-    /** Cuánto ocupan hoy las fotos guardadas (para verlo en pantalla). */
+    /** Convierte bytes a algo legible. */
+    private static function legible(float $bytes): string
+    {
+        $mb = $bytes / 1048576;
+        return $mb >= 1024
+            ? number_format($mb / 1024, 2) . ' GB'
+            : number_format($mb, 1) . ' MB';
+    }
+
+    /**
+     * Cuánto ocupan las fotos, cuánto espacio libre queda y cuántas fotos
+     * quedaron VACÍAS.
+     *
+     * Lo de las vacías es la señal de alarma: cuando el disco se llena, el
+     * archivo se crea pero no se escribe nada adentro. La subida responde que
+     * todo salió bien y en realidad no hay foto. Así se veía la falla.
+     */
     public static function espacioUsado(): array
     {
         $bytes = 0;
         $conFoto = 0;
+        $vacios = 0;
 
         try {
             $disco = \Illuminate\Support\Facades\Storage::disk('public');
             foreach ($disco->files('paquetes') as $archivo) {
-                $bytes += (int) $disco->size($archivo);
+                $tam = (int) $disco->size($archivo);
+                $bytes += $tam;
                 $conFoto++;
+                if ($tam === 0) $vacios++;
             }
         } catch (\Throwable $e) {
         }
 
-        $mb = $bytes / 1048576;
+        $libre = 0;
+        try {
+            $libre = (float) (disk_free_space(storage_path('app/public')) ?: 0);
+        } catch (\Throwable $e) {
+        }
 
         return [
-            'archivos' => $conFoto,
-            'bytes'    => $bytes,
-            'legible'  => $mb >= 1024
-                ? number_format($mb / 1024, 2) . ' GB'
-                : number_format($mb, 1) . ' MB',
-            'dias'     => static::diasDeFotos(),
+            'archivos'     => $conFoto,
+            'bytes'        => $bytes,
+            'legible'      => static::legible($bytes),
+            'vacios'       => $vacios,
+            'libre'        => $libre,
+            'libreLegible' => $libre > 0 ? static::legible($libre) : 'no se pudo leer',
+            'apretado'     => $libre > 0 && $libre < 200 * 1048576,   // menos de 200 MB
+            'dias'         => static::diasDeFotos(),
         ];
+    }
+
+    /**
+     * Libera espacio en el disco, que es lo que deja de funcionar cuando se
+     * llena. Hace tres cosas, de menos a más drástica:
+     *
+     *   1. Borra las fotos que quedaron VACÍAS (no sirven para nada).
+     *   2. Vacía el archivo de registro de errores, que crece sin límite.
+     *   3. Corre la limpieza normal de fotos vencidas.
+     */
+    public static function liberarEspacio(): array
+    {
+        $r = ['vacias' => 0, 'registro' => '0 MB', 'vencidas' => 0];
+
+        // 1 · Fotos vacías: el archivo existe pero no tiene nada adentro.
+        try {
+            $disco = \Illuminate\Support\Facades\Storage::disk('public');
+            $muertas = [];
+
+            foreach ($disco->files('paquetes') as $archivo) {
+                if ((int) $disco->size($archivo) === 0) $muertas[] = $archivo;
+            }
+
+            foreach ($muertas as $archivo) {
+                try { $disco->delete($archivo); } catch (\Throwable $e) {}
+                $r['vacias']++;
+            }
+
+            // Y se limpian los registros que apuntaban a esas fotos fantasma.
+            if ($muertas) {
+                GuiaFoto::whereIn('ruta', $muertas)->update(['ruta' => null]);
+            }
+
+            // Cuando el disco se llena, la ruta se guarda como "0" (el archivo
+            // nunca se escribió). Esos registros también hay que despegarlos.
+            GuiaFoto::where('ruta', '0')->update(['ruta' => null]);
+        } catch (\Throwable $e) {
+        }
+
+        // 2 · El registro de errores puede llegar a pesar más que las fotos.
+        try {
+            $log = storage_path('logs/laravel.log');
+            if (is_file($log)) {
+                $r['registro'] = static::legible((float) (filesize($log) ?: 0));
+                file_put_contents($log, '');
+            }
+        } catch (\Throwable $e) {
+        }
+
+        // 3 · Limpieza normal de fotos vencidas.
+        $r['vencidas'] = static::limpiarViejas();
+
+        return $r;
+    }
+
+    /** Botón "Liberar espacio" del panel. */
+    public function liberar()
+    {
+        $antes = static::espacioUsado();
+        $hecho = static::liberarEspacio();
+        $ahora = static::espacioUsado();
+
+        return back()->with('bc_ok', sprintf(
+            'Espacio liberado · %d fotos vacías borradas · registro de errores: %s · %d fotos vencidas. Libre ahora: %s (antes %s).',
+            $hecho['vacias'], $hecho['registro'], $hecho['vencidas'],
+            $ahora['libreLegible'], $antes['libreLegible']
+        ));
     }
 
     /**

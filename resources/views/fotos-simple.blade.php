@@ -47,6 +47,24 @@
         <div class="aviso mal">✕ {{ $errors->first() }}</div>
     @endif
 
+    {{-- Estado del disco. Si está lleno, las fotos se guardan VACÍAS y el
+         sistema dice que todo salió bien. Por eso va arriba y bien visible. --}}
+    @php $esp = \App\Http\Controllers\GuiaFotoController::espacioUsado(); @endphp
+    <form method="POST" action="{{ route('fotos.liberar') }}"
+          style="background:{{ ($esp['apretado'] || $esp['vacios'] > 0) ? 'rgba(229,105,95,.14)' : '#182236' }};
+                 border:1px solid {{ ($esp['apretado'] || $esp['vacios'] > 0) ? '#e5695f' : 'rgba(255,255,255,.10)' }}">
+        @csrf
+        <div style="font-size:14px;line-height:1.7;margin-bottom:12px">
+            <b>Disco del servidor</b><br>
+            Fotos: {{ $esp['archivos'] }} · {{ $esp['legible'] }}<br>
+            Espacio libre: <b>{{ $esp['libreLegible'] }}</b>
+            @if($esp['vacios'] > 0)
+                <br><b style="color:#f5c4b3">{{ $esp['vacios'] }} fotos quedaron vacías (el disco se llenó).</b>
+            @endif
+        </div>
+        <button type="submit" style="background:#2e9e6b">🧹 Liberar espacio</button>
+    </form>
+
     {{-- Formulario de toda la vida: lo manda el navegador, no JavaScript.
          Si esto no funciona, el problema está en el servidor y no hay
          ninguna otra pieza a la que culpar. --}}

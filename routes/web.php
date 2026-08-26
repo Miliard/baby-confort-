@@ -66,6 +66,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/subir-foto', [\App\Http\Controllers\GuiaFotoController::class, 'formularioSimple'])->name('fotos.simple');
     Route::post('/subir-foto', [\App\Http\Controllers\GuiaFotoController::class, 'guardarSimple'])->name('fotos.simple.guardar');
 
+    // Borra fotos vacías, vacía el registro de errores y aplica la retención.
+    Route::post('/liberar-espacio', [\App\Http\Controllers\GuiaFotoController::class, 'liberar'])->name('fotos.liberar');
+
     Route::post('/fotos-paquete', [\App\Http\Controllers\GuiaFotoController::class, 'subir'])->name('fotos.subir');
     Route::post('/guias-pdf', [\App\Http\Controllers\GuiaFotoController::class, 'importarPdf'])->name('guias.pdf');
     Route::delete('/fotos-paquete/{foto}', [\App\Http\Controllers\GuiaFotoController::class, 'eliminar'])->name('fotos.eliminar');
