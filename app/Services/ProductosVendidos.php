@@ -72,9 +72,25 @@ class ProductosVendidos
         });
     }
 
-    /** Busca a qué producto del catálogo se parece un renglón. */
+    /**
+     * Busca a qué producto del catálogo se parece un renglón.
+     *
+     * Primero manda lo que vos enseñaste en Equivalencias: hay renglones que no
+     * nombran el producto ("12 paquetes de 8 a 15 años") y ahí no hay nada que
+     * adivinar. Si ninguna equivalencia aplica, se compara con el catálogo.
+     */
     public static function identificar(string $linea): ?array
     {
+        $ense = \App\Models\Equivalencia::buscarEn($linea);
+        if ($ense) {
+            return [
+                'id'         => $ense['id'],
+                'nombre'     => $ense['nombre'],
+                'palabras'   => [],
+                'talla_fija' => $ense['talla'],
+            ];
+        }
+
         $pal = static::palabras($linea);
         if (! $pal) return null;
 
@@ -156,12 +172,15 @@ class ProductosVendidos
             foreach (\App\Models\GuiaBorrador::partirDescripcion($g->contenido) as $linea) {
                 $cant  = static::cantidad($linea);
                 $prod  = static::identificar($linea);
-                $talla = static::talla($linea);
 
                 if (! $prod) {
                     $sin[$linea] = ($sin[$linea] ?? 0) + $cant;
                     continue;
                 }
+
+                // Si la equivalencia dice la talla, esa manda: el texto puede
+                // traer "8 a 15" cuando en el catálogo es "8 a 14 años".
+                $talla = $prod['talla_fija'] ?? static::talla($linea);
 
                 $clave = $prod['id'] . '|' . ($talla ?? '');
                 if (! isset($items[$clave])) {
