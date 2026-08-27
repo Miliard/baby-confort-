@@ -14,12 +14,19 @@
     .tot{text-align:right}
     .tot .et{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:#6b7c8c}
     .tot .n{font-size:26px;font-weight:800;color:#16a34a;line-height:1.1}
-    table{width:100%;border-collapse:collapse;margin-bottom:18px}
+    {{-- Con ocho columnas hay que apretar un poco la letra para que entre
+         todo a lo ancho de la hoja sin partirse. --}}
+    table{width:100%;border-collapse:collapse;margin-bottom:18px;
+          font-size:11.5px;table-layout:fixed}
+    td{word-wrap:break-word}
     th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#6b7c8c;
        border-bottom:1.5px solid #d7dfe7;padding:7px 10px 7px 2px}
     td{padding:6px 10px 6px 2px;border-bottom:1px solid #eef2f6;vertical-align:top}
     td.der,th.der{text-align:right;padding-right:4px}
     td.num{color:#94a3b8;font-size:11px;padding-right:0}
+    td.guia-col{font-variant-numeric:tabular-nums;color:#41525f}
+    tr.sumas td{border-top:2px solid #1b2a3a;border-bottom:none;
+                font-weight:800;padding-top:9px;font-size:13px}
     .guia{font-size:10.5px;color:#94a3b8}
     .cuenta{width:330px;margin-left:auto;padding-right:4px}
     .lin{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #eef2f6}
@@ -56,14 +63,17 @@
 
 <table>
     <thead>
+        {{-- Las mismas columnas y el mismo orden que el Excel de Express, para
+             que se puedan poner lado a lado y cotejar sin buscar nada. --}}
         <tr>
-            {{-- El número sirve para ir tildando contra el Excel de Express,
-                 que viene en este mismo orden. --}}
-            <th style="width:28px">#</th>
-            <th style="width:60px">Fecha</th>
-            <th>Cliente</th>
-            <th style="width:150px">Zona</th>
-            <th class="der" style="width:90px">Monto</th>
+            <th style="width:26px">#</th>
+            <th style="width:58px">Fecha</th>
+            <th style="width:66px">Guía</th>
+            <th>Nombre</th>
+            <th style="width:118px">Zona</th>
+            <th class="der" style="width:66px">Monto</th>
+            <th class="der" style="width:66px">Comisión</th>
+            <th class="der" style="width:66px">Total</th>
         </tr>
     </thead>
     <tbody>
@@ -71,14 +81,22 @@
             <tr>
                 <td class="num">{{ $loop->iteration }}</td>
                 <td>{{ $f->fecha->format('d/m/Y') }}</td>
-                <td>
-                    {{ $f->nombre }}
-                    <span class="guia">Guía {{ $f->orden }}</span>
-                </td>
+                <td class="guia-col">{{ $f->orden }}</td>
+                <td>{{ $f->nombre }}</td>
                 <td>{{ $f->zona }}</td>
-                <td class="der">${{ number_format($f->monto, 2) }}</td>
+                <td class="der">{{ number_format($f->monto, 2) }}</td>
+                <td class="der">{{ number_format($f->comision, 2) }}</td>
+                <td class="der">{{ number_format($f->total, 2) }}</td>
             </tr>
         @endforeach
+
+        {{-- Sumas de cada columna: es lo primero que va a querer cuadrar. --}}
+        <tr class="sumas">
+            <td colspan="5">Totales · {{ $m['filas']->count() }} renglones</td>
+            <td class="der">{{ number_format($m['filas']->sum('monto'), 2) }}</td>
+            <td class="der">{{ number_format($m['filas']->sum('comision'), 2) }}</td>
+            <td class="der">{{ number_format($m['filas']->sum('total'), 2) }}</td>
+        </tr>
     </tbody>
 </table>
 
