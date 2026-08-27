@@ -187,7 +187,11 @@ class CierreDia extends Model
             $q = ExpressEntrega::where('aiwibi', true);
             if ($desde) $q->whereDate('fecha', '>=', $desde);
             if ($hasta) $q->whereDate('fecha', '<=', $hasta);
-            $todas = $q->orderBy('fecha')->orderBy('nombre')->get();
+            // Se respeta el orden en que se pegó la liquidación, que es el mismo
+            // del Excel de Express. Antes iba por fecha y luego alfabético, y
+            // eso obligaba a buscar renglón por renglón para cuadrar con el
+            // archivo. Así se puede ir tildando de arriba abajo.
+            $todas = $q->orderBy('id')->get();
         } catch (\Throwable $e) {
             return $vacio;
         }

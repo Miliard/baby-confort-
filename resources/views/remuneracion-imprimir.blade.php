@@ -19,6 +19,7 @@
        border-bottom:1.5px solid #d7dfe7;padding:7px 10px 7px 2px}
     td{padding:6px 10px 6px 2px;border-bottom:1px solid #eef2f6;vertical-align:top}
     td.der,th.der{text-align:right;padding-right:4px}
+    td.num{color:#94a3b8;font-size:11px;padding-right:0}
     .guia{font-size:10.5px;color:#94a3b8}
     .cuenta{width:330px;margin-left:auto;padding-right:4px}
     .lin{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #eef2f6}
@@ -56,6 +57,9 @@
 <table>
     <thead>
         <tr>
+            {{-- El número sirve para ir tildando contra el Excel de Express,
+                 que viene en este mismo orden. --}}
+            <th style="width:28px">#</th>
             <th style="width:60px">Fecha</th>
             <th>Cliente</th>
             <th style="width:150px">Zona</th>
@@ -65,6 +69,7 @@
     <tbody>
         @foreach($m['filas'] as $f)
             <tr>
+                <td class="num">{{ $loop->iteration }}</td>
                 <td>{{ $f->fecha->format('d/m/Y') }}</td>
                 <td>
                     {{ $f->nombre }}
