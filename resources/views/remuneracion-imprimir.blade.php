@@ -39,30 +39,14 @@
                   cursor:pointer;background:#4aa3df;color:#fff}
     body{padding-top:60px}
 
-    /* Lo que NO tiene que ver el socio: lo que Express le cobra a Baby-Confort.
-       Va oculto siempre, y solo se destapa marcando la casilla de la barra
-       —que no se imprime ni sale en la imagen—. Oculto por defecto a propósito:
-       si algún día algo falla, falla del lado seguro. */
-    th.interno, td.interno{display:none}
-    .nota-interna{display:none}
-    body.ver-interno th.interno,
-    body.ver-interno td.interno{display:table-cell}
-    body.ver-interno .nota-interna{display:block}
-
-    .barra label{display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;opacity:.9}
     @media print{ .barra{display:none} body{padding:0} @page{margin:18mm 16mm} }
 </style>
 </head>
 <body>
 
 <div class="barra">
-    <span id="bc-aviso">Esta hoja es para el socio: no muestra lo que Express te cobra a vos.</span>
+    <span id="bc-aviso">La imagen se abre de un toque en WhatsApp; el PDF necesita un lector aparte.</span>
     <span style="display:flex;gap:14px;align-items:center">
-        <label title="Solo para revisar contra el Excel. NO mandes la hoja al socio con esto marcado.">
-            <input type="checkbox"
-                   onchange="document.body.classList.toggle('ver-interno', this.checked)">
-            Ver mis datos
-        </label>
         <button onclick="bcImagenes(this)" style="background:#2e9e6b">📷 Descargar imágenes</button>
         <button onclick="window.print()" style="background:#4aa3df">🖨️ PDF</button>
     </span>
@@ -92,8 +76,8 @@
             <th>Nombre</th>
             <th style="width:118px">Zona</th>
             <th class="der" style="width:66px">Monto</th>
-            <th class="der interno" style="width:66px">Com. Express</th>
-            <th class="der interno" style="width:66px">Depositado</th>
+            <th class="der" style="width:66px">Comisión</th>
+            <th class="der" style="width:66px">Total</th>
         </tr>
     </thead>
     <tbody>
@@ -105,8 +89,8 @@
                 <td>{{ $f->nombre }}</td>
                 <td>{{ $f->zona }}</td>
                 <td class="der">{{ number_format($f->monto, 2) }}</td>
-                <td class="der interno">{{ number_format($f->comision, 2) }}</td>
-                <td class="der interno">{{ number_format($f->total, 2) }}</td>
+                <td class="der">{{ number_format($f->comision_socio, 2) }}</td>
+                <td class="der">{{ number_format($f->neto_socio, 2) }}</td>
             </tr>
         @endforeach
 
@@ -114,8 +98,8 @@
         <tr class="sumas">
             <td colspan="5">Totales · {{ $m['filas']->count() }} renglones</td>
             <td class="der">{{ number_format($m['filas']->sum('monto'), 2) }}</td>
-            <td class="der interno">{{ number_format($m['filas']->sum('comision'), 2) }}</td>
-            <td class="der interno">{{ number_format($m['filas']->sum('total'), 2) }}</td>
+            <td class="der">{{ number_format($m['filas']->sum('comision_socio'), 2) }}</td>
+            <td class="der">{{ number_format($m['filas']->sum('neto_socio'), 2) }}</td>
         </tr>
     </tbody>
 </table>
@@ -135,18 +119,6 @@
 </div>
 
 <div class="pie">
-    {{-- Esta aclaración es solo para vos: se oculta junto con las columnas
-         internas para que el socio nunca la vea. --}}
-    <div class="nota-interna" style="margin-bottom:6px">
-        <b>Solo para vos:</b> "Com. Express" es lo que Express te descuenta
-        (<b>${{ number_format($m['filas']->sum('comision'), 2) }}</b>).
-        La comisión de abajo es la que vos aplicás
-        (<b>${{ number_format($m['comision'], 2) }}</b>).
-        La diferencia,
-        <b>${{ number_format($m['comision'] - $m['filas']->sum('comision'), 2) }}</b>,
-        es tu ganancia. <b>No mandes esta hoja al socio con la casilla marcada.</b>
-    </div>
-
     @if($m['sinCobro'] > 0)
         {{ $m['sinCobro'] }} {{ $m['sinCobro'] === 1 ? 'envío vino' : 'envíos vinieron' }} en $0 (ya estaban pagados o no se cobró al entregar).
     @endif

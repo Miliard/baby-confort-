@@ -202,9 +202,22 @@ class CierreDia extends Model
         $devueltos = $todas->where('caso', 'devolucion');
         $filas     = $todas->where('caso', '!=', 'devolucion')->values();
 
+        // La comisión se calcula RENGLÓN POR RENGLÓN con el porcentaje tuyo, y
+        // el total es la suma de esos renglones. Así la tabla que ve el socio
+        // cuadra exactamente con la cuenta de abajo: si sumara el porcentaje de
+        // una sola vez, los redondeos podrían diferir en centavos y no habría
+        // forma de explicarle la diferencia.
+        //
+        // Ojo: acá NO se usa la comisión que cobra Express (columna 'comision'
+        // de la tabla), que es otra cosa y no le corresponde ver al socio.
+        $filas->each(function ($f) use ($comisionPct) {
+            $f->comision_socio = round((float) $f->monto * ($comisionPct / 100), 2);
+            $f->neto_socio     = round((float) $f->monto - $f->comision_socio, 2);
+        });
+
         $cobrado   = (float) $filas->sum('monto');
         $envios    = $filas->count();
-        $comision  = round($cobrado * ($comisionPct / 100), 2);
+        $comision  = round($filas->sum('comision_socio'), 2);
         $subtotal  = round($cobrado - $comision, 2);
         $descuento = round($envios * $porEnvio, 2);
 
