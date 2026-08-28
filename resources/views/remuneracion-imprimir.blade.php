@@ -44,8 +44,11 @@
 <body>
 
 <div class="barra">
-    <span>Para guardarlo como PDF: tocá Imprimir y elegí <b>“Guardar como PDF”</b> en Destino.</span>
-    <button onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+    <span id="bc-aviso">La imagen se abre de un toque en WhatsApp; el PDF necesita un lector aparte.</span>
+    <span style="display:flex;gap:8px">
+        <button onclick="bcImagenes(this)" style="background:#2e9e6b">📷 Descargar imágenes</button>
+        <button onclick="window.print()" style="background:#4aa3df">🖨️ PDF</button>
+    </span>
 </div>
 
 <div class="cab">
@@ -123,9 +126,96 @@
     @endif
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
-    // Abre el diálogo de impresión solo: el usuario elige "Guardar como PDF".
-    window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });
+/**
+ * Convierte la remuneración en imágenes, no en PDF.
+ *
+ * El socio abre WhatsApp en el teléfono y un PDF le pide un lector aparte.
+ * Una imagen se ve de un toque. Si hay muchos renglones se parte en varias
+ * hojas, porque una imagen larguísima queda ilegible en el celular.
+ */
+const BC_POR_HOJA = 18;
+
+function bcImagenes(boton) {
+    const aviso = document.getElementById('bc-aviso');
+    const filas = [...document.querySelectorAll('tbody tr')].filter(t => !t.classList.contains('sumas'));
+    const sumas = document.querySelector('tr.sumas');
+    const cuenta = document.querySelector('.cuenta');
+    const cab = document.querySelector('.cab');
+    const encabezados = document.querySelector('thead tr');
+
+    if (!filas.length) { aviso.textContent = 'No hay renglones que convertir.'; return; }
+
+    const hojas = [];
+    for (let i = 0; i < filas.length; i += BC_POR_HOJA) hojas.push(filas.slice(i, i + BC_POR_HOJA));
+
+    boton.disabled = true;
+
+    const taller = document.createElement('div');
+    taller.style.cssText = 'position:absolute;left:-99999px;top:0';
+    document.body.appendChild(taller);
+
+    const armar = (grupo, n) => {
+        const hoja = document.createElement('div');
+        hoja.style.cssText = 'width:900px;background:#fff;padding:26px 30px;'
+            + "font-family:'Segoe UI',system-ui,sans-serif;color:#1b2a3a";
+
+        hoja.appendChild(cab.cloneNode(true));
+
+        const t = document.createElement('table');
+        t.style.cssText = 'width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed';
+        const th = document.createElement('thead');
+        th.appendChild(encabezados.cloneNode(true));
+        const tb = document.createElement('tbody');
+        grupo.forEach(f => tb.appendChild(f.cloneNode(true)));
+
+        // Las sumas y la cuenta van solo en la última hoja.
+        if (n === hojas.length && sumas) tb.appendChild(sumas.cloneNode(true));
+
+        t.append(th, tb);
+        hoja.appendChild(t);
+
+        if (n === hojas.length && cuenta) hoja.appendChild(cuenta.cloneNode(true));
+
+        const pie = document.createElement('div');
+        pie.style.cssText = 'margin-top:16px;font-size:12px;color:#94a3b8;text-align:right';
+        pie.textContent = 'Hoja ' + n + ' de ' + hojas.length;
+        hoja.appendChild(pie);
+
+        return hoja;
+    };
+
+    (async () => {
+        for (let i = 0; i < hojas.length; i++) {
+            aviso.textContent = 'Armando hoja ' + (i + 1) + ' de ' + hojas.length + '…';
+
+            const hoja = armar(hojas[i], i + 1);
+            taller.appendChild(hoja);
+
+            try {
+                const lienzo = await html2canvas(hoja, { scale: 2, backgroundColor: '#ffffff' });
+                const a = document.createElement('a');
+                a.download = 'remuneracion-' + (i + 1) + '.png';
+                a.href = lienzo.toDataURL('image/png');
+                a.click();
+            } catch (e) {
+                aviso.textContent = 'No se pudo armar la hoja ' + (i + 1) + '.';
+            }
+
+            hoja.remove();
+            // Un respiro entre descargas: si van muy seguidas, el navegador
+            // bloquea las siguientes por creerlas sospechosas.
+            await new Promise(r => setTimeout(r, 700));
+        }
+
+        taller.remove();
+        aviso.textContent = hojas.length === 1
+            ? 'Listo: 1 imagen descargada.'
+            : 'Listo: ' + hojas.length + ' imágenes descargadas.';
+        boton.disabled = false;
+    })();
+}
 </script>
 </body>
 </html>
