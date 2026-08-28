@@ -454,15 +454,18 @@
                                 <span x-text="ok ? '✅ ¡Copiado! Pegalo en el chat' : '📋 Copiar para WhatsApp'"></span>
                             </x-filament::button>
 
+                            {{-- Este enlace no descarga: abre la hoja de la
+                                 remuneración, y ahí arriba se elige imagen o PDF.
+                                 Decía "Descargar PDF" y despistaba. --}}
                             <x-filament::button size="sm" color="gray" tag="a" target="_blank"
-                                icon="heroicon-o-printer"
+                                icon="heroicon-o-document-arrow-down"
                                 :href="route('remuneracion.imprimir', [
                                     'desde'    => $this->rango()[0],
                                     'hasta'    => $this->rango()[1],
                                     'comision' => $remComision,
                                     'porEnvio' => $remPorEnvio,
                                 ])">
-                                Descargar PDF
+                                Abrir hoja (imagen o PDF)
                             </x-filament::button>
                         </div>
 
