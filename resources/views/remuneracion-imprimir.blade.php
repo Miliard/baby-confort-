@@ -136,7 +136,14 @@
  * Una imagen se ve de un toque. Si hay muchos renglones se parte en varias
  * hojas, porque una imagen larguísima queda ilegible en el celular.
  */
-const BC_POR_HOJA = 18;
+// En el teléfono el lienzo que arma la imagen tiene un tope de memoria mucho
+// más bajo que en la computadora: si se pasa, la imagen sale cortada. Por eso
+// acá se usan hojas más cortas y menos resolución. Se ve igual de bien en la
+// pantalla del celular, que es donde la va a mirar el socio.
+const BC_MOVIL     = Math.min(screen.width, screen.height) < 768;
+const BC_POR_HOJA  = BC_MOVIL ? 10 : 18;
+const BC_ESCALA    = BC_MOVIL ? 1.4 : 2;
+const BC_ANCHO     = 900;
 
 function bcImagenes(boton) {
     const aviso = document.getElementById('bc-aviso');
@@ -195,7 +202,15 @@ function bcImagenes(boton) {
             taller.appendChild(hoja);
 
             try {
-                const lienzo = await html2canvas(hoja, { scale: 2, backgroundColor: '#ffffff' });
+                const lienzo = await html2canvas(hoja, {
+                    scale: BC_ESCALA,
+                    backgroundColor: '#ffffff',
+                    // Se fija el ancho a mano: si no, en el celular la hoja se
+                    // mide contra una pantalla de 390 px y sale recortada.
+                    width: BC_ANCHO,
+                    windowWidth: BC_ANCHO + 100,
+                    useCORS: true,
+                });
                 const a = document.createElement('a');
                 a.download = 'remuneracion-' + (i + 1) + '.png';
                 a.href = lienzo.toDataURL('image/png');
