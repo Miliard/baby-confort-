@@ -109,6 +109,9 @@ class TablaPrecios extends Page
                     'combo'   => ($s->combo_qty > 0 && $s->combo_price > 0)
                         ? ((int) $s->combo_qty) . ' x $' . number_format((float) $s->combo_price, 2)
                         : null,
+                    // Cuántos paquetes quedan de esa presentación. Solo se
+                    // muestra en la vista interna: al cliente no le sirve.
+                    'existencia' => (int) $s->quantity,
                     'agotado' => (int) $s->quantity <= 0,
                 ];
             }

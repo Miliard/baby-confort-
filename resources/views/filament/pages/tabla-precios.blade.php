@@ -44,6 +44,19 @@
     #bc-tarjeta .pie b{color:#16202f}
     #bc-tarjeta .pie .fecha{margin-top:6px;font-size:12.5px;color:#94a3b8}
     #bc-tarjeta .vacio{padding:40px 28px;text-align:center;color:#94a3b8;font-size:15px}
+    #bc-tarjeta td.constock{color:#1c7a4d;font-weight:700;white-space:nowrap}
+    #bc-tarjeta td.sinstock{color:#9c2c2c;font-weight:700;white-space:nowrap}
+
+    /* Al imprimir (o guardar como PDF) sale SOLO la tarjeta: nada del panel de
+       la izquierda ni del menú del admin, que ahí no pintan nada. */
+    @media print{
+        body *{visibility:hidden}
+        #bc-tarjeta, #bc-tarjeta *{visibility:visible}
+        #bc-tarjeta{position:absolute;left:0;top:0;width:100%;border-radius:0}
+        #bc-tarjeta thead{display:table-header-group}   /* la cabecera se repite en cada hoja */
+        #bc-tarjeta tr{break-inside:avoid}
+        @page{margin:12mm 10mm}
+    }
 </style>
 
 <div class="bc-tp">
@@ -70,15 +83,18 @@
             </label>
             <label class="bc-chk">
                 <input type="checkbox" wire:model.live="marcarAgotados">
-                <span>Marcar los que están sin existencia</span>
+                <span>Mostrar existencias <b>(uso interno)</b></span>
             </label>
 
             <div class="bc-sep"></div>
 
-            <button type="button" class="bc-boton" onclick="bcBajarTabla(this)">📷 Descargar imagen</button>
+            <button type="button" class="bc-boton" onclick="bcBajarTabla(this)">📷 Imagen</button>
+            <button type="button" class="bc-boton" style="background:#5b6b80;margin-top:6px"
+                    onclick="window.print()">🖨️ PDF</button>
             <p class="bc-pista">
-                Baja un PNG al doble de resolución, listo para mandar por WhatsApp.
-                Las tallas agotadas salen igual, con su detalle completo.
+                <b>Imagen:</b> un PNG listo para mandar por WhatsApp, se abre de un toque.<br>
+                <b>PDF:</b> elegí “Guardar como PDF” en Destino. Sale solo la tabla.<br>
+                Las tallas agotadas aparecen igual, con su detalle completo.
             </p>
         </div>
     </div>
@@ -110,12 +126,13 @@
                         <th class="der">Unidades</th>
                         <th class="der">Precio</th>
                         @if($porUnidad)<th class="der">Por unidad</th>@endif
+                        @if($marcarAgotados)<th class="der">Existencia</th>@endif
                     </tr>
                 </thead>
                 <tbody>
                     @foreach($grupos as $g)
                         <tr class="grupo">
-                            <td colspan="{{ $porUnidad ? 5 : 4 }}">{{ $g['producto'] }}</td>
+                            <td colspan="{{ 4 + ($porUnidad ? 1 : 0) + ($marcarAgotados ? 1 : 0) }}">{{ $g['producto'] }}</td>
                         </tr>
                         @foreach($g['filas'] as $f)
                             <tr>
@@ -129,6 +146,11 @@
                                 <td class="der precio">${{ number_format($f['precio'], 2) }}</td>
                                 @if($porUnidad)
                                     <td class="der cu">{{ $f['unidad'] ? '$' . number_format($f['unidad'], 2) : '—' }}</td>
+                                @endif
+                                @if($marcarAgotados)
+                                    <td class="der {{ $f['agotado'] ? 'sinstock' : 'constock' }}">
+                                        {{ $f['agotado'] ? 'Agotado' : $f['existencia'] . ' paq.' }}
+                                    </td>
                                 @endif
                             </tr>
                         @endforeach
