@@ -59,6 +59,11 @@ Route::get('/remuneracion/imprimir', function (\Illuminate\Http\Request $request
 Route::get('/og/producto/{product}/{talla?}', [\App\Http\Controllers\OgImageController::class, 'producto'])
     ->where('talla', '.*')->name('store.og');
 
+// Atajo para los colaboradores: baby-confort.shop/whatsapp entra directo al
+// inbox, sin pasar por el admin ni tener que recordar la dirección larga.
+Route::redirect('/whatsapp', '/chat/whatsapp');
+Route::redirect('/chat', '/chat/whatsapp');
+
 // ─── WhatsApp ────────────────────────────────────────────────────────────────
 // Meta llama a estas dos rutas, así que van SIN sesión y SIN CSRF: quien manda
 // no es un navegador. La seguridad es la firma que se comprueba adentro.
