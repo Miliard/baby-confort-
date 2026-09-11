@@ -59,6 +59,13 @@ Route::get('/remuneracion/imprimir', function (\Illuminate\Http\Request $request
 Route::get('/og/producto/{product}/{talla?}', [\App\Http\Controllers\OgImageController::class, 'producto'])
     ->where('talla', '.*')->name('store.og');
 
+// ─── WhatsApp ────────────────────────────────────────────────────────────────
+// Meta llama a estas dos rutas, así que van SIN sesión y SIN CSRF: quien manda
+// no es un navegador. La seguridad es la firma que se comprueba adentro.
+Route::get('/webhook',  [\App\Http\Controllers\WhatsappWebhookController::class, 'verificar']);
+Route::post('/webhook', [\App\Http\Controllers\WhatsappWebhookController::class, 'recibir'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
+
 // Fotos de paquetes (solo con sesión iniciada en el panel)
 Route::middleware('auth')->group(function () {
     // Página de respaldo: formulario simple, sin JavaScript. Si la subida

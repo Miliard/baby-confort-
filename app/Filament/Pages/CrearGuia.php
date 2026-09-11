@@ -52,6 +52,92 @@ class CrearGuia extends Page implements HasForms
 
         $this->recargarLista();
         $this->form->fill();
+
+        // Si se llega desde el panel de WhatsApp (?wa=123), se trae el teléfono
+        // del chat y el último mensaje largo, que casi siempre ES el pedido.
+        // Así no hay que copiar y pegar nada entre pantallas.
+        $this->desdeWhatsapp(request()->integer('wa'));
+    }
+
+    /**
+     * Precarga el formulario con lo que hay en una conversación de WhatsApp.
+     *
+     * Nada se guarda automáticamente: solo se llenan los campos para que el
+     * agente revise y corrija antes de agregar la guía a la lista.
+     */
+    private function desdeWhatsapp(?int $conversacionId): void
+    {
+        if (! $conversacionId) return;
+
+        try {
+            if (! \App\Models\WaConversacion::hayTabla()) return;
+
+            $conv = \App\Models\WaConversacion::find($conversacionId);
+            if (! $conv) return;
+        } catch (\Throwable $e) {
+            return;
+        }
+
+        $this->seccion = 'crear';
+
+        // El mensaje más largo de los últimos que mandó el cliente: los pedidos
+        // vienen en un bloque de texto, no en un "hola".
+        $pegar = '';
+        try {
+            $pegar = (string) \App\Models\WaMensaje::where('conversacion_id', $conv->id)
+                ->where('direccion', 'entrante')
+                ->where('tipo', 'text')
+                ->orderByDesc('id')->limit(12)->get()
+                ->sortByDesc(fn ($m) => mb_strlen((string) $m->texto))
+                ->first()?->texto;
+        } catch (\Throwable $e) {
+        }
+
+        $datos = ['telefono' => $conv->telefono];
+
+        // Si ya compró antes, se completan sus datos con la misma memoria de
+        // clientes que usa la pantalla normalmente.
+        $cliente = $conv->cliente();
+        if ($cliente) {
+            foreach (['nombre', 'direccion', 'departamento', 'municipio'] as $campo) {
+                if (! empty($cliente[$campo])) $datos[$campo] = $cliente[$campo];
+            }
+        } elseif (trim((string) $conv->nombre) !== '') {
+            $datos['nombre'] = $conv->nombre;
+        }
+
+        // Y se pasa el texto por el mismo intérprete de siempre.
+        if (mb_strlen(trim($pegar)) > 25) {
+            $r = OrdenWhatsappParser::parsear($pegar);
+
+            if (! empty($r['nombre']) && empty($datos['nombre'])) $datos['nombre'] = $r['nombre'];
+            if (! empty($r['telefono']))    $datos['telefono_recibe'] = $r['telefono'];
+            if (! empty($r['direccion']) && empty($datos['direccion'])) $datos['direccion'] = $r['direccion'];
+
+            if (! empty($r['departamento'])) {
+                $datos['departamento'] = $r['departamento'];
+                $datos['municipio']    = $r['municipio_nombre'] ?: ($datos['municipio'] ?? null);
+            }
+
+            if (! empty($r['items'])) {
+                $datos['descripcion'] = collect($r['items'])
+                    ->map(fn ($i) => ((int) ($i['cantidad'] ?? 1)) . ' ' . trim((string) ($i['producto'] ?? '')))
+                    ->implode(', ');
+
+                $datos['cobrar'] = number_format(
+                    collect($r['items'])->sum(fn ($i) => ((int) ($i['cantidad'] ?? 1)) * (float) ($i['precio'] ?? 0))
+                    + (float) ($r['envio'] ?? 0),
+                    2, '.', ''
+                );
+            }
+        }
+
+        $this->form->fill($datos);
+
+        Notification::make()
+            ->title('📲 Pedido traído del chat')
+            ->body('Revisá los datos y corregí lo que haga falta antes de agregarlo a la lista.')
+            ->success()->send();
     }
 
     /** Botón para traer la libreta de clientes exportada de Sistrack. */
