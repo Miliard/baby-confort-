@@ -36,10 +36,33 @@ class Whatsapp extends Page
     /** Mostrar solo las que nadie ha tomado. */
     public bool $soloSinTomar = false;
 
+    /** Qué pestaña se ve a la derecha: chat, pedido o respuestas. */
+    public string $pestana = 'chat';
+
+    // ── El pedido que se va armando sin salir del chat ───────────────────────
+    public string $pedNombre = '';
+    public string $pedTelefono = '';
+    public string $pedDireccion = '';
+    public string $pedMunicipio = '';
+    public string $pedDepartamento = '';
+    public string $pedNota = '';
+
+    /** Cada renglón: ['size_id' => '', 'cantidad' => 1]. */
+    public array $pedLineas = [];
+
     public function mount(): void
     {
         $id = request()->integer('chat');
         if ($id) $this->abrir($id);
+    }
+
+    public function verPestana(string $cual): void
+    {
+        $this->pestana = in_array($cual, ['chat', 'pedido', 'respuestas'], true) ? $cual : 'chat';
+
+        if ($this->pestana === 'pedido' && ! $this->pedLineas) {
+            $this->agregarLinea();
+        }
     }
 
     /** Cuántas conversaciones sin leer hay: se muestra en el menú. */
@@ -119,9 +142,13 @@ class Whatsapp extends Page
     {
         $this->abierta = $id;
         $this->texto = '';
+        $this->pestana = 'chat';
 
         $conv = $this->conversacion();
         if (! $conv) return;
+
+        // Se precarga lo que ya sabemos del cliente, para no volver a pedírselo.
+        $this->cargarDatosDelCliente($conv);
 
         if ($conv->sin_leer > 0) {
             $conv->sin_leer = 0;
@@ -216,6 +243,216 @@ class Whatsapp extends Page
         if ($texto === '') return;
 
         $this->texto = $texto;
+    }
+
+    // ═══ Pestaña "Respuestas rápidas" ═══════════════════════════════════════
+
+    public function respuestas()
+    {
+        return \App\Models\RespuestaRapida::paraElChat();
+    }
+
+    /**
+     * Pone la respuesta en el cuadro de texto, sin mandarla.
+     *
+     * A propósito no se envía de una: casi siempre hay que agregarle el nombre
+     * del cliente o cambiar un precio, y un botón que manda solo termina
+     * mandando cosas a medias.
+     */
+    public function usarRespuesta(int $id): void
+    {
+        $r = \App\Models\RespuestaRapida::find($id);
+        if (! $r) return;
+
+        $this->texto = $r->texto;
+        $this->pestana = 'chat';
+    }
+
+    // ═══ Pestaña "Tomar pedido" ═════════════════════════════════════════════
+
+    /** Lo que ya sabemos de quien está escribiendo. */
+    private function cargarDatosDelCliente(WaConversacion $conv): void
+    {
+        $this->pedTelefono = $conv->telefono ?: '';
+        $this->pedNombre   = $conv->comoSeLlama() ?: '';
+
+        $cliente = $conv->cliente();
+        if ($cliente) {
+            $this->pedNombre       = $cliente['nombre'] ?: $this->pedNombre;
+            $this->pedDireccion    = $cliente['direccion'] ?? '';
+            $this->pedMunicipio    = $cliente['municipio'] ?? '';
+            $this->pedDepartamento = $cliente['departamento'] ?? '';
+        }
+    }
+
+    /** ¿Ya nos compró antes? Se muestra arriba del formulario. */
+    public function clienteConocido(): ?array
+    {
+        $conv = $this->conversacion();
+        return $conv ? $conv->cliente() : null;
+    }
+
+    /** Todas las presentaciones con precio, para el desplegable. */
+    public function opcionesProductos(): array
+    {
+        try {
+            $filas = \App\Models\ProductSize::with('product')
+                ->whereHas('product', fn ($q) => $q->where('active', true))
+                ->get();
+
+            $lista = [];
+            foreach ($filas as $s) {
+                if (! $s->product) continue;
+
+                $etiqueta = $s->product->name . ' · ' . $s->size
+                    . ' — $' . number_format((float) $s->price, 2);
+
+                $lista[$s->id] = $etiqueta;
+            }
+
+            asort($lista);
+            return $lista;
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    public function agregarLinea(): void
+    {
+        $this->pedLineas[] = ['size_id' => '', 'cantidad' => 1];
+    }
+
+    public function quitarLinea(int $i): void
+    {
+        unset($this->pedLineas[$i]);
+        $this->pedLineas = array_values($this->pedLineas);
+    }
+
+    /** Suma de productos, sin envío. */
+    public function subtotalPedido(): float
+    {
+        $total = 0.0;
+
+        foreach ($this->pedLineas as $l) {
+            $s = $this->presentacion($l['size_id'] ?? null);
+            if (! $s) continue;
+
+            $total += (float) $s->price * max(1, (int) ($l['cantidad'] ?? 1));
+        }
+
+        return round($total, 2);
+    }
+
+    public function envioPedido(): float
+    {
+        return \App\Models\Setting::envioPara($this->subtotalPedido());
+    }
+
+    public function totalPedido(): float
+    {
+        return round($this->subtotalPedido() + $this->envioPedido(), 2);
+    }
+
+    private function presentacion($id)
+    {
+        if (! $id) return null;
+
+        try {
+            return \App\Models\ProductSize::with('product')->find($id);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /** El texto que va en la columna de contenido de la guía. */
+    private function descripcionPedido(): string
+    {
+        $partes = [];
+
+        foreach ($this->pedLineas as $l) {
+            $s = $this->presentacion($l['size_id'] ?? null);
+            if (! $s || ! $s->product) continue;
+
+            $cant = max(1, (int) ($l['cantidad'] ?? 1));
+            $partes[] = $cant . ' ' . $s->product->name . ' talla ' . $s->size;
+        }
+
+        if (trim($this->pedNota) !== '') $partes[] = trim($this->pedNota);
+
+        return implode(', ', $partes);
+    }
+
+    /** Guarda el pedido en la cola de guías, lista para el Excel. */
+    public function guardarPedido(): void
+    {
+        $faltan = [];
+        if (trim($this->pedNombre) === '')    $faltan[] = 'el nombre';
+        if (trim($this->pedTelefono) === '')  $faltan[] = 'el teléfono';
+        if (trim($this->pedDireccion) === '') $faltan[] = 'la dirección';
+        if ($this->descripcionPedido() === '') $faltan[] = 'al menos un producto';
+
+        if ($faltan) {
+            Notification::make()
+                ->title('Falta ' . implode(', ', $faltan))
+                ->warning()->send();
+            return;
+        }
+
+        try {
+            \App\Models\GuiaBorrador::create([
+                'nombre'       => trim($this->pedNombre),
+                'telefono'     => trim($this->pedTelefono),
+                'direccion'    => trim($this->pedDireccion),
+                'municipio'    => trim($this->pedMunicipio),
+                'departamento' => trim($this->pedDepartamento),
+                'descripcion'  => $this->descripcionPedido(),
+                'cobrar'       => $this->totalPedido(),
+            ]);
+        } catch (\Throwable $e) {
+            Notification::make()
+                ->title('No se pudo guardar el pedido')
+                ->body($e->getMessage())
+                ->danger()->persistent()->send();
+            return;
+        }
+
+        $this->pedLineas = [];
+        $this->pedNota = '';
+        $this->agregarLinea();
+        $this->pestana = 'chat';
+
+        Notification::make()
+            ->title('Pedido guardado')
+            ->body('Ya está en la cola de guías, listo para bajar el Excel.')
+            ->success()->send();
+    }
+
+    /** Resumen del pedido para mandárselo al cliente y que confirme. */
+    public function pasarPedidoAlChat(): void
+    {
+        if ($this->descripcionPedido() === '') {
+            Notification::make()->title('Todavía no hay productos')->warning()->send();
+            return;
+        }
+
+        $t = "*Tu pedido:*\n";
+
+        foreach ($this->pedLineas as $l) {
+            $s = $this->presentacion($l['size_id'] ?? null);
+            if (! $s || ! $s->product) continue;
+
+            $cant = max(1, (int) ($l['cantidad'] ?? 1));
+            $t .= "\u{2022} {$cant} × {$s->product->name} talla {$s->size} — $"
+                . number_format((float) $s->price * $cant, 2) . "\n";
+        }
+
+        $envio = $this->envioPedido();
+        $t .= "\n*Envío:* " . ($envio > 0 ? '$' . number_format($envio, 2) : 'gratis \u{1F389}') . "\n";
+        $t .= "*Total a pagar al recibir:* $" . number_format($this->totalPedido(), 2) . "\n\n";
+        $t .= "\u{BF}Te lo confirmo as\u{ED}? \u{1F499}";
+
+        $this->texto = $t;
+        $this->pestana = 'chat';
     }
 
     /** Dirección de "Procesar orden": abre el armador de guías con este chat. */

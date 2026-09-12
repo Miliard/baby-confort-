@@ -55,6 +55,46 @@
     html.dark .wa-aviso-mal{color:#f5c4b3} html.dark .wa-aviso-ok{color:#9fe1cb}
 
     .wa-vacio{flex:1;display:grid;place-items:center;color:#94a3b8;font-size:14px;text-align:center;padding:30px}
+    /* ── Pestañas de la derecha ── */
+    .wa-tabs{display:flex;gap:4px;padding:0 12px;border-bottom:1px solid #e5e7eb;flex:none;
+             background:#fff}
+    html.dark .wa-tabs{background:#16202f;border-color:rgba(255,255,255,.10)}
+    .wa-tab{border:none;background:none;cursor:pointer;font-family:inherit;font-size:13.5px;
+            font-weight:600;color:#94a3b8;padding:10px 13px;border-bottom:2.5px solid transparent;
+            display:flex;gap:6px;align-items:center}
+    .wa-tab:hover{color:#64748b}
+    .wa-tab.on{color:#2e9e6b;border-bottom-color:#2e9e6b}
+    .wa-tab-pin{background:#2e9e6b;color:#fff;font-size:10px;font-weight:800;
+                border-radius:999px;padding:1px 6px}
+
+    /* ── Formulario de pedido ── */
+    .wa-panel{flex:1;overflow-y:auto;padding:16px}
+    .wa-campo{margin-bottom:11px}
+    .wa-lab{font-size:11.5px;font-weight:700;color:#94a3b8;display:block;margin-bottom:4px;
+            text-transform:uppercase;letter-spacing:.03em}
+    .wa-in{width:100%;border:1px solid #d1d5db;border-radius:9px;padding:8px 11px;
+           font-size:14px;font-family:inherit;background:transparent;color:inherit}
+    html.dark .wa-in{border-color:rgba(255,255,255,.16)}
+    .wa-fila2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .wa-linea{display:grid;grid-template-columns:1fr 78px 34px;gap:8px;align-items:center;
+              margin-bottom:8px}
+    .wa-x{border:none;background:rgba(229,105,95,.14);color:#b91c1c;border-radius:8px;
+          cursor:pointer;font-size:15px;font-weight:700;height:36px;font-family:inherit}
+    .wa-x:hover{background:rgba(229,105,95,.26)}
+    .wa-sep{border-top:1px solid rgba(120,140,170,.18);margin:14px 0}
+    .wa-tot{display:flex;justify-content:space-between;font-size:13.5px;padding:4px 0}
+    .wa-tot-grande{font-size:17px;font-weight:800;padding-top:8px}
+
+    /* ── Respuestas rápidas ── */
+    .wa-resp{width:100%;text-align:left;border:1px solid #e5e7eb;background:#fff;
+             border-radius:11px;padding:11px 13px;cursor:pointer;margin-bottom:8px;
+             font-family:inherit;display:block}
+    html.dark .wa-resp{background:#1c2739;border-color:rgba(255,255,255,.10)}
+    .wa-resp:hover{border-color:#2e9e6b}
+    .wa-resp-t{font-weight:700;font-size:13.5px}
+    .wa-resp-p{font-size:12px;color:#94a3b8;margin-top:3px;overflow:hidden;
+               text-overflow:ellipsis;white-space:nowrap}
+
     .wa-eti{font-size:11px;font-weight:700;border-radius:7px;padding:2px 8px}
     .wa-eti-ok{background:rgba(46,158,107,.16);color:#15603f}
     .wa-eti-mal{background:rgba(229,105,95,.16);color:#b91c1c}
@@ -157,6 +197,23 @@
                     wire:confirm="¿Archivar esta conversación?">Archivar</x-filament::button>
             </div>
 
+            {{-- ═══ Las tres pestañas ═══ --}}
+            @php $resp = $this->respuestas(); @endphp
+            <div class="wa-tabs">
+                <button type="button" class="wa-tab {{ $pestana === 'chat' ? 'on' : '' }}"
+                        wire:click="verPestana('chat')">💬 Conversación</button>
+
+                <button type="button" class="wa-tab {{ $pestana === 'pedido' ? 'on' : '' }}"
+                        wire:click="verPestana('pedido')">🛒 Tomar pedido</button>
+
+                <button type="button" class="wa-tab {{ $pestana === 'respuestas' ? 'on' : '' }}"
+                        wire:click="verPestana('respuestas')">
+                    ⚡ Respuestas
+                    @if($resp->count())<span class="wa-tab-pin">{{ $resp->count() }}</span>@endif
+                </button>
+            </div>
+
+            @if($pestana === 'chat')
             <div class="wa-chat">
                 @forelse($this->mensajes() as $m)
                     @php
@@ -218,6 +275,136 @@
                     </div>
                 @endif
             </div>
+            @endif
+
+            {{-- ═══ PESTAÑA: tomar el pedido sin salir del chat ═══ --}}
+            @if($pestana === 'pedido')
+            <div class="wa-panel">
+                @php $viejo = $this->clienteConocido(); @endphp
+
+                @if($viejo)
+                    <div class="wa-aviso wa-aviso-ok">
+                        <b>Ya te compró antes.</b>
+                        {{ $viejo['veces'] ?? 1 }} {{ ($viejo['veces'] ?? 1) == 1 ? 'vez' : 'veces' }}.
+                        Los datos de abajo salen de la última entrega — revisá que sigan buenos.
+                    </div>
+                @endif
+
+                <div class="wa-campo">
+                    <label class="wa-lab">Nombre de quien recibe</label>
+                    <input type="text" class="wa-in" wire:model="pedNombre">
+                </div>
+
+                <div class="wa-fila2">
+                    <div class="wa-campo">
+                        <label class="wa-lab">Teléfono</label>
+                        <input type="text" class="wa-in" wire:model="pedTelefono">
+                    </div>
+                    <div class="wa-campo">
+                        <label class="wa-lab">Municipio</label>
+                        <input type="text" class="wa-in" wire:model="pedMunicipio">
+                    </div>
+                </div>
+
+                <div class="wa-campo">
+                    <label class="wa-lab">Dirección exacta</label>
+                    <textarea class="wa-in" rows="2" wire:model="pedDireccion"></textarea>
+                </div>
+
+                <div class="wa-campo">
+                    <label class="wa-lab">Departamento</label>
+                    <input type="text" class="wa-in" wire:model="pedDepartamento">
+                </div>
+
+                <div class="wa-sep"></div>
+
+                <label class="wa-lab">Qué lleva</label>
+                @php $opciones = $this->opcionesProductos(); @endphp
+
+                @forelse($pedLineas as $i => $linea)
+                    <div class="wa-linea" wire:key="lin-{{ $i }}">
+                        <select class="wa-in" wire:model.live="pedLineas.{{ $i }}.size_id">
+                            <option value="">Elegí el producto…</option>
+                            @foreach($opciones as $id => $etiqueta)
+                                <option value="{{ $id }}">{{ $etiqueta }}</option>
+                            @endforeach
+                        </select>
+
+                        <input type="number" min="1" class="wa-in"
+                               wire:model.live="pedLineas.{{ $i }}.cantidad">
+
+                        <button type="button" class="wa-x" wire:click="quitarLinea({{ $i }})"
+                                title="Quitar">×</button>
+                    </div>
+                @empty
+                    <div style="font-size:13px;color:#94a3b8;margin-bottom:8px">
+                        Todavía no agregaste nada.
+                    </div>
+                @endforelse
+
+                <x-filament::button size="xs" color="gray" wire:click="agregarLinea"
+                                    icon="heroicon-m-plus">
+                    Agregar otro
+                </x-filament::button>
+
+                <div class="wa-campo" style="margin-top:14px">
+                    <label class="wa-lab">Nota para la guía (opcional)</label>
+                    <input type="text" class="wa-in" wire:model="pedNota"
+                           placeholder="Ej: entregar por la tarde">
+                </div>
+
+                <div class="wa-sep"></div>
+
+                <div class="wa-tot">
+                    <span>Productos</span>
+                    <span>${{ number_format($this->subtotalPedido(), 2) }}</span>
+                </div>
+                <div class="wa-tot">
+                    <span>Envío</span>
+                    <span>{{ $this->envioPedido() > 0 ? '$' . number_format($this->envioPedido(), 2) : 'gratis' }}</span>
+                </div>
+                <div class="wa-tot wa-tot-grande">
+                    <span>A cobrar</span>
+                    <span>${{ number_format($this->totalPedido(), 2) }}</span>
+                </div>
+
+                <div class="wa-btns" style="margin-top:16px">
+                    <x-filament::button wire:click="guardarPedido" icon="heroicon-m-check-circle">
+                        Guardar en la cola de guías
+                    </x-filament::button>
+
+                    <x-filament::button color="gray" wire:click="pasarPedidoAlChat"
+                                        icon="heroicon-m-chat-bubble-left-right">
+                        Mandarle el resumen
+                    </x-filament::button>
+                </div>
+            </div>
+            @endif
+
+            {{-- ═══ PESTAÑA: respuestas rápidas ═══ --}}
+            @if($pestana === 'respuestas')
+            <div class="wa-panel">
+                @forelse($resp as $r)
+                    <button type="button" class="wa-resp" wire:click="usarRespuesta({{ $r->id }})"
+                            wire:key="resp-{{ $r->id }}">
+                        <div class="wa-resp-t">{{ $r->titulo }}</div>
+                        <div class="wa-resp-p">{{ \Illuminate\Support\Str::limit($r->texto, 90) }}</div>
+                    </button>
+                @empty
+                    <div style="font-size:13.5px;color:#94a3b8;line-height:1.6;padding:10px 0">
+                        Todavía no hay respuestas guardadas.<br><br>
+                        Se crean en el admin, en <b>Respuestas rápidas</b>: le ponés un título corto
+                        (el que se ve en el botón) y el texto que se manda. Sirven para lo que
+                        escribís diez veces al día — precios, formas de pago, hasta dónde llega el envío.
+                    </div>
+                @endforelse
+
+                <div style="font-size:12px;color:#94a3b8;margin-top:14px;line-height:1.6">
+                    Al tocar una, el texto se copia al cuadro de la conversación. Podés
+                    cambiarlo antes de mandarlo.
+                </div>
+            </div>
+            @endif
         @endif
     </div>
 </div>
