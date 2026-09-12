@@ -43,6 +43,12 @@
            navegadores que no avisan del teclado. */
         .wa{grid-template-columns:1fr;gap:0;min-height:0;
             height:var(--wa-alto, calc(100dvh - 52px))}
+
+        /* Con el teclado abierto, el chat se clava al pedazo de pantalla que
+           queda libre. Es la única forma segura: Android no mueve la página,
+           dibuja el teclado encima de ella. */
+        .wa--anclada{position:fixed;left:0;right:0;z-index:40;
+                     top:var(--wa-arriba, 0px);padding:0 6px}
         .wa--abierta .wa-izq{display:none}
         .wa:not(.wa--abierta) .wa-der{display:none}
         .wa-col{border-radius:11px}
@@ -824,22 +830,68 @@
     // Acá se escucha ese aviso y se le da al chat el alto que realmente queda,
     // para que el cuadro de escribir nunca quede debajo del teclado.
     (function () {
+        // Filament ya escribe su propia etiqueta de viewport. Agregar otra no
+        // sirve: el navegador se queda con la primera. Hay que modificar esa.
+        var meta = document.querySelector('meta[name="viewport"]');
+        if (meta && meta.content.indexOf('interactive-widget') === -1) {
+            meta.setAttribute(
+                'content',
+                'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content'
+            );
+        }
+
         var vv = window.visualViewport;
         if (!vv) return;
 
+        var caja = document.querySelector('.wa');
+
         function ajustar() {
+            if (!caja) caja = document.querySelector('.wa');
+
             if (window.innerWidth > 900) {
                 document.documentElement.style.removeProperty('--wa-alto');
+                if (caja) caja.classList.remove('wa--anclada');
                 return;
             }
 
-            // 52 px: lo que ocupa la franja de navegación ya achicada.
-            var libre = Math.round(vv.height - 52);
-            document.documentElement.style.setProperty('--wa-alto', Math.max(libre, 240) + 'px');
+            // ¿Está el teclado abierto? Si la ventana visual es bastante más
+            // chica que la de la página, sí.
+            var teclado = (window.innerHeight - vv.height) > 120;
+
+            if (teclado) {
+                // Con el teclado abierto no alcanza con achicar el alto: hay
+                // que clavar el chat al pedazo de pantalla que queda visible,
+                // porque el navegador no mueve la página, solo dibuja encima.
+                caja && caja.classList.add('wa--anclada');
+                document.documentElement.style.setProperty('--wa-arriba', Math.round(vv.offsetTop) + 'px');
+                document.documentElement.style.setProperty('--wa-alto', Math.round(vv.height) + 'px');
+            } else {
+                caja && caja.classList.remove('wa--anclada');
+                document.documentElement.style.removeProperty('--wa-arriba');
+                document.documentElement.style.setProperty(
+                    '--wa-alto',
+                    Math.max(Math.round(vv.height - 52), 240) + 'px'
+                );
+            }
         }
 
         vv.addEventListener('resize', ajustar);
         vv.addEventListener('scroll', ajustar);
+        window.addEventListener('resize', ajustar);
+        document.addEventListener('livewire:navigated', ajustar);
+
+        // El chat se refresca solo cada 3 segundos y Livewire vuelve a dibujar
+        // el HTML del servidor, que no sabe nada de esta clase. Hay que
+        // volver a ponerla después de cada refresco.
+        function engancharLivewire() {
+            if (!window.Livewire || !window.Livewire.hook) return false;
+            window.Livewire.hook('morph.updated', function () { ajustar(); });
+            return true;
+        }
+
+        if (!engancharLivewire()) {
+            document.addEventListener('livewire:init', engancharLivewire);
+        }
         window.addEventListener('orientationchange', function () { setTimeout(ajustar, 250); });
         ajustar();
 
