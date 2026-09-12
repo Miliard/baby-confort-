@@ -47,6 +47,15 @@ class Whatsapp extends Page
     public string $pedDepartamento = '';
     public string $pedNota = '';
 
+    /** Productos escritos a mano, como vienen en la orden de envío. */
+    public string $pedProductosTexto = '';
+
+    /** Si se llena, manda sobre el total calculado. Viene de la orden. */
+    public string $pedCobrarManual = '';
+
+    /** El texto de la orden, para tenerlo a la vista mientras se compara. */
+    public string $pedOrigen = '';
+
     /** Cada renglón: ['size_id' => '', 'cantidad' => 1]. */
     public array $pedLineas = [];
 
@@ -162,6 +171,14 @@ class Whatsapp extends Page
 
             if ($ultimo) WhatsappApi::marcarLeido($ultimo->wa_message_id);
         }
+    }
+
+    /** La flecha de volver del teléfono: cierra el chat y muestra la lista. */
+    public function cerrarChat(): void
+    {
+        $this->abierta = null;
+        $this->texto = '';
+        $this->pestana = 'chat';
     }
 
     /** "Tomar" el chat para que los demás sepan que lo estás atendiendo. */
@@ -380,9 +397,25 @@ class Whatsapp extends Page
         return \App\Models\Setting::envioPara($this->subtotalPedido());
     }
 
+    /**
+     * Lo que se le cobra al cliente.
+     *
+     * Si la orden traía un total escrito, ese manda: es el número que el
+     * cliente ya vio y aceptó. Recalcularlo por nuestra cuenta sería cambiarle
+     * el precio después de haberlo acordado.
+     */
     public function totalPedido(): float
     {
+        if (trim($this->pedCobrarManual) !== '') {
+            return round((float) $this->pedCobrarManual, 2);
+        }
+
         return round($this->subtotalPedido() + $this->envioPedido(), 2);
+    }
+
+    public function totalEsManual(): bool
+    {
+        return trim($this->pedCobrarManual) !== '';
     }
 
     private function presentacion($id)
@@ -401,6 +434,12 @@ class Whatsapp extends Page
     {
         $partes = [];
 
+        // Lo que vino escrito en la orden manda: es lo que el cliente ya leyó
+        // y confirmó. Los renglones del catálogo se suman si los hay.
+        if (trim($this->pedProductosTexto) !== '') {
+            $partes[] = trim($this->pedProductosTexto);
+        }
+
         foreach ($this->pedLineas as $l) {
             $s = $this->presentacion($l['size_id'] ?? null);
             if (! $s || ! $s->product) continue;
@@ -412,6 +451,109 @@ class Whatsapp extends Page
         if (trim($this->pedNota) !== '') $partes[] = trim($this->pedNota);
 
         return implode(', ', $partes);
+    }
+
+    // ── Procesar una orden de envío escrita en el chat ───────────────────────
+
+    /**
+     * Toma el mensaje de la orden y llena el formulario con lo que dice.
+     *
+     * El texto original queda pegado arriba del formulario a propósito: la
+     * gracia es poder comparar renglón por renglón sin cambiar de ventana, que
+     * es justo lo que no se podía hacer antes.
+     */
+    public function procesarOrden(int $mensajeId): void
+    {
+        $m = WaMensaje::find($mensajeId);
+        if (! $m || blank($m->texto)) return;
+
+        $this->pedOrigen = $m->texto;
+        $datos = $this->leerOrden($m->texto);
+
+        if (filled($datos['nombre']))    $this->pedNombre      = $datos['nombre'];
+        if (filled($datos['telefono']))  $this->pedTelefono    = $datos['telefono'];
+        if (filled($datos['municipio'])) $this->pedMunicipio   = $datos['municipio'];
+        if (filled($datos['direccion'])) $this->pedDireccion   = $datos['direccion'];
+        if (filled($datos['productos'])) $this->pedProductosTexto = $datos['productos'];
+        if (filled($datos['total']))     $this->pedCobrarManual   = $datos['total'];
+
+        $this->pestana = 'pedido';
+
+        $leidos = count(array_filter($datos, fn ($v) => filled($v)));
+
+        Notification::make()
+            ->title($leidos > 0 ? "Se leyeron {$leidos} datos de la orden" : 'No se pudo leer la orden')
+            ->body($leidos > 0
+                ? 'Revisalos contra el texto original, que quedó arriba del formulario.'
+                : 'Revisá que el mensaje tenga el formato de siempre, con dos puntos después de cada campo.')
+            ->{$leidos > 0 ? 'success' : 'warning'}()
+            ->send();
+    }
+
+    /**
+     * Lee la orden de envío campo por campo.
+     *
+     * Busca por el nombre del campo y no por la posición del renglón, así que
+     * aguanta que cambien los emojis, el orden o que se agregue una línea.
+     */
+    private function leerOrden(string $texto): array
+    {
+        $campos = [
+            'nombre'    => ['nombre completo', 'nombre'],
+            'telefono'  => ['telefono', 'teléfono', 'tel'],
+            'municipio' => ['municipio'],
+            'direccion' => ['direccion exacta', 'dirección exacta', 'direccion', 'dirección'],
+            'productos' => ['producto(s)', 'productos', 'producto'],
+            'envio'     => ['costo de envio', 'costo de envío', 'envio', 'envío'],
+            'total'     => ['total a pagar', 'total'],
+        ];
+
+        $salida = array_fill_keys(array_keys($campos), '');
+
+        foreach (preg_split('/\r\n|\n|\r/u', $texto) as $linea) {
+            // Fuera emojis, palomitas y viñetas del principio.
+            $l = preg_replace('/^[^\p{L}\p{N}]+/u', '', trim($linea));
+            if ($l === '' || ! str_contains($l, ':')) continue;
+
+            [$etiqueta, $valor] = array_map('trim', explode(':', $l, 2));
+
+            // Se compara sin tildes ni mayúsculas, para no depender de cómo se escribió.
+            $limpia = mb_strtolower($etiqueta);
+
+            foreach ($campos as $clave => $alias) {
+                if ($salida[$clave] !== '') continue;
+
+                foreach ($alias as $a) {
+                    if ($limpia === $a || str_starts_with($limpia, $a)) {
+                        $salida[$clave] = trim($valor, " \t$.");
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        // El total viene como "$25.50": nos quedamos con el número.
+        foreach (['envio', 'total'] as $k) {
+            if ($salida[$k] !== '') {
+                $salida[$k] = preg_replace('/[^\d.]/', '', $salida[$k]);
+            }
+        }
+
+        return $salida;
+    }
+
+    /** Limpia el formulario para empezar de nuevo. */
+    public function limpiarPedido(): void
+    {
+        $this->pedProductosTexto = '';
+        $this->pedCobrarManual = '';
+        $this->pedOrigen = '';
+        $this->pedNota = '';
+        $this->pedLineas = [];
+        $this->agregarLinea();
+
+        $conv = $this->conversacion();
+        if ($conv) $this->cargarDatosDelCliente($conv);
     }
 
     /** Guarda el pedido en la cola de guías, lista para el Excel. */
@@ -448,9 +590,7 @@ class Whatsapp extends Page
             return;
         }
 
-        $this->pedLineas = [];
-        $this->pedNota = '';
-        $this->agregarLinea();
+        $this->limpiarPedido();
         $this->pestana = 'chat';
 
         Notification::make()

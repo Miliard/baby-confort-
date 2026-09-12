@@ -3,7 +3,27 @@
 <style>
     .wa{display:grid;grid-template-columns:320px 1fr;gap:14px;align-items:start;
         height:calc(100vh - 210px);min-height:460px}
-    @media(max-width:900px){ .wa{grid-template-columns:1fr;height:auto} }
+
+    /* En el teléfono se ve una cosa a la vez, como WhatsApp: la lista, o el
+       chat abierto ocupando toda la pantalla. Antes se apilaban las dos y
+       había que bajar media pantalla para llegar al cuadro de escribir. */
+    @media(max-width:900px){
+        .wa{grid-template-columns:1fr;gap:0;height:calc(100dvh - 130px);min-height:0}
+        .wa--abierta .wa-izq{display:none}
+        .wa:not(.wa--abierta) .wa-der{display:none}
+        .wa-col{border-radius:11px}
+        .wa-glo{max-width:88%}
+        .wa-cab{padding:9px 11px;gap:7px}
+        .wa-tabs{padding:0 6px}
+        .wa-tab{padding:9px;font-size:12.5px}
+        .wa-volver{display:inline-flex !important}
+        .wa-fila2{grid-template-columns:1fr}
+    }
+
+    /* Solo aparece en pantallas chicas: en la computadora estorba. */
+    .wa-volver{display:none;border:none;background:rgba(120,140,170,.16);cursor:pointer;
+               border-radius:9px;width:34px;height:34px;font-size:17px;align-items:center;
+               justify-content:center;font-family:inherit;color:inherit;flex:none}
 
     .wa-col{background:#fff;border:1px solid #e5e7eb;border-radius:14px;
             display:flex;flex-direction:column;overflow:hidden;height:100%}
@@ -103,6 +123,23 @@
     .wa-resp-p{font-size:12px;color:#94a3b8;margin-top:3px;overflow:hidden;
                text-overflow:ellipsis;white-space:nowrap}
 
+    /* La orden pegada arriba del formulario, para comparar sin cambiar de ventana */
+    .wa-origen{border:1px solid #d4a017;background:rgba(234,179,8,.10);border-radius:11px;
+               padding:11px 13px;margin-bottom:16px}
+    .wa-origen-t{display:flex;justify-content:space-between;align-items:center;
+                 font-size:12px;font-weight:700;color:#7a5600;margin-bottom:7px}
+    html.dark .wa-origen-t{color:#f0d79a}
+    .wa-origen-x{white-space:pre-wrap;font-size:12.5px;line-height:1.55;max-height:190px;
+                 overflow-y:auto;font-family:ui-monospace,Menlo,Consolas,monospace}
+    .wa-mini{border:none;background:rgba(120,140,170,.18);border-radius:7px;padding:3px 9px;
+             font-size:11px;cursor:pointer;font-family:inherit;color:inherit;font-weight:700}
+
+    .wa-procesar{border:none;background:rgba(46,158,107,.20);color:#15603f;border-radius:9px;
+                 padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;
+                 font-family:inherit;margin-top:7px;display:block;width:100%}
+    .wa-procesar:hover{background:rgba(46,158,107,.34)}
+    html.dark .wa-procesar{color:#9fe1cb}
+
     .wa-eti{font-size:11px;font-weight:700;border-radius:7px;padding:2px 8px}
     .wa-eti-ok{background:rgba(46,158,107,.16);color:#15603f}
     .wa-eti-mal{background:rgba(229,105,95,.16);color:#b91c1c}
@@ -124,10 +161,10 @@
     </div>
 @endif
 
-<div class="wa" wire:poll.3s>
+<div class="wa {{ $abierta ? 'wa--abierta' : '' }}" wire:poll.3s>
 
     {{-- ═══ IZQUIERDA: las conversaciones ═══ --}}
-    <div class="wa-col">
+    <div class="wa-col wa-izq">
         <div class="wa-top">
             <x-filament::input.wrapper prefix-icon="heroicon-m-magnifying-glass">
                 <x-filament::input type="text" wire:model.live.debounce.400ms="buscar"
@@ -167,14 +204,17 @@
     </div>
 
     {{-- ═══ DERECHA: el chat ═══ --}}
-    <div class="wa-col">
+    <div class="wa-col wa-der">
         @php $conv = $this->conversacion(); @endphp
 
         @if(! $conv)
             <div class="wa-vacio">Elegí una conversación de la izquierda para empezar.</div>
         @else
             <div class="wa-cab">
-                <div style="flex:1;min-width:150px">
+                <button type="button" class="wa-volver" wire:click="cerrarChat"
+                        title="Volver a la lista">←</button>
+
+                <div style="flex:1;min-width:120px">
                     <div style="font-weight:800;font-size:15px">{{ $conv->comoSeLlama() }}</div>
                     <div style="font-size:12px;color:#94a3b8">
                         {{ $conv->telefono }}
@@ -248,6 +288,15 @@
                         @if($m->estado === 'fallido' && $m->error)
                             <div class="wa-pie" style="opacity:1">⚠ {{ $m->error }}</div>
                         @endif
+
+                        {{-- Si el mensaje parece una orden de envío, se puede
+                             procesar sin salir de acá. --}}
+                        @if(\Illuminate\Support\Str::contains($m->texto ?? '', ['Orden de Envío', 'Orden de Envio', 'Total a pagar']))
+                            <button type="button" class="wa-procesar"
+                                    wire:click="procesarOrden({{ $m->id }})">
+                                📦 Procesar esta orden
+                            </button>
+                        @endif
                     </div>
                 @empty
                     <div class="wa-vacio">Todavía no hay mensajes en esta conversación.</div>
@@ -285,6 +334,16 @@
             {{-- ═══ PESTAÑA: tomar el pedido sin salir del chat ═══ --}}
             @if($pestana === 'pedido')
             <div class="wa-panel">
+                @if(filled($pedOrigen))
+                    <div class="wa-origen">
+                        <div class="wa-origen-t">
+                            <span>📦 La orden, tal como la mandaste</span>
+                            <button type="button" class="wa-mini" wire:click="limpiarPedido">Descartar</button>
+                        </div>
+                        <div class="wa-origen-x">{{ $pedOrigen }}</div>
+                    </div>
+                @endif
+
                 @php $viejo = $this->clienteConocido(); @endphp
 
                 @if($viejo)
@@ -323,7 +382,13 @@
 
                 <div class="wa-sep"></div>
 
-                <label class="wa-lab">Qué lleva</label>
+                <div class="wa-campo">
+                    <label class="wa-lab">Productos, tal como van en la guía</label>
+                    <textarea class="wa-in" rows="2" wire:model="pedProductosTexto"
+                              placeholder="Se llena solo al procesar una orden"></textarea>
+                </div>
+
+                <label class="wa-lab">O elegilos del catálogo</label>
                 @php $opciones = $this->opcionesProductos(); @endphp
 
                 @forelse($pedLineas as $i => $linea)
@@ -360,14 +425,25 @@
 
                 <div class="wa-sep"></div>
 
-                <div class="wa-tot">
-                    <span>Productos</span>
-                    <span>${{ number_format($this->subtotalPedido(), 2) }}</span>
-                </div>
-                <div class="wa-tot">
-                    <span>Envío</span>
-                    <span>{{ $this->envioPedido() > 0 ? '$' . number_format($this->envioPedido(), 2) : 'gratis' }}</span>
-                </div>
+                @if($this->totalEsManual())
+                    <div class="wa-campo">
+                        <label class="wa-lab">A cobrar — el total que le pasaste al cliente</label>
+                        <input type="text" class="wa-in" wire:model.live="pedCobrarManual">
+                        <div style="font-size:11.5px;color:#94a3b8;margin-top:4px">
+                            Salió de la orden. Se respeta tal cual: es el número que el cliente ya aceptó.
+                        </div>
+                    </div>
+                @else
+                    <div class="wa-tot">
+                        <span>Productos</span>
+                        <span>${{ number_format($this->subtotalPedido(), 2) }}</span>
+                    </div>
+                    <div class="wa-tot">
+                        <span>Envío</span>
+                        <span>{{ $this->envioPedido() > 0 ? '$' . number_format($this->envioPedido(), 2) : 'gratis' }}</span>
+                    </div>
+                @endif
+
                 <div class="wa-tot wa-tot-grande">
                     <span>A cobrar</span>
                     <span>${{ number_format($this->totalPedido(), 2) }}</span>
