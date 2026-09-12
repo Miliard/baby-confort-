@@ -385,35 +385,42 @@
                     <div style="font-weight:800;font-size:15px">{{ $conv->comoSeLlama() }}</div>
                     <div style="font-size:12px;color:#94a3b8">
                         {{ $conv->telefono }}
-                        @if($conv->ventanaAbierta())
-                            · <span class="wa-eti wa-eti-ok">Puede responder · {{ $conv->ventanaLegible() }}</span>
-                        @else
-                            · <span class="wa-eti wa-eti-mal">Ventana cerrada</span>
+                        @if($pestana === 'chat')
+                            @if($conv->ventanaAbierta())
+                                · <span class="wa-eti wa-eti-ok">Puede responder · {{ $conv->ventanaLegible() }}</span>
+                            @else
+                                · <span class="wa-eti wa-eti-mal">Ventana cerrada</span>
+                            @endif
                         @endif
                     </div>
                 </div>
 
-                @if($conv->agente_id && $conv->agente_id !== auth()->id())
-                    <span class="wa-eti wa-eti-mal">La está atendiendo {{ $conv->agente?->name }}</span>
+                {{-- Los botones de atender solo hacen falta cuando se está
+                     conversando. Armando el pedido estorban y se llevan
+                     justo el espacio donde hay que comparar. --}}
+                @if($pestana === 'chat')
+                    @if($conv->agente_id && $conv->agente_id !== auth()->id())
+                        <span class="wa-eti wa-eti-mal">La está atendiendo {{ $conv->agente?->name }}</span>
+                    @endif
+
+                    @if($conv->agente_id === auth()->id())
+                        <x-filament::button size="xs" color="gray" wire:click="soltar">Soltar</x-filament::button>
+                    @else
+                        <x-filament::button size="xs" wire:click="tomar">Tomar</x-filament::button>
+                    @endif
+
+                    <x-filament::button size="xs" color="success" wire:click="plantillaOrden"
+                        icon="heroicon-m-clipboard-document-list">
+                        Orden de envío
+                    </x-filament::button>
+
+                    <x-filament::button size="xs" color="gray" wire:click="archivar"
+                        wire:confirm="¿Archivar esta conversación?">Archivar</x-filament::button>
                 @endif
-
-                @if($conv->agente_id === auth()->id())
-                    <x-filament::button size="xs" color="gray" wire:click="soltar">Soltar</x-filament::button>
-                @else
-                    <x-filament::button size="xs" wire:click="tomar">Tomar</x-filament::button>
-                @endif
-
-                <x-filament::button size="xs" color="success" wire:click="plantillaOrden"
-                    icon="heroicon-m-clipboard-document-list">
-                    Orden de envío
-                </x-filament::button>
-
-                <x-filament::button size="xs" color="gray" wire:click="archivar"
-                    wire:confirm="¿Archivar esta conversación?">Archivar</x-filament::button>
             </div>
 
-            {{-- Etiquetar con un toque. Se ve siempre, en cualquier pestaña. --}}
-            @if($etqs->count())
+            {{-- Las etiquetas se esconden mientras se arma el pedido. --}}
+            @if($etqs->count() && $pestana !== 'pedido')
                 <div class="wa-etq-fila">
                     @foreach($etqs as $e)
                         @php $puesta = $conv->etiquetas->contains($e->id); @endphp
