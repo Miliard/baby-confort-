@@ -260,6 +260,10 @@
     .wa-marca{font-size:9.5px;font-weight:800;color:#fff;border-radius:5px;padding:1px 6px;
               letter-spacing:.02em}
 
+    .wa-plegar{border:none;background:rgba(120,140,170,.16);cursor:pointer;border-radius:9px;
+               width:32px;height:30px;font-size:15px;font-family:inherit;color:inherit;flex:none}
+    .wa-plegar:hover{background:rgba(120,140,170,.30)}
+
     .wa-etq-btn{border:none;background:rgba(120,140,170,.16);cursor:pointer;border-radius:9px;
                 height:30px;padding:0 9px;font-size:14px;font-family:inherit;color:inherit;
                 display:inline-flex;align-items:center;gap:4px;flex:none}
@@ -415,27 +419,32 @@
                 <button type="button" class="wa-volver" wire:click="cerrarChat"
                         title="Volver a la lista">←</button>
 
-                <button type="button" class="wa-volver wa-full" onclick="waPantallaCompleta()"
-                        title="Pantalla completa">⛶</button>
+                @if($cabeceraAbierta)
+                    <button type="button" class="wa-volver wa-full" onclick="waPantallaCompleta()"
+                            title="Pantalla completa">⛶</button>
+                @endif
 
-                <div class="wa-nombre-col" style="flex:1;min-width:120px">
+                <div class="wa-nombre-col" style="flex:1;min-width:110px">
                     <div style="font-weight:800;font-size:15px">{{ $conv->comoSeLlama() }}</div>
-                    <div style="font-size:12px;color:#94a3b8">
-                        {{ $conv->telefono }}
-                        @if($pestana === 'chat')
-                            @if($conv->ventanaAbierta())
-                                · <span class="wa-eti wa-eti-ok">Puede responder · {{ $conv->ventanaLegible() }}</span>
-                            @else
-                                · <span class="wa-eti wa-eti-mal">Ventana cerrada</span>
+
+                    @if($cabeceraAbierta)
+                        <div style="font-size:12px;color:#94a3b8">
+                            {{ $conv->telefono }}
+                            @if($pestana === 'chat')
+                                @if($conv->ventanaAbierta())
+                                    · <span class="wa-eti wa-eti-ok">Puede responder · {{ $conv->ventanaLegible() }}</span>
+                                @else
+                                    · <span class="wa-eti wa-eti-mal">Ventana cerrada</span>
+                                @endif
                             @endif
-                        @endif
-                    </div>
+                        </div>
+                    @endif
                 </div>
 
                 {{-- Los botones de atender solo hacen falta cuando se está
                      conversando. Armando el pedido estorban y se llevan
                      justo el espacio donde hay que comparar. --}}
-                @if($pestana === 'chat')
+                @if($pestana === 'chat' && $cabeceraAbierta)
                     @if($conv->agente_id && $conv->agente_id !== auth()->id())
                         <span class="wa-eti wa-eti-mal">La está atendiendo {{ $conv->agente?->name }}</span>
                     @endif
@@ -457,7 +466,7 @@
 
                 {{-- El botón de etiquetas vive en la cabecera y muestra cuántas
                      tiene puestas, así no hace falta abrir para saberlo. --}}
-                @if($etqs->count() && $pestana !== 'pedido')
+                @if($etqs->count() && $pestana !== 'pedido' && $cabeceraAbierta)
                     @php $puestas = $conv->etiquetas->count(); @endphp
                     <button type="button" class="wa-etq-btn {{ $etiquetasAbiertas ? 'on' : '' }}"
                             wire:click="verEtiquetas"
@@ -465,6 +474,12 @@
                         🏷️@if($puestas)<span class="wa-etq-n">{{ $puestas }}</span>@endif
                     </button>
                 @endif
+
+                {{-- Pliega toda la cabecera y le deja el alto al chat. --}}
+                <button type="button" class="wa-plegar" wire:click="verCabecera"
+                        title="{{ $cabeceraAbierta ? 'Esconder los datos y los botones' : 'Mostrar los datos y los botones' }}">
+                    {{ $cabeceraAbierta ? '☰' : '⌄' }}
+                </button>
             </div>
 
             {{-- La fila solo se dibuja si se pidió: son 45 px de conversación. --}}
