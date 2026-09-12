@@ -55,6 +55,7 @@ class ChatPanelProvider extends PanelProvider
             // teléfono, que es donde uno se da cuenta de que le falta una.
             ->resources([
                 \App\Filament\Resources\RespuestaRapidaResource::class,
+                \App\Filament\Resources\WaEtiquetaResource::class,
             ])
             ->middleware([
                 EncryptCookies::class,

@@ -37,6 +37,17 @@ class WaConversacion extends Model
         return $this->belongsTo(\App\Models\User::class, 'agente_id');
     }
 
+    /** Las etiquetas que lleva puestas: puede tener varias a la vez. */
+    public function etiquetas(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(
+            WaEtiqueta::class,
+            'wa_conversacion_etiqueta',
+            'conversacion_id',
+            'etiqueta_id'
+        );
+    }
+
     public static function hayTabla(): bool
     {
         try {

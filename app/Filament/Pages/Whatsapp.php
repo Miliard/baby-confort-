@@ -36,6 +36,9 @@ class Whatsapp extends Page
     /** Mostrar solo las que nadie ha tomado. */
     public bool $soloSinTomar = false;
 
+    /** Filtro por etiqueta. null = todas. */
+    public ?int $filtroEtiqueta = null;
+
     /** Qué pestaña se ve a la derecha: chat, pedido o respuestas. */
     public string $pestana = 'chat';
 
@@ -99,7 +102,11 @@ class Whatsapp extends Page
         if (! WaConversacion::hayTabla()) return collect();
 
         try {
-            $q = WaConversacion::with('agente')->where('archivada', false);
+            $q = WaConversacion::with(['agente', 'etiquetas'])->where('archivada', false);
+
+            if ($this->filtroEtiqueta) {
+                $q->whereHas('etiquetas', fn ($w) => $w->where('wa_etiquetas.id', $this->filtroEtiqueta));
+            }
 
             if (trim($this->buscar) !== '') {
                 $b = trim($this->buscar);
@@ -124,9 +131,53 @@ class Whatsapp extends Page
         if (! $this->abierta) return null;
 
         try {
-            return WaConversacion::with('agente')->find($this->abierta);
+            return WaConversacion::with(['agente', 'etiquetas'])->find($this->abierta);
         } catch (\Throwable $e) {
             return null;
+        }
+    }
+
+    // ── Etiquetas ────────────────────────────────────────────────────────────
+
+    public function etiquetas()
+    {
+        return \App\Models\WaEtiqueta::todas();
+    }
+
+    /** Pone o quita la etiqueta de la conversación abierta, con un toque. */
+    public function alternarEtiqueta(int $id): void
+    {
+        $conv = $this->conversacion();
+        if (! $conv) return;
+
+        try {
+            if ($conv->etiquetas->contains($id)) {
+                $conv->etiquetas()->detach($id);
+            } else {
+                $conv->etiquetas()->attach($id);
+            }
+        } catch (\Throwable $e) {
+            Notification::make()
+                ->title('No se pudo cambiar la etiqueta')
+                ->body($e->getMessage())
+                ->danger()->send();
+        }
+    }
+
+    public function filtrarPor(?int $id): void
+    {
+        $this->filtroEtiqueta = ($this->filtroEtiqueta === $id) ? null : $id;
+    }
+
+    /** Cuántas conversaciones hay en cada etiqueta, para el contador. */
+    public function cuentaEtiquetas(): array
+    {
+        try {
+            return \App\Models\WaEtiqueta::withCount(['conversaciones' => fn ($q) =>
+                $q->where('archivada', false)
+            ])->pluck('conversaciones_count', 'id')->all();
+        } catch (\Throwable $e) {
+            return [];
         }
     }
 

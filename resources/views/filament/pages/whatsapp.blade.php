@@ -167,6 +167,27 @@
                  box-shadow:0 1px 3px rgba(0,0,0,.18)}
     .wa-procesar:hover{background:#0f4730}
 
+    /* ── Etiquetas ── */
+    .wa-filtros{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}
+    .wa-fil{border:1.5px solid var(--c);background:none;color:var(--c);border-radius:999px;
+            padding:3px 9px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;
+            display:inline-flex;gap:5px;align-items:center}
+    .wa-fil.on{background:var(--c);color:#fff}
+    .wa-fil-n{opacity:.8;font-weight:600}
+
+    .wa-marcas{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
+    .wa-marca{font-size:9.5px;font-weight:800;color:#fff;border-radius:5px;padding:1px 6px;
+              letter-spacing:.02em}
+
+    .wa-etq-fila{display:flex;gap:5px;flex-wrap:wrap;padding:8px 13px;flex:none;
+                 border-bottom:1px solid #e5e7eb;background:#fff}
+    html.dark .wa-etq-fila{background:#16202f;border-color:rgba(255,255,255,.10)}
+    .wa-etq{border:1px dashed var(--c);background:none;color:var(--c);border-radius:999px;
+            padding:3px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;
+            opacity:.7}
+    .wa-etq:hover{opacity:1}
+    .wa-etq.on{background:var(--c);color:#fff;border-style:solid;opacity:1}
+
     .wa-eti{font-size:11px;font-weight:700;border-radius:7px;padding:2px 8px}
     .wa-eti-ok{background:rgba(46,158,107,.16);color:#15603f}
     .wa-eti-mal{background:rgba(229,105,95,.16);color:#b91c1c}
@@ -202,6 +223,23 @@
                 <input type="checkbox" wire:model.live="soloSinTomar">
                 Solo las que nadie tomó
             </label>
+
+            @php $etqs = $this->etiquetas(); $cuentas = $this->cuentaEtiquetas(); @endphp
+            @if($etqs->count())
+                <div class="wa-filtros">
+                    @foreach($etqs as $e)
+                        <button type="button" wire:click="filtrarPor({{ $e->id }})"
+                                wire:key="filtro-{{ $e->id }}"
+                                class="wa-fil {{ $filtroEtiqueta === $e->id ? 'on' : '' }}"
+                                style="--c:{{ $e->hex() }}">
+                            {{ $e->nombre }}
+                            @if(($cuentas[$e->id] ?? 0) > 0)
+                                <span class="wa-fil-n">{{ $cuentas[$e->id] }}</span>
+                            @endif
+                        </button>
+                    @endforeach
+                </div>
+            @endif
         </div>
 
         <div class="wa-lista">
@@ -216,6 +254,14 @@
                     </span>
 
                     <div class="wa-prev">{{ $c->ultimo_texto ?: '—' }}</div>
+
+                    @if($c->etiquetas->count())
+                        <div class="wa-marcas">
+                            @foreach($c->etiquetas as $e)
+                                <span class="wa-marca" style="background:{{ $e->hex() }}">{{ $e->nombre }}</span>
+                            @endforeach
+                        </div>
+                    @endif
 
                     @if($c->agente)
                         <div class="wa-quien">● {{ $c->agente->name }}</div>
@@ -271,6 +317,22 @@
                 <x-filament::button size="xs" color="gray" wire:click="archivar"
                     wire:confirm="¿Archivar esta conversación?">Archivar</x-filament::button>
             </div>
+
+            {{-- Etiquetar con un toque. Se ve siempre, en cualquier pestaña. --}}
+            @if($etqs->count())
+                <div class="wa-etq-fila">
+                    @foreach($etqs as $e)
+                        @php $puesta = $conv->etiquetas->contains($e->id); @endphp
+                        <button type="button" wire:click="alternarEtiqueta({{ $e->id }})"
+                                wire:key="etq-{{ $conv->id }}-{{ $e->id }}"
+                                class="wa-etq {{ $puesta ? 'on' : '' }}"
+                                style="--c:{{ $e->hex() }}"
+                                title="{{ $puesta ? 'Quitar' : 'Poner' }} «{{ $e->nombre }}»">
+                            {{ $puesta ? '✓' : '+' }} {{ $e->nombre }}
+                        </button>
+                    @endforeach
+                </div>
+            @endif
 
             {{-- ═══ Las tres pestañas ═══ --}}
             @php $resp = $this->respuestas(); @endphp
