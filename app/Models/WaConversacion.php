@@ -37,6 +37,25 @@ class WaConversacion extends Model
         return $this->belongsTo(\App\Models\User::class, 'agente_id');
     }
 
+    /**
+     * Hora del último mensaje, en hora de El Salvador.
+     *
+     * Si fue hoy muestra la hora; si fue antes, la fecha. Es lo que hace
+     * WhatsApp y evita confundir un mensaje de ayer con uno de hace un rato.
+     */
+    public function horaUltimo(): string
+    {
+        if (! $this->ultimo_mensaje_at) return '';
+
+        $local = $this->ultimo_mensaje_at->timezone(config('app.zona_local'));
+        $hoy   = now()->timezone(config('app.zona_local'));
+
+        if ($local->isSameDay($hoy))               return $local->format('H:i');
+        if ($local->isSameDay($hoy->copy()->subDay())) return 'Ayer';
+
+        return $local->format('d/m');
+    }
+
     /** Las etiquetas que lleva puestas: puede tener varias a la vez. */
     public function etiquetas(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {

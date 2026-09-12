@@ -69,6 +69,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Zona horaria para mostrar
+    |--------------------------------------------------------------------------
+    |
+    | Todo se guarda en UTC, que es lo correcto: no depende de dónde esté el
+    | servidor ni se rompe si algún día hay clientes en otro país. Pero a la
+    | hora de MOSTRAR se convierte a esta, que es la de El Salvador.
+    |
+    | Se hace así y no cambiando 'timezone' de arriba porque eso dejaría todos
+    | los mensajes ya guardados corridos seis horas.
+    |
+    */
+
+    'zona_local' => env('ZONA_LOCAL', 'America/El_Salvador'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |

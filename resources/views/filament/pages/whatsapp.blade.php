@@ -316,7 +316,7 @@
             @forelse($this->conversaciones() as $c)
                 <button type="button" wire:click="abrir({{ $c->id }})" wire:key="conv-{{ $c->id }}"
                         class="wa-item {{ $abierta === $c->id ? 'on' : '' }}">
-                    <span class="wa-hora">{{ $c->ultimo_mensaje_at?->format('H:i') }}</span>
+                    <span class="wa-hora">{{ $c->horaUltimo() }}</span>
 
                     <span class="wa-nom">
                         {{ $c->comoSeLlama() }}
@@ -441,7 +441,7 @@
                         @if(filled($m->texto))<div class="wa-txt">{{ $m->texto }}</div>@endif
 
                         <div class="wa-pie">
-                            {{ $m->created_at?->format('H:i') }}
+                            {{ $m->hora() }}
                             @if(! $m->esDelCliente())
                                 · {{ $m->firma() }} {{ $m->marcaEstado() }}
                             @endif

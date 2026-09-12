@@ -143,7 +143,10 @@ class WhatsappConectar extends Page
     public function conectadoEl(): ?string
     {
         $f = Setting::get('whatsapp_conectado_at');
-        return $f ? \Illuminate\Support\Carbon::parse($f)->format('d/m/Y H:i') : null;
+
+        return $f
+            ? \Illuminate\Support\Carbon::parse($f)->timezone(config('app.zona_local'))->format('d/m/Y H:i')
+            : null;
     }
 
     // ── Auxiliares ───────────────────────────────────────────────────────────

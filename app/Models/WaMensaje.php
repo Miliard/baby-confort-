@@ -35,6 +35,27 @@ class WaMensaje extends Model
     }
 
     /**
+     * La hora como la ve quien está atendiendo, no como la guarda la base.
+     *
+     * Se guarda en UTC y El Salvador va seis horas atrás: sin esta conversión,
+     * un mensaje de las ocho de la mañana aparecía como las dos de la tarde.
+     */
+    public function hora(): string
+    {
+        return $this->created_at
+            ? $this->created_at->timezone(config('app.zona_local'))->format('H:i')
+            : '';
+    }
+
+    /** Con el día, para cuando la conversación es de otra fecha. */
+    public function fechaYHora(): string
+    {
+        return $this->created_at
+            ? $this->created_at->timezone(config('app.zona_local'))->format('d/m/Y H:i')
+            : '';
+    }
+
+    /**
      * Dirección pública de la imagen, si la hay.
      *
      * Las que manda el cliente se guardan en el disco y vienen como ruta
