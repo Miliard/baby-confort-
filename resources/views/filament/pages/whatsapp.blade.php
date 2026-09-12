@@ -8,17 +8,34 @@
        chat abierto ocupando toda la pantalla. Antes se apilaban las dos y
        había que bajar media pantalla para llegar al cuadro de escribir. */
     @media(max-width:900px){
-        .wa{grid-template-columns:1fr;gap:0;height:calc(100dvh - 130px);min-height:0}
+        /* En el teléfono cada píxel de alto es contexto de la conversación.
+           El título "WhatsApp" y los márgenes de Filament se comían un tercio
+           de la pantalla para no decir nada que no se sepa. */
+        .fi-header{display:none !important}
+        .fi-main{padding-top:.35rem !important;padding-bottom:.35rem !important}
+        .fi-main-ctn{padding-top:0 !important;padding-bottom:0 !important}
+        .fi-page > *{gap:0 !important}
+
+        .wa{grid-template-columns:1fr;gap:0;height:calc(100dvh - 74px);min-height:0}
         .wa--abierta .wa-izq{display:none}
         .wa:not(.wa--abierta) .wa-der{display:none}
         .wa-col{border-radius:11px}
         .wa-glo{max-width:88%}
-        .wa-cab{padding:9px 11px;gap:7px}
-        .wa-tabs{padding:0 6px}
-        .wa-tab{padding:9px;font-size:12.5px}
+        .wa-cab{padding:7px 9px;gap:6px}
+        .wa-tabs{padding:0 4px}
+        .wa-tab{padding:8px 7px;font-size:12px;gap:4px}
         .wa-volver{display:inline-flex !important}
         .wa-fila2{grid-template-columns:1fr}
+        .wa-chat{padding:10px}
+        .wa-abajo{padding:8px}
+        .wa-escribir{padding:8px 10px}
+
+        /* Etiquetas cortas para que las tres pestañas entren en un renglón */
+        .wa-t-largo{display:none}
+        .wa-t-corto{display:inline}
     }
+
+    .wa-t-corto{display:none}
 
     /* Solo aparece en pantallas chicas: en la computadora estorba. */
     .wa-volver{display:none;border:none;background:rgba(120,140,170,.16);cursor:pointer;
@@ -246,9 +263,9 @@
                     <x-filament::button size="xs" wire:click="tomar">Tomar</x-filament::button>
                 @endif
 
-                <x-filament::button size="xs" color="success" tag="a" target="_blank"
-                    href="{{ $this->enlaceProcesar() }}" icon="heroicon-m-clipboard-document-check">
-                    Procesar orden
+                <x-filament::button size="xs" color="success" wire:click="plantillaOrden"
+                    icon="heroicon-m-clipboard-document-list">
+                    Orden de envío
                 </x-filament::button>
 
                 <x-filament::button size="xs" color="gray" wire:click="archivar"
@@ -259,14 +276,14 @@
             @php $resp = $this->respuestas(); @endphp
             <div class="wa-tabs">
                 <button type="button" class="wa-tab {{ $pestana === 'chat' ? 'on' : '' }}"
-                        wire:click="verPestana('chat')">💬 Conversación</button>
+                        wire:click="verPestana('chat')">💬<span class="wa-t-largo">Conversación</span><span class="wa-t-corto">Chat</span></button>
 
                 <button type="button" class="wa-tab {{ $pestana === 'pedido' ? 'on' : '' }}"
-                        wire:click="verPestana('pedido')">🛒 Tomar pedido</button>
+                        wire:click="verPestana('pedido')">🛒<span class="wa-t-largo">Tomar pedido</span><span class="wa-t-corto">Pedido</span></button>
 
                 <button type="button" class="wa-tab {{ $pestana === 'respuestas' ? 'on' : '' }}"
                         wire:click="verPestana('respuestas')">
-                    ⚡ Respuestas
+                    ⚡<span class="wa-t-largo">Respuestas</span><span class="wa-t-corto">Rápidas</span>
                     @if($resp->count())<span class="wa-tab-pin">{{ $resp->count() }}</span>@endif
                 </button>
             </div>
@@ -500,9 +517,27 @@
                     </div>
                 @endforelse
 
+                @if(! (auth()->user()?->solo_chat ?? false))
+                    <div style="margin-top:14px">
+                        <x-filament::button tag="a" size="sm" color="gray" icon="heroicon-m-plus"
+                            href="{{ \App\Filament\Resources\RespuestaRapidaResource::getUrl('create') }}">
+                            Crear una respuesta
+                        </x-filament::button>
+
+                        @if($resp->count())
+                            <x-filament::button tag="a" size="sm" color="gray" icon="heroicon-m-pencil"
+                                href="{{ \App\Filament\Resources\RespuestaRapidaResource::getUrl('index') }}"
+                                style="margin-left:7px">
+                                Editar las que hay
+                            </x-filament::button>
+                        @endif
+                    </div>
+                @endif
+
                 <div style="font-size:12px;color:#94a3b8;margin-top:14px;line-height:1.6">
                     Al tocar una, el texto se copia al cuadro de la conversación. Podés
-                    cambiarlo antes de mandarlo.
+                    cambiarlo antes de mandarlo. También aparecen como botones al lado
+                    de "Enviar", para no tener que entrar acá.
                 </div>
             </div>
             @endif

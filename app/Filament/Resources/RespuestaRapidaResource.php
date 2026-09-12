@@ -27,6 +27,15 @@ class RespuestaRapidaResource extends Resource
     protected static ?string $pluralModelLabel = 'respuestas rápidas';
     protected static ?int $navigationSort = 2;
 
+    /**
+     * Los colaboradores de solo chat las usan, pero no las cambian: un precio
+     * mal escrito acá se le manda a todos los clientes del día.
+     */
+    public static function canAccess(): bool
+    {
+        return ! (bool) (auth()->user()?->solo_chat ?? false);
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([

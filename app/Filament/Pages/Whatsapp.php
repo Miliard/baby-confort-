@@ -453,6 +453,45 @@ class Whatsapp extends Page
         return implode(', ', $partes);
     }
 
+    /**
+     * Arma la orden de envío en blanco y la deja en el cuadro de escribir.
+     *
+     * Viene con lo que ya sabemos del cliente puesto: nombre, teléfono,
+     * municipio y dirección de la última entrega. Solo queda escribir los
+     * productos y los montos, mandarla, y después procesarla con el botón que
+     * aparece debajo del mensaje.
+     */
+    public function plantillaOrden(): void
+    {
+        $conv = $this->conversacion();
+        if (! $conv) return;
+
+        $cliente = $conv->cliente();
+
+        $nombre    = $cliente['nombre'] ?? ($conv->comoSeLlama() ?: '');
+        $municipio = $cliente['municipio'] ?? '';
+        $direccion = $cliente['direccion'] ?? '';
+
+        $this->texto = "\u{1F4E6} Orden de Env\u{ED}o: \u{1F69A}\n"
+            . "\u{2705} Nombre completo: {$nombre}\n"
+            . "\u{2705} Tel\u{E9}fono: {$conv->telefono}\n"
+            . "\u{2705} Municipio: {$municipio}\n"
+            . "\u{2705} Direcci\u{F3}n exacta: {$direccion}\n"
+            . "\u{2705} Producto(s): \n"
+            . "\u{2705} Costo de env\u{ED}o: $\n"
+            . "\u{1F4B0} Total a pagar: $\n\n"
+            . "\u{2728} \u{A1}Gracias por tu preferencia! Tu pedido estar\u{E1} en camino muy pronto";
+
+        $this->pestana = 'chat';
+
+        if ($cliente) {
+            Notification::make()
+                ->title('Orden armada con los datos que ya teníamos')
+                ->body('Completá los productos y los montos antes de mandarla.')
+                ->success()->send();
+        }
+    }
+
     // ── Procesar una orden de envío escrita en el chat ───────────────────────
 
     /**
