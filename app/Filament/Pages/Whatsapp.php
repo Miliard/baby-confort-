@@ -344,14 +344,80 @@ class Whatsapp extends Page
         return $tallas;
     }
 
+    // ── La ventana del catálogo ──────────────────────────────────────────────
+
+    public bool $catalogoAbierto = false;
+    public ?string $tallaElegida = null;
+
+    /** Los identificadores de presentación marcados para mandar. */
+    public array $elegidas = [];
+
+    public function abrirCatalogo(): void
+    {
+        $this->catalogoAbierto = true;
+        $this->tallaElegida = null;
+        $this->elegidas = [];
+    }
+
+    public function cerrarCatalogo(): void
+    {
+        $this->catalogoAbierto = false;
+        $this->tallaElegida = null;
+        $this->elegidas = [];
+    }
+
     /**
-     * Manda todo lo disponible en una talla, con foto y precio.
+     * Al entrar a una talla vienen todos marcados.
+     *
+     * Es lo que casi siempre quiere: mandar todo lo que hay en esa talla.
+     * Desmarcar dos es más rápido que marcar seis.
+     */
+    public function elegirTalla(string $talla): void
+    {
+        $this->tallaElegida = $talla;
+        $this->elegidas = $this->presentacionesDe($talla)->pluck('id')->map(fn ($i) => (string) $i)->all();
+    }
+
+    public function volverATallas(): void
+    {
+        $this->tallaElegida = null;
+        $this->elegidas = [];
+    }
+
+    public function alternarProducto(string $id): void
+    {
+        if (in_array($id, $this->elegidas, true)) {
+            $this->elegidas = array_values(array_diff($this->elegidas, [$id]));
+        } else {
+            $this->elegidas[] = $id;
+        }
+    }
+
+    /** Las presentaciones con existencia de una talla. */
+    public function presentacionesDe(string $talla)
+    {
+        try {
+            return \App\Models\ProductSize::with('product')
+                ->where('size', $talla)
+                ->where('price', '>', 0)
+                ->where('quantity', '>', 0)
+                ->whereHas('product', fn ($q) => $q->where('active', true))
+                ->get()
+                ->sortBy(fn ($s) => $s->product->orden ?? 0)
+                ->values();
+        } catch (\Throwable $e) {
+            return collect();
+        }
+    }
+
+    /**
+     * Manda las presentaciones marcadas, con foto y precio.
      *
      * Va una imagen por producto, cada una con su pie. Son varios mensajes,
      * pero dentro de la ventana de 24 horas Meta cobra por conversación y no
      * por mensaje, así que no cuesta más que mandar uno.
      */
-    public function mandarTalla(string $talla): void
+    public function enviarElegidas(): void
     {
         $conv = $this->conversacion();
         if (! $conv) return;
@@ -364,14 +430,16 @@ class Whatsapp extends Page
             return;
         }
 
+        if (empty($this->elegidas)) {
+            Notification::make()->title('No marcaste ningún producto')->warning()->send();
+            return;
+        }
+
         if (! $conv->agente_id) $this->tomar();
 
         try {
             $filas = \App\Models\ProductSize::with('product')
-                ->where('size', $talla)
-                ->where('price', '>', 0)
-                ->where('quantity', '>', 0)
-                ->whereHas('product', fn ($q) => $q->where('active', true))
+                ->whereIn('id', $this->elegidas)
                 ->get()
                 ->sortBy(fn ($s) => $s->product->orden ?? 0);
         } catch (\Throwable $e) {
@@ -380,12 +448,11 @@ class Whatsapp extends Page
         }
 
         if ($filas->isEmpty()) {
-            Notification::make()
-                ->title("No hay nada disponible en talla {$talla}")
-                ->warning()->send();
+            Notification::make()->title('No quedó nada por mandar')->warning()->send();
             return;
         }
 
+        $talla = $this->tallaElegida ?: '';
         $mandados = 0;
         $fallados = 0;
         $sinFoto  = [];
@@ -426,11 +493,14 @@ class Whatsapp extends Page
                 ->body('Mirá el chat: cada mensaje que falló dice por qué.')
                 ->warning()->persistent()->send();
         } else {
-            $aviso = "Se mandaron {$mandados} productos en talla {$talla}";
+            $aviso = "Se mandaron {$mandados} " . ($mandados === 1 ? 'producto' : 'productos');
+            if ($talla !== '') $aviso .= " en talla {$talla}";
             if ($sinFoto) $aviso .= ' (' . count($sinFoto) . ' sin foto, fueron como texto)';
 
             Notification::make()->title($aviso)->success()->send();
         }
+
+        $this->cerrarCatalogo();
     }
 
     /**
@@ -440,6 +510,12 @@ class Whatsapp extends Page
      * recibir; si no tiene, la del producto. Devuelve la ruta tal como la sirve
      * el sitio, sin el dominio.
      */
+    /** Para avisar en la ventana cuál va a salir como texto por falta de foto. */
+    public function tieneFoto($size): bool
+    {
+        return filled($size->product ? $this->fotoDe($size, $size->product) : null);
+    }
+
     private function fotoDe($size, $producto): ?string
     {
         if (filled($size->image_upload ?? null)) {

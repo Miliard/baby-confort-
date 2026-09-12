@@ -218,6 +218,46 @@
     .wa-etq:hover{opacity:1}
     .wa-etq.on{background:var(--c);color:#fff;border-style:solid;opacity:1}
 
+    /* ── La ventana del catálogo ── */
+    .wa-modal-fondo{position:fixed;inset:0;background:rgba(10,16,26,.62);z-index:60;
+                    display:grid;place-items:center;padding:18px}
+    .wa-modal{background:#fff;border-radius:16px;width:100%;max-width:460px;
+              max-height:86vh;display:flex;flex-direction:column;overflow:hidden;
+              box-shadow:0 18px 50px rgba(0,0,0,.32)}
+    html.dark .wa-modal{background:#16202f}
+
+    .wa-modal-cab{display:flex;align-items:center;gap:10px;padding:14px 16px;
+                  border-bottom:1px solid #e5e7eb;font-size:15px;flex:none}
+    html.dark .wa-modal-cab{border-color:rgba(255,255,255,.10)}
+    .wa-modal-cab b{flex:1}
+    .wa-modal-x,.wa-modal-atras{border:none;background:rgba(120,140,170,.16);cursor:pointer;
+                border-radius:9px;width:30px;height:30px;font-size:14px;font-family:inherit;
+                color:inherit;flex:none}
+    .wa-modal-cuerpo{padding:16px;overflow-y:auto;flex:1}
+    .wa-modal-pie{padding:13px 16px;border-top:1px solid #e5e7eb;display:flex;gap:12px;
+                  align-items:center;flex-wrap:wrap;flex:none}
+    html.dark .wa-modal-pie{border-color:rgba(255,255,255,.10)}
+
+    .wa-tallas{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:9px}
+    .wa-talla-btn{border:1.5px solid #d1d5db;background:none;border-radius:12px;padding:13px 9px;
+                  cursor:pointer;font-family:inherit;color:inherit;display:flex;
+                  flex-direction:column;gap:3px;align-items:center}
+    .wa-talla-btn:hover{border-color:#2e9e6b;background:rgba(46,158,107,.08)}
+    html.dark .wa-talla-btn{border-color:rgba(255,255,255,.16)}
+    .wa-talla-n{font-size:19px;font-weight:800}
+    .wa-talla-c{font-size:11px;color:#94a3b8}
+
+    .wa-pres{width:100%;border:1.5px solid #e5e7eb;background:none;border-radius:11px;
+             padding:11px 13px;margin-bottom:8px;cursor:pointer;font-family:inherit;
+             color:inherit;display:flex;gap:11px;align-items:center;text-align:left}
+    html.dark .wa-pres{border-color:rgba(255,255,255,.12)}
+    .wa-pres.on{border-color:#2e9e6b;background:rgba(46,158,107,.09)}
+    .wa-pres-check{width:22px;height:22px;border-radius:6px;border:1.5px solid #cbd5e1;
+                   display:grid;place-items:center;font-size:13px;font-weight:800;flex:none}
+    .wa-pres.on .wa-pres-check{background:#2e9e6b;border-color:#2e9e6b;color:#fff}
+    .wa-pres-t{display:block;font-weight:700;font-size:14px}
+    .wa-pres-p{display:block;font-size:12.5px;color:#94a3b8;margin-top:2px}
+
     .wa-eti{font-size:11px;font-weight:700;border-radius:7px;padding:2px 8px}
     .wa-eti-ok{background:rgba(46,158,107,.16);color:#15603f}
     .wa-eti-mal{background:rgba(229,105,95,.16);color:#b91c1c}
@@ -440,22 +480,10 @@
                             📏 Tabla de tallas
                         </button>
 
-                        <button type="button" class="wa-chip" wire:click="mandarCatalogo"
-                                title="Precios y presentaciones con existencia, sacados del admin">
+                        <button type="button" class="wa-chip wa-chip-talla" wire:click="abrirCatalogo"
+                                title="Elegir talla y productos para mandarle">
                             🛒 Catálogo
                         </button>
-
-                        {{-- Una talla por botón. Se generan del inventario: si
-                             una se agota, el botón desaparece solo. --}}
-                        @foreach($this->tallasDisponibles() as $talla => $cuantos)
-                            <button type="button" class="wa-chip wa-chip-talla"
-                                    wire:key="talla-{{ $talla }}"
-                                    wire:click="mandarTalla(@js($talla))"
-                                    wire:confirm="Se le van a mandar {{ $cuantos }} {{ $cuantos == 1 ? 'producto' : 'productos' }} en talla {{ $talla }}, cada uno con su foto y precio. ¿Mandar?"
-                                    title="{{ $cuantos }} disponibles en talla {{ $talla }}">
-                                {{ $talla }} <span class="wa-chip-n">{{ $cuantos }}</span>
-                            </button>
-                        @endforeach
 
                         {{-- Los botones que Wil crea solos, desde el admin.
                              Van acá y no escondidos en la pestaña: la gracia es
@@ -656,6 +684,93 @@
         @endif
     </div>
 </div>
+
+{{-- ═══ La ventana del catálogo ═══════════════════════════════════════════ --}}
+@if($catalogoAbierto)
+<div class="wa-modal-fondo" wire:click="cerrarCatalogo">
+    <div class="wa-modal" wire:click.stop>
+
+        <div class="wa-modal-cab">
+            @if($tallaElegida)
+                <button type="button" class="wa-modal-atras" wire:click="volverATallas">←</button>
+                <b>Talla {{ $tallaElegida }}</b>
+            @else
+                <b>🛒 Catálogo</b>
+            @endif
+            <button type="button" class="wa-modal-x" wire:click="cerrarCatalogo">✕</button>
+        </div>
+
+        <div class="wa-modal-cuerpo">
+            @if(! $tallaElegida)
+                @php $tallas = $this->tallasDisponibles(); @endphp
+
+                @if(count($tallas))
+                    <div style="font-size:13px;color:#94a3b8;margin-bottom:12px">
+                        Elegí la talla que te pidió. Solo aparecen las que tienen existencia.
+                    </div>
+
+                    <div class="wa-tallas">
+                        @foreach($tallas as $talla => $cuantos)
+                            <button type="button" class="wa-talla-btn"
+                                    wire:key="mt-{{ $talla }}"
+                                    wire:click="elegirTalla(@js($talla))">
+                                <span class="wa-talla-n">{{ $talla }}</span>
+                                <span class="wa-talla-c">{{ $cuantos }} {{ $cuantos == 1 ? 'producto' : 'productos' }}</span>
+                            </button>
+                        @endforeach
+                    </div>
+                @else
+                    <div style="font-size:13.5px;color:#94a3b8;line-height:1.6">
+                        No hay presentaciones con existencia. Revisá las cantidades en el admin.
+                    </div>
+                @endif
+
+                <div class="wa-sep"></div>
+
+                <button type="button" class="wa-chip" wire:click="mandarCatalogo"
+                        style="width:100%;text-align:center">
+                    📋 Mandar solo la lista de precios, sin fotos
+                </button>
+            @else
+                @php $pres = $this->presentacionesDe($tallaElegida); @endphp
+
+                <div style="font-size:13px;color:#94a3b8;margin-bottom:12px">
+                    Vienen todos marcados. Desmarcá lo que no quieras mandar.
+                </div>
+
+                @foreach($pres as $s)
+                    @php $marcado = in_array((string) $s->id, $elegidas, true); @endphp
+                    <button type="button" class="wa-pres {{ $marcado ? 'on' : '' }}"
+                            wire:key="pres-{{ $s->id }}"
+                            wire:click="alternarProducto(@js((string) $s->id))">
+                        <span class="wa-pres-check">{{ $marcado ? '✓' : '' }}</span>
+                        <span style="flex:1">
+                            <span class="wa-pres-t">{{ $s->product?->name }}</span>
+                            <span class="wa-pres-p">
+                                ${{ number_format((float) $s->price, 2) }}
+                                @if((int) ($s->unidades ?? 0) > 0) · {{ (int) $s->unidades }} uds @endif
+                                @if(! $this->tieneFoto($s)) · <i>sin foto</i> @endif
+                            </span>
+                        </span>
+                    </button>
+                @endforeach
+            @endif
+        </div>
+
+        @if($tallaElegida)
+            <div class="wa-modal-pie">
+                <x-filament::button wire:click="enviarElegidas" icon="heroicon-m-paper-airplane">
+                    Mandar {{ count($elegidas) }} {{ count($elegidas) == 1 ? 'producto' : 'productos' }}
+                </x-filament::button>
+
+                <span style="font-size:11.5px;color:#94a3b8">
+                    Se manda una foto por producto, con su precio.
+                </span>
+            </div>
+        @endif
+    </div>
+</div>
+@endif
 
 <script>
     // Pantalla completa de verdad: esconde las barras del navegador.
