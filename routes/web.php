@@ -71,6 +71,11 @@ Route::get('/webhook',  [\App\Http\Controllers\WhatsappWebhookController::class,
 Route::post('/webhook', [\App\Http\Controllers\WhatsappWebhookController::class, 'recibir'])
     ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
 
+// El botón "Conectar mi WhatsApp". Esta sí es del navegador y del dueño, así
+// que va con sesión y con CSRF.
+Route::post('/whatsapp/conectar', [\App\Http\Controllers\WhatsappConexionController::class, 'guardar'])
+    ->middleware(['web', 'auth'])->name('whatsapp.conectar');
+
 // Fotos de paquetes (solo con sesión iniciada en el panel)
 Route::middleware('auth')->group(function () {
     // Página de respaldo: formulario simple, sin JavaScript. Si la subida

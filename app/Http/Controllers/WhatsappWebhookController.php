@@ -24,7 +24,9 @@ class WhatsappWebhookController extends Controller
     /** Verificación inicial: Meta manda un reto y hay que devolverlo tal cual. */
     public function verificar(Request $request)
     {
-        $esperado = env('WHATSAPP_VERIFY_TOKEN');
+        // config() y no env(): al desplegar, la configuración queda en caché y
+        // env() deja de devolver nada fuera de los archivos de config.
+        $esperado = config('whatsapp.verify_token');
 
         if ($request->query('hub_mode') === 'subscribe'
             && filled($esperado)
@@ -74,7 +76,7 @@ class WhatsappWebhookController extends Controller
      */
     private function firmaValida(Request $request): bool
     {
-        $secreto = env('WHATSAPP_APP_SECRET');
+        $secreto = config('whatsapp.app_secret');
         if (blank($secreto)) return true;
 
         $firma = (string) $request->header('X-Hub-Signature-256');

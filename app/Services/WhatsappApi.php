@@ -22,16 +22,67 @@ use Illuminate\Support\Facades\Storage;
  */
 class WhatsappApi
 {
-    private const VERSION = 'v21.0';
+    /** Memoria de la petición, para no ir a la base en cada mensaje. */
+    private static array $guardadas = [];
+
+    /**
+     * Las credenciales salen de dos lados, en este orden:
+     *
+     *  1. La base de datos, si el botón "Conectar mi WhatsApp" ya se usó. Así
+     *     reconectar no obliga a redesplegar ni a tocar Railway.
+     *  2. config/whatsapp.php, que lee las variables de Railway.
+     *
+     * Nunca con env() directo: al desplegar, Laravel guarda la configuración en
+     * caché y a partir de ahí env() devuelve null fuera de los archivos de
+     * config. Ese error ya nos costó una tarde.
+     */
+    private static function guardado(string $clave): ?string
+    {
+        if (array_key_exists($clave, static::$guardadas)) {
+            return static::$guardadas[$clave];
+        }
+
+        try {
+            $valor = \App\Models\Setting::get($clave);
+        } catch (\Throwable $e) {
+            // Sin base (migraciones a medias, por ejemplo) seguimos con config.
+            $valor = null;
+        }
+
+        return static::$guardadas[$clave] = (filled($valor) ? (string) $valor : null);
+    }
+
+    /** Se llama después de conectar, para que el valor nuevo se use ya. */
+    public static function olvidarGuardadas(): void
+    {
+        static::$guardadas = [];
+    }
 
     public static function token(): ?string
     {
-        return env('WHATSAPP_TOKEN') ?: null;
+        return static::guardado('whatsapp_token') ?: (config('whatsapp.token') ?: null);
     }
 
     public static function phoneId(): ?string
     {
-        return env('WHATSAPP_PHONE_ID') ?: null;
+        return static::guardado('whatsapp_phone_id') ?: (config('whatsapp.phone_id') ?: null);
+    }
+
+    /** Identificador de la cuenta de WhatsApp Business (no del número). */
+    public static function wabaId(): ?string
+    {
+        return static::guardado('whatsapp_waba_id');
+    }
+
+    /** El número tal como lo muestra Meta, solo para enseñarlo en pantalla. */
+    public static function numeroLegible(): ?string
+    {
+        return static::guardado('whatsapp_numero');
+    }
+
+    private static function version(): string
+    {
+        return config('whatsapp.version', 'v21.0');
     }
 
     /** ¿Está configurado como para poder mandar? */
@@ -42,7 +93,7 @@ class WhatsappApi
 
     private static function url(string $recurso = 'messages'): string
     {
-        return 'https://graph.facebook.com/' . self::VERSION . '/' . static::phoneId() . '/' . $recurso;
+        return 'https://graph.facebook.com/' . static::version() . '/' . static::phoneId() . '/' . $recurso;
     }
 
     /**
@@ -127,7 +178,7 @@ class WhatsappApi
 
         try {
             $info = Http::withToken(static::token())->timeout(20)
-                ->get('https://graph.facebook.com/' . self::VERSION . '/' . $mediaId);
+                ->get('https://graph.facebook.com/' . static::version() . '/' . $mediaId);
 
             $url = $info->json('url');
             if (! $url) return null;

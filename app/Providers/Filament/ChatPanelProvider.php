@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Filament\Pages\CrearGuia;
 use App\Filament\Pages\Whatsapp;
+use App\Filament\Pages\WhatsappConectar;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -43,9 +44,12 @@ class ChatPanelProvider extends PanelProvider
                 'primary' => Color::Emerald,
             ])
             // Sin descubrimiento automático: acá entra solo lo que se nombra.
+            // "Conectar WhatsApp" está en la lista pero se esconde sola para los
+            // colaboradores de solo chat: la enchufa el dueño, una vez.
             ->pages([
                 Whatsapp::class,
                 CrearGuia::class,
+                WhatsappConectar::class,
             ])
             ->middleware([
                 EncryptCookies::class,

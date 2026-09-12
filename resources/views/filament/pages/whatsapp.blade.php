@@ -33,7 +33,7 @@
              background:#f6f8fa}
     html.dark .wa-chat{background:#0f1828}
     .wa-glo{max-width:74%;padding:8px 12px;border-radius:13px;font-size:14px;line-height:1.45;
-            white-space:pre-wrap;word-wrap:break-word}
+            white-space:pre-wrap;word-wrap:break-word;text-align:left}
     .wa-mio{align-self:flex-end;background:#d6f2c8;color:#12300a;border-bottom-right-radius:4px}
     .wa-suyo{align-self:flex-start;background:#fff;color:#16202f;border:1px solid #e5e7eb;
              border-bottom-left-radius:4px}
@@ -63,9 +63,16 @@
 
 @if(! $this->configurado())
     <div class="wa-aviso wa-aviso-mal">
-        <b>Falta conectar con Meta.</b> El panel funciona y guarda todo, pero todavía no puede
-        enviar ni recibir. Hay que cargar <code>WHATSAPP_TOKEN</code> y <code>WHATSAPP_PHONE_ID</code>
-        en las variables de Railway.
+        <b>Falta conectar el número.</b> El panel funciona y guarda todo, pero todavía no
+        puede enviar ni recibir.
+        @if(! (auth()->user()?->solo_chat ?? false))
+            Se arregla en
+            <a href="{{ \App\Filament\Pages\WhatsappConectar::getUrl() }}"
+               style="text-decoration:underline;font-weight:700">Conectar WhatsApp</a>,
+            en el menú de la izquierda. Es una sola vez.
+        @else
+            Avisale a Wil para que conecte el número; es cosa de un minuto.
+        @endif
     </div>
 @endif
 
