@@ -203,6 +203,10 @@
         .wa-comparar .wa-origen{margin-bottom:0;position:sticky;top:0}
     }
 
+    .wa-cola{margin-top:14px;font-size:12.5px;line-height:1.6;color:#94a3b8;
+             border-top:1px solid rgba(120,140,170,.18);padding-top:12px}
+    .wa-cola b{color:inherit;font-weight:800}
+
     .wa-previa{border:1px solid #2e9e6b;background:rgba(46,158,107,.07);border-radius:11px;
                padding:12px 14px;margin-top:14px}
     .wa-previa-t{font-size:12px;font-weight:800;color:#15603f;margin-bottom:9px}
@@ -623,6 +627,26 @@
                     <x-filament::button wire:click="guardarPedido" icon="heroicon-m-check-circle">
                         Guardar en la cola de guías
                     </x-filament::button>
+                </div>
+
+                {{-- Que se vea adónde va lo que se guarda, sin tener que
+                     adivinar ni ir a comprobarlo a otra pantalla. --}}
+                @php $enCola = $this->enCola(); @endphp
+                <div class="wa-cola">
+                    <b>¿Y después?</b>
+                    Al guardar, esta guía se suma a la cola. Hoy hay
+                    <b>{{ $enCola }} {{ $enCola == 1 ? 'guía esperando' : 'guías esperando' }}</b>.
+                    Cuando las tengas todas, entrás a <b>Crear guías</b> y bajás el Excel
+                    para subirlo al sistema.
+
+                    @if($this->enlaceCola())
+                        <div style="margin-top:9px">
+                            <x-filament::button tag="a" size="xs" color="gray"
+                                href="{{ $this->enlaceCola() }}" icon="heroicon-m-table-cells">
+                                Ir a la cola y bajar el Excel
+                            </x-filament::button>
+                        </div>
+                    @endif
                 </div>
                 </div>
             </div>

@@ -534,6 +534,26 @@ class Whatsapp extends Page
      * recibir; si no tiene, la del producto. Devuelve la ruta tal como la sirve
      * el sitio, sin el dominio.
      */
+    /** Cuántas guías hay esperando en la cola, listas para el Excel. */
+    public function enCola(): int
+    {
+        try {
+            return \App\Models\GuiaBorrador::lista()->count();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    /** Dirección de la pantalla donde se baja el Excel. */
+    public function enlaceCola(): ?string
+    {
+        try {
+            return CrearGuia::getUrl();
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
     /** Para avisar en la ventana cuál va a salir como texto por falta de foto. */
     public function tieneFoto($size): bool
     {
@@ -872,7 +892,11 @@ class Whatsapp extends Page
             . "\u{2705} Producto(s): \n"
             . "\u{2705} Costo de env\u{ED}o: $\n"
             . "\u{1F4B0} Total a pagar: $\n\n"
-            . "\u{2728} \u{A1}Gracias por tu preferencia! Tu pedido estar\u{E1} en camino muy pronto";
+            . "\u{2728} \u{A1}Gracias por tu preferencia! Tu pedido estar\u{E1} en camino muy pronto\n\n"
+            // El rastreo va por teléfono, no por número de guía: el mismo
+            // enlace le sirve hoy y para todos los pedidos que haga después.
+            . "\u{1F4CD} *Segu\u{ED} tu paquete ac\u{E1}:*\n"
+            . \App\Models\GuiaBorrador::enlaceRastreo($conv->telefono);
 
         $this->pestana = 'chat';
 
@@ -1052,9 +1076,12 @@ class Whatsapp extends Page
         $this->limpiarPedido();
         $this->pestana = 'chat';
 
+        $cola = $this->enCola();
+
         Notification::make()
-            ->title('Pedido guardado')
-            ->body('Ya está en la cola de guías, listo para bajar el Excel.')
+            ->title('Guardado en la cola')
+            ->body("Ya hay {$cola} " . ($cola == 1 ? 'guía esperando' : 'guías esperando')
+                 . '. Cuando quieras, entrá a Crear guías y bajá el Excel.')
             ->success()->send();
     }
 
