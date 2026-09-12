@@ -36,9 +36,15 @@ return [
     // JavaScript de la página, es lo normal.
     'app_id' => env('WHATSAPP_APP_ID', '1338503986007171'),
 
-    // Identificador del ajuste de "Inicio de sesión con Facebook para empresas",
-    // variación "Registro insertado de WhatsApp". Es el que hace que el diálogo
-    // de Meta ofrezca el código QR de Coexistencia en vez de pedir SMS.
+    // Identificador del ajuste de "Inicio de sesión con Facebook para empresas".
+    // Queda anotado por si algún día la cuenta llega a ser proveedor de
+    // tecnología, que es lo que Meta exige para el registro insertado. Hoy no
+    // se usa: conectamos con un usuario del sistema, que es el camino de quien
+    // conecta su propio número.
     'config_id' => env('WHATSAPP_CONFIG_ID', '1414357770650054'),
+
+    // Cuenta de WhatsApp Business donde vive el número (no es el número ni su
+    // identificador). Hace falta para suscribir la aplicación y así recibir.
+    'waba_id' => env('WHATSAPP_WABA_ID', '362187643649809'),
 
 ];
