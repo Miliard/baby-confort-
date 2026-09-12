@@ -892,11 +892,10 @@ class Whatsapp extends Page
             . "\u{2705} Producto(s): \n"
             . "\u{2705} Costo de env\u{ED}o: $\n"
             . "\u{1F4B0} Total a pagar: $\n\n"
-            . "\u{2728} \u{A1}Gracias por tu preferencia! Tu pedido estar\u{E1} en camino muy pronto\n\n"
-            // El rastreo va por teléfono, no por número de guía: el mismo
-            // enlace le sirve hoy y para todos los pedidos que haga después.
-            . "\u{1F4CD} *Segu\u{ED} tu paquete ac\u{E1}:*\n"
-            . \App\Models\GuiaBorrador::enlaceRastreo($conv->telefono);
+            // Sin enlace de rastreo a propósito: ese sale solo al guardar la
+            // guía en la cola. Así, mirando el chat, se sabe de un vistazo
+            // cuáles órdenes ya se procesaron y cuáles quedaron a medias.
+            . "\u{2728} \u{A1}Gracias por tu preferencia! Tu pedido estar\u{E1} en camino muy pronto";
 
         $this->pestana = 'chat';
 
@@ -1055,16 +1054,18 @@ class Whatsapp extends Page
             return;
         }
 
+        $fila = [
+            'nombre'       => trim($this->pedNombre),
+            'telefono'     => trim($this->pedTelefono),
+            'direccion'    => trim($this->pedDireccion),
+            'municipio'    => trim($this->pedMunicipio),
+            'departamento' => trim($this->pedDepartamento),
+            'descripcion'  => $this->descripcionPedido(),
+            'cobrar'       => $this->totalPedido(),
+        ];
+
         try {
-            \App\Models\GuiaBorrador::create([
-                'nombre'       => trim($this->pedNombre),
-                'telefono'     => trim($this->pedTelefono),
-                'direccion'    => trim($this->pedDireccion),
-                'municipio'    => trim($this->pedMunicipio),
-                'departamento' => trim($this->pedDepartamento),
-                'descripcion'  => $this->descripcionPedido(),
-                'cobrar'       => $this->totalPedido(),
-            ]);
+            $guia = \App\Models\GuiaBorrador::create($fila);
         } catch (\Throwable $e) {
             Notification::make()
                 ->title('No se pudo guardar el pedido')
@@ -1073,16 +1074,51 @@ class Whatsapp extends Page
             return;
         }
 
+        // Recién ahora sale el enlace de rastreo. Ese es el sello de que la
+        // orden se procesó: si en el chat no está, es que quedó a medias.
+        $conv = $this->conversacion();
+        $aviso = '';
+
+        if ($conv && $conv->ventanaAbierta()) {
+            $m = WhatsappApi::enviarTexto(
+                $conv,
+                \App\Models\GuiaBorrador::mensajeCliente($fila),
+                auth()->id()
+            );
+
+            if ($m->estado === 'fallido') {
+                $aviso = ' No se pudo mandarle el enlace de rastreo: ' . $m->error;
+            } else {
+                try {
+                    $guia->update(['enviado_at' => now()]);
+                } catch (\Throwable $e) {
+                    // Que no se marque no cambia nada de lo que ve el cliente.
+                }
+            }
+        } elseif ($conv) {
+            // Fuera de las 24 horas no se puede escribir: se deja preparado.
+            $this->texto = \App\Models\GuiaBorrador::mensajeCliente($fila);
+            $aviso = ' La ventana de 24 horas está cerrada: el mensaje con el '
+                   . 'rastreo quedó escrito, mandalo cuando el cliente responda.';
+        }
+
         $this->limpiarPedido();
         $this->pestana = 'chat';
 
         $cola = $this->enCola();
 
-        Notification::make()
-            ->title('Guardado en la cola')
-            ->body("Ya hay {$cola} " . ($cola == 1 ? 'guía esperando' : 'guías esperando')
-                 . '. Cuando quieras, entrá a Crear guías y bajá el Excel.')
-            ->success()->send();
+        $cuerpo = "Ya hay {$cola} " . ($cola == 1 ? 'guía esperando' : 'guías esperando')
+                . '. Cuando quieras, entrá a Crear guías y bajá el Excel.';
+
+        $n = Notification::make()->title('Guardado en la cola');
+
+        if ($aviso === '') {
+            $n->body($cuerpo . ' Al cliente ya le salió el enlace de rastreo.')->success();
+        } else {
+            $n->body($cuerpo . $aviso)->warning()->persistent();
+        }
+
+        $n->send();
     }
 
     /** Resumen del pedido para mandárselo al cliente y que confirme. */
