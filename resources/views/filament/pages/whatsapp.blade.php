@@ -113,7 +113,12 @@
     .wa-auto{align-self:flex-end;background:#e6eefc;color:#1c3b63;border-bottom-right-radius:4px}
     .wa-mal{align-self:flex-end;background:#fdeaea;color:#8a1c1c;border:1px solid #e5695f}
     .wa-pie{font-size:10.5px;opacity:.65;margin-top:3px;text-align:right}
-    .wa-glo img{max-width:100%;border-radius:9px;display:block;margin-bottom:5px}
+    /* Tamaño de miniatura, como WhatsApp. Antes ocupaban el 74% del ancho del
+       chat y una sola foto te tapaba la conversación entera. Se toca y se abre
+       grande en otra pestaña. */
+    .wa-glo img{max-width:230px;max-height:290px;width:auto;height:auto;object-fit:cover;
+                border-radius:9px;display:block;margin-bottom:5px;cursor:zoom-in}
+    @media(max-width:900px){ .wa-glo img{max-width:190px;max-height:240px} }
 
     .wa-abajo{padding:11px;border-top:1px solid #e5e7eb;flex:none}
     html.dark .wa-abajo{border-color:rgba(255,255,255,.10)}
