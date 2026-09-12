@@ -134,11 +134,13 @@
     .wa-mini{border:none;background:rgba(120,140,170,.18);border-radius:7px;padding:3px 9px;
              font-size:11px;cursor:pointer;font-family:inherit;color:inherit;font-weight:700}
 
-    .wa-procesar{border:none;background:rgba(46,158,107,.20);color:#15603f;border-radius:9px;
-                 padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;
-                 font-family:inherit;margin-top:7px;display:block;width:100%}
-    .wa-procesar:hover{background:rgba(46,158,107,.34)}
-    html.dark .wa-procesar{color:#9fe1cb}
+    /* Sólido y no translúcido a propósito: el globo propio ya es verde claro,
+       así que un verde transparente encima se volvía invisible. */
+    .wa-procesar{border:none;background:#15603f;color:#fff;border-radius:9px;
+                 padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;
+                 font-family:inherit;margin-top:8px;display:block;width:100%;
+                 box-shadow:0 1px 3px rgba(0,0,0,.18)}
+    .wa-procesar:hover{background:#0f4730}
 
     .wa-eti{font-size:11px;font-weight:700;border-radius:7px;padding:2px 8px}
     .wa-eti-ok{background:rgba(46,158,107,.16);color:#15603f}
