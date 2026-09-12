@@ -424,6 +424,11 @@
                             📏 Tabla de tallas
                         </button>
 
+                        <button type="button" class="wa-chip" wire:click="mandarCatalogo"
+                                title="Precios y presentaciones con existencia, sacados del admin">
+                            🛒 Catálogo
+                        </button>
+
                         {{-- Los botones que Wil crea solos, desde el admin.
                              Van acá y no escondidos en la pestaña: la gracia es
                              que estén a un toque mientras se escribe. --}}

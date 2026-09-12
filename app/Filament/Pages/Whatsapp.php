@@ -298,6 +298,89 @@ class Whatsapp extends Page
         }
     }
 
+    /**
+     * Arma el catálogo con los precios de verdad y lo deja listo para mandar.
+     *
+     * Sale de la base, así que si cambiás un precio en el admin, el mensaje
+     * cambia solo. No hay una lista escrita a mano que se quede vieja.
+     *
+     * Solo van las presentaciones con existencia: mandarle a un cliente algo
+     * que no se le puede vender es la manera más rápida de quedar mal.
+     */
+    public function mandarCatalogo(): void
+    {
+        try {
+            $productos = \App\Models\Product::with('sizes')
+                ->where('active', true)
+                ->orderBy('orden')
+                ->orderBy('name')
+                ->get();
+        } catch (\Throwable $e) {
+            Notification::make()->title('No se pudo leer el catálogo')->danger()->send();
+            return;
+        }
+
+        $t = "\u{1F6D2} *Cat\u{E1}logo Baby-Confort*\n";
+        $cortado = false;
+        $hubo = false;
+
+        foreach ($productos as $p) {
+            $lineas = [];
+
+            foreach ($p->sizes as $s) {
+                $precio = (float) $s->price;
+
+                // Sin precio no dice nada; agotada no se puede vender.
+                if ($precio <= 0 || (int) $s->quantity <= 0) continue;
+
+                $l = '• ' . trim((string) $s->size);
+
+                if ((int) ($s->unidades ?? 0) > 0) {
+                    $l .= ' · ' . (int) $s->unidades . ' uds';
+                }
+
+                $l .= ' — $' . number_format($precio, 2);
+
+                if ($s->combo_qty > 0 && $s->combo_price > 0) {
+                    $l .= ' · ' . (int) $s->combo_qty . ' x $' . number_format((float) $s->combo_price, 2);
+                }
+
+                $lineas[] = $l;
+            }
+
+            if (! $lineas) continue;
+
+            $bloque = "\n*" . trim((string) $p->name) . "*\n" . implode("\n", $lineas) . "\n";
+
+            // WhatsApp corta a los 4096 caracteres: mejor cortar nosotros bien
+            // que dejar que corte él a la mitad de un precio.
+            if (mb_strlen($t . $bloque) > 3500) {
+                $cortado = true;
+                break;
+            }
+
+            $t .= $bloque;
+            $hubo = true;
+        }
+
+        if (! $hubo) {
+            Notification::make()
+                ->title('No hay presentaciones con existencia')
+                ->body('El catálogo saldría vacío. Revisá las cantidades en el admin.')
+                ->warning()->send();
+            return;
+        }
+
+        if ($cortado) {
+            $t .= "\n_...y m\u{E1}s productos en el enlace._\n";
+        }
+
+        $t .= "\n\u{1F517} *Ver todo con fotos:*\n" . url('/');
+
+        $this->texto = $t;
+        $this->pestana = 'chat';
+    }
+
     /** Manda la tabla de tallas a mano, sin esperar al disparador. */
     public function mandarTallas(): void
     {
