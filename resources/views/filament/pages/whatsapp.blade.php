@@ -1,8 +1,16 @@
 <x-filament-panels::page>
 
 <style>
-    .wa{display:grid;grid-template-columns:320px 1fr;gap:14px;align-items:start;
-        height:calc(100vh - 210px);min-height:460px}
+    /* Las proporciones salen de medir Wasapi: lista de 400 px y separación de
+       24 px. Con 320 el nombre y la vista previa quedaban apretados. */
+    .wa{display:grid;grid-template-columns:400px 1fr;gap:20px;align-items:start;
+        height:calc(100vh - 132px);min-height:460px}
+
+    @media(max-width:1200px){ .wa{grid-template-columns:340px 1fr;gap:14px} }
+
+    /* El título "WhatsApp" no dice nada que no se sepa por el menú de arriba,
+       y se lleva casi 100 px de alto de conversación. */
+    .fi-header{display:none !important}
 
     /* En el teléfono se ve una cosa a la vez, como WhatsApp: la lista, o el
        chat abierto ocupando toda la pantalla. Antes se apilaban las dos y
@@ -11,7 +19,6 @@
         /* En el teléfono cada píxel de alto es contexto de la conversación.
            El título "WhatsApp" y los márgenes de Filament se comían un tercio
            de la pantalla para no decir nada que no se sepa. */
-        .fi-header{display:none !important}
         .fi-main{padding-top:.35rem !important;padding-bottom:.35rem !important}
         .fi-main-ctn{padding-top:0 !important;padding-bottom:0 !important}
         .fi-page > *{gap:0 !important}
@@ -68,10 +75,12 @@
              cursor:pointer;border-bottom:1px solid rgba(120,140,170,.14);display:block}
     .wa-item:hover{background:rgba(120,140,170,.10)}
     .wa-item.on{background:rgba(74,163,223,.14)}
-    .wa-nom{font-weight:700;font-size:14px;display:flex;gap:7px;align-items:center}
-    .wa-prev{font-size:12.5px;color:#94a3b8;margin-top:2px;overflow:hidden;
+    /* Tipografía un punto más grande, como la de Wasapi: base de 15 px.
+       Buena parte de la sensación de "se ve chiquito" estaba acá. */
+    .wa-nom{font-weight:700;font-size:15px;display:flex;gap:7px;align-items:center}
+    .wa-prev{font-size:13.5px;color:#94a3b8;margin-top:3px;overflow:hidden;
              text-overflow:ellipsis;white-space:nowrap}
-    .wa-hora{font-size:11px;color:#94a3b8;float:right;font-weight:400}
+    .wa-hora{font-size:11.5px;color:#94a3b8;float:right;font-weight:400}
     .wa-pin{background:#e5695f;color:#fff;font-size:10.5px;font-weight:800;
             border-radius:999px;padding:1px 7px;flex:none}
     .wa-quien{font-size:10.5px;color:#4aa3df;font-weight:700}
@@ -85,7 +94,7 @@
     html.dark .wa-chat{background:#0f1828}
     /* Nada de white-space aquí: iría contra toda la sangría de la plantilla y
        llenaría el globo de aire. Los saltos de línea los respeta .wa-txt. */
-    .wa-glo{max-width:74%;padding:8px 12px;border-radius:13px;font-size:14px;line-height:1.45;
+    .wa-glo{max-width:74%;padding:9px 13px;border-radius:13px;font-size:15px;line-height:1.45;
             word-wrap:break-word;text-align:left}
     .wa-txt{white-space:pre-wrap;overflow-wrap:anywhere}
     .wa-bajar{border:1px dashed currentColor;background:none;color:inherit;opacity:.75;
@@ -104,8 +113,8 @@
 
     .wa-abajo{padding:11px;border-top:1px solid #e5e7eb;flex:none}
     html.dark .wa-abajo{border-color:rgba(255,255,255,.10)}
-    .wa-escribir{width:100%;border:1px solid #d1d5db;border-radius:11px;padding:10px 12px;
-                 font-size:14px;font-family:inherit;resize:vertical;background:transparent;color:inherit}
+    .wa-escribir{width:100%;border:1px solid #d1d5db;border-radius:11px;padding:11px 13px;
+                 font-size:15px;font-family:inherit;resize:vertical;background:transparent;color:inherit}
     .wa-btns{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;align-items:center}
 
     /* Los botones de respuesta al lado de Enviar. Se crean desde el admin. */

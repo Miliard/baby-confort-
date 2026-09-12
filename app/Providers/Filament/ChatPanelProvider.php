@@ -43,6 +43,12 @@ class ChatPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Emerald,
             ])
+            // Sin barra lateral: la navegación va arriba, en una franja fina.
+            // Acá se atiende gente todo el día, así que cada píxel de ancho es
+            // nombre de cliente y cada píxel de alto es contexto de la charla.
+            ->topNavigation()
+            ->maxContentWidth('full')
+            ->sidebarCollapsibleOnDesktop(false)
             // Sin descubrimiento automático: acá entra solo lo que se nombra.
             // "Conectar WhatsApp" está en la lista pero se esconde sola para los
             // colaboradores de solo chat: la enchufa el dueño, una vez.
