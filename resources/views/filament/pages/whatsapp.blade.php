@@ -32,8 +32,16 @@
     .wa-chat{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px;
              background:#f6f8fa}
     html.dark .wa-chat{background:#0f1828}
+    /* Nada de white-space aquí: iría contra toda la sangría de la plantilla y
+       llenaría el globo de aire. Los saltos de línea los respeta .wa-txt. */
     .wa-glo{max-width:74%;padding:8px 12px;border-radius:13px;font-size:14px;line-height:1.45;
-            white-space:pre-wrap;word-wrap:break-word;text-align:left}
+            word-wrap:break-word;text-align:left}
+    .wa-txt{white-space:pre-wrap;overflow-wrap:anywhere}
+    .wa-bajar{border:1px dashed currentColor;background:none;color:inherit;opacity:.75;
+              border-radius:9px;padding:6px 11px;font-size:12.5px;cursor:pointer;
+              font-family:inherit;margin-bottom:5px;display:block}
+    .wa-bajar:hover{opacity:1}
+    .wa-bajar:disabled{opacity:.4;cursor:wait}
     .wa-mio{align-self:flex-end;background:#d6f2c8;color:#12300a;border-bottom-right-radius:4px}
     .wa-suyo{align-self:flex-start;background:#fff;color:#16202f;border:1px solid #e5e7eb;
              border-bottom-left-radius:4px}
@@ -223,15 +231,12 @@
                     @endphp
 
                     <div class="wa-glo {{ $clase }}" wire:key="msg-{{ $m->id }}">
-                        @if($m->url())
-                            <a href="{{ $m->url() }}" target="_blank" rel="noopener">
-                                <img src="{{ $m->url() }}" alt="Imagen del cliente">
-                            </a>
-                        @elseif($m->tipo !== 'text' && ! $m->url())
-                            <i style="opacity:.7">[{{ $m->tipo }} — no se pudo mostrar]</i>
-                        @endif
+                        @if($m->url())<a href="{{ $m->url() }}" target="_blank" rel="noopener"><img src="{{ $m->url() }}" alt="Imagen del cliente"></a>@elseif($m->tipo === 'image')<button type="button" class="wa-bajar" wire:click="bajarImagen({{ $m->id }})" wire:loading.attr="disabled">🖼️ Ver la imagen</button>@elseif($m->tipo !== 'text')<i style="opacity:.7">[{{ $m->tipo }}]</i>@endif
 
-                        {{ $m->texto }}
+                        {{-- El texto va en su propio elemento y pegado a las llaves:
+                             el globo respeta los saltos de línea, así que cualquier
+                             espacio o sangría de la plantilla se dibujaría tal cual. --}}
+                        @if(filled($m->texto))<div class="wa-txt">{{ $m->texto }}</div>@endif
 
                         <div class="wa-pie">
                             {{ $m->created_at?->format('H:i') }}

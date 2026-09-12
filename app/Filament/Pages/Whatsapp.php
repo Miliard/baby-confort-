@@ -245,6 +245,38 @@ class Whatsapp extends Page
         $this->texto = $texto;
     }
 
+    /**
+     * Baja una imagen que en su momento no se pudo guardar.
+     *
+     * Pasa cuando el mensaje llegó antes de que el identificador de acceso
+     * estuviera bien puesto: el mensaje quedó registrado, pero la foto no.
+     * Meta guarda los archivos un tiempo, así que casi siempre se recupera.
+     */
+    public function bajarImagen(int $id): void
+    {
+        $m = WaMensaje::find($id);
+
+        if (! $m || ! $m->media_id) {
+            Notification::make()
+                ->title('Ese mensaje no trae imagen')
+                ->warning()->send();
+            return;
+        }
+
+        $ruta = WhatsappApi::bajarMedia($m->media_id);
+
+        if (! $ruta) {
+            Notification::make()
+                ->title('No se pudo recuperar')
+                ->body('Meta guarda los archivos unos 30 días. Si el mensaje es viejo, '
+                     . 'lo más probable es que ya no esté. Pedile al cliente que la reenvíe.')
+                ->warning()->persistent()->send();
+            return;
+        }
+
+        $m->update(['media_ruta' => $ruta]);
+    }
+
     // ═══ Pestaña "Respuestas rápidas" ═══════════════════════════════════════
 
     public function respuestas()

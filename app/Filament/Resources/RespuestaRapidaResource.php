@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Resources\RespuestaRapidaResource\Pages;
 use App\Models\RespuestaRapida;
 use Filament\Forms;
 use Filament\Forms\Form;
