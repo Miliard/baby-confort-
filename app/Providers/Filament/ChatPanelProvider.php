@@ -57,6 +57,19 @@ class ChatPanelProvider extends PanelProvider
                 \App\Filament\Resources\RespuestaRapidaResource::class,
                 \App\Filament\Resources\WaEtiquetaResource::class,
             ])
+            // Con esto Android y iPhone ofrecen "Agregar a pantalla de inicio",
+            // y al abrirlo desde ahí arranca sin barras del navegador: ocupa
+            // toda la pantalla, como una aplicación de verdad.
+            ->renderHook(
+                'panels::head.end',
+                fn (): string => '<link rel="manifest" href="/chat-manifest.json">'
+                    . '<meta name="theme-color" content="#0f1828">'
+                    . '<meta name="mobile-web-app-capable" content="yes">'
+                    . '<meta name="apple-mobile-web-app-capable" content="yes">'
+                    . '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">'
+                    . '<meta name="apple-mobile-web-app-title" content="Mensajes">'
+                    . '<link rel="apple-touch-icon" href="/apple-touch-icon.png">'
+            )
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

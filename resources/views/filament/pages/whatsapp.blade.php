@@ -33,7 +33,20 @@
         /* Etiquetas cortas para que las tres pestañas entren en un renglón */
         .wa-t-largo{display:none}
         .wa-t-corto{display:inline}
+
+        /* Las etiquetas en un solo renglón que se desliza, en vez de en dos o
+           tres filas comiéndose el alto del chat. */
+        .wa-etq-fila{flex-wrap:nowrap;overflow-x:auto;padding:6px 9px;
+                     scrollbar-width:none}
+        .wa-etq-fila::-webkit-scrollbar{display:none}
+        .wa-etq{flex:none}
+        .wa-filtros{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+        .wa-filtros::-webkit-scrollbar{display:none}
+        .wa-fil{flex:none}
     }
+
+    /* En pantalla completa ya no hay barras del navegador que descontar. */
+    :fullscreen .wa{height:calc(100dvh - 60px)}
 
     .wa-t-corto{display:none}
 
@@ -41,6 +54,7 @@
     .wa-volver{display:none;border:none;background:rgba(120,140,170,.16);cursor:pointer;
                border-radius:9px;width:34px;height:34px;font-size:17px;align-items:center;
                justify-content:center;font-family:inherit;color:inherit;flex:none}
+    .wa-full{font-size:15px}
 
     .wa-col{background:#fff;border:1px solid #e5e7eb;border-radius:14px;
             display:flex;flex-direction:column;overflow:hidden;height:100%}
@@ -286,6 +300,9 @@
             <div class="wa-cab">
                 <button type="button" class="wa-volver" wire:click="cerrarChat"
                         title="Volver a la lista">←</button>
+
+                <button type="button" class="wa-volver wa-full" onclick="waPantallaCompleta()"
+                        title="Pantalla completa">⛶</button>
 
                 <div style="flex:1;min-width:120px">
                     <div style="font-weight:800;font-size:15px">{{ $conv->comoSeLlama() }}</div>
@@ -606,5 +623,30 @@
         @endif
     </div>
 </div>
+
+<script>
+    // Pantalla completa de verdad: esconde las barras del navegador.
+    // No sobrevive a recargar la página — eso solo lo da instalar la app
+    // desde "Agregar a pantalla de inicio".
+    function waPantallaCompleta() {
+        var d = document;
+
+        if (d.fullscreenElement || d.webkitFullscreenElement) {
+            (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+            return;
+        }
+
+        var e = d.documentElement;
+        var pedir = e.requestFullscreen || e.webkitRequestFullscreen;
+
+        if (!pedir) {
+            alert('Este navegador no permite pantalla completa. '
+                + 'Probá con el menú del navegador: "Agregar a pantalla de inicio".');
+            return;
+        }
+
+        pedir.call(e).catch(function () {});
+    }
+</script>
 
 </x-filament-panels::page>
