@@ -55,6 +55,14 @@ class WhatsappWebhookController extends Controller
                         $this->guardarEntrante($m, $valor);
                     }
 
+                    // Lo que Wil escribe desde el teléfono, en la app de
+                    // WhatsApp Business. Con Coexistencia el número vive en los
+                    // dos lados, así que sin esto el panel mostraría solo la
+                    // mitad de la conversación.
+                    foreach ($valor['message_echoes'] ?? [] as $e) {
+                        $this->guardarDelTelefono($e);
+                    }
+
                     foreach ($valor['statuses'] ?? [] as $s) {
                         $this->actualizarEstado($s);
                     }
@@ -142,6 +150,64 @@ class WhatsappWebhookController extends Controller
         if ($tipo === 'text' && filled($texto)) {
             AutoRespuestas::quizasResponder($conv, $texto);
         }
+    }
+
+    /**
+     * Un mensaje que salió del teléfono, no del panel.
+     *
+     * Llega por el aviso "smb_message_echoes", que solo existe cuando el número
+     * está en Coexistencia. Se guarda como saliente y sin agente: así el panel
+     * lo muestra del lado derecho y firmado "Desde el teléfono".
+     *
+     * Importante: NO toca la ventana de 24 horas. Esa la abre el cliente
+     * cuando escribe, no nosotros cuando contestamos.
+     */
+    private function guardarDelTelefono(array $e): void
+    {
+        $para = $e['to'] ?? null;
+        if (! $para) return;
+
+        // Meta reenvía avisos: si ya está guardado, no se duplica.
+        $idMeta = $e['id'] ?? null;
+        if ($idMeta && WaMensaje::where('wa_message_id', $idMeta)->exists()) return;
+
+        $conv = WaConversacion::deNumero($para);
+
+        $tipo  = $e['type'] ?? 'text';
+        $texto = null;
+        $mediaId = null;
+        $ruta = null;
+
+        if ($tipo === 'text') {
+            $texto = $e['text']['body'] ?? '';
+        } elseif (in_array($tipo, ['image', 'video', 'document', 'audio'], true)) {
+            $mediaId = $e[$tipo]['id'] ?? null;
+            $texto   = $e[$tipo]['caption'] ?? null;
+
+            if ($tipo === 'image' && $mediaId) {
+                $ruta = WhatsappApi::bajarMedia($mediaId);
+            }
+        } else {
+            $texto = '[' . $tipo . ']';
+        }
+
+        WaMensaje::create([
+            'conversacion_id' => $conv->id,
+            'wa_message_id'   => $idMeta,
+            'direccion'  => 'saliente',
+            'tipo'       => $tipo,
+            'texto'      => $texto,
+            'media_id'   => $mediaId,
+            'media_ruta' => $ruta,
+            'estado'     => 'entregado',
+            'user_id'    => null,      // salió del teléfono, no de una cuenta
+            'automatico' => false,
+        ]);
+
+        $conv->ultimo_mensaje_at = now();
+        $conv->ultimo_texto = mb_substr(trim((string) ($texto ?: '[' . $tipo . ']')), 0, 300);
+        $conv->archivada    = false;
+        $conv->save();
     }
 
     /** Entregado / leído / falló: se refleja en el globo del mensaje. */

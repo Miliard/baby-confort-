@@ -40,13 +40,18 @@ class WaMensaje extends Model
         return $this->media_ruta ? '/storage/' . ltrim($this->media_ruta, '/') : null;
     }
 
-    /** Quién lo mandó, para mostrarlo bajo el globo del mensaje. */
+    /**
+     * Quién lo mandó, para mostrarlo bajo el globo del mensaje.
+     *
+     * Saliente, sin agente y sin ser automático solo puede significar una cosa:
+     * salió del teléfono, escrito a mano en la app de WhatsApp Business.
+     */
     public function firma(): string
     {
         if ($this->esDelCliente()) return '';
         if ($this->automatico)     return 'Automático';
 
-        return $this->agente?->name ?: 'Baby-Confort';
+        return $this->agente?->name ?: 'Desde el teléfono';
     }
 
     /** ✓ enviado · ✓✓ entregado · ✓✓ leído · ⚠ falló */
