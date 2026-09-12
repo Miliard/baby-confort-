@@ -130,6 +130,9 @@ class WhatsappWebhookController extends Controller
         WaMensaje::create([
             'conversacion_id' => $conv->id,
             'wa_message_id'   => $idMeta,
+            // Si el cliente citó un mensaje nuestro, Meta lo dice acá. Guardarlo
+            // hace que la conversación se lea igual que en el teléfono.
+            'responde_a'      => $m['context']['id'] ?? null,
             'direccion'  => 'entrante',
             'tipo'       => $tipo,
             'texto'      => $texto,

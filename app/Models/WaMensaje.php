@@ -13,7 +13,7 @@ class WaMensaje extends Model
     protected $table = 'wa_mensajes';
 
     protected $fillable = [
-        'conversacion_id', 'wa_message_id', 'direccion', 'tipo', 'texto',
+        'conversacion_id', 'wa_message_id', 'responde_a', 'direccion', 'tipo', 'texto',
         'media_id', 'media_ruta', 'estado', 'error', 'user_id', 'automatico',
     ];
 
@@ -71,6 +71,30 @@ class WaMensaje extends Model
         }
 
         return '/storage/' . ltrim($this->media_ruta, '/');
+    }
+
+    /** El mensaje al que responde, si es una respuesta a uno puntual. */
+    public function citado(): ?self
+    {
+        if (blank($this->responde_a)) return null;
+
+        try {
+            return static::where('wa_message_id', $this->responde_a)->first();
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /** Un pedacito del texto, para mostrarlo dentro de la cita. */
+    public function resumen(int $largo = 90): string
+    {
+        $t = trim((string) $this->texto);
+
+        if ($t === '') {
+            return $this->tipo === 'image' ? '📷 Foto' : '[' . $this->tipo . ']';
+        }
+
+        return \Illuminate\Support\Str::limit(preg_replace('/\s+/u', ' ', $t), $largo);
     }
 
     /**

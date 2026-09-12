@@ -134,6 +134,21 @@
     .wa-auto{align-self:flex-end;background:#e6eefc;color:#1c3b63;border-bottom-right-radius:4px}
     .wa-mal{align-self:flex-end;background:#fdeaea;color:#8a1c1c;border:1px solid #e5695f}
     .wa-pie{font-size:10.5px;opacity:.65;margin-top:3px;text-align:right}
+
+    /* ── Responder a un mensaje puntual ── */
+    .wa-resp-btn{border:none;background:none;cursor:pointer;font-family:inherit;color:inherit;
+                 font-size:12px;padding:0 5px 0 0;opacity:.55}
+    .wa-resp-btn:hover{opacity:1}
+
+    .wa-cita{border-left:3px solid currentColor;padding:4px 0 4px 8px;margin-bottom:6px;
+             font-size:12.5px;line-height:1.4;opacity:.72}
+    .wa-cita-q{font-weight:800;font-size:11px;margin-bottom:2px}
+
+    .wa-citando{display:flex;gap:10px;align-items:center;margin-bottom:8px;
+                background:rgba(120,140,170,.12);border-left:3px solid #2e9e6b;
+                border-radius:0 9px 9px 0;padding:7px 10px}
+    .wa-citando-x{font-size:12.5px;color:#94a3b8;overflow:hidden;
+                  text-overflow:ellipsis;white-space:nowrap}
     /* Tamaño de miniatura, como WhatsApp. Antes ocupaban el 74% del ancho del
        chat y una sola foto te tapaba la conversación entera. Se toca y se abre
        grande en otra pestaña. */
@@ -524,6 +539,14 @@
                     @endphp
 
                     <div class="wa-glo {{ $clase }}" wire:key="msg-{{ $m->id }}">
+                        @php $cita = $m->citado(); @endphp
+                        @if($cita)
+                            <div class="wa-cita">
+                                <div class="wa-cita-q">{{ $cita->esDelCliente() ? $conv->comoSeLlama() : 'Vos' }}</div>
+                                {{ $cita->resumen() }}
+                            </div>
+                        @endif
+
                         @if($m->url())<a href="{{ $m->url() }}" target="_blank" rel="noopener"><img src="{{ $m->url() }}" alt="Imagen del cliente"></a>@elseif($m->tipo === 'image' && filled($m->media_id))<button type="button" class="wa-bajar" wire:click="bajarImagen({{ $m->id }})" wire:loading.attr="disabled">🖼️ Ver la imagen</button>@elseif($m->tipo !== 'text')<i style="opacity:.7">[{{ $m->tipo }}]</i>@endif
 
                         {{-- El texto va en su propio elemento y pegado a las llaves:
@@ -532,6 +555,11 @@
                         @if(filled($m->texto))<div class="wa-txt">{{ $m->texto }}</div>@endif
 
                         <div class="wa-pie">
+                            @if(filled($m->wa_message_id))
+                                <button type="button" class="wa-resp-btn"
+                                        wire:click="responderA({{ $m->id }})"
+                                        title="Responder a este mensaje">↩</button>
+                            @endif
                             {{ $m->hora() }}
                             @if(! $m->esDelCliente())
                                 · {{ $m->firma() }} {{ $m->marcaEstado() }}
@@ -558,6 +586,19 @@
 
             <div class="wa-abajo">
                 @if($conv->ventanaAbierta())
+                    @php $citando = $this->mensajeCitado(); @endphp
+                    @if($citando)
+                        <div class="wa-citando">
+                            <div style="flex:1;min-width:0">
+                                <div class="wa-cita-q">
+                                    Respondiendo a {{ $citando->esDelCliente() ? $conv->comoSeLlama() : 'vos mismo' }}
+                                </div>
+                                <div class="wa-citando-x">{{ $citando->resumen(120) }}</div>
+                            </div>
+                            <button type="button" class="wa-mini" wire:click="cancelarRespuesta">✕</button>
+                        </div>
+                    @endif
+
                     <textarea class="wa-escribir" rows="2" wire:model="texto"
                               placeholder="Escribí tu respuesta…"
                               wire:keydown.enter.prevent="enviar"></textarea>

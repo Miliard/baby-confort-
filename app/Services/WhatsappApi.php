@@ -107,12 +107,14 @@ class WhatsappApi
         string $texto,
         ?int $userId = null,
         bool $automatico = false,
+        ?string $respondeA = null,
     ): WaMensaje {
         $mensaje = WaMensaje::create([
             'conversacion_id' => $conv->id,
             'direccion'  => 'saliente',
             'tipo'       => 'text',
             'texto'      => $texto,
+            'responde_a' => $respondeA,
             'estado'     => 'enviando',
             'user_id'    => $userId,
             'automatico' => $automatico,
@@ -127,14 +129,22 @@ class WhatsappApi
         }
 
         try {
+            $cuerpo = [
+                'messaging_product' => 'whatsapp',
+                'to'                => $conv->wa_id,
+                'type'              => 'text',
+                'text'              => ['preview_url' => true, 'body' => $texto],
+            ];
+
+            // Con esto, al cliente le llega citado el mensaje al que respondés,
+            // igual que cuando uno responde desde el teléfono.
+            if (filled($respondeA)) {
+                $cuerpo['context'] = ['message_id' => $respondeA];
+            }
+
             $r = Http::withToken(static::token())
                 ->timeout(20)
-                ->post(static::url(), [
-                    'messaging_product' => 'whatsapp',
-                    'to'                => $conv->wa_id,
-                    'type'              => 'text',
-                    'text'              => ['preview_url' => true, 'body' => $texto],
-                ]);
+                ->post(static::url(), $cuerpo);
 
             if ($r->successful()) {
                 $mensaje->update([

@@ -285,6 +285,33 @@ class Whatsapp extends Page
         Notification::make()->title('Conversación archivada')->success()->send();
     }
 
+    // ── Responder a un mensaje puntual ───────────────────────────────────────
+
+    /** Identificador del mensaje que se está citando, si hay uno. */
+    public ?int $respondiendo = null;
+
+    public function responderA(int $id): void
+    {
+        $this->respondiendo = $id;
+        $this->pestana = 'chat';
+    }
+
+    public function cancelarRespuesta(): void
+    {
+        $this->respondiendo = null;
+    }
+
+    public function mensajeCitado(): ?WaMensaje
+    {
+        if (! $this->respondiendo) return null;
+
+        try {
+            return WaMensaje::find($this->respondiendo);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
     /** Manda el mensaje que escribió el agente. */
     public function enviar(): void
     {
@@ -305,9 +332,20 @@ class Whatsapp extends Page
         // Al contestar, el chat queda tuyo.
         if (! $conv->agente_id) $this->tomar();
 
-        $mensaje = WhatsappApi::enviarTexto($conv, $texto, auth()->id());
+        // Si se está citando un mensaje, se manda su identificador de Meta
+        // para que al cliente le llegue con la cita arriba.
+        $citado = $this->mensajeCitado();
+
+        $mensaje = WhatsappApi::enviarTexto(
+            $conv,
+            $texto,
+            auth()->id(),
+            false,
+            $citado?->wa_message_id
+        );
 
         $this->texto = '';
+        $this->respondiendo = null;
 
         if ($mensaje->estado === 'fallido') {
             Notification::make()
