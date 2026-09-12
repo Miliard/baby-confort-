@@ -254,6 +254,13 @@
     .wa-marca{font-size:9.5px;font-weight:800;color:#fff;border-radius:5px;padding:1px 6px;
               letter-spacing:.02em}
 
+    .wa-etq-btn{border:none;background:rgba(120,140,170,.16);cursor:pointer;border-radius:9px;
+                height:30px;padding:0 9px;font-size:14px;font-family:inherit;color:inherit;
+                display:inline-flex;align-items:center;gap:4px;flex:none}
+    .wa-etq-btn.on{background:rgba(46,158,107,.24)}
+    .wa-etq-n{font-size:10.5px;font-weight:800;background:#2e9e6b;color:#fff;
+              border-radius:999px;padding:0 5px;line-height:15px}
+
     .wa-etq-fila{display:flex;gap:5px;flex-wrap:wrap;padding:8px 13px;flex:none;
                  border-bottom:1px solid #e5e7eb;background:#fff}
     html.dark .wa-etq-fila{background:#16202f;border-color:rgba(255,255,255,.10)}
@@ -441,10 +448,21 @@
                     <x-filament::button size="xs" color="gray" wire:click="archivar"
                         wire:confirm="¿Archivar esta conversación?">Archivar</x-filament::button>
                 @endif
+
+                {{-- El botón de etiquetas vive en la cabecera y muestra cuántas
+                     tiene puestas, así no hace falta abrir para saberlo. --}}
+                @if($etqs->count() && $pestana !== 'pedido')
+                    @php $puestas = $conv->etiquetas->count(); @endphp
+                    <button type="button" class="wa-etq-btn {{ $etiquetasAbiertas ? 'on' : '' }}"
+                            wire:click="verEtiquetas"
+                            title="{{ $puestas ? $puestas . ' etiqueta(s) puesta(s)' : 'Poner una etiqueta' }}">
+                        🏷️@if($puestas)<span class="wa-etq-n">{{ $puestas }}</span>@endif
+                    </button>
+                @endif
             </div>
 
-            {{-- Las etiquetas se esconden mientras se arma el pedido. --}}
-            @if($etqs->count() && $pestana !== 'pedido')
+            {{-- La fila solo se dibuja si se pidió: son 45 px de conversación. --}}
+            @if($etqs->count() && $pestana !== 'pedido' && $etiquetasAbiertas)
                 <div class="wa-etq-fila">
                     @foreach($etqs as $e)
                         @php $puesta = $conv->etiquetas->contains($e->id); @endphp
