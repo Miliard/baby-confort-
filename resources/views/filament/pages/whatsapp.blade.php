@@ -77,6 +77,14 @@
                  font-size:14px;font-family:inherit;resize:vertical;background:transparent;color:inherit}
     .wa-btns{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;align-items:center}
 
+    /* Los botones de respuesta al lado de Enviar. Se crean desde el admin. */
+    .wa-chip{border:1px solid #d1d5db;background:#fff;border-radius:999px;
+             padding:6px 13px;font-size:12.5px;font-weight:600;cursor:pointer;
+             font-family:inherit;color:inherit;white-space:nowrap}
+    .wa-chip:hover{border-color:#2e9e6b;color:#15603f}
+    html.dark .wa-chip{background:#1c2739;border-color:rgba(255,255,255,.16)}
+    html.dark .wa-chip:hover{color:#9fe1cb}
+
     .wa-aviso{border-radius:11px;padding:10px 13px;font-size:13px;margin-bottom:12px;line-height:1.55}
     .wa-aviso-mal{background:rgba(229,105,95,.14);border:1px solid #e5695f;color:#b91c1c}
     .wa-aviso-ok{background:rgba(46,158,107,.13);border:1px solid #2e9e6b;color:#15603f}
@@ -316,9 +324,19 @@
                             Enviar
                         </x-filament::button>
 
-                        <x-filament::button size="sm" color="gray" wire:click="mandarTallas">
+                        <button type="button" class="wa-chip" wire:click="mandarTallas">
                             📏 Tabla de tallas
-                        </x-filament::button>
+                        </button>
+
+                        {{-- Los botones que Wil crea solos, desde el admin.
+                             Van acá y no escondidos en la pestaña: la gracia es
+                             que estén a un toque mientras se escribe. --}}
+                        @foreach($resp as $r)
+                            <button type="button" class="wa-chip" wire:click="usarRespuesta({{ $r->id }})"
+                                    wire:key="chip-{{ $r->id }}" title="{{ \Illuminate\Support\Str::limit($r->texto, 120) }}">
+                                {{ $r->titulo }}
+                            </button>
+                        @endforeach
 
                         <span style="font-size:11.5px;color:#94a3b8">Enter envía · Shift+Enter salta línea</span>
                     </div>
