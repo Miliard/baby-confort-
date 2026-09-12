@@ -474,6 +474,15 @@ class Whatsapp extends Page
                 $pie .= ' · ' . (int) $s->combo_qty . ' x $' . number_format((float) $s->combo_price, 2);
             }
 
+            // El enlace a su página: la foto sirve para que mire, el enlace
+            // para que entre a la tienda y pida sin tener que escribir.
+            try {
+                $pie .= "\n\u{1F449} " . route('store.show', $p);
+            } catch (\Throwable $e) {
+                // Si la ruta cambiara, mejor mandar el producto sin enlace que
+                // no mandarlo.
+            }
+
             $relativa = $this->fotoDe($s, $p);
 
             if (! $relativa) {
@@ -485,6 +494,21 @@ class Whatsapp extends Page
             }
 
             $m->estado === 'fallido' ? $fallados++ : $mandados++;
+        }
+
+        // Cierre con el enlace a toda la talla: si lo que mandamos no le gustó,
+        // que igual tenga por dónde seguir mirando en la tienda.
+        if ($mandados > 0 && $talla !== '') {
+            try {
+                WhatsappApi::enviarTexto(
+                    $conv,
+                    "\u{1F6CD}\u{FE0F} *Mir\u{E1} todo lo que hay en talla {$talla}:*\n"
+                        . route('store.talla', $talla),
+                    auth()->id()
+                );
+            } catch (\Throwable $e) {
+                // El enlace de cierre es un extra: si falla, no arruina el envío.
+            }
         }
 
         if ($fallados > 0) {
