@@ -188,8 +188,25 @@
     .wa-origen-t{display:flex;justify-content:space-between;align-items:center;
                  font-size:12px;font-weight:700;color:#7a5600;margin-bottom:7px}
     html.dark .wa-origen-t{color:#f0d79a}
-    .wa-origen-x{white-space:pre-wrap;font-size:12.5px;line-height:1.55;max-height:190px;
+    .wa-origen-x{white-space:pre-wrap;font-size:13px;line-height:1.6;max-height:300px;
                  overflow-y:auto;font-family:ui-monospace,Menlo,Consolas,monospace}
+
+    /* En pantalla ancha, la orden a la izquierda y la guía a la derecha, las
+       dos a la vista: comparar es el trabajo, no un paso extra. */
+    @media(min-width:1100px){
+        .wa-comparar{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+        .wa-comparar .wa-origen{margin-bottom:0;position:sticky;top:0}
+    }
+
+    .wa-previa{border:1px solid #2e9e6b;background:rgba(46,158,107,.07);border-radius:11px;
+               padding:12px 14px;margin-top:14px}
+    .wa-previa-t{font-size:12px;font-weight:800;color:#15603f;margin-bottom:9px}
+    html.dark .wa-previa-t{color:#9fe1cb}
+    .wa-pv{display:flex;gap:10px;padding:5px 0;font-size:13px;
+           border-bottom:1px solid rgba(46,158,107,.16);align-items:baseline}
+    .wa-pv:last-child{border-bottom:none}
+    .wa-pv span{color:#94a3b8;min-width:104px;flex:none}
+    .wa-pv b{word-break:break-word}
     .wa-mini{border:none;background:rgba(120,140,170,.18);border-radius:7px;padding:3px 9px;
              font-size:11px;cursor:pointer;font-family:inherit;color:inherit;font-weight:700}
 
@@ -514,17 +531,18 @@
 
             {{-- ═══ PESTAÑA: tomar el pedido sin salir del chat ═══ --}}
             @if($pestana === 'pedido')
-            <div class="wa-panel">
+            <div class="wa-panel {{ filled($pedOrigen) ? 'wa-comparar' : '' }}">
                 @if(filled($pedOrigen))
                     <div class="wa-origen">
                         <div class="wa-origen-t">
-                            <span>📦 La orden, tal como la mandaste</span>
+                            <span>📦 La orden, tal como se la mandaste</span>
                             <button type="button" class="wa-mini" wire:click="limpiarPedido">Descartar</button>
                         </div>
                         <div class="wa-origen-x">{{ $pedOrigen }}</div>
                     </div>
                 @endif
 
+                <div>
                 @php $viejo = $this->clienteConocido(); @endphp
 
                 @if($viejo)
@@ -561,84 +579,39 @@
                     <input type="text" class="wa-in" wire:model="pedDepartamento">
                 </div>
 
-                <div class="wa-sep"></div>
-
                 <div class="wa-campo">
                     <label class="wa-lab">Productos, tal como van en la guía</label>
-                    <textarea class="wa-in" rows="2" wire:model="pedProductosTexto"
+                    <textarea class="wa-in" rows="3" wire:model.live="pedProductosTexto"
                               placeholder="Se llena solo al procesar una orden"></textarea>
                 </div>
 
-                <label class="wa-lab">O elegilos del catálogo</label>
-                @php $opciones = $this->opcionesProductos(); @endphp
-
-                @forelse($pedLineas as $i => $linea)
-                    <div class="wa-linea" wire:key="lin-{{ $i }}">
-                        <select class="wa-in" wire:model.live="pedLineas.{{ $i }}.size_id">
-                            <option value="">Elegí el producto…</option>
-                            @foreach($opciones as $id => $etiqueta)
-                                <option value="{{ $id }}">{{ $etiqueta }}</option>
-                            @endforeach
-                        </select>
-
-                        <input type="number" min="1" class="wa-in"
-                               wire:model.live="pedLineas.{{ $i }}.cantidad">
-
-                        <button type="button" class="wa-x" wire:click="quitarLinea({{ $i }})"
-                                title="Quitar">×</button>
-                    </div>
-                @empty
-                    <div style="font-size:13px;color:#94a3b8;margin-bottom:8px">
-                        Todavía no agregaste nada.
-                    </div>
-                @endforelse
-
-                <x-filament::button size="xs" color="gray" wire:click="agregarLinea"
-                                    icon="heroicon-m-plus">
-                    Agregar otro
-                </x-filament::button>
-
-                <div class="wa-campo" style="margin-top:14px">
-                    <label class="wa-lab">Nota para la guía (opcional)</label>
-                    <input type="text" class="wa-in" wire:model="pedNota"
-                           placeholder="Ej: entregar por la tarde">
-                </div>
-
                 <div class="wa-sep"></div>
 
-                @if($this->totalEsManual())
-                    <div class="wa-campo">
-                        <label class="wa-lab">A cobrar — el total que le pasaste al cliente</label>
-                        <input type="text" class="wa-in" wire:model.live="pedCobrarManual">
-                        <div style="font-size:11.5px;color:#94a3b8;margin-top:4px">
-                            Salió de la orden. Se respeta tal cual: es el número que el cliente ya aceptó.
-                        </div>
-                    </div>
-                @else
-                    <div class="wa-tot">
-                        <span>Productos</span>
-                        <span>${{ number_format($this->subtotalPedido(), 2) }}</span>
-                    </div>
-                    <div class="wa-tot">
-                        <span>Envío</span>
-                        <span>{{ $this->envioPedido() > 0 ? '$' . number_format($this->envioPedido(), 2) : 'gratis' }}</span>
-                    </div>
-                @endif
+                <div class="wa-campo">
+                    <label class="wa-lab">A cobrar</label>
+                    <input type="text" class="wa-in" wire:model.live="pedCobrarManual"
+                           placeholder="Sale de la orden">
+                </div>
 
-                <div class="wa-tot wa-tot-grande">
-                    <span>A cobrar</span>
-                    <span>${{ number_format($this->totalPedido(), 2) }}</span>
+                {{-- Así, exactamente, va a quedar la fila en el Excel. Es el
+                     renglón que hay que comparar contra la orden de arriba. --}}
+                <div class="wa-previa">
+                    <div class="wa-previa-t">📄 Como va a quedar en la guía</div>
+
+                    <div class="wa-pv"><span>Nombre</span><b>{{ $pedNombre ?: '—' }}</b></div>
+                    <div class="wa-pv"><span>Teléfono</span><b>{{ $pedTelefono ?: '—' }}</b></div>
+                    <div class="wa-pv"><span>Dirección</span><b>{{ $pedDireccion ?: '—' }}</b></div>
+                    <div class="wa-pv"><span>Municipio</span><b>{{ $pedMunicipio ?: '—' }}</b></div>
+                    <div class="wa-pv"><span>Departamento</span><b>{{ $pedDepartamento ?: '—' }}</b></div>
+                    <div class="wa-pv"><span>Contenido</span><b>{{ $this->descripcionPedido() ?: '—' }}</b></div>
+                    <div class="wa-pv"><span>Cobrar</span><b>${{ number_format($this->totalPedido(), 2) }}</b></div>
                 </div>
 
                 <div class="wa-btns" style="margin-top:16px">
                     <x-filament::button wire:click="guardarPedido" icon="heroicon-m-check-circle">
                         Guardar en la cola de guías
                     </x-filament::button>
-
-                    <x-filament::button color="gray" wire:click="pasarPedidoAlChat"
-                                        icon="heroicon-m-chat-bubble-left-right">
-                        Mandarle el resumen
-                    </x-filament::button>
+                </div>
                 </div>
             </div>
             @endif

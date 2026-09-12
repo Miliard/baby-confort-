@@ -775,6 +775,10 @@ class Whatsapp extends Page
             return round((float) $this->pedCobrarManual, 2);
         }
 
+        // Sin total escrito y sin productos del catálogo no hay nada que
+        // cobrar. Mostrar el costo de envío suelto solo confundiría.
+        if (empty($this->pedLineas)) return 0.0;
+
         return round($this->subtotalPedido() + $this->envioPedido(), 2);
     }
 
@@ -794,26 +798,25 @@ class Whatsapp extends Page
         }
     }
 
-    /** El texto que va en la columna de contenido de la guía. */
-    private function descripcionPedido(): string
+    /**
+     * El texto que va en la columna de contenido de la guía.
+     *
+     * Sale tal cual de la orden: es lo que el cliente leyó y confirmó. Si
+     * quedó escrito en varios renglones, se juntan con coma, que es como lo
+     * espera el Excel.
+     */
+    public function descripcionPedido(): string
     {
+        $t = trim($this->pedProductosTexto);
+        if ($t === '') return '';
+
         $partes = [];
 
-        // Lo que vino escrito en la orden manda: es lo que el cliente ya leyó
-        // y confirmó. Los renglones del catálogo se suman si los hay.
-        if (trim($this->pedProductosTexto) !== '') {
-            $partes[] = trim($this->pedProductosTexto);
+        foreach (preg_split('/\r\n|\n|\r/u', $t) as $linea) {
+            // Se quitan viñetas y palomitas que vengan pegadas de la orden.
+            $l = trim(preg_replace('/^[\s\-\x{2013}\x{2014}\x{00B7}\x{2022}*>\x{2705}]+/u', '', $linea));
+            if ($l !== '') $partes[] = $l;
         }
-
-        foreach ($this->pedLineas as $l) {
-            $s = $this->presentacion($l['size_id'] ?? null);
-            if (! $s || ! $s->product) continue;
-
-            $cant = max(1, (int) ($l['cantidad'] ?? 1));
-            $partes[] = $cant . ' ' . $s->product->name . ' talla ' . $s->size;
-        }
-
-        if (trim($this->pedNota) !== '') $partes[] = trim($this->pedNota);
 
         return implode(', ', $partes);
     }
@@ -914,26 +917,54 @@ class Whatsapp extends Page
 
         $salida = array_fill_keys(array_keys($campos), '');
 
+        // El campo que se está llenando. Mientras no aparezca otra etiqueta,
+        // todo lo que venga abajo pertenece a este: así los productos escritos
+        // en varios renglones entran completos y no solo el primero.
+        $actual = null;
+
         foreach (preg_split('/\r\n|\n|\r/u', $texto) as $linea) {
+            $cruda = rtrim($linea);
+
             // Fuera emojis, palomitas y viñetas del principio.
-            $l = preg_replace('/^[^\p{L}\p{N}]+/u', '', trim($linea));
-            if ($l === '' || ! str_contains($l, ':')) continue;
+            $l = preg_replace('/^[^\p{L}\p{N}]+/u', '', trim($cruda));
 
-            [$etiqueta, $valor] = array_map('trim', explode(':', $l, 2));
+            $esEtiqueta = false;
 
-            // Se compara sin tildes ni mayúsculas, para no depender de cómo se escribió.
-            $limpia = mb_strtolower($etiqueta);
+            if ($l !== '' && str_contains($l, ':')) {
+                [$etiqueta, $valor] = array_map('trim', explode(':', $l, 2));
+                $limpia = mb_strtolower($etiqueta);
 
-            foreach ($campos as $clave => $alias) {
-                if ($salida[$clave] !== '') continue;
+                foreach ($campos as $clave => $alias) {
+                    foreach ($alias as $a) {
+                        if ($limpia === $a || str_starts_with($limpia, $a)) {
+                            $actual = $clave;
+                            $esEtiqueta = true;
 
-                foreach ($alias as $a) {
-                    if ($limpia === $a || str_starts_with($limpia, $a)) {
-                        $salida[$clave] = trim($valor, " \t$.");
-                        break 2;
+                            if ($salida[$clave] === '') {
+                                $salida[$clave] = trim($valor, " \t$");
+                            }
+
+                            break 2;
+                        }
                     }
                 }
             }
+
+            if ($esEtiqueta) continue;
+
+            // Renglón suelto: si veníamos llenando algo, se le suma.
+            if ($actual === null) continue;
+
+            $suelto = trim($cruda);
+            if ($suelto === '') continue;
+
+            // El cierre de cortesía no es parte de ningún campo.
+            if (preg_match('/gracias por tu preferencia|estar\p{L}? en camino/iu', $suelto)) {
+                $actual = null;
+                continue;
+            }
+
+            $salida[$actual] = trim($salida[$actual] . "\n" . $suelto);
         }
 
         // El total viene como "$25.50": nos quedamos con el número.
