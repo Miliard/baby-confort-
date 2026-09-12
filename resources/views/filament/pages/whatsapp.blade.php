@@ -116,6 +116,13 @@
     html.dark .wa-chip{background:#1c2739;border-color:rgba(255,255,255,.16)}
     html.dark .wa-chip:hover{color:#9fe1cb}
 
+    /* Las tallas se distinguen de las respuestas: estas mandan de una, sin
+       pasar por el cuadro de texto, así que conviene que no se confundan. */
+    .wa-chip-talla{border-color:#4aa3df;color:#2b7fb8;font-weight:800}
+    .wa-chip-talla:hover{background:#4aa3df;color:#fff;border-color:#4aa3df}
+    html.dark .wa-chip-talla{color:#8ecbf0}
+    .wa-chip-n{opacity:.6;font-weight:600;font-size:10.5px}
+
     .wa-aviso{border-radius:11px;padding:10px 13px;font-size:13px;margin-bottom:12px;line-height:1.55}
     .wa-aviso-mal{background:rgba(229,105,95,.14);border:1px solid #e5695f;color:#b91c1c}
     .wa-aviso-ok{background:rgba(46,158,107,.13);border:1px solid #2e9e6b;color:#15603f}
@@ -377,7 +384,7 @@
                     @endphp
 
                     <div class="wa-glo {{ $clase }}" wire:key="msg-{{ $m->id }}">
-                        @if($m->url())<a href="{{ $m->url() }}" target="_blank" rel="noopener"><img src="{{ $m->url() }}" alt="Imagen del cliente"></a>@elseif($m->tipo === 'image')<button type="button" class="wa-bajar" wire:click="bajarImagen({{ $m->id }})" wire:loading.attr="disabled">🖼️ Ver la imagen</button>@elseif($m->tipo !== 'text')<i style="opacity:.7">[{{ $m->tipo }}]</i>@endif
+                        @if($m->url())<a href="{{ $m->url() }}" target="_blank" rel="noopener"><img src="{{ $m->url() }}" alt="Imagen del cliente"></a>@elseif($m->tipo === 'image' && filled($m->media_id))<button type="button" class="wa-bajar" wire:click="bajarImagen({{ $m->id }})" wire:loading.attr="disabled">🖼️ Ver la imagen</button>@elseif($m->tipo !== 'text')<i style="opacity:.7">[{{ $m->tipo }}]</i>@endif
 
                         {{-- El texto va en su propio elemento y pegado a las llaves:
                              el globo respeta los saltos de línea, así que cualquier
@@ -428,6 +435,18 @@
                                 title="Precios y presentaciones con existencia, sacados del admin">
                             🛒 Catálogo
                         </button>
+
+                        {{-- Una talla por botón. Se generan del inventario: si
+                             una se agota, el botón desaparece solo. --}}
+                        @foreach($this->tallasDisponibles() as $talla => $cuantos)
+                            <button type="button" class="wa-chip wa-chip-talla"
+                                    wire:key="talla-{{ $talla }}"
+                                    wire:click="mandarTalla(@js($talla))"
+                                    wire:confirm="Se le van a mandar {{ $cuantos }} {{ $cuantos == 1 ? 'producto' : 'productos' }} en talla {{ $talla }}, cada uno con su foto y precio. ¿Mandar?"
+                                    title="{{ $cuantos }} disponibles en talla {{ $talla }}">
+                                {{ $talla }} <span class="wa-chip-n">{{ $cuantos }}</span>
+                            </button>
+                        @endforeach
 
                         {{-- Los botones que Wil crea solos, desde el admin.
                              Van acá y no escondidos en la pestaña: la gracia es

@@ -298,6 +298,161 @@ class Whatsapp extends Page
         }
     }
 
+    // ═══ Catálogo por talla ══════════════════════════════════════════════════
+
+    /**
+     * Las tallas que hoy tienen algo que vender.
+     *
+     * Se sacan del inventario y no de una lista fija: si mañana entra una talla
+     * nueva, el botón aparece solo. Y si una se agota, desaparece.
+     */
+    public function tallasDisponibles(): array
+    {
+        try {
+            $filas = \App\Models\ProductSize::with('product')
+                ->where('price', '>', 0)
+                ->where('quantity', '>', 0)
+                ->whereHas('product', fn ($q) => $q->where('active', true))
+                ->get();
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        $tallas = [];
+
+        foreach ($filas as $s) {
+            $t = trim((string) $s->size);
+            if ($t === '') continue;
+
+            $tallas[$t] = ($tallas[$t] ?? 0) + 1;
+        }
+
+        // Primero las de bebé en su orden natural, después lo demás alfabético.
+        $orden = ['RN', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+
+        uksort($tallas, function ($a, $b) use ($orden) {
+            $ia = array_search(mb_strtoupper($a), $orden, true);
+            $ib = array_search(mb_strtoupper($b), $orden, true);
+
+            if ($ia !== false && $ib !== false) return $ia <=> $ib;
+            if ($ia !== false) return -1;
+            if ($ib !== false) return 1;
+
+            return strnatcasecmp($a, $b);
+        });
+
+        return $tallas;
+    }
+
+    /**
+     * Manda todo lo disponible en una talla, con foto y precio.
+     *
+     * Va una imagen por producto, cada una con su pie. Son varios mensajes,
+     * pero dentro de la ventana de 24 horas Meta cobra por conversación y no
+     * por mensaje, así que no cuesta más que mandar uno.
+     */
+    public function mandarTalla(string $talla): void
+    {
+        $conv = $this->conversacion();
+        if (! $conv) return;
+
+        if (! $conv->ventanaAbierta()) {
+            Notification::make()
+                ->title('La ventana de 24 horas está cerrada')
+                ->body('Hay que esperar a que el cliente escriba de nuevo.')
+                ->warning()->send();
+            return;
+        }
+
+        if (! $conv->agente_id) $this->tomar();
+
+        try {
+            $filas = \App\Models\ProductSize::with('product')
+                ->where('size', $talla)
+                ->where('price', '>', 0)
+                ->where('quantity', '>', 0)
+                ->whereHas('product', fn ($q) => $q->where('active', true))
+                ->get()
+                ->sortBy(fn ($s) => $s->product->orden ?? 0);
+        } catch (\Throwable $e) {
+            Notification::make()->title('No se pudo leer el inventario')->danger()->send();
+            return;
+        }
+
+        if ($filas->isEmpty()) {
+            Notification::make()
+                ->title("No hay nada disponible en talla {$talla}")
+                ->warning()->send();
+            return;
+        }
+
+        $mandados = 0;
+        $fallados = 0;
+        $sinFoto  = [];
+
+        foreach ($filas as $s) {
+            $p = $s->product;
+            if (! $p) continue;
+
+            $pie = '*' . trim((string) $p->name) . "*\n"
+                . 'Talla ' . trim((string) $s->size);
+
+            if ((int) ($s->unidades ?? 0) > 0) {
+                $pie .= ' · ' . (int) $s->unidades . ' unidades';
+            }
+
+            $pie .= "\n$" . number_format((float) $s->price, 2);
+
+            if ($s->combo_qty > 0 && $s->combo_price > 0) {
+                $pie .= ' · ' . (int) $s->combo_qty . ' x $' . number_format((float) $s->combo_price, 2);
+            }
+
+            $relativa = $this->fotoDe($s, $p);
+
+            if (! $relativa) {
+                $sinFoto[] = $p->name;
+                $m = WhatsappApi::enviarTexto($conv, $pie, auth()->id());
+            } else {
+                $absoluta = str_starts_with($relativa, 'http') ? $relativa : url($relativa);
+                $m = WhatsappApi::enviarImagen($conv, $absoluta, $pie, auth()->id());
+            }
+
+            $m->estado === 'fallido' ? $fallados++ : $mandados++;
+        }
+
+        if ($fallados > 0) {
+            Notification::make()
+                ->title("Se mandaron {$mandados}, fallaron {$fallados}")
+                ->body('Mirá el chat: cada mensaje que falló dice por qué.')
+                ->warning()->persistent()->send();
+        } else {
+            $aviso = "Se mandaron {$mandados} productos en talla {$talla}";
+            if ($sinFoto) $aviso .= ' (' . count($sinFoto) . ' sin foto, fueron como texto)';
+
+            Notification::make()->title($aviso)->success()->send();
+        }
+    }
+
+    /**
+     * La foto que mejor representa esa presentación.
+     *
+     * Primero la de la talla, porque muestra el empaque exacto que va a
+     * recibir; si no tiene, la del producto. Devuelve la ruta tal como la sirve
+     * el sitio, sin el dominio.
+     */
+    private function fotoDe($size, $producto): ?string
+    {
+        if (filled($size->image_upload ?? null)) {
+            return '/storage/' . ltrim($size->image_upload, '/');
+        }
+
+        if (filled($size->image ?? null)) {
+            return \App\Models\Product::urlDe($size->image);
+        }
+
+        return $producto->imageUrl();
+    }
+
     /**
      * Arma el catálogo con los precios de verdad y lo deja listo para mandar.
      *

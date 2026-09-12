@@ -159,6 +159,73 @@ class WhatsappApi
         return $mensaje;
     }
 
+    /**
+     * Manda una imagen por su dirección pública, con un texto al pie.
+     *
+     * Meta descarga la foto de nuestro sitio, así que la dirección tiene que
+     * ser absoluta y alcanzable desde fuera. Por eso se arma con url().
+     */
+    public static function enviarImagen(
+        WaConversacion $conv,
+        string $urlPublica,
+        ?string $pie = null,
+        ?int $userId = null,
+    ): WaMensaje {
+        $mensaje = WaMensaje::create([
+            'conversacion_id' => $conv->id,
+            'direccion'  => 'saliente',
+            'tipo'       => 'image',
+            'texto'      => $pie,
+            // Se guarda la dirección para que el globo la muestre en el panel.
+            'media_ruta' => $urlPublica,
+            'estado'     => 'enviando',
+            'user_id'    => $userId,
+        ]);
+
+        if (! static::configurado()) {
+            $mensaje->update([
+                'estado' => 'fallido',
+                'error'  => 'Falta configurar el enlace con Meta.',
+            ]);
+            return $mensaje;
+        }
+
+        try {
+            $imagen = ['link' => $urlPublica];
+            if (filled($pie)) $imagen['caption'] = $pie;
+
+            $r = Http::withToken(static::token())
+                ->timeout(30)
+                ->post(static::url(), [
+                    'messaging_product' => 'whatsapp',
+                    'to'    => $conv->wa_id,
+                    'type'  => 'image',
+                    'image' => $imagen,
+                ]);
+
+            if ($r->successful()) {
+                $mensaje->update([
+                    'estado'        => 'enviado',
+                    'wa_message_id' => $r->json('messages.0.id'),
+                ]);
+            } else {
+                $mensaje->update([
+                    'estado' => 'fallido',
+                    'error'  => mb_substr((string) $r->json('error.message', $r->body()), 0, 300),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            $mensaje->update([
+                'estado' => 'fallido',
+                'error'  => mb_substr($e->getMessage(), 0, 300),
+            ]);
+        }
+
+        static::refrescarConversacion($conv, $pie ?: '[imagen]');
+
+        return $mensaje;
+    }
+
     /** Deja la conversación con su último mensaje y la sube en la lista. */
     public static function refrescarConversacion(WaConversacion $conv, string $texto): void
     {

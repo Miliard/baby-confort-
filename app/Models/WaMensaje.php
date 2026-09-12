@@ -34,10 +34,22 @@ class WaMensaje extends Model
         return $this->direccion === 'entrante';
     }
 
-    /** Dirección pública de la imagen guardada, si la hay. */
+    /**
+     * Dirección pública de la imagen, si la hay.
+     *
+     * Las que manda el cliente se guardan en el disco y vienen como ruta
+     * suelta. Las que mandamos nosotros salen del catálogo y ya son una
+     * dirección del sitio, así que se dejan tal cual.
+     */
     public function url(): ?string
     {
-        return $this->media_ruta ? '/storage/' . ltrim($this->media_ruta, '/') : null;
+        if (blank($this->media_ruta)) return null;
+
+        if (str_starts_with($this->media_ruta, 'http') || str_starts_with($this->media_ruta, '/')) {
+            return $this->media_ruta;
+        }
+
+        return '/storage/' . ltrim($this->media_ruta, '/');
     }
 
     /**
