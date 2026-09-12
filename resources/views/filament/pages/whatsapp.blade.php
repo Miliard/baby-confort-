@@ -23,11 +23,26 @@
         .fi-main-ctn{padding-top:0 !important;padding-bottom:0 !important}
         .fi-page > *{gap:0 !important}
 
+        /* Esa franja de arriba está casi vacía y mide 74 px. No se le puede
+           meter el nombre del contacto (es de Filament, fuera de esta página),
+           pero sí se puede achicar a la mitad. */
+        .fi-topbar nav{min-height:44px !important;
+                       padding-top:.2rem !important;padding-bottom:.2rem !important}
+        .fi-topbar{box-shadow:none !important}
+
+        /* La cabecera del chat en una sola línea: antes el nombre, el teléfono
+           y la ventana de 24 horas se partían en tres renglones. */
+        .wa-cab{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+        .wa-cab::-webkit-scrollbar{display:none}
+        .wa-cab > *{flex:none}
+        .wa-cab .wa-nombre-col{flex:1 1 auto;min-width:0}
+        .wa-cab .wa-nombre-col > div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
         /* --wa-alto lo mantiene el JS de abajo con el alto REAL que queda
            libre cuando el teclado está abierto. El calc es el respaldo para
            navegadores que no avisan del teclado. */
         .wa{grid-template-columns:1fr;gap:0;min-height:0;
-            height:var(--wa-alto, calc(100dvh - 74px))}
+            height:var(--wa-alto, calc(100dvh - 52px))}
         .wa--abierta .wa-izq{display:none}
         .wa:not(.wa--abierta) .wa-der{display:none}
         .wa-col{border-radius:11px}
@@ -390,7 +405,7 @@
                 <button type="button" class="wa-volver wa-full" onclick="waPantallaCompleta()"
                         title="Pantalla completa">⛶</button>
 
-                <div style="flex:1;min-width:120px">
+                <div class="wa-nombre-col" style="flex:1;min-width:120px">
                     <div style="font-weight:800;font-size:15px">{{ $conv->comoSeLlama() }}</div>
                     <div style="font-size:12px;color:#94a3b8">
                         {{ $conv->telefono }}
@@ -800,8 +815,8 @@
                 return;
             }
 
-            // 74 px: lo que ocupa la franja de navegación de arriba.
-            var libre = Math.round(vv.height - 74);
+            // 52 px: lo que ocupa la franja de navegación ya achicada.
+            var libre = Math.round(vv.height - 52);
             document.documentElement.style.setProperty('--wa-alto', Math.max(libre, 240) + 'px');
         }
 
