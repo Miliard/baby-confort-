@@ -68,7 +68,11 @@ class ChatPanelProvider extends PanelProvider
             // toda la pantalla, como una aplicación de verdad.
             ->renderHook(
                 'panels::head.end',
-                fn (): string => '<link rel="manifest" href="/chat-manifest.json">'
+                // interactive-widget=resizes-content es la clave del teclado:
+                // sin eso, Android dibuja el teclado ENCIMA de la página en vez
+                // de achicarla, y tapa justo el cuadro donde se escribe.
+                fn (): string => '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">'
+                    . '<link rel="manifest" href="/chat-manifest.json">'
                     . '<meta name="theme-color" content="#0f1828">'
                     . '<meta name="mobile-web-app-capable" content="yes">'
                     . '<meta name="apple-mobile-web-app-capable" content="yes">'

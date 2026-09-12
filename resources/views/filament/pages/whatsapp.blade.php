@@ -23,7 +23,11 @@
         .fi-main-ctn{padding-top:0 !important;padding-bottom:0 !important}
         .fi-page > *{gap:0 !important}
 
-        .wa{grid-template-columns:1fr;gap:0;height:calc(100dvh - 74px);min-height:0}
+        /* --wa-alto lo mantiene el JS de abajo con el alto REAL que queda
+           libre cuando el teclado está abierto. El calc es el respaldo para
+           navegadores que no avisan del teclado. */
+        .wa{grid-template-columns:1fr;gap:0;min-height:0;
+            height:var(--wa-alto, calc(100dvh - 74px))}
         .wa--abierta .wa-izq{display:none}
         .wa:not(.wa--abierta) .wa-der{display:none}
         .wa-col{border-radius:11px}
@@ -773,6 +777,47 @@
 @endif
 
 <script>
+    // ── El teclado del teléfono ──────────────────────────────────────────────
+    // Android avisa del teclado achicando la "ventana visual", no la página.
+    // Acá se escucha ese aviso y se le da al chat el alto que realmente queda,
+    // para que el cuadro de escribir nunca quede debajo del teclado.
+    (function () {
+        var vv = window.visualViewport;
+        if (!vv) return;
+
+        function ajustar() {
+            if (window.innerWidth > 900) {
+                document.documentElement.style.removeProperty('--wa-alto');
+                return;
+            }
+
+            // 74 px: lo que ocupa la franja de navegación de arriba.
+            var libre = Math.round(vv.height - 74);
+            document.documentElement.style.setProperty('--wa-alto', Math.max(libre, 240) + 'px');
+        }
+
+        vv.addEventListener('resize', ajustar);
+        vv.addEventListener('scroll', ajustar);
+        window.addEventListener('orientationchange', function () { setTimeout(ajustar, 250); });
+        ajustar();
+
+        // Al tocar el cuadro de texto, el teclado tarda un momento en abrirse:
+        // recién después tiene sentido acomodar la vista.
+        document.addEventListener('focusin', function (e) {
+            if (!e.target.closest || !e.target.closest('.wa-abajo')) return;
+
+            setTimeout(function () {
+                ajustar();
+                e.target.scrollIntoView({ block: 'nearest' });
+
+                // Y que el último mensaje quede justo encima del teclado, no
+                // perdido arriba: es el que uno está contestando.
+                var chat = document.querySelector('.wa-chat');
+                if (chat) chat.scrollTop = chat.scrollHeight;
+            }, 320);
+        });
+    })();
+
     // Pantalla completa de verdad: esconde las barras del navegador.
     // No sobrevive a recargar la página — eso solo lo da instalar la app
     // desde "Agregar a pantalla de inicio".
