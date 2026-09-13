@@ -33,4 +33,26 @@ return [
     // para el costo: nadie manda una novela por WhatsApp.
     'maximo' => 1200,
 
+    /*
+    |--------------------------------------------------------------------------
+    | Lo que el corrector puede decir del producto
+    |--------------------------------------------------------------------------
+    |
+    | Estos son los ÚNICOS datos que tiene permitido mencionar por su cuenta.
+    | Todo lo que no esté en esta lista, no existe para él: no puede inventar
+    | certificaciones, materiales ni beneficios.
+    |
+    | Agregá o quitá renglones libremente. Lo que pongas acá se lo va a poder
+    | decir a un cliente, así que tiene que ser cierto y comprobable.
+    |
+    */
+    'datos_producto' => [
+        'Los pañales Aiwibi cuentan con certificación Dermatest.',
+        'Son hipoalergénicos, pensados para pieles sensibles.',
+        'Tienen alta absorción y protección durante toda la noche.',
+        'Hay tallas desde recién nacido hasta talla especial para niños grandes.',
+        'La entrega es a domicilio en todo El Salvador.',
+        'Se paga al recibir el paquete.',
+    ],
+
 ];
