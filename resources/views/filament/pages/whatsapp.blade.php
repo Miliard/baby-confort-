@@ -278,6 +278,11 @@
                 overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
     .wa-filtros::-webkit-scrollbar{display:none}
     .wa-filtros > *{flex:none}
+
+    /* La manito de arrastrar solo cuando de verdad hay algo que arrastrar.
+       La clase la pone el JavaScript midiendo si el contenido se desborda. */
+    .wa-desliza{cursor:grab}
+    .wa-desliza:active{cursor:grabbing}
     .wa-fil{border:1.5px solid var(--c);background:none;color:var(--c);border-radius:999px;
             padding:3px 9px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;
             display:inline-flex;gap:5px;align-items:center}
@@ -872,6 +877,76 @@
 @endif
 
 <script>
+    // ── Las filas que se deslizan, también con el mouse ──────────────────────
+    // En el teléfono se arrastran con el dedo. En la computadora no había con
+    // qué: la barra de desplazamiento está escondida a propósito. Así que la
+    // rueda del mouse mueve de lado, y además se puede arrastrar.
+    (function () {
+        var FILAS = '.wa-cab, .wa-filtros, .wa-etq-fila';
+
+        document.addEventListener('wheel', function (e) {
+            var fila = e.target.closest && e.target.closest(FILAS);
+            if (!fila) return;
+            if (fila.scrollWidth <= fila.clientWidth) return;   // entra entera
+
+            // Si el gesto ya es horizontal (trackpad), se deja como está.
+            if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+
+            fila.scrollLeft += e.deltaY;
+            e.preventDefault();
+        }, { passive: false });
+
+        // Arrastrar con el botón izquierdo, como si fuera el dedo.
+        var arrastrando = null, desdeX = 0, desdeScroll = 0, movio = false;
+
+        document.addEventListener('mousedown', function (e) {
+            var fila = e.target.closest && e.target.closest(FILAS);
+            if (!fila || fila.scrollWidth <= fila.clientWidth) return;
+
+            arrastrando = fila;
+            desdeX = e.clientX;
+            desdeScroll = fila.scrollLeft;
+            movio = false;
+        });
+
+        document.addEventListener('mousemove', function (e) {
+            if (!arrastrando) return;
+
+            var dx = e.clientX - desdeX;
+            if (Math.abs(dx) > 3) movio = true;
+
+            arrastrando.scrollLeft = desdeScroll - dx;
+            if (movio) e.preventDefault();
+        });
+
+        document.addEventListener('click', function (e) {
+            // Si venía de arrastrar, no cuenta como clic en el botón de abajo.
+            if (movio) { e.stopPropagation(); e.preventDefault(); movio = false; }
+        }, true);
+
+        document.addEventListener('mouseup', function () { arrastrando = null; });
+        document.addEventListener('mouseleave', function () { arrastrando = null; });
+
+        // La manito solo donde de verdad sobra contenido.
+        function marcarDeslizables() {
+            document.querySelectorAll(FILAS).forEach(function (f) {
+                f.classList.toggle('wa-desliza', f.scrollWidth > f.clientWidth + 2);
+            });
+        }
+
+        function engancharMarca() {
+            if (!window.Livewire || !window.Livewire.hook) return false;
+            window.Livewire.hook('morph.updated', function () {
+                setTimeout(marcarDeslizables, 0);
+            });
+            return true;
+        }
+
+        if (!engancharMarca()) document.addEventListener('livewire:init', engancharMarca);
+        window.addEventListener('resize', marcarDeslizables);
+        setTimeout(marcarDeslizables, 300);
+    })();
+
     // ── Que el chat siga la lectura ──────────────────────────────────────────
     // Baja solo cuando llega o se manda un mensaje, PERO solo si ya estabas
     // mirando el final. Si estás leyendo algo de más arriba, no te arrastra.
