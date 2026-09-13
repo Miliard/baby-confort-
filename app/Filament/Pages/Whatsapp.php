@@ -36,6 +36,32 @@ class Whatsapp extends Page
     /** Mostrar solo las que nadie ha tomado. */
     public bool $soloSinTomar = false;
 
+    /** Mostrar solo las que tienen mensajes sin leer. */
+    public bool $soloSinLeer = false;
+
+    public function alternarSinLeer(): void
+    {
+        $this->soloSinLeer = ! $this->soloSinLeer;
+    }
+
+    public function alternarSinTomar(): void
+    {
+        $this->soloSinTomar = ! $this->soloSinTomar;
+    }
+
+    /** Cuántas conversaciones tienen mensajes sin leer. */
+    public function cuantasSinLeer(): int
+    {
+        try {
+            if (! WaConversacion::hayTabla()) return 0;
+
+            return WaConversacion::where('sin_leer', '>', 0)
+                ->where('archivada', false)->count();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
     /** Filtro por etiqueta. null = todas. */
     public ?int $filtroEtiqueta = null;
 
@@ -119,6 +145,7 @@ class Whatsapp extends Page
             }
 
             if ($this->soloSinTomar) $q->whereNull('agente_id');
+            if ($this->soloSinLeer)  $q->where('sin_leer', '>', 0);
 
             return $q->orderByDesc('ultimo_mensaje_at')->limit(60)->get();
         } catch (\Throwable $e) {

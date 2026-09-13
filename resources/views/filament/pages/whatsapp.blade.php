@@ -130,11 +130,15 @@
               font-family:inherit;margin-bottom:5px;display:block}
     .wa-bajar:hover{opacity:1}
     .wa-bajar:disabled{opacity:.4;cursor:wait}
-    .wa-mio{align-self:flex-end;background:#d6f2c8;color:#12300a;border-bottom-right-radius:4px}
+    /* Verde apagado en vez del verde manzana de antes: sobre fondo oscuro
+       aquel brillaba tanto que cansaba leerlo. */
+    .wa-mio{align-self:flex-end;background:#dfeee0;color:#1b3a24;border-bottom-right-radius:4px}
+    html.dark .wa-mio{background:#20443a;color:#e4f2ea}
     .wa-suyo{align-self:flex-start;background:#fff;color:#16202f;border:1px solid #e5e7eb;
              border-bottom-left-radius:4px}
     html.dark .wa-suyo{background:#1c2739;color:#eef2f7;border-color:rgba(255,255,255,.10)}
     .wa-auto{align-self:flex-end;background:#e6eefc;color:#1c3b63;border-bottom-right-radius:4px}
+    html.dark .wa-auto{background:#26374f;color:#d6e4f7}
     .wa-mal{align-self:flex-end;background:#fdeaea;color:#8a1c1c;border:1px solid #e5695f}
     .wa-pie{font-size:10.5px;opacity:.65;margin-top:3px;text-align:right}
 
@@ -269,7 +273,11 @@
     .wa-procesar:hover{background:#0f4730}
 
     /* ── Etiquetas ── */
-    .wa-filtros{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}
+    /* Un solo renglón deslizable, en cualquier pantalla. */
+    .wa-filtros{display:flex;gap:5px;flex-wrap:nowrap;margin-top:9px;
+                overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+    .wa-filtros::-webkit-scrollbar{display:none}
+    .wa-filtros > *{flex:none}
     .wa-fil{border:1.5px solid var(--c);background:none;color:var(--c);border-radius:999px;
             padding:3px 9px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;
             display:inline-flex;gap:5px;align-items:center}
@@ -371,27 +379,39 @@
                     placeholder="Buscar nombre o número" />
             </x-filament::input.wrapper>
 
-            <label style="display:flex;gap:7px;align-items:center;font-size:12.5px;margin-top:8px;cursor:pointer">
-                <input type="checkbox" wire:model.live="soloSinTomar">
-                Solo las que nadie tomó
-            </label>
+            {{-- Todos los filtros en un solo renglón que se desliza de derecha
+                 a izquierda, en vez de apilarse hacia abajo. Los sin leer van
+                 primero: es lo que uno busca al abrir el panel. --}}
+            @php
+                $etqs = $this->etiquetas();
+                $cuentas = $this->cuentaEtiquetas();
+                $sinLeer = $this->cuantasSinLeer();
+            @endphp
 
-            @php $etqs = $this->etiquetas(); $cuentas = $this->cuentaEtiquetas(); @endphp
-            @if($etqs->count())
-                <div class="wa-filtros">
-                    @foreach($etqs as $e)
-                        <button type="button" wire:click="filtrarPor({{ $e->id }})"
-                                wire:key="filtro-{{ $e->id }}"
-                                class="wa-fil {{ $filtroEtiqueta === $e->id ? 'on' : '' }}"
-                                style="--c:{{ $e->hex() }}">
-                            {{ $e->nombre }}
-                            @if(($cuentas[$e->id] ?? 0) > 0)
-                                <span class="wa-fil-n">{{ $cuentas[$e->id] }}</span>
-                            @endif
-                        </button>
-                    @endforeach
-                </div>
-            @endif
+            <div class="wa-filtros">
+                <button type="button" wire:click="alternarSinLeer"
+                        class="wa-fil {{ $soloSinLeer ? 'on' : '' }}" style="--c:#e5695f">
+                    Sin leer
+                    @if($sinLeer > 0)<span class="wa-fil-n">{{ $sinLeer }}</span>@endif
+                </button>
+
+                <button type="button" wire:click="alternarSinTomar"
+                        class="wa-fil {{ $soloSinTomar ? 'on' : '' }}" style="--c:#94a3b8">
+                    Sin tomar
+                </button>
+
+                @foreach($etqs as $e)
+                    <button type="button" wire:click="filtrarPor({{ $e->id }})"
+                            wire:key="filtro-{{ $e->id }}"
+                            class="wa-fil {{ $filtroEtiqueta === $e->id ? 'on' : '' }}"
+                            style="--c:{{ $e->hex() }}">
+                        {{ $e->nombre }}
+                        @if(($cuentas[$e->id] ?? 0) > 0)
+                            <span class="wa-fil-n">{{ $cuentas[$e->id] }}</span>
+                        @endif
+                    </button>
+                @endforeach
+            </div>
         </div>
 
         <div class="wa-lista">
@@ -573,7 +593,8 @@
                             @endif
                             {{ $m->hora() }}
                             @if(! $m->esDelCliente())
-                                · {{ $m->firma() }} {{ $m->marcaEstado() }}
+                                · <b style="color:{{ $m->colorFirma() }}">{{ $m->firma() }}</b>
+                                {{ $m->marcaEstado() }}
                             @endif
                         </div>
 
