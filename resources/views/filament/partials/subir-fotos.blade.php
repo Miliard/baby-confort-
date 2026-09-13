@@ -58,8 +58,25 @@
     </p>
 </div>
 
-<div class="mt-5 text-center">
-    <x-filament::link :href="\App\Filament\Resources\GuiaFotoResource::getUrl()" icon="heroicon-m-photo">
-        Ver todas las guías con foto
-    </x-filament::link>
-</div>
+{{-- La lista de guías solo existe en el panel de administración. Desde el
+     panel de mensajes hay que pedir la dirección apuntando a 'admin' a mano, y
+     a los colaboradores de solo chat ni se les muestra: no pueden entrar. --}}
+@php
+    $urlGuias = null;
+
+    if (! (auth()->user()?->solo_chat ?? false)) {
+        try {
+            $urlGuias = \App\Filament\Resources\GuiaFotoResource::getUrl('index', [], true, 'admin');
+        } catch (\Throwable $e) {
+            $urlGuias = null;
+        }
+    }
+@endphp
+
+@if($urlGuias)
+    <div class="mt-5 text-center">
+        <x-filament::link :href="$urlGuias" icon="heroicon-m-photo">
+            Ver todas las guías con foto
+        </x-filament::link>
+    </div>
+@endif
