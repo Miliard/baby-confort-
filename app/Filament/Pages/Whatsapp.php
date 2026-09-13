@@ -470,6 +470,9 @@ class Whatsapp extends Page
     /** Los identificadores de presentación marcados para mandar. */
     public array $elegidas = [];
 
+    /** Mandar también las fotos del producto puesto, no solo el paquete. */
+    public bool $conFotosUso = false;
+
     public function abrirCatalogo(): void
     {
         $this->catalogoAbierto = true;
@@ -612,6 +615,15 @@ class Whatsapp extends Page
             }
 
             $m->estado === 'fallido' ? $fallados++ : $mandados++;
+
+            // Las fotos del producto ya puesto. Salen de la galería del
+            // producto en el admin, después de la principal.
+            if ($this->conFotosUso) {
+                foreach ($this->fotosDeUso($p) as $uso) {
+                    $mu = WhatsappApi::enviarImagen($conv, $uso, null, auth()->id());
+                    $mu->estado === 'fallido' ? $fallados++ : $mandados++;
+                }
+            }
         }
 
         // Sin mensaje de cierre con el enlace de la talla: cada foto ya lleva
@@ -699,6 +711,54 @@ class Whatsapp extends Page
         } catch (\Throwable $e) {
             return null;
         }
+    }
+
+    /**
+     * Las fotos del producto ya puesto, sacadas de la galería del admin.
+     *
+     * Se saltea la primera, que es la del paquete y ya se mandó. Van dos como
+     * mucho: el cliente quiere ver cómo queda, no un álbum.
+     */
+    public function fotosDeUso($producto): array
+    {
+        try {
+            $todas = $producto->galleryUrls();
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        // La primera es la principal: esa ya salió con su precio.
+        $extra = array_slice(array_filter($todas), 1, 2);
+
+        return array_map(
+            fn ($u) => str_starts_with($u, 'http') ? $u : url($u),
+            $extra
+        );
+    }
+
+    /** Cuántas fotos de uso hay entre lo que se va a mandar. */
+    public function cuantasFotosUso(): int
+    {
+        if (empty($this->elegidas)) return 0;
+
+        try {
+            $filas = \App\Models\ProductSize::with('product')
+                ->whereIn('id', $this->elegidas)->get();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+
+        $n = 0;
+        $vistos = [];
+
+        foreach ($filas as $s) {
+            if (! $s->product || isset($vistos[$s->product->id])) continue;
+
+            $vistos[$s->product->id] = true;
+            $n += count($this->fotosDeUso($s->product));
+        }
+
+        return $n;
     }
 
     /** Para avisar en la ventana cuál va a salir como texto por falta de foto. */

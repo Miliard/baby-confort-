@@ -370,6 +370,10 @@
     .wa-pres-check{width:22px;height:22px;border-radius:6px;border:1.5px solid #cbd5e1;
                    display:grid;place-items:center;font-size:13px;font-weight:800;flex:none}
     .wa-pres.on .wa-pres-check{background:#2e9e6b;border-color:#2e9e6b;color:#fff}
+    .wa-uso{display:flex;gap:9px;align-items:center;font-size:12.5px;cursor:pointer;
+            background:rgba(120,140,170,.10);border-radius:9px;padding:9px 11px}
+    .wa-uso-no{opacity:.5;cursor:not-allowed}
+
     .wa-pres-t{display:block;font-weight:700;font-size:14px}
     .wa-pres-p{display:block;font-size:12.5px;color:#94a3b8;margin-top:2px}
 
@@ -926,14 +930,31 @@
         </div>
 
         @if($tallaElegida)
-            <div class="wa-modal-pie">
-                <x-filament::button wire:click="enviarElegidas" icon="heroicon-m-paper-airplane">
-                    Mandar {{ count($elegidas) }} {{ count($elegidas) == 1 ? 'producto' : 'productos' }}
-                </x-filament::button>
+            @php $usos = $this->cuantasFotosUso(); @endphp
 
-                <span style="font-size:11.5px;color:#94a3b8">
-                    Se manda una foto por producto, con su precio.
-                </span>
+            <div class="wa-modal-pie" style="flex-direction:column;align-items:stretch;gap:9px">
+                <label class="wa-uso {{ $usos ? '' : 'wa-uso-no' }}">
+                    <input type="checkbox" wire:model.live="conFotosUso" @disabled(! $usos)>
+                    <span>
+                        <b>También las fotos del producto puesto</b>
+                        @if($usos)
+                            <span style="color:#94a3b8">· {{ $usos }} {{ $usos == 1 ? 'foto' : 'fotos' }} más</span>
+                        @else
+                            <span style="color:#94a3b8">· no hay cargadas todavía</span>
+                        @endif
+                    </span>
+                </label>
+
+                <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+                    <x-filament::button wire:click="enviarElegidas" icon="heroicon-m-paper-airplane">
+                        Mandar {{ count($elegidas) + ($conFotosUso ? $usos : 0) }}
+                        {{ (count($elegidas) + ($conFotosUso ? $usos : 0)) == 1 ? 'foto' : 'fotos' }}
+                    </x-filament::button>
+
+                    <span style="font-size:11.5px;color:#94a3b8">
+                        Una foto por producto, con su precio y su enlace.
+                    </span>
+                </div>
             </div>
         @endif
     </div>
