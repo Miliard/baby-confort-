@@ -245,9 +245,27 @@
     .wa-campo{margin-bottom:11px}
     .wa-lab{font-size:11.5px;font-weight:700;color:#94a3b8;display:block;margin-bottom:4px;
             text-transform:uppercase;letter-spacing:.03em}
+    /* Ojo con esto: acá va "background-color" y no "background" a secas. El
+       atajo reinicia también el fondo repetido, y Filament le pone a los
+       desplegables una flechita como imagen de fondo: al reiniciarse, esa
+       flechita se repetía en mosaico a lo ancho de todo el campo. */
     .wa-in{width:100%;border:1px solid #d1d5db;border-radius:9px;padding:8px 11px;
-           font-size:14px;font-family:inherit;background:transparent;color:inherit}
+           font-size:14px;font-family:inherit;background-color:transparent;color:inherit}
     html.dark .wa-in{border-color:rgba(255,255,255,.16)}
+
+    /* El desplegable: le quitamos la flecha de Filament y dibujamos una sola,
+       nuestra, con el triangulito de abajo. */
+    select.wa-in{appearance:none;-webkit-appearance:none;background-image:none;
+                 padding-right:32px;cursor:pointer}
+    .wa-sel{position:relative}
+    .wa-sel::after{content:'';position:absolute;right:13px;top:50%;margin-top:-6px;
+                   width:8px;height:8px;pointer-events:none;transform:rotate(45deg);
+                   border-right:2px solid #94a3b8;border-bottom:2px solid #94a3b8}
+    /* La lista que se abre la dibuja el sistema: sin esto sale en blanco
+       encima del panel oscuro y no se lee. */
+    select.wa-in option{background:#ffffff;color:#111827}
+    html.dark select.wa-in{color-scheme:dark}
+    html.dark select.wa-in option{background:#1f2937;color:#e5e7eb}
     .wa-fila2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .wa-linea{display:grid;grid-template-columns:1fr 78px 34px;gap:8px;align-items:center;
               margin-bottom:8px}
@@ -828,12 +846,14 @@
 
                 <div class="wa-campo">
                     <label class="wa-lab">Departamento</label>
-                    <select class="wa-in" wire:model.live="pedDepartamento">
-                        <option value="">Elegí el departamento…</option>
-                        @foreach($this->departamentos() as $d)
-                            <option value="{{ $d }}">{{ $d }}</option>
-                        @endforeach
-                    </select>
+                    <div class="wa-sel">
+                        <select class="wa-in" wire:model.live="pedDepartamento">
+                            <option value="">Elegí el departamento…</option>
+                            @foreach($this->departamentos() as $d)
+                                <option value="{{ $d }}">{{ $d }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                 </div>
 
                 @php $zona = $this->revisionZona(); @endphp
