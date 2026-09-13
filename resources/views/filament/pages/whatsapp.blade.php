@@ -394,6 +394,13 @@
                     placeholder="Buscar nombre o número" />
             </x-filament::input.wrapper>
 
+            {{-- Solo aparece si todavía no se dieron los permisos. Una vez
+                 activados, se esconde solo. --}}
+            <button type="button" id="wa-permiso" onclick="waPedirPermiso()"
+                    class="wa-chip" style="display:none;margin-top:8px;width:100%">
+                🔔 Activar avisos con sonido
+            </button>
+
             {{-- Todos los filtros en un solo renglón que se desliza de derecha
                  a izquierda, en vez de apilarse hacia abajo. Los sin leer van
                  primero: es lo que uno busca al abrir el panel. --}}
@@ -402,6 +409,10 @@
                 $cuentas = $this->cuentaEtiquetas();
                 $sinLeer = $this->cuantasSinLeer();
             @endphp
+
+            {{-- El contador que vigila el JavaScript para avisar. Va acá
+                 adentro porque esta parte se refresca sola cada 3 segundos. --}}
+            <span id="wa-sinleer" data-n="{{ $sinLeer }}" style="display:none"></span>
 
             <div class="wa-filtros">
                 <button type="button" wire:click="alternarSinLeer"
@@ -889,6 +900,125 @@
 @endif
 
 <script>
+    // ── Avisar cuando cae un mensaje ─────────────────────────────────────────
+    // Suena, avisa el navegador y pone el número en el título de la pestaña.
+    // Todo esto funciona con el panel abierto. Con el panel cerrado, el aviso
+    // te lo sigue dando tu WhatsApp Business del teléfono.
+    var waPedirPermiso;
+
+    (function () {
+        var ultimo = null;          // cuántos sin leer había la vez anterior
+        var tituloBase = document.title;
+        var audio = null;
+
+        // El navegador no deja sonar nada hasta que la persona toca algo.
+        // Se prepara en el primer toque, sea cual sea.
+        function prepararAudio() {
+            if (audio) return;
+            try {
+                var AC = window.AudioContext || window.webkitAudioContext;
+                if (AC) audio = new AC();
+            } catch (e) {}
+        }
+
+        document.addEventListener('click', prepararAudio, { once: true });
+        document.addEventListener('touchstart', prepararAudio, { once: true });
+
+        function sonar() {
+            if (!audio) return;
+
+            try {
+                if (audio.state === 'suspended') audio.resume();
+
+                // Dos notas cortas, como un timbre discreto.
+                [0, 0.16].forEach(function (retraso, i) {
+                    var osc = audio.createOscillator();
+                    var vol = audio.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.value = i === 0 ? 880 : 1180;
+
+                    vol.gain.setValueAtTime(0.0001, audio.currentTime + retraso);
+                    vol.gain.exponentialRampToValueAtTime(0.25, audio.currentTime + retraso + 0.02);
+                    vol.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + retraso + 0.14);
+
+                    osc.connect(vol); vol.connect(audio.destination);
+                    osc.start(audio.currentTime + retraso);
+                    osc.stop(audio.currentTime + retraso + 0.16);
+                });
+            } catch (e) {}
+        }
+
+        function avisar(cuantos) {
+            sonar();
+
+            if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+            try {
+                var n = new Notification('Baby-Confort · mensajes', {
+                    body: cuantos === 1
+                        ? 'Tenés 1 conversación sin leer'
+                        : 'Tenés ' + cuantos + ' conversaciones sin leer',
+                    icon: '/favicon-192.png',
+                    tag: 'baby-confort-wa',   // no apila veinte avisos
+                    renotify: true
+                });
+
+                n.onclick = function () { window.focus(); n.close(); };
+            } catch (e) {}
+        }
+
+        function revisar() {
+            var marca = document.getElementById('wa-sinleer');
+            if (!marca) return;
+
+            var ahora = parseInt(marca.getAttribute('data-n') || '0', 10);
+
+            // El título de la pestaña, para verlo sin cambiar de ventana.
+            document.title = ahora > 0 ? '(' + ahora + ') ' + tituloBase : tituloBase;
+
+            // La primera vuelta solo toma nota: no suena al abrir el panel.
+            if (ultimo === null) { ultimo = ahora; return; }
+
+            if (ahora > ultimo) avisar(ahora);
+
+            ultimo = ahora;
+        }
+
+        function verBotonPermiso() {
+            var b = document.getElementById('wa-permiso');
+            if (!b) return;
+
+            var falta = ('Notification' in window) && Notification.permission === 'default';
+            b.style.display = falta ? 'block' : 'none';
+        }
+
+        waPedirPermiso = function () {
+            prepararAudio();
+            sonar();   // para que se escuche cómo suena
+
+            if (!('Notification' in window)) {
+                alert('Este navegador no permite avisos. Igual vas a escuchar el sonido.');
+                verBotonPermiso();
+                return;
+            }
+
+            Notification.requestPermission().then(verBotonPermiso);
+        };
+
+        function enganchar() {
+            if (!window.Livewire || !window.Livewire.hook) return false;
+            window.Livewire.hook('morph.updated', function () {
+                setTimeout(function () { revisar(); verBotonPermiso(); }, 0);
+            });
+            return true;
+        }
+
+        if (!enganchar()) document.addEventListener('livewire:init', enganchar);
+
+        setTimeout(function () { revisar(); verBotonPermiso(); }, 400);
+    })();
+
     // ── Las filas que se deslizan, también con el mouse ──────────────────────
     // En el teléfono se arrastran con el dedo. En la computadora no había con
     // qué: la barra de desplazamiento está escondida a propósito. Así que la
