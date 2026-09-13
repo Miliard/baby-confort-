@@ -614,20 +614,8 @@ class Whatsapp extends Page
             $m->estado === 'fallido' ? $fallados++ : $mandados++;
         }
 
-        // Cierre con el enlace a toda la talla: si lo que mandamos no le gustó,
-        // que igual tenga por dónde seguir mirando en la tienda.
-        if ($mandados > 0 && $talla !== '') {
-            try {
-                WhatsappApi::enviarTexto(
-                    $conv,
-                    "\u{1F6CD}\u{FE0F} *Mir\u{E1} todo lo que hay en talla {$talla}:*\n"
-                        . route('store.talla', $talla),
-                    auth()->id()
-                );
-            } catch (\Throwable $e) {
-                // El enlace de cierre es un extra: si falla, no arruina el envío.
-            }
-        }
+        // Sin mensaje de cierre con el enlace de la talla: cada foto ya lleva
+        // el enlace de su producto, así que sería un tercer enlace repetido.
 
         if ($fallados > 0) {
             Notification::make()
