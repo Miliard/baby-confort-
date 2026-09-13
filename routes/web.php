@@ -76,6 +76,17 @@ Route::post('/webhook', [\App\Http\Controllers\WhatsappWebhookController::class,
 Route::post('/whatsapp/conectar', [\App\Http\Controllers\WhatsappConexionController::class, 'guardar'])
     ->middleware(['web', 'auth'])->name('whatsapp.conectar');
 
+// ─── Avisos al teléfono con la aplicación cerrada ────────────────────────────
+Route::middleware(['web', 'auth'])->group(function () {
+    Route::get('/chat/push-clave',   [\App\Http\Controllers\PushController::class, 'clave'])->name('push.clave');
+    Route::post('/chat/suscribir',   [\App\Http\Controllers\PushController::class, 'suscribir'])->name('push.suscribir');
+    Route::post('/chat/desuscribir', [\App\Http\Controllers\PushController::class, 'desuscribir'])->name('push.desuscribir');
+
+    // La consulta el trabajador en segundo plano, que no manda el token de
+    // formulario: va por GET justamente para no necesitarlo.
+    Route::get('/chat/sin-leer', [\App\Http\Controllers\PushController::class, 'sinLeer'])->name('push.sinleer');
+});
+
 // Fotos de paquetes (solo con sesión iniciada en el panel)
 Route::middleware('auth')->group(function () {
     // Página de respaldo: formulario simple, sin JavaScript. Si la subida

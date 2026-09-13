@@ -161,6 +161,14 @@ class WhatsappWebhookController extends Controller
         if ($tipo === 'text' && filled($texto)) {
             AutoRespuestas::quizasResponder($conv, $texto);
         }
+
+        // Y el aviso a los teléfonos del equipo, aunque tengan el panel
+        // cerrado. Si falla, no importa: el mensaje ya quedó guardado.
+        try {
+            \App\Services\WebPush::avisarATodos();
+        } catch (\Throwable $e) {
+            Log::warning('Push desde el webhook: ' . $e->getMessage());
+        }
     }
 
     /**

@@ -993,6 +993,66 @@
             b.style.display = falta ? 'block' : 'none';
         }
 
+        /**
+         * Deja el teléfono listo para recibir avisos con la aplicación cerrada.
+         *
+         * Son tres pasos: permiso, instalar el trabajador en segundo plano, y
+         * registrar este dispositivo en el servidor. Si algo falla, al menos
+         * quedan el sonido y el aviso con el panel abierto.
+         */
+        function registrarEnSegundoPlano() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+            navigator.serviceWorker.register('/sw.js')
+                .then(function (reg) {
+                    return fetch('{{ route('push.clave') }}', { credentials: 'include' })
+                        .then(function (r) { return r.json(); })
+                        .then(function (d) {
+                            if (!d.clave) throw new Error('sin clave');
+
+                            return reg.pushManager.getSubscription().then(function (vieja) {
+                                if (vieja) return vieja;
+
+                                return reg.pushManager.subscribe({
+                                    userVisibleOnly: true,
+                                    applicationServerKey: enBytes(d.clave)
+                                });
+                            });
+                        });
+                })
+                .then(function (sus) {
+                    var j = sus.toJSON();
+
+                    return fetch('{{ route('push.suscribir') }}', {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        },
+                        body: JSON.stringify({
+                            endpoint: sus.endpoint,
+                            p256dh: j.keys ? j.keys.p256dh : null,
+                            auth:   j.keys ? j.keys.auth   : null
+                        })
+                    });
+                })
+                .catch(function (e) {
+                    console.log('Avisos en segundo plano no disponibles:', e);
+                });
+        }
+
+        // La clave viene en texto y el navegador la quiere en bytes.
+        function enBytes(base64) {
+            var relleno = '='.repeat((4 - base64.length % 4) % 4);
+            var limpio = (base64 + relleno).replace(/-/g, '+').replace(/_/g, '/');
+            var crudo = atob(limpio);
+            var bytes = new Uint8Array(crudo.length);
+
+            for (var i = 0; i < crudo.length; i++) bytes[i] = crudo.charCodeAt(i);
+            return bytes;
+        }
+
         waPedirPermiso = function () {
             prepararAudio();
             sonar();   // para que se escuche cómo suena
@@ -1003,8 +1063,16 @@
                 return;
             }
 
-            Notification.requestPermission().then(verBotonPermiso);
+            Notification.requestPermission().then(function (r) {
+                verBotonPermiso();
+                if (r === 'granted') registrarEnSegundoPlano();
+            });
         };
+
+        // Si el permiso ya estaba dado de antes, se registra sin preguntar.
+        if (('Notification' in window) && Notification.permission === 'granted') {
+            setTimeout(registrarEnSegundoPlano, 1200);
+        }
 
         function enganchar() {
             if (!window.Livewire || !window.Livewire.hook) return false;
