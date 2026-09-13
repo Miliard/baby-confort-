@@ -42,17 +42,22 @@ class WaMensaje extends Model
      */
     public function hora(): string
     {
-        return $this->created_at
-            ? $this->created_at->timezone(config('app.zona_local'))->format('H:i')
-            : '';
+        if (! $this->created_at) return '';
+
+        // De 12 horas y con a.m./p.m. en minúscula, como se escribe acá.
+        return strtolower(
+            $this->created_at->timezone(config('app.zona_local'))->format('g:i a')
+        );
     }
 
     /** Con el día, para cuando la conversación es de otra fecha. */
     public function fechaYHora(): string
     {
-        return $this->created_at
-            ? $this->created_at->timezone(config('app.zona_local'))->format('d/m/Y H:i')
-            : '';
+        if (! $this->created_at) return '';
+
+        return strtolower(
+            $this->created_at->timezone(config('app.zona_local'))->format('d/m/Y g:i a')
+        );
     }
 
     /**

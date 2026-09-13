@@ -145,7 +145,8 @@ class WhatsappConectar extends Page
         $f = Setting::get('whatsapp_conectado_at');
 
         return $f
-            ? \Illuminate\Support\Carbon::parse($f)->timezone(config('app.zona_local'))->format('d/m/Y H:i')
+            ? strtolower(\Illuminate\Support\Carbon::parse($f)
+                ->timezone(config('app.zona_local'))->format('d/m/Y g:i a'))
             : null;
     }
 

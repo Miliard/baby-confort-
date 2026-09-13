@@ -50,7 +50,7 @@ class WaConversacion extends Model
         $local = $this->ultimo_mensaje_at->timezone(config('app.zona_local'));
         $hoy   = now()->timezone(config('app.zona_local'));
 
-        if ($local->isSameDay($hoy))               return $local->format('H:i');
+        if ($local->isSameDay($hoy))                   return strtolower($local->format('g:i a'));
         if ($local->isSameDay($hoy->copy()->subDay())) return 'Ayer';
 
         return $local->format('d/m');
