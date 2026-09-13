@@ -149,4 +149,35 @@ class WaMensaje extends Model
             default     => '',
         };
     }
+
+    /**
+     * El color de las palomitas, para saber de un vistazo qué pasó.
+     *
+     * Gris: salió pero todavía no confirmaron nada.
+     * Amarillo: le llegó al teléfono, pero no lo abrió.
+     * Verde: lo leyó.
+     * Rojo: no se pudo mandar.
+     */
+    public function colorEstado(): string
+    {
+        return match ($this->estado) {
+            'leido'     => '#2e9e6b',
+            'entregado' => '#d4a017',
+            'fallido'   => '#e5695f',
+            default     => '#94a3b8',
+        };
+    }
+
+    /** Para el título emergente, que explica qué significa cada color. */
+    public function queSignifica(): string
+    {
+        return match ($this->estado) {
+            'enviando'  => 'Mandando…',
+            'enviado'   => 'Salió, sin confirmar todavía',
+            'entregado' => 'Le llegó al teléfono, pero no lo ha leído',
+            'leido'     => 'Ya lo leyó',
+            'fallido'   => 'No se pudo mandar',
+            default     => '',
+        };
+    }
 }

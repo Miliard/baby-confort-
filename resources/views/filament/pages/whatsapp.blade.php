@@ -150,12 +150,30 @@
     .wa-auto{align-self:flex-end;background:#e6eefc;color:#1c3b63;border-bottom-right-radius:4px}
     html.dark .wa-auto{background:#26374f;color:#d6e4f7}
     .wa-mal{align-self:flex-end;background:#fdeaea;color:#8a1c1c;border:1px solid #e5695f}
-    .wa-pie{font-size:10.5px;opacity:.65;margin-top:3px;text-align:right}
+    /* El pie se apaga con color y no con opacity: opacity en el padre apagaría
+       también las palomitas, y un hijo no puede recuperarla. */
+    .wa-pie{font-size:10.5px;margin-top:3px;text-align:right;color:rgba(0,0,0,.45)}
+    html.dark .wa-pie{color:rgba(255,255,255,.5)}
+
+    /* Palomitas más grandes y con color propio: gris salió, amarillo le llegó
+       al teléfono, verde lo leyó. */
+    .wa-check{font-size:15px;font-weight:800;letter-spacing:-2px;
+              margin-left:3px;vertical-align:-1px}
 
     /* ── Responder a un mensaje puntual ── */
     .wa-resp-btn{border:none;background:none;cursor:pointer;font-family:inherit;color:inherit;
                  font-size:12px;padding:0 5px 0 0;opacity:.55}
     .wa-resp-btn:hover{opacity:1}
+
+    /* El globo se corre con el dedo, así que no debe quedar seleccionado
+       mientras se arrastra. */
+    .wa-glo{touch-action:pan-y;-webkit-user-select:none;user-select:none}
+    .wa-txt{-webkit-user-select:text;user-select:text}
+
+    @media(max-width:900px){
+        /* Más grande para el dedo, aunque el camino rápido sea deslizar. */
+        .wa-resp-btn{font-size:16px;padding:2px 9px 2px 0;opacity:.7}
+    }
 
     .wa-cita{border-left:3px solid currentColor;padding:4px 0 4px 8px;margin-bottom:6px;
              font-size:12.5px;line-height:1.4;opacity:.72}
@@ -633,7 +651,8 @@
                             {{ $m->hora() }}
                             @if(! $m->esDelCliente())
                                 · <b style="color:{{ $m->colorFirma() }}">{{ $m->firma() }}</b>
-                                {{ $m->marcaEstado() }}
+                                <span class="wa-check" style="color:{{ $m->colorEstado() }}"
+                                      title="{{ $m->queSignifica() }}">{{ $m->marcaEstado() }}</span>
                             @endif
                         </div>
 
@@ -1024,6 +1043,80 @@
 @endif
 
 <script>
+    // ── Deslizar un mensaje para responderlo ─────────────────────────────────
+    // Como en WhatsApp: se arrastra el globo hacia la derecha y suelta. Mucho
+    // más cómodo que buscar la flechita, sobre todo en el teléfono.
+    (function () {
+        var globo = null;      // el que se está arrastrando
+        var desdeX = 0, desdeY = 0;
+        var corrido = 0;
+        var horizontal = null; // todavía no se sabe si es gesto lateral
+
+        var UMBRAL = 55;       // cuánto hay que correrlo para que cuente
+
+        function pista(g, x) {
+            g.style.transform = x ? 'translateX(' + x + 'px)' : '';
+            g.style.transition = x ? 'none' : 'transform .18s ease-out';
+        }
+
+        document.addEventListener('touchstart', function (e) {
+            if (e.touches.length !== 1) return;
+
+            var g = e.target.closest && e.target.closest('.wa-glo');
+            if (!g || !g.querySelector('.wa-resp-btn')) return;
+
+            globo = g;
+            desdeX = e.touches[0].clientX;
+            desdeY = e.touches[0].clientY;
+            corrido = 0;
+            horizontal = null;
+        }, { passive: true });
+
+        document.addEventListener('touchmove', function (e) {
+            if (!globo) return;
+
+            var dx = e.touches[0].clientX - desdeX;
+            var dy = e.touches[0].clientY - desdeY;
+
+            // La primera vez que se mueve de verdad se decide qué gesto es.
+            // Si arrancó vertical, es scroll y no hay que estorbarlo.
+            if (horizontal === null) {
+                if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+                horizontal = Math.abs(dx) > Math.abs(dy) * 1.4;
+
+                if (!horizontal) { globo = null; return; }
+            }
+
+            // Solo hacia la derecha, y con freno al final para que se sienta.
+            corrido = Math.max(0, Math.min(dx, 90));
+            if (corrido > 70) corrido = 70 + (corrido - 70) * 0.35;
+
+            pista(globo, corrido);
+        }, { passive: true });
+
+        function soltar() {
+            if (!globo) return;
+
+            var g = globo;
+            globo = null;
+
+            pista(g, 0);
+
+            if (corrido >= UMBRAL) {
+                var boton = g.querySelector('.wa-resp-btn');
+                if (boton) boton.click();
+
+                // Un golpecito para confirmar, si el teléfono lo permite.
+                try { if (navigator.vibrate) navigator.vibrate(18); } catch (err) {}
+            }
+
+            corrido = 0;
+        }
+
+        document.addEventListener('touchend', soltar, { passive: true });
+        document.addEventListener('touchcancel', soltar, { passive: true });
+    })();
+
     // ── Avisar cuando cae un mensaje ─────────────────────────────────────────
     // Suena, avisa el navegador y pone el número en el título de la pestaña.
     // Todo esto funciona con el panel abierto. Con el panel cerrado, el aviso
