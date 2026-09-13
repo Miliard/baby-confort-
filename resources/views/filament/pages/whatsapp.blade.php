@@ -161,8 +161,12 @@
 
     .wa-abajo{padding:11px;border-top:1px solid #e5e7eb;flex:none}
     html.dark .wa-abajo{border-color:rgba(255,255,255,.10)}
+    /* Crece sola con lo que se escribe, hasta cierto punto: después hace
+       scroll adentro en lugar de comerse el chat entero. */
     .wa-escribir{width:100%;border:1px solid #d1d5db;border-radius:11px;padding:11px 13px;
-                 font-size:15px;font-family:inherit;resize:vertical;background:transparent;color:inherit}
+                 font-size:15px;font-family:inherit;background:transparent;color:inherit;
+                 resize:none;min-height:46px;max-height:38vh;overflow-y:auto;line-height:1.45}
+    @media(max-width:900px){ .wa-escribir{max-height:30vh} }
     .wa-btns{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;align-items:center}
 
     /* Los botones de respuesta al lado de Enviar. Se crean desde el admin. */
@@ -888,6 +892,39 @@
 @endif
 
 <script>
+    // ── El cuadro de escribir crece solo ─────────────────────────────────────
+    (function () {
+        function estirar(caja) {
+            if (!caja) return;
+
+            // Se achica primero: si no, nunca vuelve a bajar al borrar texto.
+            caja.style.height = 'auto';
+            caja.style.height = caja.scrollHeight + 'px';
+        }
+
+        function estirarLaDeAhora() {
+            estirar(document.querySelector('.wa-escribir'));
+        }
+
+        document.addEventListener('input', function (e) {
+            if (e.target && e.target.classList.contains('wa-escribir')) estirar(e.target);
+        });
+
+        // Livewire redibuja el cuadro (al mandar, al refrescar cada 3 segundos,
+        // al pegar una respuesta rápida): hay que recalcular el alto.
+        function engancharAlto() {
+            if (!window.Livewire || !window.Livewire.hook) return false;
+            window.Livewire.hook('morph.updated', function () {
+                setTimeout(estirarLaDeAhora, 0);
+            });
+            return true;
+        }
+
+        if (!engancharAlto()) document.addEventListener('livewire:init', engancharAlto);
+
+        setTimeout(estirarLaDeAhora, 300);
+    })();
+
     // ── El teclado del teléfono ──────────────────────────────────────────────
     // Android avisa del teclado achicando la "ventana visual", no la página.
     // Acá se escucha ese aviso y se le da al chat el alto que realmente queda,

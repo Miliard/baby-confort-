@@ -42,6 +42,25 @@ class CrearGuia extends Page implements HasForms
     /** Buscador de la libreta de clientes */
     public string $buscaCliente = '';
 
+    /**
+     * Dirección de la lista de guías.
+     *
+     * Ese recurso solo vive en el panel de administración. Desde el panel de
+     * mensajes hay que pedirlo apuntando a 'admin' a mano, porque si no
+     * Filament lo busca donde no está y tumba la pantalla. Y a los
+     * colaboradores de solo chat no se les muestra: no pueden entrar ahí.
+     */
+    public function enlaceGuias(): ?string
+    {
+        if ((bool) (auth()->user()?->solo_chat ?? false)) return null;
+
+        try {
+            return \App\Filament\Resources\GuiaFotoResource::getUrl('index', [], true, 'admin');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
     public function mount(): void
     {
         // Se puede llegar directo a una pestaña: /admin/crear-guia?seccion=fotos

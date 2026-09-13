@@ -371,7 +371,9 @@
                       '<div class="rounded-xl border border-success-300 bg-success-50 p-4 dark:border-success-500/50 dark:bg-success-500/10">'
                       + '<div class="text-sm font-bold text-success-700 dark:text-success-400">✅ ' + r.nuevas + ' guías nuevas · ' + r.actualizadas + ' ya estaban</div>'
                       + '<div class="mt-1 text-xs text-success-700/80 dark:text-success-400/80">Sus clientes quedaron guardados en la libreta.</div>'
-                      + '<a href="{{ \App\Filament\Resources\GuiaFotoResource::getUrl() }}" class="mt-3 inline-block text-sm font-bold text-primary-600 hover:underline">Ver las guías y enviar los mensajes →</a>'
+                      + @js($this->enlaceGuias()
+                            ? '<a href="' . $this->enlaceGuias() . '" class="mt-3 inline-block text-sm font-bold text-primary-600 hover:underline">Ver las guías y enviar los mensajes →</a>'
+                            : '')
                       + '</div>'
                       + '<div class="mt-3 overflow-x-auto rounded-xl border border-gray-200 p-3 dark:border-white/10"><table class="w-full text-xs"><tbody>' + filas + '</tbody></table></div>';
                 } else {
@@ -663,7 +665,9 @@
             progreso(files.length, files.length,
                 fallo ? 'Listo (faltan ' + fallo + ' por escribir a mano)' : '¡Listo! Todas guardadas ✅',
                 '✅ ' + ok + ' guardadas' + (fallo ? ' · <b style="color:#dc2626">✕ ' + fallo + ' sin leer</b>' : '') +
-                ' &nbsp;·&nbsp; <a href="{{ \App\Filament\Resources\GuiaFotoResource::getUrl() }}" style="color:#2563eb;font-weight:700">Ver las guías →</a>');
+                @js($this->enlaceGuias()
+                    ? ' &nbsp;·&nbsp; <a href="' . $this->enlaceGuias() . '" style="color:#2563eb;font-weight:700">Ver las guías →</a>'
+                    : ''));
 
             try { if (window.Livewire) Livewire.dispatch('$refresh'); } catch (e) {}
         });
