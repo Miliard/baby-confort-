@@ -26,6 +26,9 @@ return [
         'modelo' => env('OPENAI_MODELO', 'gpt-4o-mini'),
     ],
 
+    // El que pasa a texto las notas de voz de los clientes.
+    'modelo_audio' => env('OPENAI_MODELO_AUDIO', 'whisper-1'),
+
     // Tope de caracteres que se manda a corregir. Es también un freno de mano
     // para el costo: nadie manda una novela por WhatsApp.
     'maximo' => 1200,

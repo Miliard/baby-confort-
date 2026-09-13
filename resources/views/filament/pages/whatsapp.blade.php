@@ -125,6 +125,11 @@
     .wa-glo{max-width:74%;padding:9px 13px;border-radius:13px;font-size:15px;line-height:1.45;
             word-wrap:break-word;text-align:left}
     .wa-txt{white-space:pre-wrap;overflow-wrap:anywhere}
+
+    /* Notas de voz: el reproductor arriba y abajo lo que dijo. */
+    .wa-audio{width:100%;max-width:260px;height:38px;display:block;margin-bottom:6px}
+    .wa-dicho{font-size:10.5px;font-weight:800;opacity:.6;margin-bottom:3px;
+              text-transform:uppercase;letter-spacing:.03em}
     .wa-bajar{border:1px dashed currentColor;background:none;color:inherit;opacity:.75;
               border-radius:9px;padding:6px 11px;font-size:12.5px;cursor:pointer;
               font-family:inherit;margin-bottom:5px;display:block}
@@ -568,7 +573,16 @@
                             </div>
                         @endif
 
-                        @if($m->url())<a href="{{ $m->url() }}" target="_blank" rel="noopener"><img src="{{ $m->url() }}" alt="Imagen del cliente"></a>@elseif($m->tipo === 'image' && filled($m->media_id))<button type="button" class="wa-bajar" wire:click="bajarImagen({{ $m->id }})" wire:loading.attr="disabled">🖼️ Ver la imagen</button>@elseif($m->tipo !== 'text')<i style="opacity:.7">[{{ $m->tipo }}]</i>@endif
+                        @if($m->esAudio())
+                            @if($m->url())
+                                <audio class="wa-audio" controls preload="none" src="{{ $m->url() }}"></audio>
+                            @endif
+                            @if(filled($m->texto))
+                                <div class="wa-dicho">🎙️ Lo que dijo</div>
+                            @else
+                                <i style="opacity:.7">🎙️ Nota de voz — no se pudo pasar a texto</i>
+                            @endif
+                        @elseif($m->url())<a href="{{ $m->url() }}" target="_blank" rel="noopener"><img src="{{ $m->url() }}" alt="Imagen del cliente"></a>@elseif($m->tipo === 'image' && filled($m->media_id))<button type="button" class="wa-bajar" wire:click="bajarImagen({{ $m->id }})" wire:loading.attr="disabled">🖼️ Ver la imagen</button>@elseif($m->tipo !== 'text')<i style="opacity:.7">[{{ $m->tipo }}]</i>@endif
 
                         {{-- El texto va en su propio elemento y pegado a las llaves:
                              el globo respeta los saltos de línea, así que cualquier

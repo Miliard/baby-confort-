@@ -263,13 +263,27 @@ class WhatsappApi
             $archivo = Http::withToken(static::token())->timeout(40)->get($url);
             if (! $archivo->successful()) return null;
 
-            $ext = match ($info->json('mime_type')) {
-                'image/png'  => 'png',
-                'image/webp' => 'webp',
-                default      => 'jpg',
+            // El tipo viene como "audio/ogg; codecs=opus": nos quedamos con la
+            // primera parte para elegir la extensión.
+            $mime = trim(explode(';', (string) $info->json('mime_type'))[0]);
+
+            $ext = match ($mime) {
+                'image/png'   => 'png',
+                'image/webp'  => 'webp',
+                'image/jpeg'  => 'jpg',
+                'audio/ogg'   => 'ogg',   // las notas de voz de WhatsApp
+                'audio/mpeg'  => 'mp3',
+                'audio/mp4'   => 'm4a',
+                'audio/aac'   => 'aac',
+                'audio/amr'   => 'amr',
+                'audio/wav'   => 'wav',
+                'video/mp4'   => 'mp4',
+                'application/pdf' => 'pdf',
+                default       => 'bin',
             };
 
-            $ruta = 'whatsapp/' . $mediaId . '.' . $ext;
+            $carpeta = str_starts_with($mime, 'audio/') ? 'whatsapp/audios' : 'whatsapp';
+            $ruta = $carpeta . '/' . $mediaId . '.' . $ext;
             Storage::disk('public')->put($ruta, $archivo->body());
 
             // El disco puede estar lleno y guardar devuelve false en silencio.

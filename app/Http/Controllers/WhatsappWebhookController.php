@@ -115,13 +115,21 @@ class WhatsappWebhookController extends Controller
 
         if ($tipo === 'text') {
             $texto = $m['text']['body'] ?? '';
-        } elseif (in_array($tipo, ['image', 'video', 'document', 'audio'], true)) {
+        } elseif (in_array($tipo, ['image', 'video', 'document', 'audio', 'voice'], true)) {
             $mediaId = $m[$tipo]['id'] ?? null;
             $texto   = $m[$tipo]['caption'] ?? null;
 
-            // Solo se bajan las imágenes: son los comprobantes de pago.
-            if ($tipo === 'image' && $mediaId) {
+            // Las imágenes son los comprobantes de pago; los audios hay que
+            // bajarlos para poder pasarlos a texto.
+            if ($mediaId && in_array($tipo, ['image', 'audio', 'voice'], true)) {
                 $ruta = WhatsappApi::bajarMedia($mediaId);
+            }
+
+            // Nota de voz: se pasa a texto ahí mismo. Si no se puede (sin clave,
+            // audio cortado, lo que sea), queda el reproductor igual.
+            if (in_array($tipo, ['audio', 'voice'], true) && $ruta) {
+                $dicho = \App\Services\Transcribir::deArchivo($ruta);
+                if ($dicho) $texto = $dicho;
             }
         } else {
             $texto = '[' . $tipo . ']';

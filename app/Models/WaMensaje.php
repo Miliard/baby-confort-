@@ -78,6 +78,11 @@ class WaMensaje extends Model
         return '/storage/' . ltrim($this->media_ruta, '/');
     }
 
+    public function esAudio(): bool
+    {
+        return in_array($this->tipo, ['audio', 'voice'], true);
+    }
+
     /** El mensaje al que responde, si es una respuesta a uno puntual. */
     public function citado(): ?self
     {
