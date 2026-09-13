@@ -474,15 +474,13 @@
                 <button type="button" class="wa-volver" wire:click="cerrarChat"
                         title="Volver a la lista">←</button>
 
-                <button type="button" class="wa-tab {{ $pestana === 'chat' ? 'on' : '' }}"
-                        wire:click="verPestana('chat')" title="Conversación">💬</button>
-
-                <button type="button" class="wa-tab {{ $pestana === 'pedido' ? 'on' : '' }}"
-                        wire:click="verPestana('pedido')" title="Tomar pedido">🛒</button>
-
-                {{-- Sin pestaña de respuestas rápidas: ya están como botones al
-                     lado de Enviar, y se crean desde el menú. Tenerlas en tres
-                     lugares era ocupar la cabecera para nada. --}}
+                {{-- Sin botón para entrar al pedido: se llega procesando una
+                     orden del chat, que es el único camino que tiene sentido.
+                     El de volver solo aparece cuando estás adentro. --}}
+                @if($pestana === 'pedido')
+                    <button type="button" class="wa-tab on" wire:click="verPestana('chat')"
+                            title="Volver a la conversación">💬</button>
+                @endif
 
                 @if($cabeceraAbierta)
                     <button type="button" class="wa-volver wa-full" onclick="waPantallaCompleta()"
