@@ -12,6 +12,14 @@
  */
 return [
 
+    // Interruptor general. Apagado: nadie recibe respuestas automáticas, sin
+    // importar lo que digan los disparadores de abajo. Se prefiere contestar a
+    // mano, que es lo que el cliente nota.
+    //
+    // Para volver a encenderlas, poner true acá. Los textos y las palabras
+    // clave quedan guardados tal cual, no hay que rehacerlos.
+    'activas' => env('AUTO_RESPUESTAS', false),
+
     // Se responde como mucho una vez cada tantos minutos por conversación, para
     // que un cliente que escribe tres veces seguidas no reciba tres tablas.
     'espera_minutos' => 180,

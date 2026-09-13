@@ -33,6 +33,10 @@ class AutoRespuestas
     public static function quizasResponder(WaConversacion $conv, string $texto): ?WaMensaje
     {
         $config = config('auto-respuestas', []);
+
+        // El interruptor general manda sobre todo lo demás.
+        if (! ($config['activas'] ?? false)) return null;
+
         $limpio = static::normalizar($texto);
         if ($limpio === '') return null;
 
