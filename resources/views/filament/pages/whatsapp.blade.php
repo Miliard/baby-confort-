@@ -702,9 +702,17 @@
                         </div>
                     @endif
 
+                    {{-- El atajo mira si hay Shift: sin él manda, con él deja
+                         saltar de línea. Antes se bloqueaba cualquier Enter y
+                         no se podía escribir un mensaje de dos renglones. --}}
                     <textarea class="wa-escribir" rows="2" wire:model="texto"
                               placeholder="Escribí tu respuesta…" spellcheck="true" lang="es"
-                              wire:keydown.enter.prevent="enviar"></textarea>
+                              x-on:keydown.enter="
+                                  if (! $event.shiftKey && window.innerWidth > 900) {
+                                      $event.preventDefault();
+                                      $wire.enviar();
+                                  }
+                              "></textarea>
 
                     <div class="wa-btns">
                         <x-filament::button size="sm" wire:click="enviar" icon="heroicon-m-paper-airplane">
@@ -749,7 +757,11 @@
                             </button>
                         @endforeach
 
-                        <span style="font-size:11.5px;color:#94a3b8">Enter envía · Shift+Enter salta línea</span>
+                        {{-- En el teléfono el Enter salta línea siempre, así que
+                             esta ayuda solo aplica en la computadora. --}}
+                        <span class="wa-t-largo" style="font-size:11.5px;color:#94a3b8">
+                            Enter envía · Shift+Enter salta línea
+                        </span>
                     </div>
                 @else
                     <div class="wa-aviso wa-aviso-mal" style="margin:0">
