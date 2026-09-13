@@ -1427,35 +1427,74 @@
 
     // ── El cuadro de escribir crece solo ─────────────────────────────────────
     (function () {
-        function estirar(caja) {
+        // El último alto calculado. Se guarda para poder devolvérselo al
+        // cuadro apenas Livewire lo redibuja, sin esperar a otro fotograma.
+        var altoActual = 0;
+
+        function medirYAplicar(caja) {
             if (!caja) return;
 
-            // Se achica primero: si no, nunca vuelve a bajar al borrar texto.
+            var previo = caja.style.height;
+
+            // Para poder achicar cuando se borra texto hay que soltar el alto
+            // antes de medir. Se hace y se vuelve a poner en la misma vuelta,
+            // sin devolverle el control al navegador: así no parpadea.
             caja.style.height = 'auto';
-            caja.style.height = caja.scrollHeight + 'px';
+            var nuevo = caja.scrollHeight;
+            caja.style.height = previo;
+
+            if (!nuevo) return;
+
+            altoActual = nuevo;
+            caja.style.height = nuevo + 'px';
         }
 
-        function estirarLaDeAhora() {
-            estirar(document.querySelector('.wa-escribir'));
+        function elCuadro() {
+            return document.querySelector('.wa-escribir');
         }
 
         document.addEventListener('input', function (e) {
-            if (e.target && e.target.classList.contains('wa-escribir')) estirar(e.target);
+            if (e.target && e.target.classList.contains('wa-escribir')) medirYAplicar(e.target);
         });
 
-        // Livewire redibuja el cuadro (al mandar, al refrescar cada 3 segundos,
-        // al pegar una respuesta rápida): hay que recalcular el alto.
+        /*
+         * Cada 3 segundos el chat se refresca y Livewire vuelve a dibujar el
+         * cuadro desde el HTML del servidor, que no trae el alto. Si se espera
+         * al siguiente fotograma para devolvérselo, se ve achicarse y crecer:
+         * eso era el temblor.
+         *
+         * Por eso se hace sincrónico dentro del propio enganche de Livewire,
+         * antes de que el navegador llegue a dibujar nada.
+         */
         function engancharAlto() {
             if (!window.Livewire || !window.Livewire.hook) return false;
+
             window.Livewire.hook('morph.updated', function () {
-                setTimeout(estirarLaDeAhora, 0);
+                var caja = elCuadro();
+                if (!caja) return;
+
+                // Si el texto no cambió, se le devuelve el alto que ya tenía
+                // sin volver a medir: medir es lo que produce el salto.
+                if (altoActual && caja.value === ultimoTexto) {
+                    caja.style.height = altoActual + 'px';
+                    return;
+                }
+
+                ultimoTexto = caja.value;
+                medirYAplicar(caja);
             });
+
             return true;
         }
 
+        var ultimoTexto = null;
+
         if (!engancharAlto()) document.addEventListener('livewire:init', engancharAlto);
 
-        setTimeout(estirarLaDeAhora, 300);
+        setTimeout(function () {
+            var caja = elCuadro();
+            if (caja) { ultimoTexto = caja.value; medirYAplicar(caja); }
+        }, 300);
     })();
 
     // ── El teclado del teléfono ──────────────────────────────────────────────
