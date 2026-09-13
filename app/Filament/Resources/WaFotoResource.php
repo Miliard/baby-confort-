@@ -35,19 +35,28 @@ class WaFotoResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
+            // Al crear se pueden subir varias de una vez y se guarda una por
+            // cada archivo. Al editar es una sola, que es la que se está
+            // cambiando.
             Forms\Components\FileUpload::make('ruta')
-                ->label('La foto')
+                ->label(fn (string $operation) => $operation === 'create' ? 'Las fotos' : 'La foto')
                 ->image()
                 ->disk('public')
                 ->directory('whatsapp/galeria')
                 ->imageEditor()
                 ->maxSize(5120)
-                ->helperText('Hasta 5 MB. Se manda tal cual, así que conviene que ya venga recortada.')
+                ->multiple(fn (string $operation) => $operation === 'create')
+                ->reorderable()
+                ->panelLayout('grid')
+                ->helperText(fn (string $operation) => $operation === 'create'
+                    ? 'Podés arrastrar varias de una vez. Hasta 5 MB cada una.'
+                    : 'Hasta 5 MB.')
                 ->required(),
 
             Forms\Components\TextInput::make('titulo')
                 ->label('Nombre')
-                ->helperText('Solo lo ves vos al elegirla. Ej: "Talla M puesta", "Empaque abierto".')
+                ->helperText('Solo lo ves vos al elegirla. Si subís varias, se numeran solas: '
+                           . '"Pañal puesto 1", "Pañal puesto 2".')
                 ->required()
                 ->maxLength(60),
 
