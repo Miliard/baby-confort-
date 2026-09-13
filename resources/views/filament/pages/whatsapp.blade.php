@@ -30,13 +30,7 @@
                        padding-top:.2rem !important;padding-bottom:.2rem !important}
         .fi-topbar{box-shadow:none !important}
 
-        /* La cabecera del chat en una sola línea: antes el nombre, el teléfono
-           y la ventana de 24 horas se partían en tres renglones. */
-        .wa-cab{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
-        .wa-cab::-webkit-scrollbar{display:none}
-        .wa-cab > *{flex:none}
-        .wa-cab .wa-nombre-col{flex:1 1 auto;min-width:0}
-        .wa-cab .wa-nombre-col > div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .wa-cab .wa-nombre-col{min-width:70px}
 
         /* --wa-alto lo mantiene el JS de abajo con el alto REAL que queda
            libre cuando el teclado está abierto. El calc es el respaldo para
@@ -54,8 +48,7 @@
         .wa-col{border-radius:11px}
         .wa-glo{max-width:88%}
         .wa-cab{padding:7px 9px;gap:6px}
-        .wa-tabs{padding:0 4px}
-        .wa-tab{padding:8px 7px;font-size:12px;gap:4px}
+        .wa-tab{padding:0 7px;font-size:14px}
         .wa-volver{display:inline-flex !important}
         .wa-fila2{grid-template-columns:1fr}
         .wa-chat{padding:10px}
@@ -110,8 +103,15 @@
             border-radius:999px;padding:1px 7px;flex:none}
     .wa-quien{font-size:10.5px;color:#4aa3df;font-weight:700}
 
-    .wa-cab{padding:11px 14px;border-bottom:1px solid #e5e7eb;flex:none;
-            display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    /* Una sola fila con todo. Si no entra, se desliza de derecha a izquierda
+       en vez de partirse en varios renglones y comerse el chat. */
+    .wa-cab{padding:9px 12px;border-bottom:1px solid #e5e7eb;flex:none;
+            display:flex;flex-wrap:nowrap;gap:8px;align-items:center;
+            overflow-x:auto;scrollbar-width:none}
+    .wa-cab::-webkit-scrollbar{display:none}
+    .wa-cab > *{flex:none}
+    .wa-cab .wa-nombre-col{flex:1 1 auto;min-width:80px}
+    .wa-cab .wa-nombre-col > div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     html.dark .wa-cab{border-color:rgba(255,255,255,.10)}
 
     .wa-chat{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px;
@@ -184,14 +184,12 @@
 
     .wa-vacio{flex:1;display:grid;place-items:center;color:#94a3b8;font-size:14px;text-align:center;padding:30px}
     /* ── Pestañas de la derecha ── */
-    .wa-tabs{display:flex;gap:4px;padding:0 12px;border-bottom:1px solid #e5e7eb;flex:none;
-             background:#fff}
-    html.dark .wa-tabs{background:#16202f;border-color:rgba(255,255,255,.10)}
-    .wa-tab{border:none;background:none;cursor:pointer;font-family:inherit;font-size:13.5px;
-            font-weight:600;color:#94a3b8;padding:10px 13px;border-bottom:2.5px solid transparent;
-            display:flex;gap:6px;align-items:center}
-    .wa-tab:hover{color:#64748b}
-    .wa-tab.on{color:#2e9e6b;border-bottom-color:#2e9e6b}
+    /* Las pestañas ahora son botones dentro de la misma fila de la cabecera. */
+    .wa-tab{border:1.5px solid transparent;background:rgba(120,140,170,.14);cursor:pointer;
+            font-family:inherit;font-size:15px;border-radius:9px;height:30px;padding:0 9px;
+            color:inherit;display:inline-flex;gap:4px;align-items:center;flex:none}
+    .wa-tab:hover{background:rgba(120,140,170,.26)}
+    .wa-tab.on{background:rgba(46,158,107,.20);border-color:#2e9e6b}
     .wa-tab-pin{background:#2e9e6b;color:#fff;font-size:10px;font-weight:800;
                 border-radius:999px;padding:1px 6px}
 
@@ -430,9 +428,24 @@
         @if(! $conv)
             <div class="wa-vacio">Elegí una conversación de la izquierda para empezar.</div>
         @else
+            @php $resp = $this->respuestas(); @endphp
+
+            {{-- Una sola fila con todo, que se desliza de derecha a izquierda.
+                 Antes eran tres renglones: datos, botones y pestañas. --}}
             <div class="wa-cab">
                 <button type="button" class="wa-volver" wire:click="cerrarChat"
                         title="Volver a la lista">←</button>
+
+                <button type="button" class="wa-tab {{ $pestana === 'chat' ? 'on' : '' }}"
+                        wire:click="verPestana('chat')" title="Conversación">💬</button>
+
+                <button type="button" class="wa-tab {{ $pestana === 'pedido' ? 'on' : '' }}"
+                        wire:click="verPestana('pedido')" title="Tomar pedido">🛒</button>
+
+                <button type="button" class="wa-tab {{ $pestana === 'respuestas' ? 'on' : '' }}"
+                        wire:click="verPestana('respuestas')" title="Respuestas rápidas">
+                    ⚡@if($resp->count())<span class="wa-tab-pin">{{ $resp->count() }}</span>@endif
+                </button>
 
                 @if($cabeceraAbierta)
                     <button type="button" class="wa-volver wa-full" onclick="waPantallaCompleta()"
@@ -475,8 +488,6 @@
                         Orden de envío
                     </x-filament::button>
 
-                    <x-filament::button size="xs" color="gray" wire:click="archivar"
-                        wire:confirm="¿Archivar esta conversación?">Archivar</x-filament::button>
                 @endif
 
                 {{-- El botón de etiquetas vive en la cabecera y muestra cuántas
@@ -512,22 +523,6 @@
                     @endforeach
                 </div>
             @endif
-
-            {{-- ═══ Las tres pestañas ═══ --}}
-            @php $resp = $this->respuestas(); @endphp
-            <div class="wa-tabs">
-                <button type="button" class="wa-tab {{ $pestana === 'chat' ? 'on' : '' }}"
-                        wire:click="verPestana('chat')">💬<span class="wa-t-largo">Conversación</span><span class="wa-t-corto">Chat</span></button>
-
-                <button type="button" class="wa-tab {{ $pestana === 'pedido' ? 'on' : '' }}"
-                        wire:click="verPestana('pedido')">🛒<span class="wa-t-largo">Tomar pedido</span><span class="wa-t-corto">Pedido</span></button>
-
-                <button type="button" class="wa-tab {{ $pestana === 'respuestas' ? 'on' : '' }}"
-                        wire:click="verPestana('respuestas')">
-                    ⚡<span class="wa-t-largo">Respuestas</span><span class="wa-t-corto">Rápidas</span>
-                    @if($resp->count())<span class="wa-tab-pin">{{ $resp->count() }}</span>@endif
-                </button>
-            </div>
 
             @if($pestana === 'chat')
             <div class="wa-chat">
