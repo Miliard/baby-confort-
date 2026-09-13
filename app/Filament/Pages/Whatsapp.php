@@ -329,6 +329,49 @@ class Whatsapp extends Page
         }
     }
 
+    // ── Mejorar el texto antes de mandarlo ───────────────────────────────────
+
+    /** Lo que había escrito antes de corregir, para poder volver atrás. */
+    public string $textoAntes = '';
+
+    public function puedeMejorar(): bool
+    {
+        return \App\Services\MejorarTexto::disponible();
+    }
+
+    public function mejorar(): void
+    {
+        $original = trim($this->texto);
+
+        $r = \App\Services\MejorarTexto::mejorar($original);
+
+        if (! ($r['ok'] ?? false)) {
+            Notification::make()
+                ->title('No se pudo corregir')
+                ->body($r['error'] ?? 'Error desconocido.')
+                ->warning()->send();
+            return;
+        }
+
+        // Si no cambió nada, no vale la pena ofrecer deshacer.
+        if ($r['texto'] === $original) {
+            Notification::make()->title('Ya estaba bien escrito')->success()->send();
+            return;
+        }
+
+        $this->textoAntes = $original;
+        $this->texto = $r['texto'];
+    }
+
+    /** Vuelve a lo que habías escrito vos. */
+    public function deshacerMejora(): void
+    {
+        if ($this->textoAntes === '') return;
+
+        $this->texto = $this->textoAntes;
+        $this->textoAntes = '';
+    }
+
     /** Manda el mensaje que escribió el agente. */
     public function enviar(): void
     {
@@ -362,6 +405,7 @@ class Whatsapp extends Page
         );
 
         $this->texto = '';
+        $this->textoAntes = '';
         $this->respondiendo = null;
 
         if ($mensaje->estado === 'fallido') {

@@ -183,6 +183,11 @@
 
     /* Las tallas se distinguen de las respuestas: estas mandan de una, sin
        pasar por el cuadro de texto, así que conviene que no se confundan. */
+    .wa-chip-ia{border-color:#b06cd6;color:#8b4fb8;font-weight:700}
+    .wa-chip-ia:hover{background:#b06cd6;color:#fff;border-color:#b06cd6}
+    html.dark .wa-chip-ia{color:#cfa6e8}
+    .wa-chip-ia:disabled{opacity:.55;cursor:wait}
+
     .wa-chip-talla{border-color:#4aa3df;color:#2b7fb8;font-weight:800}
     .wa-chip-talla:hover{background:#4aa3df;color:#fff;border-color:#4aa3df}
     html.dark .wa-chip-talla{color:#8ecbf0}
@@ -617,13 +622,27 @@
                     @endif
 
                     <textarea class="wa-escribir" rows="2" wire:model="texto"
-                              placeholder="Escribí tu respuesta…"
+                              placeholder="Escribí tu respuesta…" spellcheck="true" lang="es"
                               wire:keydown.enter.prevent="enviar"></textarea>
 
                     <div class="wa-btns">
                         <x-filament::button size="sm" wire:click="enviar" icon="heroicon-m-paper-airplane">
                             Enviar
                         </x-filament::button>
+
+                        @if($this->puedeMejorar())
+                            <button type="button" class="wa-chip wa-chip-ia" wire:click="mejorar"
+                                    wire:loading.attr="disabled" wire:target="mejorar"
+                                    title="Corrige ortografía, tildes y redacción sin inventar nada">
+                                <span wire:loading.remove wire:target="mejorar">✨ Mejorar</span>
+                                <span wire:loading wire:target="mejorar">Corrigiendo…</span>
+                            </button>
+                        @endif
+
+                        @if($textoAntes !== '')
+                            <button type="button" class="wa-chip" wire:click="deshacerMejora"
+                                    title="Volver a como lo escribiste vos">↶ Deshacer</button>
+                        @endif
 
                         <button type="button" class="wa-chip" wire:click="mandarTallas">
                             📏 Tabla de tallas
