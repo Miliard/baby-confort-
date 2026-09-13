@@ -167,15 +167,6 @@ class Whatsapp extends Page
 
     // ── Etiquetas ────────────────────────────────────────────────────────────
 
-    /** La fila de etiquetas se despliega solo cuando hace falta. */
-    public bool $etiquetasAbiertas = false;
-
-
-    public function verEtiquetas(): void
-    {
-        $this->etiquetasAbiertas = ! $this->etiquetasAbiertas;
-    }
-
     public function etiquetas()
     {
         return \App\Models\WaEtiqueta::todas();

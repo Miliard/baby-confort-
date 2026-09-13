@@ -59,12 +59,6 @@
         .wa-t-largo{display:none}
         .wa-t-corto{display:inline}
 
-        /* Las etiquetas en un solo renglón que se desliza, en vez de en dos o
-           tres filas comiéndose el alto del chat. */
-        .wa-etq-fila{flex-wrap:nowrap;overflow-x:auto;padding:6px 9px;
-                     scrollbar-width:none}
-        .wa-etq-fila::-webkit-scrollbar{display:none}
-        .wa-etq{flex:none}
         .wa-filtros{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
         .wa-filtros::-webkit-scrollbar{display:none}
         .wa-fil{flex:none}
@@ -328,19 +322,10 @@
                width:32px;height:30px;font-size:15px;font-family:inherit;color:inherit;flex:none}
     .wa-plegar:hover{background:rgba(120,140,170,.30)}
 
-    .wa-etq-btn{border:none;background:rgba(120,140,170,.16);cursor:pointer;border-radius:9px;
-                height:30px;padding:0 9px;font-size:14px;font-family:inherit;color:inherit;
-                display:inline-flex;align-items:center;gap:4px;flex:none}
-    .wa-etq-btn.on{background:rgba(46,158,107,.24)}
-    .wa-etq-n{font-size:10.5px;font-weight:800;background:#2e9e6b;color:#fff;
-              border-radius:999px;padding:0 5px;line-height:15px}
-
-    .wa-etq-fila{display:flex;gap:5px;flex-wrap:wrap;padding:8px 13px;flex:none;
-                 border-bottom:1px solid #e5e7eb;background:#fff}
-    html.dark .wa-etq-fila{background:#16202f;border-color:rgba(255,255,255,.10)}
+    /* Las etiquetas viven en la misma fila deslizable de la cabecera. */
     .wa-etq{border:1px dashed var(--c);background:none;color:var(--c);border-radius:999px;
-            padding:3px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;
-            opacity:.7}
+            padding:5px 11px;font-size:11.5px;font-weight:700;cursor:pointer;
+            font-family:inherit;opacity:.75;white-space:nowrap;flex:none}
     .wa-etq:hover{opacity:1}
     .wa-etq.on{background:var(--c);color:#fff;border-style:solid;opacity:1}
 
@@ -588,21 +573,10 @@
                     </x-filament::button>
                 @endif
 
-                {{-- El botón de etiquetas muestra cuántas tiene puestas, así no
-                     hace falta abrir para saberlo. --}}
-                @if($etqs->count() && $pestana !== 'pedido')
-                    @php $puestas = $conv->etiquetas->count(); @endphp
-                    <button type="button" class="wa-etq-btn {{ $etiquetasAbiertas ? 'on' : '' }}"
-                            wire:click="verEtiquetas"
-                            title="{{ $puestas ? $puestas . ' etiqueta(s) puesta(s)' : 'Poner una etiqueta' }}">
-                        🏷️@if($puestas)<span class="wa-etq-n">{{ $puestas }}</span>@endif
-                    </button>
-                @endif
-            </div>
-
-            {{-- La fila solo se dibuja si se pidió: son 45 px de conversación. --}}
-            @if($etqs->count() && $pestana !== 'pedido' && $etiquetasAbiertas)
-                <div class="wa-etq-fila">
+                {{-- Las etiquetas van acá mismo, en la fila que ya se desliza.
+                     Antes estaban detrás de un botón: eran dos toques para
+                     algo que se hace veinte veces al día. --}}
+                @if($pestana !== 'pedido')
                     @foreach($etqs as $e)
                         @php $puesta = $conv->etiquetas->contains($e->id); @endphp
                         <button type="button" wire:click="alternarEtiqueta({{ $e->id }})"
@@ -613,8 +587,8 @@
                             {{ $puesta ? '✓' : '+' }} {{ $e->nombre }}
                         </button>
                     @endforeach
-                </div>
-            @endif
+                @endif
+            </div>
 
             @if($pestana === 'chat')
             <div class="wa-chat" data-conv="{{ $abierta }}">
@@ -1242,7 +1216,7 @@
     // qué: la barra de desplazamiento está escondida a propósito. Así que la
     // rueda del mouse mueve de lado, y además se puede arrastrar.
     (function () {
-        var FILAS = '.wa-cab, .wa-filtros, .wa-etq-fila';
+        var FILAS = '.wa-cab, .wa-filtros';
 
         document.addEventListener('wheel', function (e) {
             var fila = e.target.closest && e.target.closest(FILAS);
