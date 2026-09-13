@@ -98,6 +98,9 @@
     .wa-nom{font-weight:700;font-size:15px;display:flex;gap:7px;align-items:center}
     .wa-prev{font-size:13.5px;color:#94a3b8;margin-top:3px;overflow:hidden;
              text-overflow:ellipsis;white-space:nowrap}
+    /* El nombre del perfil, en chico: sirve de pista, no de identificación. */
+    .wa-apodo{font-size:11.5px;color:#94a3b8;opacity:.8;margin-top:1px;overflow:hidden;
+              text-overflow:ellipsis;white-space:nowrap}
     .wa-hora{font-size:11.5px;color:#94a3b8;float:right;font-weight:400}
     .wa-pin{background:#e5695f;color:#fff;font-size:10.5px;font-weight:800;
             border-radius:999px;padding:1px 7px;flex:none}
@@ -394,9 +397,13 @@
                     <span class="wa-hora">{{ $c->horaUltimo() }}</span>
 
                     <span class="wa-nom">
-                        {{ $c->comoSeLlama() }}
+                        {{ $c->telefonoLegible() }}
                         @if($c->sin_leer > 0)<span class="wa-pin">{{ $c->sin_leer }}</span>@endif
                     </span>
+
+                    @if($c->apodo())
+                        <div class="wa-apodo">{{ $c->apodo() }}</div>
+                    @endif
 
                     <div class="wa-prev">{{ $c->ultimo_texto ?: '—' }}</div>
 
@@ -453,11 +460,11 @@
                 @endif
 
                 <div class="wa-nombre-col" style="flex:1;min-width:110px">
-                    <div style="font-weight:800;font-size:15px">{{ $conv->comoSeLlama() }}</div>
+                    <div style="font-weight:800;font-size:15px">{{ $conv->telefonoLegible() }}</div>
 
                     @if($cabeceraAbierta)
                         <div style="font-size:12px;color:#94a3b8">
-                            {{ $conv->telefono }}
+                            {{ $conv->apodo() ?: 'Sin nombre de perfil' }}
                             @if($pestana === 'chat')
                                 @if($conv->ventanaAbierta())
                                     · <span class="wa-eti wa-eti-ok">Puede responder · {{ $conv->ventanaLegible() }}</span>

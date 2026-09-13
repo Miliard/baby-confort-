@@ -137,6 +137,34 @@ class WaConversacion extends Model
         return strlen($d) === 8 ? substr($d, 0, 4) . ' ' . substr($d, 4) : $d;
     }
 
+    /**
+     * El teléfono en grupos de cuatro, que es como se lee en El Salvador.
+     *
+     * Es lo que se muestra como título de cada conversación: el nombre lo pone
+     * el cliente en su perfil y suele ser un apodo o un emoji, así que no
+     * sirve para reconocerlo ni para cruzarlo con las guías.
+     */
+    public function telefonoLegible(): string
+    {
+        $d = preg_replace('/\D/', '', (string) $this->telefono);
+
+        // Si viene con el 503 adelante, se muestra sin él.
+        if (strlen($d) === 11 && str_starts_with($d, '503')) $d = substr($d, 3);
+
+        return strlen($d) === 8 ? substr($d, 0, 4) . ' ' . substr($d, 4) : ($d ?: '—');
+    }
+
+    /** El nombre del perfil, solo si lo tiene y no es igual al teléfono. */
+    public function apodo(): ?string
+    {
+        $n = trim((string) $this->nombre);
+        if ($n === '') return null;
+
+        return preg_replace('/\D/', '', $n) === preg_replace('/\D/', '', (string) $this->telefono)
+            ? null
+            : $n;
+    }
+
     /** Si ese número ya está en la libreta, traemos sus datos. */
     public function cliente(): ?array
     {
