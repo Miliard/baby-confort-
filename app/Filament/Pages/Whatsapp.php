@@ -652,6 +652,47 @@ class Whatsapp extends Page
      * recibir; si no tiene, la del producto. Devuelve la ruta tal como la sirve
      * el sitio, sin el dominio.
      */
+    // ── Municipio y departamento ─────────────────────────────────────────────
+
+    /**
+     * Cada vez que se escribe el municipio, se revisa contra el departamento.
+     *
+     * Si no hay duda, el departamento se completa solo. Nació de una guía que
+     * salió con "San Vicente, San Salvador" y se fue para el otro lado del
+     * país.
+     */
+    public function updatedPedMunicipio(): void
+    {
+        $M = \App\Services\Municipios::class;
+
+        // Se corrige la escritura (tildes, mayúsculas) si lo reconocemos.
+        $bueno = $M::nombreBueno($this->pedMunicipio);
+        if ($bueno) $this->pedMunicipio = $bueno;
+
+        // El departamento se deduce del municipio, siempre que no haya duda.
+        // Si el que estaba puesto no corresponde, se reemplaza: la tabla manda
+        // sobre lo que haya quedado escrito antes.
+        $seguro = $M::departamentoSeguro($this->pedMunicipio);
+
+        if ($seguro) $this->pedDepartamento = $seguro;
+    }
+
+    public function updatedPedDepartamento(): void
+    {
+        // Solo para que la revisión de abajo se actualice al escribir.
+    }
+
+    /** Lo que se muestra debajo de los campos. */
+    public function revisionZona(): array
+    {
+        return \App\Services\Municipios::revisar($this->pedMunicipio, $this->pedDepartamento);
+    }
+
+    public function departamentos(): array
+    {
+        return \App\Services\Municipios::departamentos();
+    }
+
     /** Cuántas guías hay esperando en la cola, listas para el Excel. */
     public function enCola(): int
     {
@@ -1042,10 +1083,11 @@ class Whatsapp extends Page
         $this->pedOrigen = $m->texto;
         $datos = $this->leerOrden($m->texto);
 
-        if (filled($datos['nombre']))    $this->pedNombre      = $datos['nombre'];
-        if (filled($datos['telefono']))  $this->pedTelefono    = $datos['telefono'];
-        if (filled($datos['municipio'])) $this->pedMunicipio   = $datos['municipio'];
-        if (filled($datos['direccion'])) $this->pedDireccion   = $datos['direccion'];
+        if (filled($datos['nombre']))    $this->pedNombre    = $datos['nombre'];
+        if (filled($datos['telefono']))  $this->pedTelefono  = $datos['telefono'];
+        if (filled($datos['direccion'])) $this->pedDireccion = $datos['direccion'];
+
+        $this->resolverZona($datos['municipio'] ?? '', $datos['direccion'] ?? '');
         if (filled($datos['productos'])) $this->pedProductosTexto = $datos['productos'];
         if (filled($datos['total']))     $this->pedCobrarManual   = $datos['total'];
 
@@ -1060,6 +1102,80 @@ class Whatsapp extends Page
                 : 'Revisá que el mensaje tenga el formato de siempre, con dos puntos después de cada campo.')
             ->{$leidos > 0 ? 'success' : 'warning'}()
             ->send();
+    }
+
+    /**
+     * Decide el municipio y el departamento de una orden.
+     *
+     * La regla de fondo: **el departamento no se lee del texto, se deduce del
+     * municipio**. La tabla de municipios es la que manda. Si el intérprete se
+     * confunde repartiendo los renglones, o si en la orden quedó escrito un
+     * departamento que no corresponde, acá se corrige igual.
+     *
+     * Busca el municipio en tres lugares, en este orden:
+     *   1. El campo "Municipio", quedándose con lo de antes de la coma.
+     *   2. Ese mismo campo completo, por si venía mezclado con otra cosa.
+     *   3. La dirección, que casi siempre repite el municipio al final.
+     */
+    private function resolverZona(string $municipioCrudo, string $direccion): void
+    {
+        $M = \App\Services\Municipios::class;
+
+        $encontrado = null;
+
+        if (trim($municipioCrudo) !== '') {
+            // "Nueva Concepción, Chalatenango" → se prueba con lo de antes de
+            // la coma, que es donde va el municipio.
+            $antesDeComa = trim(explode(',', $municipioCrudo)[0]);
+
+            $encontrado = $M::existe($antesDeComa)
+                ? $M::nombreBueno($antesDeComa)
+                : $M::buscarEn($municipioCrudo);
+        }
+
+        // Último recurso: la dirección. "…los chilamates nueva concepción
+        // chalatenango" trae el municipio aunque el campo haya salido mal.
+        if (! $encontrado && trim($direccion) !== '') {
+            $encontrado = $M::buscarEn($direccion);
+        }
+
+        if (! $encontrado) {
+            // No se reconoció nada: se deja lo que vino y que la pantalla avise.
+            if (trim($municipioCrudo) !== '') {
+                $this->pedMunicipio = trim(explode(',', $municipioCrudo)[0]);
+            }
+            return;
+        }
+
+        $this->pedMunicipio = $encontrado;
+
+        // Y acá lo importante: el departamento sale de la tabla, no del texto.
+        $seguro = $M::departamentoSeguro($encontrado);
+
+        if ($seguro) {
+            $this->pedDepartamento = $seguro;
+            return;
+        }
+
+        // Nombre que existe en varios departamentos: solo ahí se mira lo que
+        // decía la orden, y únicamente si es uno de los posibles.
+        $posibles = $M::departamentosDe($encontrado);
+        $escrito = trim(explode(',', $municipioCrudo)[1] ?? '');
+
+        foreach ($posibles as $p) {
+            if ($escrito !== '' && $M::normalizar($p) === $M::normalizar($escrito)) {
+                $this->pedDepartamento = $p;
+                return;
+            }
+
+            if ($M::buscarEn($direccion) === null && str_contains($M::normalizar($direccion), $M::normalizar($p))) {
+                $this->pedDepartamento = $p;
+                return;
+            }
+        }
+
+        // Sigue habiendo duda: se deja vacío para que la pantalla lo pregunte.
+        $this->pedDepartamento = '';
     }
 
     /**
@@ -1163,6 +1279,7 @@ class Whatsapp extends Page
         if (trim($this->pedNombre) === '')    $faltan[] = 'el nombre';
         if (trim($this->pedTelefono) === '')  $faltan[] = 'el teléfono';
         if (trim($this->pedDireccion) === '') $faltan[] = 'la dirección';
+        if (trim($this->pedMunicipio) === '') $faltan[] = 'el municipio';
         if ($this->descripcionPedido() === '') $faltan[] = 'al menos un producto';
 
         if ($faltan) {
@@ -1170,6 +1287,31 @@ class Whatsapp extends Page
                 ->title('Falta ' . implode(', ', $faltan))
                 ->warning()->send();
             return;
+        }
+
+        // La zona se revisa acá y no solo en pantalla: es la última puerta
+        // antes de que la guía entre a la cola y se baje al Excel.
+        $zona = $this->revisionZona();
+
+        if (in_array($zona['estado'], ['error', 'ambiguo'], true)) {
+            Notification::make()
+                ->title('Revisá el municipio y el departamento')
+                ->body($zona['mensaje'] . ' Un paquete con el departamento equivocado se pierde el viaje.')
+                ->danger()->persistent()->send();
+            return;
+        }
+
+        if ($zona['estado'] === 'desconocido') {
+            Notification::make()
+                ->title('Ese municipio no está en la lista')
+                ->body($zona['mensaje'] . ' Si estás seguro de que existe, decímelo y lo agrego.')
+                ->warning()->persistent()->send();
+            return;
+        }
+
+        // Si quedó vacío y se puede deducir, se completa sin molestar.
+        if (trim($this->pedDepartamento) === '' && $zona['sugerido']) {
+            $this->pedDepartamento = $zona['sugerido'];
         }
 
         $fila = [

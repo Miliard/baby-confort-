@@ -258,6 +258,16 @@
         .wa-comparar .wa-origen{margin-bottom:0;position:sticky;top:0}
     }
 
+    /* El aviso de municipio/departamento, justo debajo de los dos campos. */
+    .wa-zona{border-radius:9px;padding:8px 11px;font-size:12.5px;line-height:1.5;
+             margin:-4px 0 12px;font-weight:600}
+    .wa-zona-ok{background:rgba(46,158,107,.13);color:#15603f}
+    .wa-zona-mal{background:rgba(229,105,95,.16);color:#b91c1c}
+    .wa-zona-ojo{background:rgba(234,179,8,.16);color:#7a5600}
+    html.dark .wa-zona-ok{color:#9fe1cb}
+    html.dark .wa-zona-mal{color:#f5c4b3}
+    html.dark .wa-zona-ojo{color:#f0d79a}
+
     .wa-cola{margin-top:14px;font-size:12.5px;line-height:1.6;color:#94a3b8;
              border-top:1px solid rgba(120,140,170,.18);padding-top:12px}
     .wa-cola b{color:inherit;font-weight:800}
@@ -737,9 +747,16 @@
                     </div>
                     <div class="wa-campo">
                         <label class="wa-lab">Municipio</label>
-                        <input type="text" class="wa-in" wire:model="pedMunicipio">
+                        <input type="text" class="wa-in" wire:model.live.debounce.500ms="pedMunicipio"
+                               list="wa-municipios">
                     </div>
                 </div>
+
+                <datalist id="wa-municipios">
+                    @foreach(array_keys(config('municipios', [])) as $m)
+                        <option value="{{ $m }}"></option>
+                    @endforeach
+                </datalist>
 
                 <div class="wa-campo">
                     <label class="wa-lab">Dirección exacta</label>
@@ -748,8 +765,32 @@
 
                 <div class="wa-campo">
                     <label class="wa-lab">Departamento</label>
-                    <input type="text" class="wa-in" wire:model="pedDepartamento">
+                    <select class="wa-in" wire:model.live="pedDepartamento">
+                        <option value="">Elegí el departamento…</option>
+                        @foreach($this->departamentos() as $d)
+                            <option value="{{ $d }}">{{ $d }}</option>
+                        @endforeach
+                    </select>
                 </div>
+
+                @php $zona = $this->revisionZona(); @endphp
+                @if($zona['estado'] === 'error')
+                    <div class="wa-zona wa-zona-mal">
+                        ⚠ {{ $zona['mensaje'] }}
+                    </div>
+                @elseif($zona['estado'] === 'ambiguo')
+                    <div class="wa-zona wa-zona-ojo">
+                        {{ $zona['mensaje'] }}
+                    </div>
+                @elseif($zona['estado'] === 'desconocido')
+                    <div class="wa-zona wa-zona-ojo">
+                        {{ $zona['mensaje'] }}
+                    </div>
+                @elseif($zona['estado'] === 'ok')
+                    <div class="wa-zona wa-zona-ok">
+                        ✓ {{ $pedMunicipio }} pertenece a {{ $pedDepartamento }}
+                    </div>
+                @endif
 
                 <div class="wa-campo">
                     <label class="wa-lab">Productos, tal como van en la guía</label>
