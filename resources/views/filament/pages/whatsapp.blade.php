@@ -100,8 +100,6 @@
     /* El nombre del perfil, en chico: sirve de pista, no de identificación. */
     .wa-apodo{font-size:11.5px;color:#94a3b8;opacity:.8;margin-top:1px;overflow:hidden;
               text-overflow:ellipsis;white-space:nowrap}
-    /* El que le puso Wil se ve entero; el del perfil del cliente, apagado. */
-    .wa-apodo-mio{color:inherit;opacity:1;font-weight:600}
 
     .wa-alias-btn{border:none;background:none;cursor:pointer;font-family:inherit;
                   color:inherit;font-size:12px;padding:0;text-decoration:underline;
@@ -494,14 +492,12 @@
                     <span class="wa-hora">{{ $c->horaUltimo() }}</span>
 
                     <span class="wa-nom">
-                        {{ $c->telefonoLegible() }}
+                        {{ $c->titulo() }}
                         @if($c->sin_leer > 0)<span class="wa-pin">{{ $c->sin_leer }}</span>@endif
                     </span>
 
-                    @if($c->apodo())
-                        <div class="wa-apodo {{ $c->nombrePropio() ? 'wa-apodo-mio' : '' }}">
-                            {{ $c->apodo() }}
-                        </div>
+                    @if($c->subtitulo())
+                        <div class="wa-apodo">{{ $c->subtitulo() }}</div>
                     @endif
 
                     {{-- Las palomitas delante de la vista previa cuentan la
@@ -572,13 +568,13 @@
                     </div>
                 @else
                 <div class="wa-nombre-col" style="flex:1;min-width:110px">
-                    <div style="font-weight:800;font-size:15px">{{ $conv->telefonoLegible() }}</div>
+                    <div style="font-weight:800;font-size:15px">{{ $conv->titulo() }}</div>
 
                     <div style="font-size:12px;color:#94a3b8">
                         <button type="button" class="wa-alias-btn {{ $conv->nombrePropio() ? 'on' : '' }}"
                                 wire:click="editarAlias"
-                                title="Ponerle un nombre a este contacto">
-                            {{ $conv->apodo() ?: '✏️ Ponerle nombre' }}
+                                title="{{ $conv->nombrePropio() ? 'Cambiar el nombre' : 'Ponerle un nombre a este contacto' }}">
+                            {{ $conv->subtitulo() ?: '✏️ Ponerle nombre' }}
                         </button>
                         @if($pestana === 'chat')
                             @if($conv->ventanaAbierta())

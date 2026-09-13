@@ -226,6 +226,35 @@ class WaConversacion extends Model
         return trim((string) ($this->alias ?? '')) !== '';
     }
 
+    /**
+     * Lo que va en grande arriba.
+     *
+     * Si le pusiste nombre, manda el nombre: ya no hace falta estar leyendo el
+     * número. Si no, el número, que es lo único confiable — el nombre del
+     * perfil lo elige el cliente y suele ser un apodo o un emoji.
+     */
+    public function titulo(): string
+    {
+        return $this->nombrePropio()
+            ? trim((string) $this->alias)
+            : $this->telefonoLegible();
+    }
+
+    /** Lo que va abajo en chico. Null si no hay nada que agregar. */
+    public function subtitulo(): ?string
+    {
+        // Con nombre propio, abajo el número: sigue estando a mano para
+        // cruzarlo con una guía, pero sin ocupar el lugar principal.
+        if ($this->nombrePropio()) return $this->telefonoLegible();
+
+        $n = trim((string) $this->nombre);
+        if ($n === '') return null;
+
+        return preg_replace('/\D/', '', $n) === preg_replace('/\D/', '', (string) $this->telefono)
+            ? null
+            : $n;
+    }
+
     /** Si ese número ya está en la libreta, traemos sus datos. */
     public function cliente(): ?array
     {
