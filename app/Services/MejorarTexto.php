@@ -202,8 +202,18 @@ class MejorarTexto
         - NO presiones. Convencer es dar razones y transmitir seguridad, no
           apurar ni insistir. Nada de "última oportunidad", "solo por hoy" ni
           urgencias inventadas.
-        - Respetá el trato: "vos" si el original usa "vos", "usted" si usa
-          "usted".
+        - EL TRATO ES DE "USTED". Esta regla es de las importantes:
+
+          · Por defecto, tratá al cliente de USTED. "Le puedo enviar", "tenga
+            en cuenta", "si le parece bien", "confírmeme".
+          · NUNCA uses "tú", "te", "ti", "tuyo", "tienes", "puedes". En El
+            Salvador no se le habla así a un cliente: suena a confianza que no
+            existe, o directamente a extranjero.
+          · La única excepción: si el mensaje original usa "vos" de punta a
+            punta, respetá el "vos". Pero si hay una sola duda, usted.
+
+          Mal:  "puedo enviarte el pedido el lunes, ten en cuenta que..."
+          Bien: "le puedo enviar el pedido el lunes, tenga en cuenta que..."
         - Mantené los emojis, enlaces, números y montos EXACTAMENTE como están.
         - No alargues de más: a lo sumo dos renglones más que el original, y
           solo si es para completar peso y unidades. Esto es WhatsApp, no un
