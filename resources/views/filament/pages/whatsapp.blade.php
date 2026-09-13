@@ -472,11 +472,16 @@
                 {{-- Los botones de atender solo hacen falta cuando se está
                      conversando. Armando el pedido estorban y se llevan
                      justo el espacio donde hay que comparar. --}}
-                @if($pestana === 'chat' && $cabeceraAbierta)
-                    @if($conv->agente_id && $conv->agente_id !== auth()->id())
-                        <span class="wa-eti wa-eti-mal">La está atendiendo {{ $conv->agente?->name }}</span>
-                    @endif
+                {{-- Este aviso se ve SIEMPRE, plegada o no: enterarse tarde de
+                     que otro ya está contestando es justo lo que hay que
+                     evitar cuando son tres personas en el mismo número. --}}
+                @if($conv->agente_id && $conv->agente_id !== auth()->id())
+                    <span class="wa-eti wa-eti-mal">
+                        Atiende {{ $conv->agente?->name }}
+                    </span>
+                @endif
 
+                @if($pestana === 'chat' && $cabeceraAbierta)
                     @if($conv->agente_id === auth()->id())
                         <x-filament::button size="xs" color="gray" wire:click="soltar">Soltar</x-filament::button>
                     @else
