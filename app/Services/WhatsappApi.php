@@ -164,7 +164,7 @@ class WhatsappApi
             ]);
         }
 
-        static::refrescarConversacion($conv, $texto);
+        static::refrescarConversacion($conv, $texto, $mensaje->estado);
 
         return $mensaje;
     }
@@ -231,16 +231,23 @@ class WhatsappApi
             ]);
         }
 
-        static::refrescarConversacion($conv, $pie ?: '[imagen]');
+        static::refrescarConversacion($conv, $pie ?: '📷 Foto', $mensaje->estado);
 
         return $mensaje;
     }
 
-    /** Deja la conversación con su último mensaje y la sube en la lista. */
-    public static function refrescarConversacion(WaConversacion $conv, string $texto): void
-    {
-        $conv->ultimo_texto      = mb_substr(trim($texto), 0, 300);
-        $conv->ultimo_mensaje_at = now();
+    /**
+     * Deja la conversación con su último mensaje y la sube en la lista.
+     *
+     * Anota además que el último fue nuestro y en qué estado quedó, para que
+     * la lista pueda mostrar las palomitas sin consultar los mensajes.
+     */
+    public static function refrescarConversacion(
+        WaConversacion $conv,
+        string $texto,
+        ?string $estado = null,
+    ): void {
+        $conv->anotarUltimo($texto, true, $estado);
         $conv->save();
     }
 

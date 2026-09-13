@@ -16,6 +16,7 @@ class WaConversacion extends Model
 
     protected $fillable = [
         'wa_id', 'telefono', 'nombre', 'alias', 'ultimo_texto', 'ultimo_mensaje_at',
+        'ultimo_saliente', 'ultimo_estado',
         'ultimo_del_cliente_at', 'agente_id', 'tomada_at', 'sin_leer', 'archivada',
     ];
 
@@ -172,6 +173,51 @@ class WaConversacion extends Model
         return preg_replace('/\D/', '', $n) === preg_replace('/\D/', '', (string) $this->telefono)
             ? null
             : $n;
+    }
+
+    /**
+     * Deja anotado de quién fue el último mensaje y cómo le fue.
+     *
+     * Se llama cada vez que entra o sale uno. Con esto la lista puede mostrar
+     * las palomitas sin ir a buscar el mensaje a la base.
+     */
+    public function anotarUltimo(string $texto, bool $saliente, ?string $estado = null): void
+    {
+        $this->ultimo_texto      = mb_substr(trim($texto), 0, 300);
+        $this->ultimo_mensaje_at = now();
+        $this->ultimo_saliente   = $saliente;
+        $this->ultimo_estado     = $saliente ? $estado : null;
+    }
+
+    /** ¿Estoy esperando contestarle? */
+    public function sinResponder(): bool
+    {
+        return ! (bool) ($this->ultimo_saliente ?? false);
+    }
+
+    /** Las palomitas del último mensaje, solo si fue nuestro. */
+    public function marcaUltimo(): string
+    {
+        if ($this->sinResponder()) return '';
+
+        return match ($this->ultimo_estado) {
+            'enviando'  => '···',
+            'enviado'   => '✓',
+            'entregado' => '✓✓',
+            'leido'     => '✓✓',
+            'fallido'   => '⚠',
+            default     => '✓',
+        };
+    }
+
+    public function colorUltimo(): string
+    {
+        return match ($this->ultimo_estado) {
+            'leido'     => '#2e9e6b',
+            'entregado' => '#d4a017',
+            'fallido'   => '#e5695f',
+            default     => '#94a3b8',
+        };
     }
 
     /** ¿El nombre que se muestra lo puso Wil o vino del perfil del cliente? */

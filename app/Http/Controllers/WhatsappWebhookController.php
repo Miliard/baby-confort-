@@ -151,10 +151,9 @@ class WhatsappWebhookController extends Controller
 
         // Se reabre la ventana de 24 horas y sube en la lista del inbox.
         $conv->ultimo_del_cliente_at = now();
-        $conv->ultimo_mensaje_at     = now();
-        $conv->ultimo_texto = mb_substr(trim((string) ($texto ?: '[' . $tipo . ']')), 0, 300);
-        $conv->sin_leer     = $conv->sin_leer + 1;
-        $conv->archivada    = false;
+        $conv->anotarUltimo((string) ($texto ?: '[' . $tipo . ']'), false);
+        $conv->sin_leer  = $conv->sin_leer + 1;
+        $conv->archivada = false;
         $conv->save();
 
         // Respuesta automática (por ahora, solo la tabla de tallas).
@@ -223,9 +222,9 @@ class WhatsappWebhookController extends Controller
             'automatico' => false,
         ]);
 
-        $conv->ultimo_mensaje_at = now();
-        $conv->ultimo_texto = mb_substr(trim((string) ($texto ?: '[' . $tipo . ']')), 0, 300);
-        $conv->archivada    = false;
+        // Salió del teléfono: cuenta como respondido.
+        $conv->anotarUltimo((string) ($texto ?: '[' . $tipo . ']'), true, 'entregado');
+        $conv->archivada = false;
         $conv->save();
     }
 
@@ -255,5 +254,23 @@ class WhatsappWebhookController extends Controller
         }
 
         $mensaje->update($datos);
+
+        // Si era el último de la conversación, la lista también tiene que
+        // enterarse: es donde se ven las palomitas de un vistazo.
+        try {
+            $conv = $mensaje->conversacion;
+
+            if ($conv) {
+                $ultimo = WaMensaje::where('conversacion_id', $conv->id)
+                    ->orderByDesc('id')->first();
+
+                if ($ultimo && $ultimo->id === $mensaje->id) {
+                    $conv->ultimo_estado = $estado;
+                    $conv->save();
+                }
+            }
+        } catch (\Throwable $e) {
+            // Que no se actualice la palomita no justifica romper el webhook.
+        }
     }
 }

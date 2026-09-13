@@ -92,6 +92,11 @@
     .wa-nom{font-weight:700;font-size:15px;display:flex;gap:7px;align-items:center}
     .wa-prev{font-size:13.5px;color:#94a3b8;margin-top:3px;overflow:hidden;
              text-overflow:ellipsis;white-space:nowrap}
+
+    /* Sin palomitas y con la barrita: el último mensaje es del cliente y está
+       esperando respuesta. Es el estado que hay que poder ver de lejos. */
+    .wa-prev-debo{color:inherit;font-weight:600;
+                  border-left:3px solid #e5695f;padding-left:7px;margin-left:-1px}
     /* El nombre del perfil, en chico: sirve de pista, no de identificación. */
     .wa-apodo{font-size:11.5px;color:#94a3b8;opacity:.8;margin-top:1px;overflow:hidden;
               text-overflow:ellipsis;white-space:nowrap}
@@ -494,7 +499,14 @@
                         </div>
                     @endif
 
-                    <div class="wa-prev">{{ $c->ultimo_texto ?: '—' }}</div>
+                    {{-- Las palomitas delante de la vista previa cuentan la
+                         historia de un vistazo: si están, ya contestaste. --}}
+                    <div class="wa-prev {{ $c->sinResponder() ? 'wa-prev-debo' : '' }}">
+                        @if($c->marcaUltimo())
+                            <span class="wa-check" style="color:{{ $c->colorUltimo() }}">{{ $c->marcaUltimo() }}</span>
+                        @endif
+                        {{ $c->ultimo_texto ?: '—' }}
+                    </div>
 
                     @if($c->etiquetas->count())
                         <div class="wa-marcas">
