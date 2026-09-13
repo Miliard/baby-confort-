@@ -96,7 +96,7 @@ class Whatsapp extends Page
 
     public function verPestana(string $cual): void
     {
-        $this->pestana = in_array($cual, ['chat', 'pedido', 'respuestas'], true) ? $cual : 'chat';
+        $this->pestana = in_array($cual, ['chat', 'pedido'], true) ? $cual : 'chat';
 
         if ($this->pestana === 'pedido' && ! $this->pedLineas) {
             $this->agregarLinea();

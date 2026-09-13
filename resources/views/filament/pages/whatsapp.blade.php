@@ -475,10 +475,9 @@
                 <button type="button" class="wa-tab {{ $pestana === 'pedido' ? 'on' : '' }}"
                         wire:click="verPestana('pedido')" title="Tomar pedido">🛒</button>
 
-                <button type="button" class="wa-tab {{ $pestana === 'respuestas' ? 'on' : '' }}"
-                        wire:click="verPestana('respuestas')" title="Respuestas rápidas">
-                    ⚡@if($resp->count())<span class="wa-tab-pin">{{ $resp->count() }}</span>@endif
-                </button>
+                {{-- Sin pestaña de respuestas rápidas: ya están como botones al
+                     lado de Enviar, y se crean desde el menú. Tenerlas en tres
+                     lugares era ocupar la cabecera para nada. --}}
 
                 @if($cabeceraAbierta)
                     <button type="button" class="wa-volver wa-full" onclick="waPantallaCompleta()"
@@ -781,48 +780,6 @@
             </div>
             @endif
 
-            {{-- ═══ PESTAÑA: respuestas rápidas ═══ --}}
-            @if($pestana === 'respuestas')
-            <div class="wa-panel">
-                @forelse($resp as $r)
-                    <button type="button" class="wa-resp" wire:click="usarRespuesta({{ $r->id }})"
-                            wire:key="resp-{{ $r->id }}">
-                        <div class="wa-resp-t">{{ $r->titulo }}</div>
-                        <div class="wa-resp-p">{{ \Illuminate\Support\Str::limit($r->texto, 90) }}</div>
-                    </button>
-                @empty
-                    <div style="font-size:13.5px;color:#94a3b8;line-height:1.6;padding:10px 0">
-                        Todavía no hay respuestas guardadas.<br><br>
-                        Se crean en el admin, en <b>Respuestas rápidas</b>: le ponés un título corto
-                        (el que se ve en el botón) y el texto que se manda. Sirven para lo que
-                        escribís diez veces al día — precios, formas de pago, hasta dónde llega el envío.
-                    </div>
-                @endforelse
-
-                @if(! (auth()->user()?->solo_chat ?? false))
-                    <div style="margin-top:14px">
-                        <x-filament::button tag="a" size="sm" color="gray" icon="heroicon-m-plus"
-                            href="{{ \App\Filament\Resources\RespuestaRapidaResource::getUrl('create') }}">
-                            Crear una respuesta
-                        </x-filament::button>
-
-                        @if($resp->count())
-                            <x-filament::button tag="a" size="sm" color="gray" icon="heroicon-m-pencil"
-                                href="{{ \App\Filament\Resources\RespuestaRapidaResource::getUrl('index') }}"
-                                style="margin-left:7px">
-                                Editar las que hay
-                            </x-filament::button>
-                        @endif
-                    </div>
-                @endif
-
-                <div style="font-size:12px;color:#94a3b8;margin-top:14px;line-height:1.6">
-                    Al tocar una, el texto se copia al cuadro de la conversación. Podés
-                    cambiarlo antes de mandarlo. También aparecen como botones al lado
-                    de "Enviar", para no tener que entrar acá.
-                </div>
-            </div>
-            @endif
         @endif
     </div>
 </div>
