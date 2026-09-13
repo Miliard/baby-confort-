@@ -169,16 +169,6 @@ class Whatsapp extends Page
     /** La fila de etiquetas se despliega solo cuando hace falta. */
     public bool $etiquetasAbiertas = false;
 
-    /** La cabecera entera se puede plegar para dejarle todo el alto al chat. */
-    public bool $cabeceraAbierta = true;
-
-    public function verCabecera(): void
-    {
-        $this->cabeceraAbierta = ! $this->cabeceraAbierta;
-
-        // Plegada no tiene sentido dejar las etiquetas colgando sueltas.
-        if (! $this->cabeceraAbierta) $this->etiquetasAbiertas = false;
-    }
 
     public function verEtiquetas(): void
     {

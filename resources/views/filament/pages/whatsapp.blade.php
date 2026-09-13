@@ -482,33 +482,27 @@
                             title="Volver a la conversación">💬</button>
                 @endif
 
-                @if($cabeceraAbierta)
-                    <button type="button" class="wa-volver wa-full" onclick="waPantallaCompleta()"
-                            title="Pantalla completa">⛶</button>
-                @endif
+                <button type="button" class="wa-volver wa-full" onclick="waPantallaCompleta()"
+                        title="Pantalla completa">⛶</button>
 
                 <div class="wa-nombre-col" style="flex:1;min-width:110px">
                     <div style="font-weight:800;font-size:15px">{{ $conv->telefonoLegible() }}</div>
 
-                    @if($cabeceraAbierta)
-                        <div style="font-size:12px;color:#94a3b8">
-                            {{ $conv->apodo() ?: 'Sin nombre de perfil' }}
-                            @if($pestana === 'chat')
-                                @if($conv->ventanaAbierta())
-                                    · <span class="wa-eti wa-eti-ok">Puede responder · {{ $conv->ventanaLegible() }}</span>
-                                @else
-                                    · <span class="wa-eti wa-eti-mal">Ventana cerrada</span>
-                                @endif
+                    <div style="font-size:12px;color:#94a3b8">
+                        {{ $conv->apodo() ?: 'Sin nombre de perfil' }}
+                        @if($pestana === 'chat')
+                            @if($conv->ventanaAbierta())
+                                · <span class="wa-eti wa-eti-ok">Puede responder · {{ $conv->ventanaLegible() }}</span>
+                            @else
+                                · <span class="wa-eti wa-eti-mal">Ventana cerrada</span>
                             @endif
-                        </div>
-                    @endif
+                        @endif
+                    </div>
                 </div>
 
-                {{-- Los botones de atender solo hacen falta cuando se está
-                     conversando. Armando el pedido estorban y se llevan
-                     justo el espacio donde hay que comparar. --}}
-                {{-- Este aviso se ve SIEMPRE, plegada o no: enterarse tarde de
-                     que otro ya está contestando es justo lo que hay que
+                {{-- El chat se toma solo al contestar, así que no hay botones
+                     para eso. Pero el aviso de que ya lo está atendiendo otro
+                     se ve siempre: enterarse tarde es justo lo que hay que
                      evitar cuando son tres personas en el mismo número. --}}
                 @if($conv->agente_id && $conv->agente_id !== auth()->id())
                     <span class="wa-eti wa-eti-mal">
@@ -516,23 +510,16 @@
                     </span>
                 @endif
 
-                @if($pestana === 'chat' && $cabeceraAbierta)
-                    @if($conv->agente_id === auth()->id())
-                        <x-filament::button size="xs" color="gray" wire:click="soltar">Soltar</x-filament::button>
-                    @else
-                        <x-filament::button size="xs" wire:click="tomar">Tomar</x-filament::button>
-                    @endif
-
+                @if($pestana === 'chat')
                     <x-filament::button size="xs" color="success" wire:click="plantillaOrden"
                         icon="heroicon-m-clipboard-document-list">
                         Orden de envío
                     </x-filament::button>
-
                 @endif
 
-                {{-- El botón de etiquetas vive en la cabecera y muestra cuántas
-                     tiene puestas, así no hace falta abrir para saberlo. --}}
-                @if($etqs->count() && $pestana !== 'pedido' && $cabeceraAbierta)
+                {{-- El botón de etiquetas muestra cuántas tiene puestas, así no
+                     hace falta abrir para saberlo. --}}
+                @if($etqs->count() && $pestana !== 'pedido')
                     @php $puestas = $conv->etiquetas->count(); @endphp
                     <button type="button" class="wa-etq-btn {{ $etiquetasAbiertas ? 'on' : '' }}"
                             wire:click="verEtiquetas"
@@ -540,12 +527,6 @@
                         🏷️@if($puestas)<span class="wa-etq-n">{{ $puestas }}</span>@endif
                     </button>
                 @endif
-
-                {{-- Pliega toda la cabecera y le deja el alto al chat. --}}
-                <button type="button" class="wa-plegar" wire:click="verCabecera"
-                        title="{{ $cabeceraAbierta ? 'Esconder los datos y los botones' : 'Mostrar los datos y los botones' }}">
-                    {{ $cabeceraAbierta ? '☰' : '⌄' }}
-                </button>
             </div>
 
             {{-- La fila solo se dibuja si se pidió: son 45 px de conversación. --}}
