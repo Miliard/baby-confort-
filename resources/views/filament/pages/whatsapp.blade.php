@@ -440,7 +440,9 @@
                     @endif
 
                     @if($c->agente)
-                        <div class="wa-quien">● {{ $c->agente->name }}</div>
+                        <div class="wa-quien" style="color:{{ $c->agente->colorAgente() }}">
+                            ● {{ $c->agente->name }}
+                        </div>
                     @endif
                 </button>
             @empty

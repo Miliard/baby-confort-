@@ -50,4 +50,19 @@ class User extends Authenticatable implements FilamentUser
 
         return ! (bool) ($this->solo_chat ?? false);
     }
+
+    /** Los colores que se reparten entre las personas del equipo. */
+    public const COLORES = ['#4aa3df', '#e5a23f', '#b06cd6', '#e5695f', '#2fb0a0', '#d4679a'];
+
+    /**
+     * Un color fijo por persona, para reconocer de un vistazo quién atiende.
+     *
+     * Sale del identificador, así que no hay que elegirlo a mano y nunca
+     * cambia. Se usa igual en la lista de conversaciones y en la firma de cada
+     * mensaje, para que sea el mismo en los dos lados.
+     */
+    public function colorAgente(): string
+    {
+        return static::COLORES[$this->id % count(static::COLORES)];
+    }
 }

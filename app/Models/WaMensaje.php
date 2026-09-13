@@ -124,12 +124,12 @@ class WaMensaje extends Model
      */
     public function colorFirma(): string
     {
-        $paleta = ['#4aa3df', '#e5a23f', '#b06cd6', '#e5695f', '#2fb0a0', '#d4679a'];
+        if ($this->automatico) return '#8ea0b8';
+        if (! $this->user_id)  return '#7fa88c';   // salió del teléfono
 
-        if ($this->automatico)      return '#8ea0b8';
-        if (! $this->user_id)       return '#7fa88c';   // salió del teléfono
-
-        return $paleta[$this->user_id % count($paleta)];
+        // La misma cuenta que usa el modelo de usuarios, para que el color
+        // coincida con el de la lista de conversaciones.
+        return \App\Models\User::COLORES[$this->user_id % count(\App\Models\User::COLORES)];
     }
 
     /** ✓ enviado · ✓✓ entregado · ✓✓ leído · ⚠ falló */
