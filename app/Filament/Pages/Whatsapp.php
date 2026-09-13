@@ -747,27 +747,36 @@ class Whatsapp extends Page
             $p = $s->product;
             if (! $p) continue;
 
-            $pie = '*' . trim((string) $p->name) . "*\n"
-                . 'Talla ' . trim((string) $s->size);
+            // Cada dato en su renglón y con aire entre bloques. Todo pegado
+            // el cliente no lo lee: se le va la vista y pregunta lo que ya
+            // estaba escrito.
+            $pie = '*' . trim((string) $p->name) . "*\n\n"
+                . '*Talla:* ' . trim((string) $s->size) . "\n";
 
             if ((int) ($s->unidades ?? 0) > 0) {
-                $pie .= ' · ' . (int) $s->unidades . ' unidades';
+                $pie .= '*Contiene:* ' . (int) $s->unidades . " unidades\n";
             }
 
-            $pie .= "\n$" . number_format((float) $s->price, 2);
+            $pie .= '*Precio:* $' . number_format((float) $s->price, 2) . "\n";
 
             if ($s->combo_qty > 0 && $s->combo_price > 0) {
-                $pie .= ' · ' . (int) $s->combo_qty . ' x $' . number_format((float) $s->combo_price, 2);
+                $pie .= '*Llevando ' . (int) $s->combo_qty . ':* $'
+                    . number_format((float) $s->combo_price, 2) . "\n";
             }
 
             // El enlace a su página: la foto sirve para que mire, el enlace
-            // para que entre a la tienda y pida sin tener que escribir.
+            // para que entre a la tienda y pida sin tener que escribir. Va con
+            // la talla adelantada para que le abra la que están hablando.
             try {
-                $pie .= "\n\u{1F449} " . route('store.show', $p);
+                $pie .= "\n*Miralo aqu\u{ED}:*\n"
+                    . route('store.show', $p) . '?t=' . rawurlencode(trim((string) $s->size));
             } catch (\Throwable $e) {
                 // Si la ruta cambiara, mejor mandar el producto sin enlace que
                 // no mandarlo.
             }
+
+            $cierre = trim((string) config('whatsapp.pie_catalogo', ''));
+            if ($cierre !== '') $pie .= "\n\n" . $cierre;
 
             $relativa = $this->fotoDe($s, $p);
 

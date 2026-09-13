@@ -47,4 +47,8 @@ return [
     // identificador). Hace falta para suscribir la aplicación y así recibir.
     'waba_id' => env('WHATSAPP_WABA_ID', '362187643649809'),
 
+    // El renglón que cierra cada foto del catálogo. Se puede cambiar acá sin
+    // tocar nada más; dejarlo vacío lo quita.
+    'pie_catalogo' => env('WHATSAPP_PIE_CATALOGO', '🚚 Entrega a domicilio en todo El Salvador'),
+
 ];
