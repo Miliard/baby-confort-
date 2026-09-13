@@ -370,6 +370,15 @@
     .wa-pres-check{width:22px;height:22px;border-radius:6px;border:1.5px solid #cbd5e1;
                    display:grid;place-items:center;font-size:13px;font-weight:800;flex:none}
     .wa-pres.on .wa-pres-check{background:#2e9e6b;border-color:#2e9e6b;color:#fff}
+    .wa-foto{width:100%;border:1.5px solid #e5e7eb;background:none;border-radius:11px;
+             padding:9px;margin-bottom:8px;cursor:pointer;font-family:inherit;color:inherit;
+             display:flex;gap:11px;align-items:center;text-align:left}
+    html.dark .wa-foto{border-color:rgba(255,255,255,.12)}
+    .wa-foto:hover{border-color:#2e9e6b;background:rgba(46,158,107,.07)}
+    .wa-foto img{width:56px;height:56px;object-fit:cover;border-radius:8px;flex:none}
+    .wa-foto b{display:block;font-size:14px}
+    .wa-foto-p{display:block;font-size:12px;color:#94a3b8;margin-top:2px}
+
     .wa-uso{display:flex;gap:9px;align-items:center;font-size:12.5px;cursor:pointer;
             background:rgba(120,140,170,.10);border-radius:9px;padding:9px 11px}
     .wa-uso-no{opacity:.5;cursor:not-allowed}
@@ -692,6 +701,11 @@
                             🛒 Catálogo
                         </button>
 
+                        <button type="button" class="wa-chip" wire:click="abrirFotos"
+                                title="Mandar una foto guardada">
+                            📷 Fotos
+                        </button>
+
                         {{-- Los botones que Wil crea solos, desde el admin.
                              Van acá y no escondidos en la pestaña: la gracia es
                              que estén a un toque mientras se escribe. --}}
@@ -856,6 +870,53 @@
         @endif
     </div>
 </div>
+
+{{-- ═══ La ventana de las fotos guardadas ═════════════════════════════════ --}}
+@if($fotosAbiertas)
+<div class="wa-modal-fondo" wire:click="cerrarFotos">
+    <div class="wa-modal" wire:click.stop>
+
+        <div class="wa-modal-cab">
+            <b>📷 Fotos para mandar</b>
+            <button type="button" class="wa-modal-x" wire:click="cerrarFotos">✕</button>
+        </div>
+
+        <div class="wa-modal-cuerpo">
+            @php $fotos = $this->fotosGuardadas(); @endphp
+
+            @forelse($fotos as $f)
+                <button type="button" class="wa-foto" wire:key="foto-{{ $f->id }}"
+                        wire:click="mandarFoto({{ $f->id }})"
+                        wire:confirm="Se le manda «{{ $f->titulo }}». ¿Mandar?">
+                    <img src="{{ $f->url() }}" alt="{{ $f->titulo }}">
+                    <span>
+                        <b>{{ $f->titulo }}</b>
+                        @if(filled($f->pie))
+                            <span class="wa-foto-p">{{ \Illuminate\Support\Str::limit($f->pie, 70) }}</span>
+                        @endif
+                    </span>
+                </button>
+            @empty
+                <div style="font-size:13.5px;color:#94a3b8;line-height:1.6;padding:10px 0">
+                    Todavía no hay fotos guardadas.<br><br>
+                    Se suben en el menú, en <b>Fotos para mandar</b>. Son las que mandás
+                    seguido y no son del catálogo: el producto ya puesto, el empaque
+                    abierto, lo que te pidan ver antes de comprar.
+                </div>
+            @endforelse
+
+            @if(! (auth()->user()?->solo_chat ?? false))
+                <div style="margin-top:14px">
+                    <x-filament::button tag="a" size="sm" color="gray" icon="heroicon-m-plus"
+                        href="{{ \App\Filament\Resources\WaFotoResource::getUrl('create') }}">
+                        Subir una foto
+                    </x-filament::button>
+                </div>
+            @endif
+        </div>
+    </div>
+</div>
+@endif
 
 {{-- ═══ La ventana del catálogo ═══════════════════════════════════════════ --}}
 @if($catalogoAbierto)

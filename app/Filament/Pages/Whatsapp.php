@@ -462,6 +462,60 @@ class Whatsapp extends Page
         return $tallas;
     }
 
+    // ── Las fotos guardadas ──────────────────────────────────────────────────
+
+    public bool $fotosAbiertas = false;
+
+    public function abrirFotos(): void
+    {
+        $this->fotosAbiertas = true;
+    }
+
+    public function cerrarFotos(): void
+    {
+        $this->fotosAbiertas = false;
+    }
+
+    public function fotosGuardadas()
+    {
+        return \App\Models\WaFoto::paraElChat();
+    }
+
+    /** Manda una foto de la galería propia del panel. */
+    public function mandarFoto(int $id): void
+    {
+        $conv = $this->conversacion();
+        if (! $conv) return;
+
+        if (! $conv->ventanaAbierta()) {
+            Notification::make()
+                ->title('La ventana de 24 horas está cerrada')
+                ->warning()->send();
+            return;
+        }
+
+        $foto = \App\Models\WaFoto::find($id);
+        $url  = $foto?->urlCompleta();
+
+        if (! $url) {
+            Notification::make()->title('Esa foto ya no está')->warning()->send();
+            return;
+        }
+
+        if (! $conv->agente_id) $this->tomar();
+
+        $m = WhatsappApi::enviarImagen($conv, $url, $foto->pie ?: null, auth()->id());
+
+        $this->cerrarFotos();
+
+        if ($m->estado === 'fallido') {
+            Notification::make()
+                ->title('No se pudo mandar')
+                ->body($m->error ?: 'Meta rechazó la foto.')
+                ->danger()->persistent()->send();
+        }
+    }
+
     // ── La ventana del catálogo ──────────────────────────────────────────────
 
     public bool $catalogoAbierto = false;

@@ -62,6 +62,7 @@ class ChatPanelProvider extends PanelProvider
             ->resources([
                 \App\Filament\Resources\RespuestaRapidaResource::class,
                 \App\Filament\Resources\WaEtiquetaResource::class,
+                \App\Filament\Resources\WaFotoResource::class,
             ])
             // Con esto Android y iPhone ofrecen "Agregar a pantalla de inicio",
             // y al abrirlo desde ahí arranca sin barras del navegador: ocupa
