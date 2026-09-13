@@ -33,8 +33,15 @@ class Whatsapp extends Page
     /** Filtro de la lista de la izquierda. */
     public string $buscar = '';
 
-    /** Mostrar solo las que nadie ha tomado. */
-    public bool $soloSinTomar = false;
+    /**
+     * Mostrar solo las que están esperando respuesta.
+     *
+     * Reemplaza al viejo "sin tomar", que miraba si alguien tenía asignada la
+     * conversación. Eso dejó de servir cuando se quitaron los botones de tomar
+     * y soltar: una conversación contestada desde el teléfono seguía
+     * apareciendo como "sin tomar" aunque ya estuviera respondida.
+     */
+    public bool $soloSinResponder = false;
 
     /** Mostrar solo las que tienen mensajes sin leer. */
     public bool $soloSinLeer = false;
@@ -44,9 +51,22 @@ class Whatsapp extends Page
         $this->soloSinLeer = ! $this->soloSinLeer;
     }
 
-    public function alternarSinTomar(): void
+    public function alternarSinResponder(): void
     {
-        $this->soloSinTomar = ! $this->soloSinTomar;
+        $this->soloSinResponder = ! $this->soloSinResponder;
+    }
+
+    /** Cuántas están esperando respuesta. */
+    public function cuantasSinResponder(): int
+    {
+        try {
+            if (! WaConversacion::hayTabla()) return 0;
+
+            return WaConversacion::where('archivada', false)
+                ->where('ultimo_saliente', false)->count();
+        } catch (\Throwable $e) {
+            return 0;
+        }
     }
 
     /** Cuántas conversaciones tienen mensajes sin leer. */
@@ -145,8 +165,8 @@ class Whatsapp extends Page
                 });
             }
 
-            if ($this->soloSinTomar) $q->whereNull('agente_id');
-            if ($this->soloSinLeer)  $q->where('sin_leer', '>', 0);
+            if ($this->soloSinResponder) $q->where('ultimo_saliente', false);
+            if ($this->soloSinLeer)      $q->where('sin_leer', '>', 0);
 
             return $q->orderByDesc('ultimo_mensaje_at')->limit(60)->get();
         } catch (\Throwable $e) {
@@ -500,14 +520,36 @@ class Whatsapp extends Page
 
     public bool $fotosAbiertas = false;
 
+    /** Las que están marcadas para mandar juntas. */
+    public array $fotosElegidas = [];
+
     public function abrirFotos(): void
     {
         $this->fotosAbiertas = true;
+        $this->fotosElegidas = [];
     }
 
     public function cerrarFotos(): void
     {
         $this->fotosAbiertas = false;
+        $this->fotosElegidas = [];
+    }
+
+    public function alternarFoto(string $id): void
+    {
+        if (in_array($id, $this->fotosElegidas, true)) {
+            $this->fotosElegidas = array_values(array_diff($this->fotosElegidas, [$id]));
+        } else {
+            $this->fotosElegidas[] = $id;
+        }
+    }
+
+    public function marcarTodasLasFotos(): void
+    {
+        $todas = $this->fotosGuardadas()->pluck('id')->map(fn ($i) => (string) $i)->all();
+
+        // Si ya estaban todas, el botón desmarca: sirve para las dos cosas.
+        $this->fotosElegidas = count($this->fotosElegidas) === count($todas) ? [] : $todas;
     }
 
     public function fotosGuardadas()
@@ -515,8 +557,15 @@ class Whatsapp extends Page
         return \App\Models\WaFoto::paraElChat();
     }
 
-    /** Manda una foto de la galería propia del panel. */
-    public function mandarFoto(int $id): void
+    /**
+     * Manda todas las fotos marcadas, una detrás de otra.
+     *
+     * Van como mensajes separados porque WhatsApp no agrupa imágenes por API,
+     * pero salen seguidas y al cliente le llegan juntas. Dentro de la ventana
+     * de 24 horas Meta cobra por conversación, no por mensaje, así que mandar
+     * seis no cuesta más que mandar una.
+     */
+    public function mandarFotosElegidas(): void
     {
         $conv = $this->conversacion();
         if (! $conv) return;
@@ -528,26 +577,54 @@ class Whatsapp extends Page
             return;
         }
 
-        $foto = \App\Models\WaFoto::find($id);
-        $url  = $foto?->urlCompleta();
+        if (empty($this->fotosElegidas)) {
+            Notification::make()->title('No marcaste ninguna foto')->warning()->send();
+            return;
+        }
 
-        if (! $url) {
-            Notification::make()->title('Esa foto ya no está')->warning()->send();
+        try {
+            $fotos = \App\Models\WaFoto::whereIn('id', $this->fotosElegidas)
+                ->orderBy('orden')->orderBy('titulo')->get();
+        } catch (\Throwable $e) {
+            Notification::make()->title('No se pudieron leer las fotos')->danger()->send();
+            return;
+        }
+
+        if ($fotos->isEmpty()) {
+            Notification::make()->title('Esas fotos ya no están')->warning()->send();
             return;
         }
 
         if (! $conv->agente_id) $this->tomar();
 
-        $m = WhatsappApi::enviarImagen($conv, $url, $foto->pie ?: null, auth()->id());
+        $mandadas = 0;
+        $fallaron = 0;
+
+        foreach ($fotos as $f) {
+            $url = $f->urlCompleta();
+            if (! $url) { $fallaron++; continue; }
+
+            $m = WhatsappApi::enviarImagen($conv, $url, $f->pie ?: null, auth()->id());
+            $m->estado === 'fallido' ? $fallaron++ : $mandadas++;
+        }
 
         $this->cerrarFotos();
 
-        if ($m->estado === 'fallido') {
+        if ($fallaron > 0) {
             Notification::make()
-                ->title('No se pudo mandar')
-                ->body($m->error ?: 'Meta rechazó la foto.')
-                ->danger()->persistent()->send();
+                ->title("Se mandaron {$mandadas}, fallaron {$fallaron}")
+                ->body('Mirá el chat: cada una que falló dice por qué.')
+                ->warning()->persistent()->send();
+        } else {
+            Notification::make()
+                ->title("Se {$this->conjugar($mandadas)} {$mandadas} " . ($mandadas === 1 ? 'foto' : 'fotos'))
+                ->success()->send();
         }
+    }
+
+    private function conjugar(int $n): string
+    {
+        return $n === 1 ? 'mandó' : 'mandaron';
     }
 
     // ── La ventana del catálogo ──────────────────────────────────────────────

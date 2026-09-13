@@ -394,6 +394,8 @@
              display:flex;gap:11px;align-items:center;text-align:left}
     html.dark .wa-foto{border-color:rgba(255,255,255,.12)}
     .wa-foto:hover{border-color:#2e9e6b;background:rgba(46,158,107,.07)}
+    .wa-foto.on{border-color:#2e9e6b;background:rgba(46,158,107,.11)}
+    .wa-foto.on .wa-pres-check{background:#2e9e6b;border-color:#2e9e6b;color:#fff}
     .wa-foto img{width:56px;height:56px;object-fit:cover;border-radius:8px;flex:none}
     .wa-foto b{display:block;font-size:14px}
     .wa-foto-p{display:block;font-size:12px;color:#94a3b8;margin-top:2px}
@@ -450,6 +452,7 @@
                 $etqs = $this->etiquetas();
                 $cuentas = $this->cuentaEtiquetas();
                 $sinLeer = $this->cuantasSinLeer();
+                $sinResponder = $this->cuantasSinResponder();
             @endphp
 
             {{-- El contador que vigila el JavaScript para avisar. Va acá
@@ -463,9 +466,11 @@
                     @if($sinLeer > 0)<span class="wa-fil-n">{{ $sinLeer }}</span>@endif
                 </button>
 
-                <button type="button" wire:click="alternarSinTomar"
-                        class="wa-fil {{ $soloSinTomar ? 'on' : '' }}" style="--c:#94a3b8">
-                    Sin tomar
+                <button type="button" wire:click="alternarSinResponder"
+                        class="wa-fil {{ $soloSinResponder ? 'on' : '' }}" style="--c:#e5a23f"
+                        title="Las que esperan que vos contestes">
+                    Sin responder
+                    @if($sinResponder > 0)<span class="wa-fil-n">{{ $sinResponder }}</span>@endif
                 </button>
 
                 @foreach($etqs as $e)
@@ -908,20 +913,33 @@
 <div class="wa-modal-fondo" wire:click="cerrarFotos">
     <div class="wa-modal" wire:click.stop>
 
+        @php $fotos = $this->fotosGuardadas(); @endphp
+
         <div class="wa-modal-cab">
             <b>📷 Fotos para mandar</b>
+            @if($fotos->count() > 1)
+                <button type="button" class="wa-mini" wire:click="marcarTodasLasFotos">
+                    {{ count($fotosElegidas) === $fotos->count() ? 'Ninguna' : 'Todas' }}
+                </button>
+            @endif
             <button type="button" class="wa-modal-x" wire:click="cerrarFotos">✕</button>
         </div>
 
         <div class="wa-modal-cuerpo">
-            @php $fotos = $this->fotosGuardadas(); @endphp
+            @if($fotos->count())
+                <div style="font-size:13px;color:#94a3b8;margin-bottom:12px">
+                    Tocá las que querés mandar. Se van todas juntas, una detrás de otra.
+                </div>
+            @endif
 
             @forelse($fotos as $f)
-                <button type="button" class="wa-foto" wire:key="foto-{{ $f->id }}"
-                        wire:click="mandarFoto({{ $f->id }})"
-                        wire:confirm="Se le manda «{{ $f->titulo }}». ¿Mandar?">
+                @php $marcada = in_array((string) $f->id, $fotosElegidas, true); @endphp
+                <button type="button" class="wa-foto {{ $marcada ? 'on' : '' }}"
+                        wire:key="foto-{{ $f->id }}"
+                        wire:click="alternarFoto(@js((string) $f->id))">
+                    <span class="wa-pres-check">{{ $marcada ? '✓' : '' }}</span>
                     <img src="{{ $f->url() }}" alt="{{ $f->titulo }}">
-                    <span>
+                    <span style="flex:1;min-width:0">
                         <b>{{ $f->titulo }}</b>
                         @if(filled($f->pie))
                             <span class="wa-foto-p">{{ \Illuminate\Support\Str::limit($f->pie, 70) }}</span>
@@ -941,11 +959,24 @@
                 <div style="margin-top:14px">
                     <x-filament::button tag="a" size="sm" color="gray" icon="heroicon-m-plus"
                         href="{{ \App\Filament\Resources\WaFotoResource::getUrl('create') }}">
-                        Subir una foto
+                        Subir fotos
                     </x-filament::button>
                 </div>
             @endif
         </div>
+
+        @if(count($fotosElegidas))
+            <div class="wa-modal-pie">
+                <x-filament::button wire:click="mandarFotosElegidas" icon="heroicon-m-paper-airplane">
+                    Mandar {{ count($fotosElegidas) }}
+                    {{ count($fotosElegidas) == 1 ? 'foto' : 'fotos' }}
+                </x-filament::button>
+
+                <span style="font-size:11.5px;color:#94a3b8">
+                    Salen seguidas, en el orden de la lista.
+                </span>
+            </div>
+        @endif
     </div>
 </div>
 @endif
