@@ -101,6 +101,17 @@
     /* El nombre del perfil, en chico: sirve de pista, no de identificación. */
     .wa-apodo{font-size:11.5px;color:#94a3b8;opacity:.8;margin-top:1px;overflow:hidden;
               text-overflow:ellipsis;white-space:nowrap}
+    /* El que le puso Wil se ve entero; el del perfil del cliente, apagado. */
+    .wa-apodo-mio{color:inherit;opacity:1;font-weight:600}
+
+    .wa-alias-btn{border:none;background:none;cursor:pointer;font-family:inherit;
+                  color:inherit;font-size:12px;padding:0;text-decoration:underline;
+                  text-decoration-style:dotted;text-underline-offset:3px}
+    .wa-alias-btn.on{color:inherit;font-weight:700;text-decoration:none}
+    .wa-alias-btn:hover{color:#2e9e6b}
+
+    .wa-alias-edit{display:flex;gap:6px;align-items:center;flex:1;min-width:180px}
+    .wa-alias-edit .wa-in{flex:1;min-width:120px}
     .wa-hora{font-size:11.5px;color:#94a3b8;float:right;font-weight:400}
     .wa-pin{background:#e5695f;color:#fff;font-size:10.5px;font-weight:800;
             border-radius:999px;padding:1px 7px;flex:none}
@@ -475,7 +486,9 @@
                     </span>
 
                     @if($c->apodo())
-                        <div class="wa-apodo">{{ $c->apodo() }}</div>
+                        <div class="wa-apodo {{ $c->nombrePropio() ? 'wa-apodo-mio' : '' }}">
+                            {{ $c->apodo() }}
+                        </div>
                     @endif
 
                     <div class="wa-prev">{{ $c->ultimo_texto ?: '—' }}</div>
@@ -529,11 +542,24 @@
                 <button type="button" class="wa-volver wa-full" onclick="waPantallaCompleta()"
                         title="Pantalla completa">⛶</button>
 
+                @if($editandoAlias)
+                    <div class="wa-alias-edit">
+                        <input type="text" class="wa-in" wire:model="aliasTexto"
+                               placeholder="Ej: Marta San Miguel" autofocus
+                               wire:keydown.enter.prevent="guardarAlias">
+                        <x-filament::button size="xs" wire:click="guardarAlias">Guardar</x-filament::button>
+                        <button type="button" class="wa-mini" wire:click="cancelarAlias">✕</button>
+                    </div>
+                @else
                 <div class="wa-nombre-col" style="flex:1;min-width:110px">
                     <div style="font-weight:800;font-size:15px">{{ $conv->telefonoLegible() }}</div>
 
                     <div style="font-size:12px;color:#94a3b8">
-                        {{ $conv->apodo() ?: 'Sin nombre de perfil' }}
+                        <button type="button" class="wa-alias-btn {{ $conv->nombrePropio() ? 'on' : '' }}"
+                                wire:click="editarAlias"
+                                title="Ponerle un nombre a este contacto">
+                            {{ $conv->apodo() ?: '✏️ Ponerle nombre' }}
+                        </button>
                         @if($pestana === 'chat')
                             @if($conv->ventanaAbierta())
                                 · <span class="wa-eti wa-eti-ok">Puede responder · {{ $conv->ventanaLegible() }}</span>
@@ -543,6 +569,7 @@
                         @endif
                     </div>
                 </div>
+                @endif
 
                 {{-- El chat se toma solo al contestar, así que no hay botones
                      para eso. Pero el aviso de que ya lo está atendiendo otro

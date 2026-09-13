@@ -139,7 +139,8 @@ class Whatsapp extends Page
                 $d = preg_replace('/\D/', '', $b);
 
                 $q->where(function ($w) use ($b, $d) {
-                    $w->where('nombre', 'like', '%' . $b . '%');
+                    $w->where('nombre', 'like', '%' . $b . '%')
+                      ->orWhere('alias', 'like', '%' . $b . '%');
                     if ($d !== '') $w->orWhere('telefono', 'like', '%' . $d . '%');
                 });
             }
@@ -460,6 +461,48 @@ class Whatsapp extends Page
         });
 
         return $tallas;
+    }
+
+    // ── El nombre que le ponemos al contacto ─────────────────────────────────
+
+    public bool $editandoAlias = false;
+    public string $aliasTexto = '';
+
+    public function editarAlias(): void
+    {
+        $conv = $this->conversacion();
+        if (! $conv) return;
+
+        $this->aliasTexto = (string) ($conv->alias ?? '');
+        $this->editandoAlias = true;
+    }
+
+    public function guardarAlias(): void
+    {
+        $conv = $this->conversacion();
+        if (! $conv) return;
+
+        $nuevo = trim($this->aliasTexto);
+
+        // Vacío borra el nombre propio y vuelve a mostrarse el del perfil.
+        $conv->alias = $nuevo !== '' ? mb_substr($nuevo, 0, 80) : null;
+        $conv->save();
+
+        $this->editandoAlias = false;
+
+        // Si el cliente ya está en la libreta, se le guarda ahí también: así
+        // el nombre aparece en la guía sin volver a escribirlo.
+        try {
+            if ($nuevo !== '' && trim($this->pedNombre) === '') {
+                $this->pedNombre = $nuevo;
+            }
+        } catch (\Throwable $e) {
+        }
+    }
+
+    public function cancelarAlias(): void
+    {
+        $this->editandoAlias = false;
     }
 
     // ── Las fotos guardadas ──────────────────────────────────────────────────

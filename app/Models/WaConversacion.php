@@ -15,7 +15,7 @@ class WaConversacion extends Model
     protected $table = 'wa_conversaciones';
 
     protected $fillable = [
-        'wa_id', 'telefono', 'nombre', 'ultimo_texto', 'ultimo_mensaje_at',
+        'wa_id', 'telefono', 'nombre', 'alias', 'ultimo_texto', 'ultimo_mensaje_at',
         'ultimo_del_cliente_at', 'agente_id', 'tomada_at', 'sin_leer', 'archivada',
     ];
 
@@ -154,15 +154,30 @@ class WaConversacion extends Model
         return strlen($d) === 8 ? substr($d, 0, 4) . ' ' . substr($d, 4) : ($d ?: '—');
     }
 
-    /** El nombre del perfil, solo si lo tiene y no es igual al teléfono. */
+    /**
+     * Cómo se lo reconoce, debajo del teléfono.
+     *
+     * Primero el nombre que le puso Wil, que es el que sirve: "Marta San
+     * Miguel". Si no tiene, el del perfil del cliente, que suele ser un apodo
+     * o un emoji y por eso va en segundo lugar.
+     */
     public function apodo(): ?string
     {
+        $mio = trim((string) ($this->alias ?? ''));
+        if ($mio !== '') return $mio;
+
         $n = trim((string) $this->nombre);
         if ($n === '') return null;
 
         return preg_replace('/\D/', '', $n) === preg_replace('/\D/', '', (string) $this->telefono)
             ? null
             : $n;
+    }
+
+    /** ¿El nombre que se muestra lo puso Wil o vino del perfil del cliente? */
+    public function nombrePropio(): bool
+    {
+        return trim((string) ($this->alias ?? '')) !== '';
     }
 
     /** Si ese número ya está en la libreta, traemos sus datos. */
