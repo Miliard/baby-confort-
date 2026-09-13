@@ -15,16 +15,24 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Si un intento anterior alcanzó a crear la columna y se cortó después,
+        // volver a correrla no puede reventar.
+        if (Schema::hasColumn('wa_mensajes', 'responde_a')) return;
+
+        // Sin índice a propósito: crearlo obliga a MySQL a reconstruir la tabla
+        // y esa tabla se escribe todo el tiempo, así que la migración se
+        // quedaba esperando a que no hubiera nadie escribiendo. Son pocas
+        // filas y se busca por un campo ya indexado, no hace falta.
         Schema::table('wa_mensajes', function (Blueprint $table) {
-            $table->string('responde_a')->nullable()->after('wa_message_id');
-            $table->index('responde_a');
+            $table->string('responde_a')->nullable();
         });
     }
 
     public function down(): void
     {
+        if (! Schema::hasColumn('wa_mensajes', 'responde_a')) return;
+
         Schema::table('wa_mensajes', function (Blueprint $table) {
-            $table->dropIndex(['responde_a']);
             $table->dropColumn('responde_a');
         });
     }
