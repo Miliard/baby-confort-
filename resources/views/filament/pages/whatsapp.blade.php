@@ -541,7 +541,7 @@
             @endif
 
             @if($pestana === 'chat')
-            <div class="wa-chat">
+            <div class="wa-chat" data-conv="{{ $abierta }}">
                 @forelse($this->mensajes() as $m)
                     @php
                         $clase = $m->esDelCliente() ? 'wa-suyo'
@@ -892,6 +892,57 @@
 @endif
 
 <script>
+    // ── Que el chat siga la lectura ──────────────────────────────────────────
+    // Baja solo cuando llega o se manda un mensaje, PERO solo si ya estabas
+    // mirando el final. Si estás leyendo algo de más arriba, no te arrastra.
+    (function () {
+        var ultimaConv = null;
+        var ultimoAlto = 0;
+
+        function alFondo(forzar) {
+            var chat = document.querySelector('.wa-chat');
+            if (!chat) return;
+
+            var conv = chat.getAttribute('data-conv');
+
+            // Conversación recién abierta: siempre al último mensaje.
+            if (conv !== ultimaConv) {
+                ultimaConv = conv;
+                ultimoAlto = chat.scrollHeight;
+                chat.scrollTop = chat.scrollHeight;
+                return;
+            }
+
+            var crecio = chat.scrollHeight > ultimoAlto;
+            ultimoAlto = chat.scrollHeight;
+
+            // 140 px de tolerancia: si estabas cerca del final, se considera
+            // que querés seguir la conversación.
+            var cerca = (chat.scrollHeight - chat.scrollTop - chat.clientHeight) < 140;
+
+            if (forzar || (crecio && cerca)) chat.scrollTop = chat.scrollHeight;
+        }
+
+        function engancharFondo() {
+            if (!window.Livewire || !window.Livewire.hook) return false;
+            window.Livewire.hook('morph.updated', function () {
+                setTimeout(function () { alFondo(false); }, 0);
+            });
+            return true;
+        }
+
+        if (!engancharFondo()) document.addEventListener('livewire:init', engancharFondo);
+
+        // Las fotos cargan después y cambian el alto: hay que volver a bajar.
+        document.addEventListener('load', function (e) {
+            if (e.target && e.target.tagName === 'IMG' && e.target.closest('.wa-chat')) {
+                alFondo(false);
+            }
+        }, true);
+
+        setTimeout(function () { alFondo(true); }, 250);
+    })();
+
     // ── El cuadro de escribir crece solo ─────────────────────────────────────
     (function () {
         function estirar(caja) {
