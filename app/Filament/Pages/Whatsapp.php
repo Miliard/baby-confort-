@@ -1113,11 +1113,11 @@ class Whatsapp extends Page
     private function cargarDatosDelCliente(WaConversacion $conv): void
     {
         $this->pedTelefono = $conv->telefono ?: '';
-        $this->pedNombre   = $conv->comoSeLlama() ?: '';
+        $this->pedNombre   = $this->limpiarNombre($conv->comoSeLlama() ?: '');
 
         $cliente = $conv->cliente();
         if ($cliente) {
-            $this->pedNombre       = $cliente['nombre'] ?: $this->pedNombre;
+            $this->pedNombre       = $this->limpiarNombre($cliente['nombre'] ?? '') ?: $this->pedNombre;
             $this->pedDireccion    = $cliente['direccion'] ?? '';
             $this->pedMunicipio    = $cliente['municipio'] ?? '';
             $this->pedDepartamento = $cliente['departamento'] ?? '';
@@ -1305,7 +1305,7 @@ class Whatsapp extends Page
         $this->pedOrigen = $m->texto;
         $datos = $this->leerOrden($m->texto);
 
-        if (filled($datos['nombre']))    $this->pedNombre    = $datos['nombre'];
+        if (filled($datos['nombre']))    $this->pedNombre    = $this->limpiarNombre($datos['nombre']);
         if (filled($datos['telefono']))  $this->pedTelefono  = $datos['telefono'];
         if (filled($datos['direccion'])) $this->pedDireccion = $datos['direccion'];
 
@@ -1478,6 +1478,35 @@ class Whatsapp extends Page
         }
 
         return $salida;
+    }
+
+    /**
+     * Saca el teléfono de adentro del nombre.
+     *
+     * Pasa seguido: el cliente escribe "+503 6031 6911 Carlos Chicas" en el
+     * renglón del nombre, o así se llama su perfil de WhatsApp. Ese texto se
+     * iba tal cual a la guía y el Excel salía con el número pegado al nombre,
+     * que además ya va en su propia columna.
+     *
+     * Si al quitar el número no queda nada (o sea: nunca hubo nombre), se
+     * devuelve lo de antes. Vale más que quede el número a que quede vacío y
+     * la guía salga sin a quién entregarle.
+     */
+    private function limpiarNombre(string $crudo): string
+    {
+        $n = trim($crudo);
+        if ($n === '') return '';
+
+        // El código de país, con o sin más y con cualquier separador.
+        $limpio = preg_replace('/(?<!\d)\+?503[\s.\-]*/u', ' ', $n);
+
+        // Un número salvadoreño de ocho dígitos, partido ("6031 6911") o no.
+        $limpio = preg_replace('/(?<!\d)[267]\d{3}[\s.\-]?\d{4}(?!\d)/u', ' ', $limpio);
+
+        $limpio = preg_replace('/\s{2,}/u', ' ', (string) $limpio);
+        $limpio = trim((string) $limpio, " \t.,;:\u{00A0}-");
+
+        return $limpio !== '' ? $limpio : $n;
     }
 
     /** Limpia el formulario para empezar de nuevo. */
