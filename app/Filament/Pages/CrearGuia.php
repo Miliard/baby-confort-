@@ -343,6 +343,13 @@ class CrearGuia extends Page implements HasForms
         $this->agregar(true);
     }
 
+    /** "Bajalo igual": ya se le avisó qué estaba mal y decidió seguir. */
+    #[\Livewire\Attributes\On('bajar-aun-asi')]
+    public function bajarAunAsi()
+    {
+        return $this->descargar(true);
+    }
+
     /** Deja el formulario en blanco para empezar otra guía de cero. */
     public function limpiarCampos(): void
     {
@@ -571,11 +578,40 @@ class CrearGuia extends Page implements HasForms
         Notification::make()->title('Lista vaciada')->success()->send();
     }
 
-    public function descargar()
+    public function descargar(bool $aunAsi = false)
     {
         if (empty($this->lista)) {
             Notification::make()->title('No hay guías en la lista')->warning()->send();
             return null;
+        }
+
+        // Última parada antes de que salga el Excel. Si algo va a salir mal, se
+        // dice ahora: después el paquete ya va en camino.
+        if (! $aunAsi) {
+            $malas = [];
+
+            foreach ($this->lista as $g) {
+                if (\App\Services\RevisarGuia::tieneError($g)) {
+                    $malas[] = trim((string) ($g['nombre'] ?? '')) ?: 'sin nombre';
+                }
+            }
+
+            if ($malas) {
+                Notification::make()
+                    ->title('⚠️ ' . count($malas) . (count($malas) === 1 ? ' guía sale mal' : ' guías salen mal'))
+                    ->body(implode(' · ', array_slice($malas, 0, 4))
+                        . (count($malas) > 4 ? ' y ' . (count($malas) - 4) . ' más' : '')
+                        . '. Mirá el detalle en rojo debajo de cada una.')
+                    ->danger()->persistent()
+                    ->actions([
+                        \Filament\Notifications\Actions\Action::make('aunAsi')
+                            ->label('Bajar el Excel de todos modos')
+                            ->button()->close()->dispatch('bajar-aun-asi'),
+                    ])
+                    ->send();
+
+                return null;
+            }
         }
 
         $nombre = 'sistrack_' . now()->format('Y-m-d_Hi') . '.xlsx';

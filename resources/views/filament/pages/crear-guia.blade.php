@@ -101,6 +101,25 @@
                     $faltanMensaje = collect($lista)->reject(fn ($x) => $x['enviado'] ?? false)->count();
                 @endphp
 
+                @php $chequeo = \App\Services\RevisarGuia::resumen($lista); @endphp
+
+                @if($chequeo['errores'] > 0 || $chequeo['ojos'] > 0)
+                    <div @class([
+                        'mb-2 rounded-lg px-3 py-2 text-xs font-semibold',
+                        'bg-danger-50 text-danger-700 dark:bg-danger-500/10 dark:text-danger-400'    => $chequeo['errores'] > 0,
+                        'bg-warning-50 text-warning-700 dark:bg-warning-500/10 dark:text-warning-400' => $chequeo['errores'] === 0,
+                    ])>
+                        @if($chequeo['errores'] > 0)
+                            ⚠ {{ $chequeo['errores'] }}
+                            {{ $chequeo['errores'] === 1 ? 'guía sale mal así' : 'guías salen mal así' }}.
+                            Corregilas con el lápiz antes de bajar el Excel.
+                        @else
+                            👁 {{ $chequeo['ojos'] }}
+                            {{ $chequeo['ojos'] === 1 ? 'guía merece' : 'guías merecen' }} una mirada.
+                        @endif
+                    </div>
+                @endif
+
                 @if(count($lista))
                     <div @class([
                         'mb-2 rounded-lg px-3 py-2 text-xs font-semibold',
@@ -121,14 +140,19 @@
                         @php
                             $tel = preg_replace('/\D/', '', (string) ($g['telefono'] ?? ''));
                             $rep = $tel !== '' && ($conteoTel[$tel] ?? 0) > 1;
+
+                            // Lo que está raro en esta guía, si hay algo.
+                            $avisos  = \App\Services\RevisarGuia::de($g);
+                            $conMal  = \App\Services\RevisarGuia::tieneError($g);
                         @endphp
 
                         <div wire:key="guia-{{ $g['id'] ?? $loop->index }}" @class([
                             'flex items-start gap-3 rounded-xl border p-3 shadow-sm transition',
                             'bg-white dark:bg-gray-900',
-                            'border-danger-300 dark:border-danger-500/50'   => $rep,
-                            'border-primary-300 dark:border-primary-500/50' => $loop->first && ! $rep,
-                            'border-gray-200 dark:border-white/10'          => ! $loop->first && ! $rep,
+                            'border-danger-300 dark:border-danger-500/50'   => $rep || $conMal,
+                            'border-warning-300 dark:border-warning-500/50' => ! $rep && ! $conMal && $avisos,
+                            'border-primary-300 dark:border-primary-500/50' => $loop->first && ! $rep && ! $conMal && ! $avisos,
+                            'border-gray-200 dark:border-white/10'          => ! $loop->first && ! $rep && ! $conMal && ! $avisos,
                         ])>
                             <div class="min-w-0 flex-1">
                                 <div class="flex flex-wrap items-center gap-1.5">
@@ -140,6 +164,9 @@
                                     @endif
                                     @if($rep)
                                         <x-filament::badge color="danger" size="xs">repetido</x-filament::badge>
+                                    @endif
+                                    @if($conMal)
+                                        <x-filament::badge color="danger" size="xs">revisar</x-filament::badge>
                                     @endif
                                 </div>
 
@@ -155,6 +182,23 @@
                                         · <span class="font-medium">Pagado</span>
                                     @endif
                                 </p>
+
+                                {{-- Lo que está raro en esta guía. Se dice acá, donde
+                                     todavía se puede corregir con el lápiz, y no
+                                     después de que el paquete ya salió. --}}
+                                @if($avisos)
+                                    <div class="mt-1.5 space-y-0.5">
+                                        @foreach($avisos as $a)
+                                            <p @class([
+                                                'text-xs font-medium',
+                                                'text-danger-600 dark:text-danger-400'   => $a['nivel'] === 'error',
+                                                'text-warning-600 dark:text-warning-400' => $a['nivel'] !== 'error',
+                                            ])>
+                                                {{ $a['nivel'] === 'error' ? '⚠' : '👁' }} {{ $a['texto'] }}
+                                            </p>
+                                        @endforeach
+                                    </div>
+                                @endif
                             </div>
 
                             <div class="flex flex-none items-center gap-1.5">
