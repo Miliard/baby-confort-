@@ -97,7 +97,8 @@
        esperando respuesta. Es el estado que hay que poder ver de lejos. */
     .wa-prev-debo{color:inherit;font-weight:600;
                   border-left:3px solid #e5695f;padding-left:7px;margin-left:-1px}
-    /* El nombre del perfil, en chico: sirve de pista, no de identificación. */
+    /* El renglón chico de abajo: solo el teléfono, y solo cuando arriba va un
+       nombre que vos pusiste. El nombre del perfil de WhatsApp no se muestra. */
     .wa-apodo{font-size:11.5px;color:#94a3b8;opacity:.8;margin-top:1px;overflow:hidden;
               text-overflow:ellipsis;white-space:nowrap}
 
@@ -652,7 +653,7 @@
                         @php $cita = $m->citado(); @endphp
                         @if($cita)
                             <div class="wa-cita">
-                                <div class="wa-cita-q">{{ $cita->esDelCliente() ? $conv->comoSeLlama() : 'Vos' }}</div>
+                                <div class="wa-cita-q">{{ $cita->esDelCliente() ? $conv->titulo() : 'Vos' }}</div>
                                 {{ $cita->resumen() }}
                             </div>
                         @endif
@@ -712,7 +713,7 @@
                         <div class="wa-citando">
                             <div style="flex:1;min-width:0">
                                 <div class="wa-cita-q">
-                                    Respondiendo a {{ $citando->esDelCliente() ? $conv->comoSeLlama() : 'vos mismo' }}
+                                    Respondiendo a {{ $citando->esDelCliente() ? $conv->titulo() : 'vos mismo' }}
                                 </div>
                                 <div class="wa-citando-x">{{ $citando->resumen(120) }}</div>
                             </div>

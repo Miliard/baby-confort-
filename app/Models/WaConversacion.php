@@ -240,19 +240,19 @@ class WaConversacion extends Model
             : $this->telefonoLegible();
     }
 
-    /** Lo que va abajo en chico. Null si no hay nada que agregar. */
+    /**
+     * Lo que va abajo en chico. Null si no hay nada que agregar.
+     *
+     * Solo aparece cuando vos le pusiste nombre al contacto: ahí arriba va el
+     * nombre y abajo el número, que sigue a mano para cruzarlo con una guía.
+     *
+     * El nombre del perfil de WhatsApp NO se muestra a propósito. Lo elige el
+     * cliente, suele ser un apodo, un emoji o un apellido suelto, no sirve para
+     * reconocer a nadie y llena la lista de ruido.
+     */
     public function subtitulo(): ?string
     {
-        // Con nombre propio, abajo el número: sigue estando a mano para
-        // cruzarlo con una guía, pero sin ocupar el lugar principal.
-        if ($this->nombrePropio()) return $this->telefonoLegible();
-
-        $n = trim((string) $this->nombre);
-        if ($n === '') return null;
-
-        return preg_replace('/\D/', '', $n) === preg_replace('/\D/', '', (string) $this->telefono)
-            ? null
-            : $n;
+        return $this->nombrePropio() ? $this->telefonoLegible() : null;
     }
 
     /** Si ese número ya está en la libreta, traemos sus datos. */
