@@ -205,6 +205,33 @@
     @media(max-width:900px){ .wa-escribir{max-height:30vh} }
     .wa-btns{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;align-items:center}
 
+    /* ── Con el teclado abierto en el teléfono ──────────────────────────────
+       Acá el espacio es poquísimo: entre el teclado y un cuadro de texto lleno
+       (una orden de envío ocupa seis renglones) no quedaba sitio para leer lo
+       que escribió el cliente, que es justo lo que uno necesita ver mientras
+       contesta. Así que mientras el teclado está arriba:
+
+         · el cuadro de escribir no pasa de un tercio de lo que se ve, y hace
+           scroll adentro;
+         · los botones se van a un solo renglón que se desliza, en vez de
+           apilarse en tres;
+         · al chat se le garantiza un pedazo mínimo, que es lo que se estaba
+           comiendo todo lo demás.
+
+       Al cerrar el teclado vuelve todo como estaba. */
+    html.wa--teclado .wa-escribir{max-height:calc(var(--wa-alto, 100vh) * .30);min-height:40px;
+                                  padding:8px 11px;font-size:15px}
+    html.wa--teclado .wa-abajo{padding:7px 9px}
+    html.wa--teclado .wa-btns{flex-wrap:nowrap;overflow-x:auto;margin-top:6px;
+                              scrollbar-width:none;-ms-overflow-style:none;
+                              padding-bottom:2px}
+    html.wa--teclado .wa-btns::-webkit-scrollbar{display:none}
+    html.wa--teclado .wa-btns > *{flex:none}
+    html.wa--teclado .wa-chat{min-height:calc(var(--wa-alto, 100vh) * .26)}
+    /* La cabecera del contacto también cede un poco: con el teclado abierto
+       el número ya lo tenés a la vista, no hace falta tanto aire. */
+    html.wa--teclado .wa-cab{padding:5px 9px}
+
     /* Los botones de respuesta al lado de Enviar. Se crean desde el admin. */
     .wa-chip{border:1px solid #d1d5db;background:#fff;border-radius:999px;
              padding:6px 13px;font-size:12.5px;font-weight:600;cursor:pointer;
@@ -1594,6 +1621,7 @@
 
             if (window.innerWidth > 900) {
                 document.documentElement.style.removeProperty('--wa-alto');
+                document.documentElement.classList.remove('wa--teclado');
                 if (caja) caja.classList.remove('wa--anclada');
                 return;
             }
@@ -1601,6 +1629,12 @@
             // ¿Está el teclado abierto? Si la ventana visual es bastante más
             // chica que la de la página, sí.
             var teclado = (window.innerHeight - vv.height) > 120;
+
+            // Con el teclado abierto el espacio es de verdad poco, y el CSS
+            // necesita saberlo para achicar el cuadro de escribir y guardar
+            // los botones en un solo renglón. Si no, entre el teclado y el
+            // cuadro lleno no queda sitio para leer lo que dijo el cliente.
+            document.documentElement.classList.toggle('wa--teclado', teclado);
 
             if (teclado) {
                 // Con el teclado abierto no alcanza con achicar el alto: hay
