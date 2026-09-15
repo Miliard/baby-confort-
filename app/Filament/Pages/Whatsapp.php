@@ -298,14 +298,72 @@ class Whatsapp extends Page
         if (! $this->abierta) return collect();
 
         try {
+            // Ojo con el orden: antes decía orderBy('id')->limit(200), que trae
+            // los 200 mensajes MÁS VIEJOS, no los más nuevos. En una
+            // conversación larga eso significa dejar de ver lo último que
+            // escribió el cliente. Se piden al revés y se dan vuelta.
             return WaMensaje::with('agente')
                 ->where('conversacion_id', $this->abierta)
-                ->orderBy('id')
+                ->orderByDesc('id')
                 ->limit(200)
-                ->get();
+                ->get()
+                ->reverse()
+                ->values();
         } catch (\Throwable $e) {
             return collect();
         }
+    }
+
+    // ── El latido ────────────────────────────────────────────────────────────
+
+    /**
+     * Una huella de lo que se está viendo, para saber si cambió algo.
+     *
+     * Son los últimos mensajes con su estado, más cuántos sin leer hay. Si eso
+     * es idéntico a hace tres segundos, no pasó nada y no hay nada que
+     * redibujar.
+     */
+    public string $huella = '';
+
+    private function huellaActual(): string
+    {
+        try {
+            // Por id descendente: va por la llave primaria, así que es de las
+            // consultas más baratas que hay. Trae el estado además del id,
+            // para que también se note cuando una luz pasa de amarillo a verde.
+            $ultimos = WaMensaje::orderByDesc('id')->limit(40)->pluck('estado', 'id')->all();
+            $sinLeer = (int) WaConversacion::where('archivada', false)->sum('sin_leer');
+
+            return md5(json_encode($ultimos) . '|' . $sinLeer);
+        } catch (\Throwable $e) {
+            // Si falla, se devuelve algo distinto cada vez: ante la duda,
+            // redibujar. Vale más gastar de más que quedarse congelado.
+            return (string) microtime(true);
+        }
+    }
+
+    /**
+     * Lo que corre cada tres segundos.
+     *
+     * Antes acá iba un $refresh, que volvía a dibujar TODO —la lista, los 200
+     * globos, el formulario de pedido— aunque no hubiera pasado nada. Eso es lo
+     * que se sentía como tirones: cada tres segundos el navegador rehacía la
+     * pantalla entera.
+     *
+     * Ahora primero se pregunta si cambió algo. Si no, skipRender() corta ahí
+     * mismo: no se arma el HTML, no se manda, no se toca el navegador. El
+     * noventa y pico por ciento de los latidos no hacen nada.
+     */
+    public function latir(): void
+    {
+        $nueva = $this->huellaActual();
+
+        if ($nueva === $this->huella) {
+            $this->skipRender();
+            return;
+        }
+
+        $this->huella = $nueva;
     }
 
     /** Abre un chat y lo marca como leído. */

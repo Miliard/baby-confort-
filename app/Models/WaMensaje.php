@@ -137,34 +137,46 @@ class WaMensaje extends Model
         return \App\Models\User::COLORES[$this->user_id % count(\App\Models\User::COLORES)];
     }
 
-    /** ✓ enviado · ✓✓ entregado · ✓✓ leído · ⚠ falló */
+    /**
+     * La luz del semáforo.
+     *
+     * Antes eran palomitas, como WhatsApp: una, dos, dos de color. El problema
+     * es que una palomita y dos palomitas se distinguen mal en el teléfono —
+     * son el mismo dibujo, y hay que fijarse. Un punto de color se lee de un
+     * vistazo sin leer nada: rojo, amarillo, verde, como un semáforo.
+     *
+     * El dibujo es siempre el mismo; lo que cambia es el color, que lo pone
+     * colorEstado(). Por eso acá van todos iguales menos los dos casos que no
+     * son un estado del semáforo: mandando y fallido.
+     */
     public function marcaEstado(): string
     {
         return match ($this->estado) {
-            'enviando'  => '···',
-            'enviado'   => '✓',
-            'entregado' => '✓✓',
-            'leido'     => '✓✓',
-            'fallido'   => '⚠',
-            default     => '',
+            'enviando'                        => '◌',   // en camino, todavía sin color
+            'enviado', 'entregado', 'leido'   => '●',
+            'fallido'                         => '⚠',
+            default                           => '',
         };
     }
 
     /**
-     * El color de las palomitas, para saber de un vistazo qué pasó.
+     * El color del semáforo. Acá está toda la información.
      *
-     * Gris: salió pero todavía no confirmaron nada.
-     * Amarillo: le llegó al teléfono, pero no lo abrió.
-     * Verde: lo leyó.
-     * Rojo: no se pudo mandar.
+     * Verde:    lo leyó.
+     * Amarillo: le llegó al teléfono, pero no lo ha abierto.
+     * Gris:     salió, todavía sin confirmar nada.
+     * Rojo:     no se pudo mandar.
+     *
+     * Los tonos son fuertes a propósito: en el teléfono, al sol, un color
+     * apagado no se distingue de otro.
      */
     public function colorEstado(): string
     {
         return match ($this->estado) {
-            'leido'     => '#2e9e6b',
-            'entregado' => '#d4a017',
-            'fallido'   => '#e5695f',
-            default     => '#94a3b8',
+            'leido'     => '#22c55e',   // verde
+            'entregado' => '#eab308',   // amarillo
+            'fallido'   => '#ef4444',   // rojo
+            default     => '#94a3b8',   // gris
         };
     }
 

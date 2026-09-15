@@ -176,10 +176,17 @@
     .wa-pie{font-size:10.5px;margin-top:3px;text-align:right;color:rgba(0,0,0,.45)}
     html.dark .wa-pie{color:rgba(255,255,255,.5)}
 
-    /* Palomitas más grandes y con color propio: gris salió, amarillo le llegó
-       al teléfono, verde lo leyó. */
-    .wa-check{font-size:15px;font-weight:800;letter-spacing:-2px;
-              margin-left:3px;vertical-align:-1px}
+    /* La luz del semáforo: gris salió, amarillo le llegó al teléfono, verde lo
+       leyó, rojo falló. Un punto, no palomitas — una palomita y dos palomitas
+       son el mismo dibujo y en el teléfono hay que fijarse para distinguirlas;
+       un color se lee sin leer.
+
+       El letter-spacing negativo de antes era para juntar las dos palomitas.
+       Ahora es un solo carácter y sobraría. */
+    .wa-check{font-size:11px;margin-left:5px;vertical-align:1px;
+              /* Un borde del color del punto, un poco separado, hace que se
+                 distinga también sobre fondos del mismo tono. */
+              text-shadow:0 0 3px currentColor}
 
     /* ── Responder a un mensaje puntual ── */
     .wa-resp-btn{border:none;background:none;cursor:pointer;font-family:inherit;color:inherit;
@@ -502,7 +509,9 @@
     </div>
 @endif
 
-<div class="wa {{ $abierta ? 'wa--abierta' : '' }}" wire:poll.3s>
+{{-- El latido no es un $refresh: primero pregunta si cambió algo y, si no,
+     no redibuja nada. Ver el comentario de latir() en la página. --}}
+<div class="wa {{ $abierta ? 'wa--abierta' : '' }}" wire:poll.3s="latir">
 
     {{-- ═══ IZQUIERDA: las conversaciones ═══ --}}
     <div class="wa-col wa-izq">
@@ -747,7 +756,7 @@
                             @else
                                 <i style="opacity:.7">🎙️ Nota de voz — no se pudo pasar a texto</i>
                             @endif
-                        @elseif($m->url())<a href="{{ $m->url() }}" target="_blank" rel="noopener"><img src="{{ $m->url() }}" alt="Imagen del cliente"></a>@elseif($m->tipo === 'image' && filled($m->media_id))<button type="button" class="wa-bajar" wire:click="bajarImagen({{ $m->id }})" wire:loading.attr="disabled">🖼️ Ver la imagen</button>@elseif($m->tipo !== 'text')<i style="opacity:.7">[{{ $m->tipo }}]</i>@endif
+                        @elseif($m->url())<a href="{{ $m->url() }}" target="_blank" rel="noopener"><img src="{{ $m->url() }}" alt="Imagen del cliente" loading="lazy" decoding="async"></a>@elseif($m->tipo === 'image' && filled($m->media_id))<button type="button" class="wa-bajar" wire:click="bajarImagen({{ $m->id }})" wire:loading.attr="disabled">🖼️ Ver la imagen</button>@elseif($m->tipo !== 'text')<i style="opacity:.7">[{{ $m->tipo }}]</i>@endif
 
                         {{-- El texto va en su propio elemento y pegado a las llaves:
                              el globo respeta los saltos de línea, así que cualquier

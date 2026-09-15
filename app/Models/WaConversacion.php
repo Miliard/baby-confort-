@@ -203,27 +203,25 @@ class WaConversacion extends Model
         return ! (bool) ($this->ultimo_saliente ?? false);
     }
 
-    /** Las palomitas del último mensaje, solo si fue nuestro. */
+    /** La luz del semáforo del último mensaje, solo si fue nuestro. */
     public function marcaUltimo(): string
     {
         if ($this->sinResponder()) return '';
 
         return match ($this->ultimo_estado) {
-            'enviando'  => '···',
-            'enviado'   => '✓',
-            'entregado' => '✓✓',
-            'leido'     => '✓✓',
-            'fallido'   => '⚠',
-            default     => '✓',
+            'enviando' => '◌',
+            'fallido'  => '⚠',
+            default    => '●',
         };
     }
 
+    /** Verde leyó · amarillo le llegó · gris salió · rojo falló. */
     public function colorUltimo(): string
     {
         return match ($this->ultimo_estado) {
-            'leido'     => '#2e9e6b',
-            'entregado' => '#d4a017',
-            'fallido'   => '#e5695f',
+            'leido'     => '#22c55e',
+            'entregado' => '#eab308',
+            'fallido'   => '#ef4444',
             default     => '#94a3b8',
         };
     }
