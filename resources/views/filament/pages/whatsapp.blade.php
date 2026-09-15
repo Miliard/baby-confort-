@@ -102,9 +102,17 @@
     .wa-apodo{font-size:11.5px;color:#94a3b8;opacity:.8;margin-top:1px;overflow:hidden;
               text-overflow:ellipsis;white-space:nowrap}
 
-    /* El chinche de la lista: chiquito, solo para reconocer de un vistazo cuáles
-       están clavadas. El que fija y suelta vive en la cabecera del chat. */
-    .wa-clavo{font-size:11px;opacity:.85;margin-right:3px}
+    /* El chinche de la lista. Fija y suelta desde acá, sin entrar al chat:
+       cuando uno quiere fijar una conversación, la está viendo en la lista.
+       Apagado en gris mientras no está fijada, para que no parezca que sí.
+       El área de toque es más grande que el dibujo: en el teléfono, un ícono
+       de 11 px no se acierta. */
+    .wa-clavo{border:none;background:none;cursor:pointer;font-family:inherit;
+              font-size:13px;line-height:1;padding:4px 5px;margin:-4px 0 -4px -5px;
+              border-radius:7px;flex:none;filter:grayscale(1);opacity:.35}
+    .wa-clavo:hover{opacity:.8;background:rgba(120,140,170,.18)}
+    .wa-clavo.on{filter:none;opacity:1}
+    @media(max-width:900px){ .wa-clavo{font-size:15px;padding:6px 7px;margin:-6px 0 -6px -7px} }
     /* Apagado mientras no está fijado, para que no parezca que ya lo está.
        El display va acá porque .wa-volver se esconde en la computadora, y este
        botón sirve en los dos lados. */
@@ -548,12 +556,26 @@
 
         <div class="wa-lista">
             @forelse($this->conversaciones() as $c)
-                <button type="button" wire:click="abrir({{ $c->id }})" wire:key="conv-{{ $c->id }}"
-                        class="wa-item {{ $abierta === $c->id ? 'on' : '' }}">
+                {{-- Esta fila era un <button>. Dejó de serlo para que el chinche
+                     de fijar pueda ser un botón de verdad adentro: un botón
+                     dentro de otro botón no es HTML válido y los navegadores
+                     hacen cualquier cosa con él. Ahora es un div que se
+                     comporta como botón — con rol y con teclado, para que siga
+                     funcionando sin ratón. --}}
+                <div wire:click="abrir({{ $c->id }})" wire:key="conv-{{ $c->id }}"
+                     role="button" tabindex="0"
+                     x-on:keydown.enter.prevent="$wire.abrir({{ $c->id }})"
+                     x-on:keydown.space.prevent="$wire.abrir({{ $c->id }})"
+                     class="wa-item {{ $abierta === $c->id ? 'on' : '' }}">
+
                     <span class="wa-hora">{{ $c->horaUltimo() }}</span>
 
                     <span class="wa-nom">
-                        @if($c->fijada())<span class="wa-clavo" title="Fijado">📌</span>@endif
+                        {{-- .stop para que fijar no abra también la conversación. --}}
+                        <button type="button"
+                                class="wa-clavo {{ $c->fijada() ? 'on' : '' }}"
+                                wire:click.stop="fijar({{ $c->id }})"
+                                title="{{ $c->fijada() ? 'Soltar este chat de arriba' : 'Fijar este chat arriba' }}">📌</button>
                         {{ $c->titulo() }}
                         @if($c->sin_leer > 0)<span class="wa-pin">{{ $c->sin_leer }}</span>@endif
                     </span>
@@ -584,7 +606,7 @@
                             ● {{ $c->agente->name }}
                         </div>
                     @endif
-                </button>
+                </div>
             @empty
                 <div style="padding:24px 14px;color:#94a3b8;font-size:13px;text-align:center">
                     No hay conversaciones todavía.<br>
