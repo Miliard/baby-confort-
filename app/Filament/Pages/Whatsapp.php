@@ -848,16 +848,21 @@ class Whatsapp extends Page
             $pie .= '*Precio:* $' . number_format((float) $s->price, 2) . "\n";
 
             if ($s->combo_qty > 0 && $s->combo_price > 0) {
-                $pie .= '*Llevando ' . (int) $s->combo_qty . ':* $'
+                $pie .= '*Oferta:* ' . (int) $s->combo_qty . ' por $'
                     . number_format((float) $s->combo_price, 2) . "\n";
             }
 
             // El enlace a su página: la foto sirve para que mire, el enlace
             // para que entre a la tienda y pida sin tener que escribir. Va con
             // la talla adelantada para que le abra la que están hablando.
+            //
+            // urlencode y no rawurlencode: el primero manda los espacios como
+            // "+" y el segundo como "%20". Con tallas de varias palabras —"4 a
+            // 7 años"— el %20 llena el enlace de símbolos y en WhatsApp queda
+            // ilegible. PHP lee los dos igual del otro lado.
             try {
                 $pie .= "\n*Miralo aqu\u{ED}:*\n"
-                    . route('store.show', $p) . '?t=' . rawurlencode(trim((string) $s->size));
+                    . route('store.show', $p) . '?t=' . urlencode(trim((string) $s->size));
             } catch (\Throwable $e) {
                 // Si la ruta cambiara, mejor mandar el producto sin enlace que
                 // no mandarlo.
