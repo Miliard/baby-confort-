@@ -155,9 +155,13 @@
                             'border-gray-200 dark:border-white/10'          => ! $loop->first && ! $rep && ! $conMal && ! $avisos,
                         ])>
                             <div class="min-w-0 flex-1">
+                                {{-- El teléfono arriba y en grande: es el dato con
+                                     el que se busca una guía, se cruza con el chat
+                                     y se rastrea el paquete. El nombre sirve para
+                                     saber de quién es; el número, para trabajar. --}}
                                 <div class="flex flex-wrap items-center gap-1.5">
-                                    <span class="truncate text-sm font-semibold text-gray-950 dark:text-white">
-                                        {{ $g['nombre'] }}
+                                    <span class="font-mono text-base font-bold tracking-wide text-primary-600 dark:text-primary-400">
+                                        {{ $g['tel_legible'] ?? $g['telefono'] }}
                                     </span>
                                     @if($loop->first)
                                         <x-filament::badge color="primary" size="xs">última</x-filament::badge>
@@ -168,6 +172,10 @@
                                     @if($conMal)
                                         <x-filament::badge color="danger" size="xs">revisar</x-filament::badge>
                                     @endif
+                                </div>
+
+                                <div class="truncate text-sm font-semibold text-gray-950 dark:text-white">
+                                    {{ $g['nombre'] }}
                                 </div>
 
                                 {{-- Cuándo se armó y quién la armó. Con varias
@@ -185,8 +193,9 @@
                                     </p>
                                 @endif
 
+                                {{-- Sin el teléfono: ya va arriba en grande. --}}
                                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                    {{ $g['telefono'] }} · {{ $g['municipio'] }}, {{ $g['departamento'] }}
+                                    {{ $g['municipio'] }}, {{ $g['departamento'] }}
                                 </p>
 
                                 <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">

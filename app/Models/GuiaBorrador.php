@@ -48,6 +48,21 @@ class GuiaBorrador extends Model
         return $local->format('d/m') . ' ' . $hora;
     }
 
+    /**
+     * El teléfono en dos grupos de cuatro, que es como se lee en El Salvador.
+     *
+     * "78258725" no se lee: se cuenta. "7825 8725" se lee de un golpe, y es
+     * además como viene escrito en la guía y como lo dicta el cliente.
+     */
+    public function telefonoLegible(): string
+    {
+        $d = preg_replace('/\D/', '', (string) $this->telefono);
+
+        if (strlen($d) === 11 && str_starts_with($d, '503')) $d = substr($d, 3);
+
+        return strlen($d) === 8 ? substr($d, 0, 4) . ' ' . substr($d, 4) : ($d ?: '—');
+    }
+
     /** Quién la armó. Null si es de antes de que se empezara a guardar. */
     public function quien(): ?string
     {
@@ -182,6 +197,7 @@ class GuiaBorrador extends Model
         return [
             'cuando'          => $this->cuando(),
             'quien'           => $this->quien(),
+            'tel_legible'     => $this->telefonoLegible(),
             'nombre'          => $this->nombre,
             'telefono'        => $this->telefono,
             'telefono_recibe' => $this->telefono_recibe,
