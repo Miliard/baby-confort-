@@ -203,15 +203,20 @@ class WaConversacion extends Model
         return ! (bool) ($this->ultimo_saliente ?? false);
     }
 
-    /** La luz del semáforo del último mensaje, solo si fue nuestro. */
+    /**
+     * El semáforo del último mensaje, solo si fue nuestro.
+     * Un punto salió, dos le llegó; el color dice si lo leyó.
+     */
     public function marcaUltimo(): string
     {
         if ($this->sinResponder()) return '';
 
         return match ($this->ultimo_estado) {
-            'enviando' => '◌',
-            'fallido'  => '⚠',
-            default    => '●',
+            'enviando'  => '◌',
+            'entregado' => '●●',
+            'leido'     => '●●',
+            'fallido'   => '⚠',
+            default     => '●',
         };
     }
 

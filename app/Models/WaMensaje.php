@@ -140,22 +140,23 @@ class WaMensaje extends Model
     /**
      * La luz del semáforo.
      *
-     * Antes eran palomitas, como WhatsApp: una, dos, dos de color. El problema
-     * es que una palomita y dos palomitas se distinguen mal en el teléfono —
-     * son el mismo dibujo, y hay que fijarse. Un punto de color se lee de un
-     * vistazo sin leer nada: rojo, amarillo, verde, como un semáforo.
+     * Misma lógica que las palomitas de WhatsApp —uno si salió, dos si le
+     * llegó— pero con puntos en vez de palomitas y con color. Dos palomitas
+     * grises y dos palomitas azules son casi el mismo dibujo y hay que
+     * fijarse; un punto verde y uno amarillo se distinguen sin mirar.
      *
-     * El dibujo es siempre el mismo; lo que cambia es el color, que lo pone
-     * colorEstado(). Por eso acá van todos iguales menos los dos casos que no
-     * son un estado del semáforo: mandando y fallido.
+     * Así se lee de dos maneras a la vez: por la cantidad y por el color.
+     * Quien esté acostumbrado a las palomitas no pierde nada.
      */
     public function marcaEstado(): string
     {
         return match ($this->estado) {
-            'enviando'                        => '◌',   // en camino, todavía sin color
-            'enviado', 'entregado', 'leido'   => '●',
-            'fallido'                         => '⚠',
-            default                           => '',
+            'enviando'  => '◌',     // todavía en camino
+            'enviado'   => '●',     // un punto: salió
+            'entregado' => '●●',    // dos puntos: le llegó
+            'leido'     => '●●',    // dos puntos, y en verde: lo leyó
+            'fallido'   => '⚠',
+            default     => '',
         };
     }
 
