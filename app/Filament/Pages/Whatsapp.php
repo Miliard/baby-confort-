@@ -168,9 +168,72 @@ class Whatsapp extends Page
             if ($this->soloSinResponder) $q->where('ultimo_saliente', false);
             if ($this->soloSinLeer)      $q->where('sin_leer', '>', 0);
 
+            // Las fijadas van arriba siempre, aunque otras tengan mensajes más
+            // nuevos: para eso se fijan. Entre ellas, la última que fijaste
+            // primero. El resto sigue ordenado por lo más reciente.
+            //
+            // Se pregunta si la columna existe porque entre que sale el código
+            // y corre la migración hay unos segundos, y no vale la pena que la
+            // lista se vea vacía en ese rato.
+            if (static::hayFijadas()) {
+                $q->orderByRaw('fijada_at IS NULL')->orderByDesc('fijada_at');
+            }
+
             return $q->orderByDesc('ultimo_mensaje_at')->limit(60)->get();
         } catch (\Throwable $e) {
             return collect();
+        }
+    }
+
+    /** ¿Ya corrió la migración de las fijadas? Se pregunta una sola vez. */
+    public static function hayFijadas(): bool
+    {
+        static $hay = null;
+
+        if ($hay !== null) return $hay;
+
+        try {
+            $hay = \Illuminate\Support\Facades\Schema::hasColumn('wa_conversaciones', 'fijada_at');
+        } catch (\Throwable $e) {
+            $hay = false;
+        }
+
+        return $hay;
+    }
+
+    /**
+     * Clava o suelta una conversación de arriba de la lista.
+     *
+     * Hay un tope de seis: fijar todo es no fijar nada, la lista vuelve a
+     * quedar igual de larga y ya no se sabe qué es lo importante.
+     */
+    public function fijar(int $id): void
+    {
+        if (! static::hayFijadas()) return;
+
+        try {
+            $conv = WaConversacion::find($id);
+            if (! $conv) return;
+
+            if ($conv->fijada()) {
+                $conv->fijada_at = null;
+                $conv->save();
+                return;
+            }
+
+            $cuantas = WaConversacion::whereNotNull('fijada_at')->count();
+
+            if ($cuantas >= 6) {
+                \Filament\Notifications\Notification::make()
+                    ->title('Ya tenés 6 chats fijados')
+                    ->body('Soltá alguno antes de fijar este. Con más de seis arriba, la lista vuelve a ser igual de larga.')
+                    ->warning()->send();
+                return;
+            }
+
+            $conv->fijada_at = now();
+            $conv->save();
+        } catch (\Throwable $e) {
         }
     }
 

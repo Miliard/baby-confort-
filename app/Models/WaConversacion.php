@@ -18,15 +18,23 @@ class WaConversacion extends Model
         'wa_id', 'telefono', 'nombre', 'alias', 'ultimo_texto', 'ultimo_mensaje_at',
         'ultimo_saliente', 'ultimo_estado',
         'ultimo_del_cliente_at', 'agente_id', 'tomada_at', 'sin_leer', 'archivada',
+        'fijada_at',
     ];
 
     protected $casts = [
         'ultimo_mensaje_at'     => 'datetime',
         'ultimo_del_cliente_at' => 'datetime',
         'tomada_at'             => 'datetime',
+        'fijada_at'             => 'datetime',
         'archivada'             => 'boolean',
         'sin_leer'              => 'integer',
     ];
+
+    /** ¿Está clavada arriba de la lista? */
+    public function fijada(): bool
+    {
+        return ! is_null($this->fijada_at ?? null);
+    }
 
     public function mensajes(): HasMany
     {

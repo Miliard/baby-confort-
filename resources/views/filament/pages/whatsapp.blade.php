@@ -102,6 +102,15 @@
     .wa-apodo{font-size:11.5px;color:#94a3b8;opacity:.8;margin-top:1px;overflow:hidden;
               text-overflow:ellipsis;white-space:nowrap}
 
+    /* El chinche de la lista: chiquito, solo para reconocer de un vistazo cuáles
+       están clavadas. El que fija y suelta vive en la cabecera del chat. */
+    .wa-clavo{font-size:11px;opacity:.85;margin-right:3px}
+    /* Apagado mientras no está fijado, para que no parezca que ya lo está.
+       El display va acá porque .wa-volver se esconde en la computadora, y este
+       botón sirve en los dos lados. */
+    .wa-fijar{display:inline-flex;filter:grayscale(1);opacity:.5}
+    .wa-fijar.on{filter:none;opacity:1;background:rgba(46,158,107,.18)}
+
     .wa-alias-btn{border:none;background:none;cursor:pointer;font-family:inherit;
                   color:inherit;font-size:12px;padding:0;text-decoration:underline;
                   text-decoration-style:dotted;text-underline-offset:3px}
@@ -538,6 +547,7 @@
                     <span class="wa-hora">{{ $c->horaUltimo() }}</span>
 
                     <span class="wa-nom">
+                        @if($c->fijada())<span class="wa-clavo" title="Fijado">📌</span>@endif
                         {{ $c->titulo() }}
                         @if($c->sin_leer > 0)<span class="wa-pin">{{ $c->sin_leer }}</span>@endif
                     </span>
@@ -603,6 +613,14 @@
 
                 <button type="button" class="wa-volver wa-full" onclick="waPantallaCompleta()"
                         title="Pantalla completa">⛶</button>
+
+                {{-- Fijar va acá y no en la lista: cada fila de la lista ya es
+                     un botón entero, y un botón adentro de otro no se puede.
+                     Acá además se fija el chat que estás leyendo, que es el
+                     momento en que uno se da cuenta de que lo quiere a mano. --}}
+                <button type="button" class="wa-volver wa-fijar {{ $conv->fijada() ? 'on' : '' }}"
+                        wire:click="fijar({{ $conv->id }})"
+                        title="{{ $conv->fijada() ? 'Soltar este chat de arriba' : 'Fijar este chat arriba de la lista' }}">📌</button>
 
                 @if($editandoAlias)
                     <div class="wa-alias-edit">
