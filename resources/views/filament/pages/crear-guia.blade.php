@@ -170,6 +170,21 @@
                                     @endif
                                 </div>
 
+                                {{-- Cuándo se armó y quién la armó. Con varias
+                                     personas metiendo guías en la misma cola,
+                                     uno mira la lista y no sabe cuáles son
+                                     suyas. --}}
+                                @if(($g['cuando'] ?? '') !== '' || ($g['quien'] ?? null))
+                                    <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                                        @if(($g['cuando'] ?? '') !== '')
+                                            🕐 {{ $g['cuando'] }}
+                                        @endif
+                                        @if($g['quien'] ?? null)
+                                            · <span class="font-semibold">{{ $g['quien'] }}</span>
+                                        @endif
+                                    </p>
+                                @endif
+
                                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                     {{ $g['telefono'] }} · {{ $g['municipio'] }}, {{ $g['departamento'] }}
                                 </p>

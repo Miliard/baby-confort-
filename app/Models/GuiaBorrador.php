@@ -17,9 +17,46 @@ class GuiaBorrador extends Model
     protected $fillable = [
         'nombre', 'telefono', 'telefono_recibe', 'direccion',
         'municipio', 'departamento', 'descripcion', 'cobrar', 'enviado_at',
+        'user_id',
     ];
 
     protected $casts = ['cobrar' => 'decimal:2', 'enviado_at' => 'datetime'];
+
+    public function autor(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'user_id');
+    }
+
+    /**
+     * Cuándo se armó, en hora de El Salvador y en formato de 12 horas.
+     *
+     * Hoy se dice la hora sola, ayer se dice "Ayer", y más atrás la fecha:
+     * lo que uno necesita saber de una guía vieja es el día, no el minuto.
+     */
+    public function cuando(): string
+    {
+        $f = $this->created_at ?? null;
+        if (! $f) return '';
+
+        $local = $f->timezone(config('app.zona_local'));
+        $hoy   = now()->timezone(config('app.zona_local'));
+        $hora  = strtolower($local->format('g:i a'));
+
+        if ($local->isSameDay($hoy))                   return $hora;
+        if ($local->isSameDay($hoy->copy()->subDay())) return 'Ayer ' . $hora;
+
+        return $local->format('d/m') . ' ' . $hora;
+    }
+
+    /** Quién la armó. Null si es de antes de que se empezara a guardar. */
+    public function quien(): ?string
+    {
+        try {
+            return $this->autor?->name;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
 
     /** ¿Ya se le mandó el enlace de rastreo a este cliente? */
     public function yaEnviado(): bool
@@ -32,7 +69,12 @@ class GuiaBorrador extends Model
     {
         try {
             if (! Schema::hasTable('guias_borrador')) return collect();
-            return static::orderByDesc('id')->get();
+
+            // Con el autor cargado de una vez: si no, la lista consulta la
+            // tabla de usuarios una vez por guía.
+            return Schema::hasColumn('guias_borrador', 'user_id')
+                ? static::with('autor')->orderByDesc('id')->get()
+                : static::orderByDesc('id')->get();
         } catch (\Throwable $e) {
             return collect();
         }
@@ -138,6 +180,8 @@ class GuiaBorrador extends Model
     public function aFila(): array
     {
         return [
+            'cuando'          => $this->cuando(),
+            'quien'           => $this->quien(),
             'nombre'          => $this->nombre,
             'telefono'        => $this->telefono,
             'telefono_recibe' => $this->telefono_recibe,

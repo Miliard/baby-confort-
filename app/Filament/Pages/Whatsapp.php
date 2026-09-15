@@ -1666,6 +1666,8 @@ class Whatsapp extends Page
             'departamento' => trim($this->pedDepartamento),
             'descripcion'  => $this->descripcionPedido(),
             'cobrar'       => $this->totalPedido(),
+            // Quién la armó: en la cola se mezclan las de todo el equipo.
+            'user_id'      => auth()->id(),
         ];
 
         try {

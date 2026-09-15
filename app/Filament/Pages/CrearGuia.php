@@ -513,6 +513,9 @@ class CrearGuia extends Page implements HasForms
             'departamento'    => $d['departamento'],
             'descripcion'     => $d['descripcion'],
             'cobrar'          => (float) ($d['cobrar'] ?? 0),
+            // Quién la armó: con varias personas metiendo guías en la misma
+            // cola, hace falta saber de quién es cada una.
+            'user_id'         => auth()->id(),
         ]);
 
         // El cliente ya puede rastrear con su teléfono en este mismo momento:
