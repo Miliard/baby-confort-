@@ -15,9 +15,33 @@ class WaEtiqueta extends Model
 {
     protected $table = 'wa_etiquetas';
 
-    protected $fillable = ['nombre', 'color', 'orden'];
+    protected $fillable = ['nombre', 'rol', 'color', 'orden'];
 
     protected $casts = ['orden' => 'integer'];
+
+    /**
+     * Los papeles que una etiqueta puede jugar sola.
+     *
+     * Solo puede haber una etiqueta por papel: si se le asigna a otra, la
+     * anterior lo suelta. Dos etiquetas de "pedido" no significarían nada.
+     */
+    public const ROLES = [
+        'pedido'    => 'Se pone sola cuando llega una orden de envío',
+        'procesada' => 'Se pone sola cuando ya se mandó el enlace de rastreo',
+    ];
+
+    /** La etiqueta que juega ese papel, si alguna lo tiene asignado. */
+    public static function porRol(string $rol): ?self
+    {
+        try {
+            if (! Schema::hasTable('wa_etiquetas')) return null;
+            if (! Schema::hasColumn('wa_etiquetas', 'rol')) return null;
+
+            return static::where('rol', $rol)->first();
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
 
     /** Los colores que se pueden elegir, con su valor real. */
     public const COLORES = [

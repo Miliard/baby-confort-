@@ -815,7 +815,7 @@
 
                         {{-- Si el mensaje parece una orden de envío, se puede
                              procesar sin salir de acá. --}}
-                        @if(\Illuminate\Support\Str::contains($m->texto ?? '', ['Orden de Envío', 'Orden de Envio', 'Total a pagar']))
+                        @if(\App\Services\Etiquetado::pareceOrden($m->texto))
                             <button type="button" class="wa-procesar"
                                     wire:click="procesarOrden({{ $m->id }})">
                                 📦 Procesar esta orden

@@ -19,6 +19,26 @@ class WaMensaje extends Model
 
     protected $casts = ['automatico' => 'boolean'];
 
+    /**
+     * El etiquetado automático se engancha acá y no en cada lugar que manda.
+     *
+     * Todos los caminos por los que entra o sale un mensaje —el panel, la app
+     * del teléfono por el eco, el webhook del cliente, las respuestas
+     * automáticas— terminan creando un WaMensaje. Enganchándolo en un solo
+     * punto, ninguno se escapa, y el día que aparezca un camino nuevo tampoco.
+     */
+    protected static function booted(): void
+    {
+        static::created(function (WaMensaje $m) {
+            try {
+                \App\Services\Etiquetado::alGuardarMensaje($m->conversacion, $m->texto);
+            } catch (\Throwable $e) {
+                // Guardar el mensaje es lo que no puede fallar. Lo demás es
+                // comodidad.
+            }
+        });
+    }
+
     public function conversacion(): BelongsTo
     {
         return $this->belongsTo(WaConversacion::class, 'conversacion_id');

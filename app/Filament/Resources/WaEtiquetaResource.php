@@ -41,6 +41,30 @@ class WaEtiquetaResource extends Resource
                 ->required()
                 ->maxLength(40),
 
+            Forms\Components\Select::make('rol')
+                ->label('¿Se pone sola?')
+                ->helperText('Si elegís un papel acá, el panel pone esta etiqueta sin que nadie '
+                           . 'se acuerde de hacerlo. Solo una etiqueta puede tener cada papel: '
+                           . 'si se lo das a esta, la que lo tenía lo suelta.')
+                ->options([
+                    'pedido'    => 'Cuando llega una orden de envío',
+                    'procesada' => 'Cuando ya se mandó el enlace de rastreo',
+                ])
+                ->placeholder('No, esta la pongo yo a mano')
+                // Al guardar, se le quita el papel a la que lo tuviera antes:
+                // dos etiquetas de "pedido" no querrían decir nada.
+                ->afterStateUpdated(function ($state, $livewire) {
+                    if (blank($state)) return;
+
+                    try {
+                        \App\Models\WaEtiqueta::where('rol', $state)
+                            ->when($livewire->record ?? null, fn ($q) => $q->whereKeyNot($livewire->record->getKey()))
+                            ->update(['rol' => null]);
+                    } catch (\Throwable $e) {
+                    }
+                })
+                ->live(),
+
             Forms\Components\Select::make('color')
                 ->label('Color')
                 ->options([
