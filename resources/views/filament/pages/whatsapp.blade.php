@@ -219,7 +219,14 @@
     .wa-escribir{width:100%;border:1px solid #d1d5db;border-radius:11px;padding:11px 13px;
                  font-size:15px;font-family:inherit;background:transparent;color:inherit;
                  resize:none;min-height:46px;max-height:38vh;overflow-y:auto;line-height:1.45}
-    @media(max-width:900px){ .wa-escribir{max-height:30vh} }
+    /* En el teléfono, TRES RENGLONES y punto — con teclado o sin teclado.
+       Antes esto dependía de detectar el teclado, y cuando la detección
+       fallaba el cuadro volvía a crecer a siete y tapaba la conversación.
+       Una regla que no depende de nada no se puede romper. */
+    @media(max-width:900px){
+        .wa-escribir{--wa-renglones:3;
+                     max-height:calc(var(--wa-renglones) * 1.45em + 26px)}
+    }
     .wa-btns{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;align-items:center}
 
     /* ── Con el teclado abierto en el teléfono ──────────────────────────────
@@ -1690,9 +1697,22 @@
                 return;
             }
 
-            // ¿Está el teclado abierto? Si la ventana visual es bastante más
-            // chica que la de la página, sí.
-            var teclado = (window.innerHeight - vv.height) > 120;
+            // ¿Está el teclado abierto?
+            //
+            // La medición sola no alcanza. La forma clásica es comparar la
+            // ventana visual contra la de la página, pero a esta página le
+            // pusimos "interactive-widget=resizes-content" en el viewport para
+            // que el teclado no tape el cuadro de escribir — y con eso las DOS
+            // se achican a la vez. La resta da casi cero y el teclado quedaba
+            // sin detectar, justo en los teléfonos donde mejor funciona todo lo
+            // demás.
+            //
+            // Lo que sí es infalible: si el cursor está adentro del cuadro de
+            // escribir, el teclado está abierto. No hay caso en que no.
+            var foco = document.activeElement;
+            var escribiendo = !!(foco && foco.closest && foco.closest('.wa-abajo'));
+
+            var teclado = escribiendo || (window.innerHeight - vv.height) > 120;
 
             // Con el teclado abierto el espacio es de verdad poco, y el CSS
             // necesita saberlo para achicar el cuadro de escribir y guardar
@@ -1751,6 +1771,16 @@
                 var chat = document.querySelector('.wa-chat');
                 if (chat) chat.scrollTop = chat.scrollHeight;
             }, 320);
+        });
+
+        // Y al salir del cuadro hay que devolver todo a su lugar, si no la
+        // pantalla se queda encogida con el teclado ya cerrado.
+        document.addEventListener('focusout', function (e) {
+            if (!e.target.closest || !e.target.closest('.wa-abajo')) return;
+
+            // Un rato de gracia: al tocar "Enviar" el foco sale del cuadro por
+            // un instante y vuelve. Sin esta espera, la pantalla pega un salto.
+            setTimeout(ajustar, 250);
         });
     })();
 
