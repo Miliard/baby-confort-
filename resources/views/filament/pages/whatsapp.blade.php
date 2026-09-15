@@ -220,16 +220,22 @@
        que escribió el cliente, que es justo lo que uno necesita ver mientras
        contesta. Así que mientras el teclado está arriba:
 
-         · el cuadro de escribir no pasa de un tercio de lo que se ve, y hace
-           scroll adentro;
+         · el cuadro de escribir no pasa de TRES RENGLONES, y de ahí en
+           adelante hace scroll adentro;
          · los botones se van a un solo renglón que se desliza, en vez de
            apilarse en tres;
          · al chat se le garantiza un pedazo mínimo, que es lo que se estaba
            comiendo todo lo demás.
 
+       El tope va en renglones y no en porcentaje de pantalla, que fue el
+       primer intento: un tercio de la pantalla daba tres renglones en un
+       teléfono chico y siete en uno grande. Tres renglones son tres renglones
+       en cualquiera. Para cambiar cuántos, se toca --wa-renglones y nada más.
+
        Al cerrar el teclado vuelve todo como estaba. */
-    html.wa--teclado .wa-escribir{max-height:calc(var(--wa-alto, 100vh) * .30);min-height:40px;
-                                  padding:8px 11px;font-size:15px}
+    html.wa--teclado .wa-escribir{--wa-renglones:3;
+                                  max-height:calc(var(--wa-renglones) * 1.45em + 18px);
+                                  min-height:40px;padding:8px 11px;font-size:15px}
     html.wa--teclado .wa-abajo{padding:7px 9px}
     html.wa--teclado .wa-btns{flex-wrap:nowrap;overflow-x:auto;margin-top:6px;
                               scrollbar-width:none;-ms-overflow-style:none;
