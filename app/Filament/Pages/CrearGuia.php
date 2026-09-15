@@ -266,8 +266,51 @@ class CrearGuia extends Page implements HasForms
                     if (! empty($r['departamento'])) {
                         $set('departamento', $r['departamento']);
                         $set('municipio', $r['municipio_nombre'] ?: null);
+                    } else {
+                        // Segunda opinión: el buscador de municipios del panel
+                        // barre TODO el texto, no solo el renglón "Municipio:".
+                        // Casi siempre el municipio está repetido dentro de la
+                        // dirección — "caserío los chilamates nueva concepción" —
+                        // y ahí es donde aparece cuando el renglón vino vacío.
+                        $hallado = \App\Services\Municipios::buscarEn((string) $state);
+                        $depto   = $hallado ? \App\Services\Municipios::departamentoSeguro($hallado) : null;
+
+                        // Los dos catálogos escriben algunos nombres distinto,
+                        // y el desplegable solo acepta los suyos: se pone
+                        // únicamente si existe también del otro lado.
+                        $deSistrack = $depto ? (config('municipios_sv', [])[$depto] ?? []) : [];
+
+                        if ($hallado && $depto && in_array($hallado, $deSistrack, true)) {
+                            $set('departamento', $depto);
+                            $set('municipio', $hallado);
+                        }
                     }
-                    if (! empty($r['items'])) {
+                    // ── Los productos y la suma ──────────────────────────────
+                    //
+                    // Primero se intenta reconocerlos contra el catálogo real.
+                    // Es mejor que leer los precios del texto: el texto lo
+                    // escribió alguien apurado y si puso $17 donde eran $18,
+                    // esa diferencia la termina pagando el negocio.
+                    $cat = \App\Services\ReconocerProductos::enTexto((string) $state);
+
+                    if (! empty($cat['items'])) {
+                        $set('descripcion', \App\Services\ReconocerProductos::descripcion($cat['items']));
+                        $set('cobrar', number_format(
+                            $cat['total'] + (float) ($r['envio'] ?? 0), 2, '.', ''
+                        ));
+
+                        // Lo que no reconoció no se calla: quedó fuera de la
+                        // suma y hay que agregarlo a mano.
+                        if (! empty($cat['dudosos'])) {
+                            Notification::make()
+                                ->title('⚠️ Hay renglones que no reconocí')
+                                ->body('«' . implode('» · «', array_slice($cat['dudosos'], 0, 3)) . '». '
+                                     . 'No entraron en la suma. Revisá el total antes de guardar.')
+                                ->warning()->persistent()->send();
+                        }
+                    } elseif (! empty($r['items'])) {
+                        // No reconoció nada del catálogo: se usa lo que decía el
+                        // texto, que es lo que se hacía antes. Mejor eso que nada.
                         $set('descripcion', collect($r['items'])
                             ->map(fn ($i) => ((int) ($i['cantidad'] ?? 1)) . ' ' . trim((string) ($i['producto'] ?? '')))
                             ->implode(', '));
