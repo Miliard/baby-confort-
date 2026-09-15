@@ -183,14 +183,17 @@
 
        El letter-spacing negativo de antes era para juntar las dos palomitas.
        Ahora es un solo carácter y sobraría. */
-    .wa-check{font-size:15px;margin-left:5px;vertical-align:-1px;
+    .wa-check{font-size:21px;margin-left:6px;vertical-align:-3px;
+              /* line-height a 0 para que el punto crezca sin estirar el
+                 renglón de la hora. Sin esto, agrandarlos separa todo. */
+              line-height:0;
               /* Los dos puntos, separados: pegados se leen como uno solo
                  gordo y se pierde la mitad de la información. */
-              letter-spacing:2px;
+              letter-spacing:3px;
               /* Un halo del mismo color: los despega del fondo del globo, que
                  en los mensajes propios es de un tono parecido. */
-              text-shadow:0 0 4px currentColor}
-    @media(max-width:900px){ .wa-check{font-size:17px;letter-spacing:2.5px} }
+              text-shadow:0 0 5px currentColor}
+    @media(max-width:900px){ .wa-check{font-size:24px;letter-spacing:3.5px;vertical-align:-4px} }
 
     /* ── Responder a un mensaje puntual ── */
     .wa-resp-btn{border:none;background:none;cursor:pointer;font-family:inherit;color:inherit;
