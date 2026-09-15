@@ -393,6 +393,31 @@ class Whatsapp extends Page
         $this->respondiendo = null;
     }
 
+    /**
+     * Trae el texto de un mensaje al cuadro de escribir.
+     *
+     * Para lo de siempre: mandaste algo con una letra mala y WhatsApp no deja
+     * editar mensajes ya enviados — no existe forma de hacerlo, ni acá ni
+     * desde el teléfono. Lo único que queda es escribirlo de nuevo corregido,
+     * y volver a teclearlo entero por una letra es absurdo.
+     *
+     * Si ya había algo escrito, no se pisa: se le suma abajo.
+     */
+    public function reusar(int $id): void
+    {
+        try {
+            $m = WaMensaje::find($id);
+            if (! $m || blank($m->texto)) return;
+
+            $this->texto = trim($this->texto) === ''
+                ? $m->texto
+                : rtrim($this->texto) . "\n" . $m->texto;
+
+            $this->pestana = 'chat';
+        } catch (\Throwable $e) {
+        }
+    }
+
     public function mensajeCitado(): ?WaMensaje
     {
         if (! $this->respondiendo) return null;

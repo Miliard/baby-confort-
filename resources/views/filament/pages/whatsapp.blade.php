@@ -731,6 +731,24 @@
                                         wire:click="responderA({{ $m->id }})"
                                         title="Responder a este mensaje">↩</button>
                             @endif
+
+                            @if(filled($m->texto))
+                                {{-- Copiar: el texto viaja en un atributo, no en el
+                                     JavaScript, así Livewire lo refresca solo cuando
+                                     el mensaje cambia. --}}
+                                <button type="button" class="wa-resp-btn"
+                                        data-copiar="{{ $m->texto }}"
+                                        onclick="waCopiar(this)"
+                                        title="Copiar este texto">📋</button>
+
+                                {{-- Traerlo al cuadro de escribir. Es lo que uno
+                                     quiere de verdad cuando se le fue una letra:
+                                     corregir y mandar de nuevo. --}}
+                                <button type="button" class="wa-resp-btn"
+                                        wire:click="reusar({{ $m->id }})"
+                                        title="Traerlo abajo para corregirlo y mandarlo de nuevo">✏️</button>
+                            @endif
+
                             {{ $m->hora() }}
                             @if(! $m->esDelCliente())
                                 · <b style="color:{{ $m->colorFirma() }}">{{ $m->firma() }}</b>
@@ -1713,6 +1731,64 @@
             }, 320);
         });
     })();
+
+    /*
+     * Copia el texto de un globo al portapapeles.
+     *
+     * Va por dos caminos porque el bueno (navigator.clipboard) solo existe en
+     * páginas seguras y en navegadores nuevos. El viejo, con un campo escondido
+     * y execCommand, funciona en cualquier Android por antiguo que sea.
+     *
+     * El botón contesta con un ✓ un segundo: sin eso uno no sabe si copió, y
+     * termina tocándolo tres veces.
+     */
+    function waCopiar(boton) {
+        var texto = boton.getAttribute('data-copiar') || '';
+        if (!texto) return;
+
+        function avisar(bien) {
+            var antes = boton.textContent;
+            boton.textContent = bien ? '✓' : '✕';
+            boton.style.opacity = '1';
+            setTimeout(function () {
+                boton.textContent = antes;
+                boton.style.opacity = '';
+            }, 1000);
+        }
+
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(texto)
+                .then(function () { avisar(true); })
+                .catch(function () { avisar(alaAntigua(texto)); });
+            return;
+        }
+
+        avisar(alaAntigua(texto));
+    }
+
+    function alaAntigua(texto) {
+        try {
+            var campo = document.createElement('textarea');
+            campo.value = texto;
+            // Fuera de la vista pero dentro de la página: si estuviera en
+            // display:none no se puede seleccionar, y sin selección no copia.
+            campo.setAttribute('readonly', '');
+            campo.style.position = 'fixed';
+            campo.style.top = '-1000px';
+            campo.style.opacity = '0';
+            document.body.appendChild(campo);
+
+            campo.select();
+            campo.setSelectionRange(0, texto.length);
+
+            var salio = document.execCommand('copy');
+            document.body.removeChild(campo);
+
+            return salio;
+        } catch (e) {
+            return false;
+        }
+    }
 
     // Pantalla completa de verdad: esconde las barras del navegador.
     // No sobrevive a recargar la página — eso solo lo da instalar la app
