@@ -547,7 +547,6 @@
                 $etqs = $this->etiquetas();
                 $cuentas = $this->cuentaEtiquetas();
                 $sinLeer = $this->cuantasSinLeer();
-                $sinResponder = $this->cuantasSinResponder();
             @endphp
 
             {{-- El contador que vigila el JavaScript para avisar. Va acá
@@ -561,12 +560,9 @@
                     @if($sinLeer > 0)<span class="wa-fil-n">{{ $sinLeer }}</span>@endif
                 </button>
 
-                <button type="button" wire:click="alternarSinResponder"
-                        class="wa-fil {{ $soloSinResponder ? 'on' : '' }}" style="--c:#e5a23f"
-                        title="Las que esperan que vos contestes">
-                    Sin responder
-                    @if($sinResponder > 0)<span class="wa-fil-n">{{ $sinResponder }}</span>@endif
-                </button>
+                {{-- Acá iba el filtro "Sin responder". La barra roja al costado
+                     de cada conversación ya dice lo mismo sin ocupar lugar en
+                     el carrusel. El método alternarSinResponder() sigue vivo. --}}
 
                 @foreach($etqs as $e)
                     <button type="button" wire:click="filtrarPor({{ $e->id }})"
