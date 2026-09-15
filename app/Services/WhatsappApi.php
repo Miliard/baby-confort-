@@ -133,7 +133,16 @@ class WhatsappApi
                 'messaging_product' => 'whatsapp',
                 'to'                => $conv->wa_id,
                 'type'              => 'text',
-                'text'              => ['preview_url' => true, 'body' => $texto],
+                // La vista previa del enlace va apagada. Cuando estaba
+                // encendida, WhatsApp recortaba la imagen ancha del sitio a un
+                // cuadradito y salía un borrón ilegible, y de paso el globo
+                // quedaba angosto y desalineado contra los demás. Apagada, el
+                // enlace se sigue viendo y se sigue tocando: lo único que se
+                // pierde es la tarjeta.
+                'text' => [
+                    'preview_url' => (bool) config('whatsapp.vista_previa', false),
+                    'body'        => $texto,
+                ],
             ];
 
             // Con esto, al cliente le llega citado el mensaje al que respondés,

@@ -51,4 +51,15 @@ return [
     // tocar nada más; dejarlo vacío lo quita.
     'pie_catalogo' => env('WHATSAPP_PIE_CATALOGO', '🚚 Entrega a domicilio en todo El Salvador'),
 
+    // ¿Los enlaces salen con tarjeta de vista previa?
+    //
+    // Va apagado. WhatsApp arma esa tarjeta en formato chico y recorta la
+    // imagen del sitio a un cuadrado: de una imagen ancha queda un borrón, y
+    // el globo del mensaje sale angosto y desalineado contra los demás. El
+    // enlace sin tarjeta se ve y se toca igual.
+    //
+    // Para volver a encenderla hace falta antes una imagen CUADRADA en el
+    // sitio, que es lo único que se ve bien en ese recorte.
+    'vista_previa' => env('WHATSAPP_VISTA_PREVIA', false),
+
 ];

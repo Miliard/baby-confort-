@@ -12,12 +12,31 @@ class RespuestaRapida extends Model
 {
     protected $table = 'respuestas_rapidas';
 
-    protected $fillable = ['titulo', 'texto', 'orden', 'activa'];
+    protected $fillable = ['titulo', 'texto', 'imagen', 'orden', 'activa'];
 
     protected $casts = [
         'activa' => 'boolean',
         'orden'  => 'integer',
     ];
+
+    /** ¿Lleva foto? */
+    public function tieneFoto(): bool
+    {
+        return filled($this->imagen ?? null);
+    }
+
+    /** Dirección pública, tal como la sirve el sitio. */
+    public function url(): ?string
+    {
+        return $this->tieneFoto() ? '/storage/' . ltrim($this->imagen, '/') : null;
+    }
+
+    /** La dirección completa: es la que Meta necesita para ir a buscarla. */
+    public function urlCompleta(): ?string
+    {
+        $u = $this->url();
+        return $u ? url($u) : null;
+    }
 
     /**
      * Las que se muestran en el chat.

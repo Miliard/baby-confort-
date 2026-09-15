@@ -64,16 +64,12 @@
         .wa-fil{flex:none}
     }
 
-    /* En pantalla completa ya no hay barras del navegador que descontar. */
-    :fullscreen .wa{height:calc(100dvh - 60px)}
-
     .wa-t-corto{display:none}
 
     /* Solo aparece en pantallas chicas: en la computadora estorba. */
     .wa-volver{display:none;border:none;background:rgba(120,140,170,.16);cursor:pointer;
                border-radius:9px;width:34px;height:34px;font-size:17px;align-items:center;
                justify-content:center;font-family:inherit;color:inherit;flex:none}
-    .wa-full{font-size:15px}
 
     .wa-col{background:#fff;border:1px solid #e5e7eb;border-radius:14px;
             display:flex;flex-direction:column;overflow:hidden;height:100%}
@@ -219,6 +215,8 @@
                 border-radius:0 9px 9px 0;padding:7px 10px}
     .wa-citando-x{font-size:12.5px;color:#94a3b8;overflow:hidden;
                   text-overflow:ellipsis;white-space:nowrap}
+    /* La miniatura de la foto que está esperando para salir. */
+    .wa-pend-img{width:38px;height:38px;object-fit:cover;border-radius:7px;flex:none}
     /* Tamaño de miniatura, como WhatsApp. Antes ocupaban el 74% del ancho del
        chat y una sola foto te tapaba la conversación entera. Se toca y se abre
        grande en otra pestaña. */
@@ -233,13 +231,20 @@
     .wa-escribir{width:100%;border:1px solid #d1d5db;border-radius:11px;padding:11px 13px;
                  font-size:15px;font-family:inherit;background:transparent;color:inherit;
                  resize:none;min-height:46px;max-height:38vh;overflow-y:auto;line-height:1.45}
-    /* En el teléfono, TRES RENGLONES y punto — con teclado o sin teclado.
-       Antes esto dependía de detectar el teclado, y cuando la detección
-       fallaba el cuadro volvía a crecer a siete y tapaba la conversación.
-       Una regla que no depende de nada no se puede romper. */
+    /* En el teléfono el cuadro de escribir se encoge y se estira solo:
+       UN renglón mientras estás leyendo la conversación, TRES mientras
+       escribís. Ni un píxel de la pantalla se queda ocupado por algo que no
+       estás usando en ese momento.
+
+       El tope va en renglones y no en porcentaje de pantalla: un tercio de la
+       pantalla daba tres renglones en un teléfono chico y siete en uno grande.
+       Tres renglones son tres en cualquiera. */
     @media(max-width:900px){
-        .wa-escribir{--wa-renglones:3;
-                     max-height:calc(var(--wa-renglones) * 1.45em + 26px)}
+        .wa-escribir{--wa-renglones:1;
+                     max-height:calc(var(--wa-renglones) * 1.45em + 26px);
+                     transition:max-height .18s ease}
+        /* wa--teclado la pone el JS cuando el cursor está en el cuadro. */
+        html.wa--teclado .wa-escribir{--wa-renglones:3}
     }
     .wa-btns{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;align-items:center}
 
@@ -662,8 +667,10 @@
                             title="Volver a la conversación">💬</button>
                 @endif
 
-                <button type="button" class="wa-volver wa-full" onclick="waPantallaCompleta()"
-                        title="Pantalla completa">⛶</button>
+                {{-- Acá iba un botón de pantalla completa. Se quitó cuando el
+                     cuadro de escribir empezó a encogerse solo y el chat a
+                     anclarse con el teclado: el espacio que el botón peleaba ya
+                     lo tenemos sin pedirlo. --}}
 
                 {{-- Fijar va acá y no en la lista: cada fila de la lista ya es
                      un botón entero, y un botón adentro de otro no se puede.
@@ -835,6 +842,25 @@
                         </div>
                     @endif
 
+                    {{-- La foto que viene con una respuesta rápida. Espera acá
+                         hasta que le des a Enviar, para que puedas corregir el
+                         texto antes: sale como una sola imagen con ese texto de
+                         pie, no como dos mensajes sueltos. --}}
+                    @php $pendiente = $this->fotoPendiente(); @endphp
+                    @if($pendiente)
+                        <div class="wa-citando" style="border-left-color:#4aa3df">
+                            <img src="{{ $pendiente->url() }}" alt="" class="wa-pend-img">
+                            <div style="flex:1;min-width:0">
+                                <div class="wa-cita-q">📷 Va con esta foto</div>
+                                <div class="wa-citando-x">
+                                    Lo que escribas abajo sale de pie de la imagen
+                                </div>
+                            </div>
+                            <button type="button" class="wa-mini" wire:click="quitarFotoPendiente"
+                                    title="Mandar solo el texto, sin la foto">✕</button>
+                        </div>
+                    @endif
+
                     {{-- El atajo mira si hay Shift: sin él manda, con él deja
                          saltar de línea. Antes se bloqueaba cualquier Enter y
                          no se podía escribir un mensaje de dos renglones. --}}
@@ -866,9 +892,10 @@
                                     title="Volver a como lo escribiste vos">↶ Deshacer</button>
                         @endif
 
-                        <button type="button" class="wa-chip" wire:click="mandarTallas">
-                            📏 Tabla de tallas
-                        </button>
+                        {{-- Acá iba "📏 Tabla de tallas". Se quitó del renglón de
+                             botones: el método mandarTallas() sigue vivo y la
+                             respuesta automática de tallas también, así que
+                             volver a ponerlo es agregar el botón otra vez. --}}
 
                         <button type="button" class="wa-chip wa-chip-talla" wire:click="abrirCatalogo"
                                 title="Elegir talla y productos para mandarle">
@@ -886,7 +913,7 @@
                         @foreach($resp as $r)
                             <button type="button" class="wa-chip" wire:click="usarRespuesta({{ $r->id }})"
                                     wire:key="chip-{{ $r->id }}" title="{{ \Illuminate\Support\Str::limit($r->texto, 120) }}">
-                                {{ $r->titulo }}
+                                @if($r->tieneFoto())📷 @endif{{ $r->titulo }}
                             </button>
                         @endforeach
 
@@ -1801,6 +1828,34 @@
     })();
 
     /*
+     * Tocar la conversación suelta el cuadro de escribir.
+     *
+     * Con eso se cierra el teclado y el cuadro se encoge a un renglón, que es
+     * lo que uno quiere cuando deja de escribir y se pone a leer. Volver a
+     * tocar el cuadro lo estira a tres. El CSS hace el resto: acá solo se
+     * quita el cursor de donde estaba.
+     *
+     * No se suelta si el toque fue sobre algo que hace falta usar —un botón,
+     * un enlace, el reproductor de un audio—: ahí el toque tiene su propio
+     * trabajo y quitarle el foco al cuadro estorbaría.
+     */
+    (function () {
+        document.addEventListener('pointerdown', function (e) {
+            if (window.innerWidth > 900) return;
+
+            var chat = e.target.closest && e.target.closest('.wa-chat');
+            if (!chat) return;
+
+            if (e.target.closest('button, a, audio, input, textarea, select, label')) return;
+
+            var foco = document.activeElement;
+            if (foco && foco.blur && foco.closest && foco.closest('.wa-abajo')) {
+                foco.blur();
+            }
+        }, true);
+    })();
+
+    /*
      * Copia el texto de un globo al portapapeles.
      *
      * Va por dos caminos porque el bueno (navigator.clipboard) solo existe en
@@ -1858,28 +1913,6 @@
         }
     }
 
-    // Pantalla completa de verdad: esconde las barras del navegador.
-    // No sobrevive a recargar la página — eso solo lo da instalar la app
-    // desde "Agregar a pantalla de inicio".
-    function waPantallaCompleta() {
-        var d = document;
-
-        if (d.fullscreenElement || d.webkitFullscreenElement) {
-            (d.exitFullscreen || d.webkitExitFullscreen).call(d);
-            return;
-        }
-
-        var e = d.documentElement;
-        var pedir = e.requestFullscreen || e.webkitRequestFullscreen;
-
-        if (!pedir) {
-            alert('Este navegador no permite pantalla completa. '
-                + 'Probá con el menú del navegador: "Agregar a pantalla de inicio".');
-            return;
-        }
-
-        pedir.call(e).catch(function () {});
-    }
 </script>
 
 </x-filament-panels::page>

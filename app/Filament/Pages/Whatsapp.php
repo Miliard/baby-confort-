@@ -373,6 +373,9 @@ class Whatsapp extends Page
         $this->texto = '';
         $this->pestana = 'chat';
 
+        // Una foto que quedó esperando en otro chat no se va con este.
+        $this->rapidaFoto = null;
+
         $conv = $this->conversacion();
         if (! $conv) return;
 
@@ -554,17 +557,33 @@ class Whatsapp extends Page
         // para que al cliente le llegue con la cita arriba.
         $citado = $this->mensajeCitado();
 
-        $mensaje = WhatsappApi::enviarTexto(
-            $conv,
-            $texto,
-            auth()->id(),
-            false,
-            $citado?->wa_message_id
-        );
+        // Si venía una foto esperando de una respuesta rápida, sale como foto
+        // con el texto de pie: un solo mensaje, no dos. Para el cliente es la
+        // diferencia entre recibir una imagen explicada y recibir una imagen
+        // suelta seguida de un párrafo.
+        $conFoto = $this->fotoPendiente();
+
+        if ($conFoto) {
+            $mensaje = WhatsappApi::enviarImagen(
+                $conv,
+                $conFoto->urlCompleta(),
+                $texto,
+                auth()->id()
+            );
+        } else {
+            $mensaje = WhatsappApi::enviarTexto(
+                $conv,
+                $texto,
+                auth()->id(),
+                false,
+                $citado?->wa_message_id
+            );
+        }
 
         $this->texto = '';
         $this->textoAntes = '';
         $this->respondiendo = null;
+        $this->rapidaFoto = null;
 
         if ($mensaje->estado === 'fallido') {
             Notification::make()
@@ -1256,6 +1275,33 @@ class Whatsapp extends Page
 
         $this->texto = $r->texto;
         $this->pestana = 'chat';
+
+        // Si la respuesta lleva foto, la foto NO se manda todavía: queda
+        // esperando pegada al cuadro de texto. Así seguís pudiendo corregir el
+        // texto —agregar el nombre, cambiar un precio— y cuando le des a
+        // Enviar sale una sola cosa: la foto con ese texto de pie.
+        $this->rapidaFoto = $r->tieneFoto() ? $r->id : null;
+    }
+
+    /** La respuesta rápida cuya foto está esperando, si hay alguna. */
+    public ?int $rapidaFoto = null;
+
+    public function fotoPendiente(): ?\App\Models\RespuestaRapida
+    {
+        if (! $this->rapidaFoto) return null;
+
+        try {
+            $r = \App\Models\RespuestaRapida::find($this->rapidaFoto);
+            return $r && $r->tieneFoto() ? $r : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /** Mandar el texto solo, sin la foto que venía con la respuesta. */
+    public function quitarFotoPendiente(): void
+    {
+        $this->rapidaFoto = null;
     }
 
     // ═══ Pestaña "Tomar pedido" ═════════════════════════════════════════════
