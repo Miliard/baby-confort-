@@ -372,11 +372,37 @@
     .wa-origen-x{white-space:pre-wrap;font-size:13px;line-height:1.6;max-height:300px;
                  overflow-y:auto;font-family:ui-monospace,Menlo,Consolas,monospace}
 
-    /* En pantalla ancha, la orden a la izquierda y la guía a la derecha, las
-       dos a la vista: comparar es el trabajo, no un paso extra. */
-    @media(min-width:1100px){
-        .wa-comparar{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
-        .wa-comparar .wa-origen{margin-bottom:0;position:sticky;top:0}
+    /* Los dos cuadros de comparar, lado a lado y arriba de todo — también en el
+       teléfono, que era donde no se podía. Antes la orden iba arriba y la
+       previa al final, con el formulario entero en medio: comparar obligaba a
+       subir y bajar, y lo que cuesta se deja de hacer.
+
+       Quedan pegados arriba mientras se llena el formulario, con tope de alto
+       y scroll adentro de cada uno, para que nunca se coman la pantalla. */
+    .wa-arriba{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start;
+               margin-bottom:14px;position:sticky;top:0;z-index:5;
+               /* Fondo opaco: los dos cuadros son translúcidos y, sin esto, el
+                  formulario se vería pasar por debajo mientras se desplaza. */
+               background:#fff;padding-bottom:8px}
+    html.dark .wa-arriba{background:#16202f}
+    /* Sin orden pegada queda solo la previa: que ocupe todo el ancho. */
+    .wa-arriba-sola{grid-template-columns:1fr}
+    .wa-arriba .wa-origen{margin-bottom:0}
+    .wa-arriba .wa-previa{margin-top:0}
+
+    @media(max-width:900px){
+        /* En el teléfono, más chico y más apretado: el objetivo es que los dos
+           entren a la vez, no que se lean cómodos. Para leer cómodo está el
+           formulario de abajo. */
+        .wa-arriba{gap:7px;margin-bottom:11px}
+        .wa-arriba .wa-origen,
+        .wa-arriba .wa-previa{padding:8px 9px;max-height:40vh;overflow-y:auto}
+        .wa-arriba .wa-origen-x{font-size:11px;line-height:1.45;max-height:none}
+        .wa-arriba .wa-origen-t,
+        .wa-arriba .wa-previa-t{font-size:10.5px;margin-bottom:5px}
+        .wa-arriba .wa-pv{font-size:11px;padding:3px 0;gap:5px;
+                          flex-direction:column;align-items:flex-start}
+        .wa-arriba .wa-pv span{font-size:9.5px;opacity:.75}
     }
 
     /* El aviso de municipio/departamento, justo debajo de los dos campos. */
@@ -932,16 +958,35 @@
 
             {{-- ═══ PESTAÑA: tomar el pedido sin salir del chat ═══ --}}
             @if($pestana === 'pedido')
-            <div class="wa-panel {{ filled($pedOrigen) ? 'wa-comparar' : '' }}">
-                @if(filled($pedOrigen))
-                    <div class="wa-origen">
-                        <div class="wa-origen-t">
-                            <span>📦 La orden, tal como se la mandaste</span>
-                            <button type="button" class="wa-mini" wire:click="limpiarPedido">Descartar</button>
+            <div class="wa-panel">
+
+                {{-- Los dos cuadros de comparar, arriba y uno al lado del otro.
+                     Comparar ES el trabajo: si hay que subir y bajar la pantalla
+                     para hacerlo, se deja de hacer y por ahí se cuelan los
+                     errores. Abajo quedan los campos para escribir. --}}
+                <div class="wa-arriba {{ filled($pedOrigen) ? '' : 'wa-arriba-sola' }}">
+                    @if(filled($pedOrigen))
+                        <div class="wa-origen">
+                            <div class="wa-origen-t">
+                                <span>📦 La orden</span>
+                                <button type="button" class="wa-mini" wire:click="limpiarPedido">Descartar</button>
+                            </div>
+                            <div class="wa-origen-x">{{ $pedOrigen }}</div>
                         </div>
-                        <div class="wa-origen-x">{{ $pedOrigen }}</div>
+                    @endif
+
+                    <div class="wa-previa">
+                        <div class="wa-previa-t">📄 Como va en la guía</div>
+
+                        <div class="wa-pv"><span>Nombre</span><b>{{ $pedNombre ?: '—' }}</b></div>
+                        <div class="wa-pv"><span>Teléfono</span><b>{{ $pedTelefono ?: '—' }}</b></div>
+                        <div class="wa-pv"><span>Dirección</span><b>{{ $pedDireccion ?: '—' }}</b></div>
+                        <div class="wa-pv"><span>Municipio</span><b>{{ $pedMunicipio ?: '—' }}</b></div>
+                        <div class="wa-pv"><span>Departamento</span><b>{{ $pedDepartamento ?: '—' }}</b></div>
+                        <div class="wa-pv"><span>Contenido</span><b>{{ $this->descripcionPedido() ?: '—' }}</b></div>
+                        <div class="wa-pv"><span>Cobrar</span><b>${{ number_format($this->totalPedido(), 2) }}</b></div>
                     </div>
-                @endif
+                </div>
 
                 <div>
                 @php $viejo = $this->clienteConocido(); @endphp
@@ -1025,20 +1070,6 @@
                     <label class="wa-lab">A cobrar</label>
                     <input type="text" class="wa-in" wire:model.live="pedCobrarManual"
                            placeholder="Sale de la orden">
-                </div>
-
-                {{-- Así, exactamente, va a quedar la fila en el Excel. Es el
-                     renglón que hay que comparar contra la orden de arriba. --}}
-                <div class="wa-previa">
-                    <div class="wa-previa-t">📄 Como va a quedar en la guía</div>
-
-                    <div class="wa-pv"><span>Nombre</span><b>{{ $pedNombre ?: '—' }}</b></div>
-                    <div class="wa-pv"><span>Teléfono</span><b>{{ $pedTelefono ?: '—' }}</b></div>
-                    <div class="wa-pv"><span>Dirección</span><b>{{ $pedDireccion ?: '—' }}</b></div>
-                    <div class="wa-pv"><span>Municipio</span><b>{{ $pedMunicipio ?: '—' }}</b></div>
-                    <div class="wa-pv"><span>Departamento</span><b>{{ $pedDepartamento ?: '—' }}</b></div>
-                    <div class="wa-pv"><span>Contenido</span><b>{{ $this->descripcionPedido() ?: '—' }}</b></div>
-                    <div class="wa-pv"><span>Cobrar</span><b>${{ number_format($this->totalPedido(), 2) }}</b></div>
                 </div>
 
                 <div class="wa-btns" style="margin-top:16px">
