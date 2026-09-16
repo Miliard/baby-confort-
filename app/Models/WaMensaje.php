@@ -55,6 +55,64 @@ class WaMensaje extends Model
     }
 
     /**
+     * El texto del mensaje con los enlaces ya tocables.
+     *
+     * Blade escapa todo lo que imprime, que es lo correcto —un cliente puede
+     * mandar cualquier cosa y no queremos que se ejecute— pero eso dejaba los
+     * enlaces como texto muerto. Acá se escapa igual, a mano, y solo después se
+     * arman las etiquetas de enlace. El orden importa: escapar primero,
+     * enlazar después.
+     *
+     * Solo http y https. Nada de "javascript:" ni esquemas raros: aunque el
+     * cliente los mande, no se convierten en enlace.
+     */
+    public function textoHtml(): \Illuminate\Support\HtmlString
+    {
+        $t = (string) ($this->texto ?? '');
+
+        if ($t === '') return new \Illuminate\Support\HtmlString('');
+
+        $partes = preg_split(
+            '~(https?://[^\s<>"\']+)~iu',
+            $t,
+            -1,
+            PREG_SPLIT_DELIM_CAPTURE
+        );
+
+        if ($partes === false) return new \Illuminate\Support\HtmlString(e($t));
+
+        $salida = '';
+
+        foreach ($partes as $i => $p) {
+            // Con un solo grupo de captura, los impares son los enlaces.
+            if ($i % 2 === 0) {
+                $salida .= e($p);
+                continue;
+            }
+
+            // El punto final de la oración no es parte del enlace. Se le
+            // devuelve al texto para que el enlace no se rompa.
+            $cola = '';
+            while ($p !== '' && str_contains('.,;:!?)]}', substr($p, -1))) {
+                $cola = substr($p, -1) . $cola;
+                $p = substr($p, 0, -1);
+            }
+
+            if ($p === '') {
+                $salida .= e($cola);
+                continue;
+            }
+
+            $u = e($p);
+
+            $salida .= '<a href="' . $u . '" target="_blank" rel="noopener noreferrer" '
+                     . 'class="wa-enlace">' . $u . '</a>' . e($cola);
+        }
+
+        return new \Illuminate\Support\HtmlString($salida);
+    }
+
+    /**
      * La hora como la ve quien está atendiendo, no como la guarda la base.
      *
      * Se guarda en UTC y El Salvador va seis horas atrás: sin esta conversión,

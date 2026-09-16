@@ -147,6 +147,15 @@
     .wa-glo{max-width:74%;padding:9px 13px;border-radius:13px;font-size:15px;line-height:1.45;
             word-wrap:break-word;text-align:left}
     .wa-txt{white-space:pre-wrap;overflow-wrap:anywhere}
+    /* Los enlaces adentro de un globo. Subrayados y de otro color: en un chat,
+       si no se ve que se puede tocar, no se toca. */
+    .wa-enlace{color:#4aa3df;text-decoration:underline;text-underline-offset:2px;
+               /* El globo bloquea la selección para poder deslizarlo; el enlace
+                  necesita recibir el toque igual. */
+               -webkit-user-select:text;user-select:text;pointer-events:auto}
+    .wa-enlace:hover{opacity:.8}
+    /* En los mensajes propios el fondo es verde: el celeste no contrasta. */
+    .wa-mio .wa-enlace,.wa-auto .wa-enlace{color:#d9f2e4}
 
     /* Notas de voz: el reproductor arriba y abajo lo que dijo. */
     .wa-audio{width:100%;max-width:260px;height:38px;display:block;margin-bottom:6px}
@@ -797,7 +806,10 @@
                         {{-- El texto va en su propio elemento y pegado a las llaves:
                              el globo respeta los saltos de línea, así que cualquier
                              espacio o sangría de la plantilla se dibujaría tal cual. --}}
-                        @if(filled($m->texto))<div class="wa-txt">{{ $m->texto }}</div>@endif
+                        {{-- Va sin escapar porque textoHtml() ya escapó todo a
+                             mano antes de armar los enlaces. Ver el comentario
+                             del método: el orden es escapar y después enlazar. --}}
+                        @if(filled($m->texto))<div class="wa-txt">{!! $m->textoHtml() !!}</div>@endif
 
                         <div class="wa-pie">
                             @if(filled($m->wa_message_id))
