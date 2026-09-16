@@ -1020,23 +1020,47 @@
                     <input type="text" class="wa-in" wire:model="pedNombre">
                 </div>
 
-                <div class="wa-fila2">
-                    <div class="wa-campo">
-                        <label class="wa-lab">Teléfono</label>
-                        <input type="text" class="wa-in" wire:model="pedTelefono">
-                    </div>
-                    <div class="wa-campo">
-                        <label class="wa-lab">Municipio</label>
-                        <input type="text" class="wa-in" wire:model.live.debounce.500ms="pedMunicipio"
-                               list="wa-municipios">
+                <div class="wa-campo">
+                    <label class="wa-lab">Teléfono</label>
+                    <input type="text" class="wa-in" wire:model="pedTelefono">
+                </div>
+
+                {{-- Departamento primero y municipio después, los dos de lista.
+                     Escribiéndolo a mano se puede formar una pareja imposible
+                     —"San Vicente, San Salvador"— y ese paquete se va al otro
+                     lado del país. Eligiendo, esa pareja no se puede ni armar:
+                     la lista de municipios solo trae los del departamento. --}}
+                <div class="wa-campo">
+                    <label class="wa-lab">Departamento</label>
+                    <div class="wa-sel">
+                        <select class="wa-in" wire:model.live="pedDepartamento">
+                            <option value="">Elegí el departamento…</option>
+                            @foreach($this->departamentos() as $d)
+                                <option value="{{ $d }}">{{ $d }}</option>
+                            @endforeach
+                        </select>
                     </div>
                 </div>
 
-                <datalist id="wa-municipios">
-                    @foreach(array_keys(config('municipios', [])) as $m)
-                        <option value="{{ $m }}"></option>
-                    @endforeach
-                </datalist>
+                @php $susMunicipios = $this->municipiosDelDepartamento(); @endphp
+
+                <div class="wa-campo">
+                    <label class="wa-lab">Municipio</label>
+                    <div class="wa-sel">
+                        <select class="wa-in" wire:model.live="pedMunicipio"
+                                @disabled(empty($susMunicipios))>
+                            <option value="">
+                                {{ empty($susMunicipios) ? 'Elegí primero el departamento' : 'Elegí el municipio…' }}
+                            </option>
+                            @foreach($susMunicipios as $m)
+                                <option value="{{ $m }}">{{ $m }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    @if(! empty($susMunicipios))
+                        <div class="wa-ayuda">{{ count($susMunicipios) }} municipios en {{ $pedDepartamento }}.</div>
+                    @endif
+                </div>
 
                 {{-- El segundo teléfono: solo hace falta cuando el pedido va
                      para otra persona. Va debajo y no al lado del primero, para
@@ -1055,17 +1079,7 @@
                     <textarea class="wa-in" rows="2" wire:model="pedDireccion"></textarea>
                 </div>
 
-                <div class="wa-campo">
-                    <label class="wa-lab">Departamento</label>
-                    <div class="wa-sel">
-                        <select class="wa-in" wire:model.live="pedDepartamento">
-                            <option value="">Elegí el departamento…</option>
-                            @foreach($this->departamentos() as $d)
-                                <option value="{{ $d }}">{{ $d }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                </div>
+                {{-- El departamento ya se eligió arriba, antes del municipio. --}}
 
                 @php $zona = $this->revisionZona(); @endphp
                 @if($zona['estado'] === 'error')

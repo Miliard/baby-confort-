@@ -1048,6 +1048,35 @@ class Whatsapp extends Page
         return \App\Services\Municipios::departamentos();
     }
 
+    /**
+     * Los municipios del departamento elegido, para el desplegable.
+     *
+     * Sin departamento devuelve vacío a propósito: con los 262 de golpe, en el
+     * teléfono, encontrar el propio es peor que escribirlo.
+     */
+    public function municipiosDelDepartamento(): array
+    {
+        return \App\Services\Municipios::deDepartamento($this->pedDepartamento);
+    }
+
+    /**
+     * Al cambiar de departamento, el municipio anterior ya no vale.
+     *
+     * Es lo que impide de raíz el error que originó todo esto: una guía que
+     * decía "San Vicente, San Salvador". Si el municipio solo puede salir de
+     * la lista del departamento elegido, esa pareja no se puede ni formar.
+     */
+    public function updatedPedDepartamento(): void
+    {
+        if ($this->pedMunicipio === '') return;
+
+        $suyos = $this->municipiosDelDepartamento();
+
+        if (! in_array($this->pedMunicipio, $suyos, true)) {
+            $this->pedMunicipio = '';
+        }
+    }
+
     /** Cuántas guías hay esperando en la cola, listas para el Excel. */
     public function enCola(): int
     {

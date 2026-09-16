@@ -166,6 +166,34 @@ class Municipios
         return null;
     }
 
+    /**
+     * Los municipios de un departamento, en orden alfabético.
+     *
+     * Sirve para el desplegable: eligiendo primero el departamento, la lista de
+     * municipios se reduce a los suyos y ya no hay forma de armar una pareja
+     * imposible. Es la misma protección que hace revisar(), pero de antemano.
+     */
+    public static function deDepartamento(?string $departamento): array
+    {
+        $d = static::normalizar($departamento);
+        if ($d === '') return [];
+
+        $lista = [];
+
+        foreach (config('municipios', []) as $municipio => $departamentos) {
+            foreach ((array) $departamentos as $uno) {
+                if (static::normalizar($uno) === $d) {
+                    $lista[] = $municipio;
+                    break;
+                }
+            }
+        }
+
+        sort($lista, SORT_LOCALE_STRING);
+
+        return $lista;
+    }
+
     /** Los 14 departamentos, para el desplegable. */
     public static function departamentos(): array
     {
