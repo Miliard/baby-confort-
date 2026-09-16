@@ -352,6 +352,7 @@
     select.wa-in option{background:#ffffff;color:#111827}
     html.dark select.wa-in{color-scheme:dark}
     html.dark select.wa-in option{background:#1f2937;color:#e5e7eb}
+    .wa-ayuda{font-size:11px;color:#94a3b8;margin-top:4px;line-height:1.35}
     .wa-fila2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .wa-linea{display:grid;grid-template-columns:1fr 78px 34px;gap:8px;align-items:center;
               margin-bottom:8px}
@@ -992,6 +993,9 @@
 
                         <div class="wa-pv"><span>Nombre</span><b>{{ $pedNombre ?: '—' }}</b></div>
                         <div class="wa-pv"><span>Teléfono</span><b>{{ $pedTelefono ?: '—' }}</b></div>
+                        @if(trim($pedTelefonoRecibe) !== '')
+                            <div class="wa-pv"><span>Llamar a</span><b>{{ $pedTelefonoRecibe }}</b></div>
+                        @endif
                         <div class="wa-pv"><span>Dirección</span><b>{{ $pedDireccion ?: '—' }}</b></div>
                         <div class="wa-pv"><span>Municipio</span><b>{{ $pedMunicipio ?: '—' }}</b></div>
                         <div class="wa-pv"><span>Departamento</span><b>{{ $pedDepartamento ?: '—' }}</b></div>
@@ -1033,6 +1037,18 @@
                         <option value="{{ $m }}"></option>
                     @endforeach
                 </datalist>
+
+                {{-- El segundo teléfono: solo hace falta cuando el pedido va
+                     para otra persona. Va debajo y no al lado del primero, para
+                     que no se confundan al llenarlos de prisa. --}}
+                <div class="wa-campo">
+                    <label class="wa-lab">Teléfono de quien recibe (opcional)</label>
+                    <input type="text" class="wa-in" wire:model.live.debounce.500ms="pedTelefonoRecibe"
+                           placeholder="Solo si el paquete va para otra persona">
+                    <div class="wa-ayuda">
+                        Es al que llama el repartidor. Vacío, se usa el del cliente.
+                    </div>
+                </div>
 
                 <div class="wa-campo">
                     <label class="wa-lab">Dirección exacta</label>

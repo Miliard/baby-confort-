@@ -90,7 +90,18 @@ class Whatsapp extends Page
 
     // ── El pedido que se va armando sin salir del chat ───────────────────────
     public string $pedNombre = '';
+
+    /** El de quien pide. Es su identificación: va junto al nombre en la guía. */
     public string $pedTelefono = '';
+
+    /**
+     * El de quien recibe, cuando el paquete va para otra persona.
+     *
+     * Va en la columna TELEFONO de la guía, que es la que ve el repartidor en
+     * el sistema de ellos y a la que llama para entregar. Si queda vacío, se
+     * usa el del cliente para las dos cosas.
+     */
+    public string $pedTelefonoRecibe = '';
     public string $pedDireccion = '';
     public string $pedMunicipio = '';
     public string $pedDepartamento = '';
@@ -1312,6 +1323,9 @@ class Whatsapp extends Page
         $this->pedTelefono = $conv->telefono ?: '';
         $this->pedNombre   = $this->limpiarNombre($conv->comoSeLlama() ?: '');
 
+        // Que el segundo teléfono de un pedido no se cuele en el siguiente.
+        $this->pedTelefonoRecibe = '';
+
         $cliente = $conv->cliente();
         if ($cliente) {
             $this->pedNombre       = $this->limpiarNombre($cliente['nombre'] ?? '') ?: $this->pedNombre;
@@ -1502,9 +1516,38 @@ class Whatsapp extends Page
         $this->pedOrigen = $m->texto;
         $datos = $this->leerOrden($m->texto);
 
-        if (filled($datos['nombre']))    $this->pedNombre    = $this->limpiarNombre($datos['nombre']);
-        if (filled($datos['telefono']))  $this->pedTelefono  = $datos['telefono'];
+        if (filled($datos['nombre'])) $this->pedNombre = $this->limpiarNombre($datos['nombre']);
         if (filled($datos['direccion'])) $this->pedDireccion = $datos['direccion'];
+
+        // ── Los dos teléfonos ────────────────────────────────────────────────
+        //
+        // En la orden pueden venir dos y quieren decir cosas distintas:
+        //
+        //   · el que va pegado al nombre → quien PIDE. Es su identificación:
+        //     con ese rastrea el paquete y con ese lo reconocemos la próxima.
+        //   · el del renglón "Teléfono:" → a quien LLAMA el repartidor. Cuando
+        //     el pedido va para otra persona, es el de ella.
+        //
+        // Antes el renglón "Teléfono:" pisaba el del cliente, así que en los
+        // pedidos que van para un tercero se perdía uno de los dos.
+        $delNombre = $this->telefonoDentroDe($datos['nombre'] ?? '');
+
+        if (filled($delNombre)) {
+            $this->pedTelefono = $delNombre;
+        }
+
+        if (filled($datos['telefono'])) {
+            $suelto = preg_replace('/\D/', '', $datos['telefono']);
+            $mio    = preg_replace('/\D/', '', $this->pedTelefono);
+
+            // Si es el mismo de siempre, no hay segunda persona: se deja como
+            // el del cliente y el campo de quien recibe queda vacío.
+            if ($mio === '' || $suelto === $mio) {
+                $this->pedTelefono = $datos['telefono'];
+            } else {
+                $this->pedTelefonoRecibe = $datos['telefono'];
+            }
+        }
 
         $this->resolverZona($datos['municipio'] ?? '', $datos['direccion'] ?? '');
         if (filled($datos['productos'])) $this->pedProductosTexto = $datos['productos'];
@@ -1689,6 +1732,21 @@ class Whatsapp extends Page
      * devuelve lo de antes. Vale más que quede el número a que quede vacío y
      * la guía salga sin a quién entregarle.
      */
+    /**
+     * El teléfono que venía escrito adentro del nombre, si había uno.
+     *
+     * Es el mismo que limpiarNombre() quita: allá se descarta y acá se guarda,
+     * porque es la identificación de quien pide.
+     */
+    private function telefonoDentroDe(string $texto): string
+    {
+        if (preg_match('/(?<!\d)([267]\d{3})[\s.\-]?(\d{4})(?!\d)/u', $texto, $m)) {
+            return $m[1] . $m[2];
+        }
+
+        return '';
+    }
+
     private function limpiarNombre(string $crudo): string
     {
         $n = trim($crudo);
@@ -1713,6 +1771,7 @@ class Whatsapp extends Page
         $this->pedCobrarManual = '';
         $this->pedOrigen = '';
         $this->pedNota = '';
+        $this->pedTelefonoRecibe = '';
         $this->pedLineas = [];
         $this->agregarLinea();
 
@@ -1765,6 +1824,8 @@ class Whatsapp extends Page
         $fila = [
             'nombre'       => trim($this->pedNombre),
             'telefono'     => trim($this->pedTelefono),
+            // Si va vacío, el Excel usa el del cliente para las dos columnas.
+            'telefono_recibe' => trim($this->pedTelefonoRecibe) ?: null,
             'direccion'    => trim($this->pedDireccion),
             'municipio'    => trim($this->pedMunicipio),
             'departamento' => trim($this->pedDepartamento),
