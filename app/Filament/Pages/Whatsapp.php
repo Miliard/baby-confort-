@@ -1032,10 +1032,6 @@ class Whatsapp extends Page
         if ($seguro) $this->pedDepartamento = $seguro;
     }
 
-    public function updatedPedDepartamento(): void
-    {
-        // Solo para que la revisión de abajo se actualice al escribir.
-    }
 
     /** Lo que se muestra debajo de los campos. */
     public function revisionZona(): array
