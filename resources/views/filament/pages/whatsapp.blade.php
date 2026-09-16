@@ -108,6 +108,10 @@
               border-radius:7px;flex:none;filter:grayscale(1);opacity:.35}
     .wa-clavo:hover{opacity:.8;background:rgba(120,140,170,.18)}
     .wa-clavo.on{filter:none;opacity:1}
+
+    /* El de copiar el número. Como el de fijar: sirve en el teléfono y en la
+       computadora, así que se muestra en los dos. */
+    .wa-copia{display:inline-flex;font-size:15px}
     @media(max-width:900px){ .wa-clavo{font-size:15px;padding:6px 7px;margin:-6px 0 -6px -7px} }
     /* Apagado mientras no está fijado, para que no parezca que ya lo está.
        El display va acá porque .wa-volver se esconde en la computadora, y este
@@ -711,6 +715,14 @@
                 <button type="button" class="wa-volver wa-fijar {{ $conv->fijada() ? 'on' : '' }}"
                         wire:click="fijar({{ $conv->id }})"
                         title="{{ $conv->fijada() ? 'Soltar este chat de arriba' : 'Fijar este chat arriba de la lista' }}">📌</button>
+
+                {{-- Copiar el número. Va sin espacios ni código de país: así se
+                     pega directo en la guía, en Sistrack o en el buscador, sin
+                     tener que limpiarlo a mano. --}}
+                <button type="button" class="wa-volver wa-copia"
+                        data-copiar="{{ preg_replace('/\D/', '', $conv->telefono) }}"
+                        onclick="waCopiar(this)"
+                        title="Copiar el número del cliente">📋</button>
 
                 @if($editandoAlias)
                     <div class="wa-alias-edit">
