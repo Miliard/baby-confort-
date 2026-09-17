@@ -361,6 +361,28 @@
     html.dark select.wa-in{color-scheme:dark}
     html.dark select.wa-in option{background:#1f2937;color:#e5e7eb}
     .wa-ayuda{font-size:11px;color:#94a3b8;margin-top:4px;line-height:1.35}
+
+    /* ── El buscador de municipio ── */
+    [x-cloak]{display:none !important}
+    .wa-busca{position:relative}
+    /* La lista flota sobre lo de abajo: si empujara el formulario, cada vez que
+       se abre saltaría todo hacia abajo. */
+    .wa-opciones{position:absolute;left:0;right:0;z-index:20;margin-top:4px;
+                 max-height:240px;overflow-y:auto;
+                 background:#fff;border:1px solid #d1d5db;border-radius:11px;
+                 box-shadow:0 12px 30px rgba(10,16,26,.18);padding:4px}
+    html.dark .wa-opciones{background:#16202f;border-color:rgba(255,255,255,.16)}
+    .wa-opcion{display:block;width:100%;text-align:left;border:none;background:none;
+               font-family:inherit;font-size:14px;color:inherit;cursor:pointer;
+               padding:9px 11px;border-radius:8px}
+    .wa-opcion:hover{background:rgba(120,140,170,.14)}
+    .wa-opcion-nada{padding:10px 11px;font-size:12.5px;color:#94a3b8}
+    @media(max-width:900px){
+        /* Más alto para el dedo, y la lista más corta para que no tape el
+           teclado cuando está abierto. */
+        .wa-opcion{padding:11px}
+        .wa-opciones{max-height:190px}
+    }
     .wa-fila2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .wa-linea{display:grid;grid-template-columns:1fr 78px 34px;gap:8px;align-items:center;
               margin-bottom:8px}
@@ -1071,31 +1093,70 @@
 
                 @php $susMunicipios = $this->municipiosDelDepartamento(); @endphp
 
-                {{-- Se escribe Y se elige. Antes era un desplegable cerrado: con
-                     veinte municipios en la lista, buscar el propio con el dedo
-                     es más lento que teclear tres letras. Acá se escribe y la
-                     lista se va filtrando sola.
+                {{-- Buscador de municipio: la lista entera a la vista Y un campo
+                     para escribir y filtrarla.
 
-                     Si ya hay departamento elegido, las sugerencias son solo las
-                     suyas. Si no, son todas — y al escribir uno, el departamento
-                     se completa solo, que es como venía funcionando. --}}
-                <div class="wa-campo">
+                     Ni el desplegable cerrado ni el campo de texto pelado
+                     servían. El primero obliga a buscar con el dedo entre veinte;
+                     el segundo no deja ver qué hay. Acá se abre la lista al
+                     tocarlo, y si escribís tres letras se reduce a lo que calza.
+
+                     El filtrado es en el navegador, sin ir al servidor: por eso
+                     responde con cada tecla. --}}
+                @php $opcionesMuni = $susMunicipios ?: $this->todosLosMunicipios(); @endphp
+
+                <div class="wa-campo wa-busca"
+                     x-data="{
+                         abierto: false,
+                         buscar: @js($pedMunicipio),
+                         opciones: @js($opcionesMuni),
+                         limpio(s) {
+                             return (s || '').toString().toLowerCase()
+                                 .normalize('NFD').replace(/[̀-ͯ]/g, '');
+                         },
+                         get filtradas() {
+                             const t = this.limpio(this.buscar).trim();
+                             if (t === '') return this.opciones;
+                             return this.opciones.filter(o => this.limpio(o).includes(t));
+                         },
+                         elegir(m) {
+                             this.buscar = m;
+                             this.abierto = false;
+                             $wire.set('pedMunicipio', m);
+                         }
+                     }"
+                     x-on:click.outside="abierto = false">
+
                     <label class="wa-lab">Municipio</label>
-                    <input type="text" class="wa-in" list="wa-municipios"
-                           wire:model.live.debounce.400ms="pedMunicipio"
-                           placeholder="Escribí las primeras letras…">
 
-                    <datalist id="wa-municipios">
-                        @foreach(($susMunicipios ?: $this->todosLosMunicipios()) as $m)
-                            <option value="{{ $m }}"></option>
-                        @endforeach
-                    </datalist>
+                    <input type="text" class="wa-in" x-model="buscar"
+                           x-on:focus="abierto = true"
+                           x-on:input="abierto = true"
+                           x-on:keydown.escape="abierto = false"
+                           x-on:keydown.enter.prevent="filtradas.length && elegir(filtradas[0])"
+                           x-on:blur="$wire.set('pedMunicipio', buscar)"
+                           placeholder="Tocá para ver la lista, o escribí para buscar"
+                           autocomplete="off">
 
-                    @if(! empty($susMunicipios))
-                        <div class="wa-ayuda">
-                            Sugiriendo los {{ count($susMunicipios) }} de {{ $pedDepartamento }}.
+                    <div class="wa-opciones" x-show="abierto" x-cloak>
+                        <template x-for="m in filtradas" :key="m">
+                            <button type="button" class="wa-opcion"
+                                    x-text="m"
+                                    x-on:click="elegir(m)"></button>
+                        </template>
+
+                        <div class="wa-opcion-nada" x-show="filtradas.length === 0">
+                            No hay ninguno que se llame así.
                         </div>
-                    @endif
+                    </div>
+
+                    <div class="wa-ayuda">
+                        @if(! empty($susMunicipios))
+                            Los {{ count($susMunicipios) }} de {{ $pedDepartamento }}.
+                        @else
+                            Todos. Al elegir uno, el departamento se completa solo.
+                        @endif
+                    </div>
                 </div>
 
                 {{-- El segundo teléfono: solo hace falta cuando el pedido va
