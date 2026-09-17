@@ -135,6 +135,33 @@ class Whatsapp extends Page
     }
 
     /** Cuántas conversaciones sin leer hay: se muestra en el menú. */
+    /**
+     * Desde el admin, el enlace del menú lleva al panel de mensajes.
+     *
+     * Esta página está registrada en los dos paneles, así que al tocar
+     * "WhatsApp" en el admin se abría acá adentro: con la barra lateral del
+     * admin comiéndose el ancho y sin la pantalla completa, el carrusel de
+     * filtros ni el anclado del teclado, que son cosas del panel de mensajes.
+     *
+     * Con esto el menú del admin es una puerta al panel de chat, no una copia
+     * a medias de él.
+     */
+    public static function getNavigationUrl(): string
+    {
+        try {
+            $panel = \Filament\Facades\Filament::getCurrentPanel()?->getId();
+
+            if ($panel !== null && $panel !== 'chat') {
+                return static::getUrl([], true, 'chat');
+            }
+        } catch (\Throwable $e) {
+            // Si el panel de chat no estuviera disponible, mejor el enlace de
+            // siempre que un menú roto.
+        }
+
+        return parent::getNavigationUrl();
+    }
+
     public static function getNavigationBadge(): ?string
     {
         try {

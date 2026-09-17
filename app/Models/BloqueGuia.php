@@ -49,16 +49,27 @@ class BloqueGuia extends Model
     /**
      * Saldo de guías: todo lo comprado menos los bultos ya entregados.
      * Se cuentan TODOS los bultos, incluidos los de AIWIBI: esos también se pagan.
+     *
+     * OJO — acá había una suposición equivocada que costó un lote entero.
+     *
+     * El código daba por hecho que los renglones "TYP" (Tamaño y Peso) eran un
+     * recargo sobre la misma guía y por eso no gastaban una guía nueva del
+     * paquete comprado. No es así: Express los cobra COMO GUÍA, aparte de
+     * cobrar el bulto. Cada TYP consume una guía del lote igual que cualquier
+     * otra.
+     *
+     * Por eso el panel decía que quedaban 71 cuando Express ya había dado el
+     * lote por terminado: eran justamente los TYP que nunca se descontaron.
      */
     public static function saldo(): array
     {
-        // Guías consumidas del lote. Los "TYP" (Tamaño y Peso) NO cuentan aquí:
-        // Express vuelve a cobrar la misma guía por exceso de carga, pero no
-        // gasta una guía nueva del paquete comprado.
+        // Todos los renglones cuentan. Sin filtro por 'duplicado': ese campo
+        // sigue sirviendo para la plata (saber qué fue recargo y qué fue venta),
+        // pero no para contar guías.
         $usadasTotal = 0;
         if (ExpressEntrega::hayTabla()) {
             try {
-                $usadasTotal = ExpressEntrega::where('duplicado', false)->count();
+                $usadasTotal = ExpressEntrega::count();
             } catch (\Throwable $e) {
             }
         }
@@ -80,9 +91,9 @@ class BloqueGuia extends Model
 
         if (ExpressEntrega::hayTabla()) {
             try {
-                // Sin los TYP: cobran, pero no gastan guía del lote.
+                // Con los TYP incluidos: Express los cobra como guía.
                 $usadas += ExpressEntrega::whereDate('fecha', '>=', $desde->toDateString())
-                    ->where('duplicado', false)->count();
+                    ->count();
             } catch (\Throwable $e) {
             }
         }
