@@ -1071,21 +1071,30 @@
 
                 @php $susMunicipios = $this->municipiosDelDepartamento(); @endphp
 
+                {{-- Se escribe Y se elige. Antes era un desplegable cerrado: con
+                     veinte municipios en la lista, buscar el propio con el dedo
+                     es más lento que teclear tres letras. Acá se escribe y la
+                     lista se va filtrando sola.
+
+                     Si ya hay departamento elegido, las sugerencias son solo las
+                     suyas. Si no, son todas — y al escribir uno, el departamento
+                     se completa solo, que es como venía funcionando. --}}
                 <div class="wa-campo">
                     <label class="wa-lab">Municipio</label>
-                    <div class="wa-sel">
-                        <select class="wa-in" wire:model.live="pedMunicipio"
-                                @disabled(empty($susMunicipios))>
-                            <option value="">
-                                {{ empty($susMunicipios) ? 'Elegí primero el departamento' : 'Elegí el municipio…' }}
-                            </option>
-                            @foreach($susMunicipios as $m)
-                                <option value="{{ $m }}">{{ $m }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                    <input type="text" class="wa-in" list="wa-municipios"
+                           wire:model.live.debounce.400ms="pedMunicipio"
+                           placeholder="Escribí las primeras letras…">
+
+                    <datalist id="wa-municipios">
+                        @foreach(($susMunicipios ?: $this->todosLosMunicipios()) as $m)
+                            <option value="{{ $m }}"></option>
+                        @endforeach
+                    </datalist>
+
                     @if(! empty($susMunicipios))
-                        <div class="wa-ayuda">{{ count($susMunicipios) }} municipios en {{ $pedDepartamento }}.</div>
+                        <div class="wa-ayuda">
+                            Sugiriendo los {{ count($susMunicipios) }} de {{ $pedDepartamento }}.
+                        </div>
                     @endif
                 </div>
 

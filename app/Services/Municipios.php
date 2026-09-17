@@ -43,6 +43,29 @@ class Municipios
             ];
         }
 
+        // Y lo que traiga el catálogo de Sistrack que acá falte.
+        //
+        // Hay dos listas de municipios en el proyecto: esta, escrita para
+        // validar, y municipios_sv, que es la de Sistrack y manda sobre lo que
+        // se escribe en la guía. Si una tiene un nombre que la otra no, pasa lo
+        // que pasó con "Puerto de La Libertad": Sistrack lo conoce, el panel
+        // decía que no existe y no había forma de elegirlo.
+        //
+        // Uniéndolas acá, cualquier nombre que Sistrack acepte queda aceptado
+        // también en el panel, sin tener que mantener las dos a mano.
+        foreach (config('municipios_sv', []) as $departamento => $municipios) {
+            foreach ((array) $municipios as $municipio) {
+                $clave = static::normalizar($municipio);
+
+                if ($clave === '' || isset($tabla[$clave])) continue;
+
+                $tabla[$clave] = [
+                    'nombre'        => $municipio,
+                    'departamentos' => [$departamento],
+                ];
+            }
+        }
+
         return $tabla;
     }
 
@@ -180,10 +203,12 @@ class Municipios
 
         $lista = [];
 
-        foreach (config('municipios', []) as $municipio => $departamentos) {
-            foreach ((array) $departamentos as $uno) {
+        // Desde tabla() y no desde el config: así incluye también los nombres
+        // que solo trae el catálogo de Sistrack.
+        foreach (static::tabla() as $fila) {
+            foreach ($fila['departamentos'] as $uno) {
                 if (static::normalizar($uno) === $d) {
-                    $lista[] = $municipio;
+                    $lista[] = $fila['nombre'];
                     break;
                 }
             }
@@ -194,13 +219,23 @@ class Municipios
         return $lista;
     }
 
+    /** Todos los municipios conocidos, en orden alfabético. */
+    public static function todos(): array
+    {
+        $lista = array_map(fn ($f) => $f['nombre'], static::tabla());
+
+        sort($lista, SORT_LOCALE_STRING);
+
+        return array_values($lista);
+    }
+
     /** Los 14 departamentos, para el desplegable. */
     public static function departamentos(): array
     {
         $todos = [];
 
-        foreach (config('municipios', []) as $d) {
-            foreach ((array) $d as $uno) $todos[$uno] = $uno;
+        foreach (static::tabla() as $fila) {
+            foreach ($fila['departamentos'] as $uno) $todos[$uno] = $uno;
         }
 
         ksort($todos);

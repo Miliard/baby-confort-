@@ -1154,6 +1154,12 @@ class Whatsapp extends Page
         return \App\Services\Municipios::deDepartamento($this->pedDepartamento);
     }
 
+    /** Todos, para sugerir cuando todavía no se eligió departamento. */
+    public function todosLosMunicipios(): array
+    {
+        return \App\Services\Municipios::todos();
+    }
+
     /**
      * Al cambiar de departamento, el municipio anterior ya no vale.
      *
