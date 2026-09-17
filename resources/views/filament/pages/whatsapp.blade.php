@@ -725,11 +725,13 @@
                         wire:click="fijar({{ $conv->id }})"
                         title="{{ $conv->fijada() ? 'Soltar este chat de arriba' : 'Fijar este chat arriba de la lista' }}">📌</button>
 
-                {{-- Copiar el número. Va sin espacios ni código de país: así se
-                     pega directo en la guía, en Sistrack o en el buscador, sin
-                     tener que limpiarlo a mano. --}}
+                {{-- Copiar el número en 4x4, con el espacio en medio.
+                     Así es exactamente como quedó guardado en Sistrack —el
+                     Excel lo manda así en la columna NOMBRE— y pegándolo con
+                     el mismo formato el buscador de ellos lo encuentra de una.
+                     Sin el espacio no calza y hay que ponerlo a mano. --}}
                 <button type="button" class="wa-volver wa-copia"
-                        data-copiar="{{ preg_replace('/\D/', '', $conv->telefono) }}"
+                        data-copiar="{{ $conv->telefonoLegible() }}"
                         onclick="waCopiar(this)"
                         title="Copiar el número del cliente">📋</button>
 
