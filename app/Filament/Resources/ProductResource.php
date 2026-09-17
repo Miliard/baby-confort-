@@ -82,7 +82,44 @@ class ProductResource extends Resource
                             Forms\Components\TextInput::make('quantity')->label('Cantidad (stock)')->numeric()->default(0)->required(),
                             Forms\Components\TextInput::make('combo_qty')->label('Combo: cantidad')->numeric()->minValue(2)->helperText('Opcional'),
                             Forms\Components\TextInput::make('combo_price')->label('Combo: precio')->numeric()->prefix('$')->helperText('Opcional'),
-                        ])->columns(3)->defaultItems(1)->addActionLabel('Agregar talla')->columnSpanFull(),
+                        ])->columns(3)->defaultItems(1)->addActionLabel('Agregar talla')->columnSpanFull()
+
+                        // Todas cerradas al abrir el producto. Antes cada talla
+                        // desplegaba sus trece campos, así que con cinco tallas
+                        // había que bajar media pantalla para llegar a la
+                        // segunda. Ahora se ven las cinco de un golpe, como
+                        // renglones, y se abre solo la que se va a tocar.
+                        ->collapsible()
+                        ->collapsed()
+
+                        // El renglón cerrado tiene que decir lo suficiente para
+                        // no tener que abrirlo: talla, precio, unidades y stock.
+                        // Si hay que abrir cada una para saber cuál es, cerrarlas
+                        // no sirvió de nada.
+                        ->itemLabel(function (array $state): string {
+                            $talla = trim((string) ($state['size'] ?? '')) ?: 'Talla sin nombre';
+
+                            $partes = [];
+
+                            if (($state['price'] ?? null) !== null && $state['price'] !== '') {
+                                $partes[] = '$' . number_format((float) $state['price'], 2);
+                            }
+
+                            if ((int) ($state['unidades'] ?? 0) > 0) {
+                                $partes[] = (int) $state['unidades'] . ' unidades';
+                            }
+
+                            $stock = (int) ($state['quantity'] ?? 0);
+                            $partes[] = $stock > 0 ? $stock . ' en existencia' : '⚠ agotada';
+
+                            if ((int) ($state['combo_qty'] ?? 0) > 0
+                                && (float) ($state['combo_price'] ?? 0) > 0) {
+                                $partes[] = 'combo ' . (int) $state['combo_qty']
+                                          . ' × $' . number_format((float) $state['combo_price'], 2);
+                            }
+
+                            return $talla . ' · ' . implode(' · ', $partes);
+                        }),
                 ]),
         ]);
     }
