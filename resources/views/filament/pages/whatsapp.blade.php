@@ -151,6 +151,10 @@
     .wa-glo{max-width:74%;padding:9px 13px;border-radius:13px;font-size:15px;line-height:1.45;
             word-wrap:break-word;text-align:left}
     .wa-txt{white-space:pre-wrap;overflow-wrap:anywhere}
+    /* El globo que ya se ve pero todavía no salió. Apagado, no gris: tiene que
+       leerse como "va en camino", no como "falló". Cuando Meta confirma,
+       recupera el color solo. */
+    .wa-yendo{opacity:.62}
     /* Los enlaces adentro de un globo. Subrayados y de otro color: en un chat,
        si no se ve que se puede tocar, no se toca. */
     .wa-enlace{color:#4aa3df;text-decoration:underline;text-underline-offset:2px;
@@ -562,8 +566,13 @@
 @endif
 
 {{-- El latido no es un $refresh: primero pregunta si cambió algo y, si no,
-     no redibuja nada. Ver el comentario de latir() en la página. --}}
-<div class="wa {{ $abierta ? 'wa--abierta' : '' }}" wire:poll.3s="latir">
+     no redibuja nada. Ver el comentario de latir() en la página.
+
+     wa-despachar es la segunda mitad del envío: el servidor anota el mensaje,
+     el navegador lo dibuja, y recién entonces se pide la llamada a Meta. Por
+     eso el globo aparece al instante en vez de después de la espera. --}}
+<div class="wa {{ $abierta ? 'wa--abierta' : '' }}" wire:poll.3s="latir"
+     x-on:wa-despachar.window="$wire.despachar($event.detail.id)">
 
     {{-- ═══ IZQUIERDA: las conversaciones ═══ --}}
     <div class="wa-col wa-izq">
@@ -794,6 +803,10 @@
                         $clase = $m->esDelCliente() ? 'wa-suyo'
                                : ($m->estado === 'fallido' ? 'wa-mal'
                                : ($m->automatico ? 'wa-auto' : 'wa-mio'));
+
+                        // Todavía en camino: se dibuja apagado hasta que Meta
+                        // confirme. Es el globo que aparece al instante.
+                        if ($m->estado === 'enviando') $clase .= ' wa-yendo';
                     @endphp
 
                     <div class="wa-glo {{ $clase }}" wire:key="msg-{{ $m->id }}">

@@ -109,6 +109,29 @@ class WhatsappApi
         bool $automatico = false,
         ?string $respondeA = null,
     ): WaMensaje {
+        return static::despacharTexto(
+            static::anotarSaliente($conv, $texto, $userId, $automatico, $respondeA)
+        );
+    }
+
+    /**
+     * Deja el mensaje escrito en el chat, todavía sin mandarlo.
+     *
+     * Es la primera mitad de enviarTexto, separada para que el globo pueda
+     * aparecer en pantalla enseguida. Llamar a Meta toma entre medio segundo y
+     * dos, y ese rato con la pantalla quieta es lo que se siente lento. Así el
+     * mensaje se ve al instante en gris y se confirma solo un momento después.
+     *
+     * Quien no necesite esa distinción puede seguir llamando a enviarTexto,
+     * que hace las dos mitades de corrido.
+     */
+    public static function anotarSaliente(
+        WaConversacion $conv,
+        string $texto,
+        ?int $userId = null,
+        bool $automatico = false,
+        ?string $respondeA = null,
+    ): WaMensaje {
         $mensaje = WaMensaje::create([
             'conversacion_id' => $conv->id,
             'direccion'  => 'saliente',
@@ -119,6 +142,27 @@ class WhatsappApi
             'user_id'    => $userId,
             'automatico' => $automatico,
         ]);
+
+        // La lista de la izquierda también tiene que enterarse enseguida: si
+        // no, el globo aparece arriba pero la conversación sigue mostrando el
+        // mensaje anterior hasta el siguiente latido.
+        static::refrescarConversacion($conv, $texto, 'enviando');
+
+        return $mensaje;
+    }
+
+    /** La segunda mitad: la llamada a Meta y el resultado. */
+    public static function despacharTexto(WaMensaje $mensaje): WaMensaje
+    {
+        // Ya se mandó (o ya falló): no se manda dos veces. Sin esto, un doble
+        // toque o un reintento del navegador le llegaría repetido al cliente.
+        if ($mensaje->estado !== 'enviando') return $mensaje;
+
+        $conv = $mensaje->conversacion;
+        if (! $conv) return $mensaje;
+
+        $texto     = (string) $mensaje->texto;
+        $respondeA = $mensaje->responde_a;
 
         if (! static::configurado()) {
             $mensaje->update([

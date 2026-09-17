@@ -363,6 +363,31 @@ class Whatsapp extends Page
      */
     public string $huella = '';
 
+    /**
+     * Mensajes que quedaron en "enviando" y nadie despachó.
+     *
+     * Con el envío en dos tiempos aparece un riesgo nuevo: si el navegador se
+     * cierra entre el primer tiempo y el segundo, el mensaje queda anotado
+     * pero nunca sale. Sin esto se vería en gris para siempre y vos creerías
+     * que el cliente lo recibió.
+     *
+     * Después de un minuto se dan por fallidos. Mandarlos tarde sería peor:
+     * un "ya salió su pedido" que llega tres horas después es mentira. Mejor
+     * que lo veas en rojo y decidas vos.
+     */
+    private function rescatarAtascados(): void
+    {
+        try {
+            WaMensaje::where('estado', 'enviando')
+                ->where('created_at', '<', now()->subMinute())
+                ->update([
+                    'estado' => 'fallido',
+                    'error'  => 'Quedó a medias: se cerró la pantalla antes de mandarlo. Volvé a mandarlo.',
+                ]);
+        } catch (\Throwable $e) {
+        }
+    }
+
     private function huellaActual(): string
     {
         try {
@@ -394,6 +419,8 @@ class Whatsapp extends Page
      */
     public function latir(): void
     {
+        $this->rescatarAtascados();
+
         $nueva = $this->huellaActual();
 
         if ($nueva === $this->huella) {
@@ -602,6 +629,9 @@ class Whatsapp extends Page
         $conFoto = $this->fotoPendiente();
 
         if ($conFoto) {
+            // Con foto se manda de corrido: Meta tiene que ir a buscar la
+            // imagen a nuestro sitio, así que el globo no podría dibujarse
+            // antes de saber si la aceptó.
             $mensaje = WhatsappApi::enviarImagen(
                 $conv,
                 $conFoto->urlCompleta(),
@@ -609,13 +639,19 @@ class Whatsapp extends Page
                 auth()->id()
             );
         } else {
-            $mensaje = WhatsappApi::enviarTexto(
+            // En dos tiempos. Acá solo se anota, que es cosa de milisegundos,
+            // y el globo aparece enseguida en gris. La llamada a Meta —lo que
+            // de verdad tarda— se hace en el segundo tiempo, ya con el mensaje
+            // en pantalla y el cuadro de texto libre para seguir escribiendo.
+            $mensaje = WhatsappApi::anotarSaliente(
                 $conv,
                 $texto,
                 auth()->id(),
                 false,
                 $citado?->wa_message_id
             );
+
+            $this->dispatch('wa-despachar', id: $mensaje->id);
         }
 
         $this->texto = '';
@@ -623,10 +659,46 @@ class Whatsapp extends Page
         $this->respondiendo = null;
         $this->rapidaFoto = null;
 
+        // Con el envío en dos tiempos, el fallo se avisa en el segundo tiempo,
+        // no acá: en este punto todavía no se sabe cómo le fue.
+        if (! $conFoto) return;
+
         if ($mensaje->estado === 'fallido') {
             Notification::make()
                 ->title('No se pudo enviar')
                 ->body($mensaje->error ?: 'Meta rechazó el mensaje.')
+                ->danger()->persistent()->send();
+        }
+    }
+
+    /**
+     * El segundo tiempo del envío: acá se llama a Meta de verdad.
+     *
+     * Lo dispara el navegador apenas termina de dibujar el globo. Para quien
+     * escribe, el mensaje ya está en pantalla y el cuadro ya está libre; esta
+     * espera ocurre por detrás.
+     *
+     * Si falla, el globo se pone en rojo con el motivo —no desaparece ni se
+     * queda en gris para siempre— y además salta el aviso.
+     */
+    public function despachar(int $id): void
+    {
+        try {
+            $m = WaMensaje::find($id);
+            if (! $m) return;
+
+            $m = WhatsappApi::despacharTexto($m);
+
+            if ($m->estado === 'fallido') {
+                Notification::make()
+                    ->title('No se pudo enviar')
+                    ->body($m->error ?: 'Meta rechazó el mensaje.')
+                    ->danger()->persistent()->send();
+            }
+        } catch (\Throwable $e) {
+            Notification::make()
+                ->title('No se pudo enviar')
+                ->body($e->getMessage())
                 ->danger()->persistent()->send();
         }
     }
