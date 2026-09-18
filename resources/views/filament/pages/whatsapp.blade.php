@@ -23,8 +23,12 @@
            Antes quedaba una franja negra entre las dos —el aire que Filament le
            deja a cualquier página— y en un teléfono eso son píxeles de
            conversación tirados para no mostrar nada. */
-        .fi-main{padding-top:0 !important;padding-bottom:0 !important}
-        .fi-main-ctn{padding-top:0 !important;padding-bottom:0 !important}
+        /* Y a los costados también. Filament deja aire a izquierda y derecha
+           para que el contenido no toque el borde; en una página normal está
+           bien, pero acá ese aire son dos franjas negras y menos ancho para los
+           globos y para la cabecera, que es la que se estaba cortando. */
+        .fi-main{padding:0 !important;max-width:100% !important}
+        .fi-main-ctn{padding:0 !important}
         .fi-page{gap:0 !important}
         .fi-page > *{gap:0 !important;margin-top:0 !important}
         /* Filament separa las secciones de la página entre sí; acá hay una sola. */
@@ -59,10 +63,11 @@
         html.wa--teclado body{overflow:hidden;overscroll-behavior:none}
         .wa--abierta .wa-izq{display:none}
         .wa:not(.wa--abierta) .wa-der{display:none}
-        /* Sin esquinas redondeadas arriba: si el panel va pegado a la barra
-           gris, la curva dejaría ver el fondo negro por los costados y volvería
-           a parecer que hay una franja. Abajo sí se quedan. */
-        .wa-col{border-radius:0 0 11px 11px;border-top:none}
+        /* De borde a borde, sin esquinas ni marco. Cualquier curva o borde deja
+           ver el fondo negro y vuelve a parecer que hay una franja. En el
+           teléfono el panel ES la pantalla: no tiene que parecer una tarjeta
+           puesta encima de algo. */
+        .wa-col{border-radius:0;border:none}
         .wa-glo{max-width:88%}
         .wa-cab{padding:7px 9px;gap:6px}
         .wa-tab{padding:0 7px;font-size:14px}
@@ -344,11 +349,18 @@
                                   max-height:calc(var(--wa-renglones) * 1.45em + 18px);
                                   min-height:40px;padding:8px 11px;font-size:15px}
     html.wa--teclado .wa-abajo{padding:7px 9px}
-    html.wa--teclado .wa-btns{flex-wrap:nowrap;overflow-x:auto;margin-top:6px;
-                              scrollbar-width:none;-ms-overflow-style:none;
-                              padding-bottom:2px}
-    html.wa--teclado .wa-btns::-webkit-scrollbar{display:none}
-    html.wa--teclado .wa-btns > *{flex:none}
+    /* Los botones en UN renglón que se desliza, con teclado y sin teclado.
+       Antes solo se apretaban con el teclado abierto, y sin él se partían en
+       dos filas que se comían el alto de dos globos de conversación. Al
+       deslizarse, caben todos igual: los que más usás quedan a la vista y el
+       resto a un empujón. */
+    @media(max-width:900px){
+        .wa-btns{flex-wrap:nowrap;overflow-x:auto;margin-top:7px;
+                 scrollbar-width:none;-ms-overflow-style:none;padding-bottom:2px}
+        .wa-btns::-webkit-scrollbar{display:none}
+        .wa-btns > *{flex:none}
+    }
+    html.wa--teclado .wa-btns{margin-top:6px}
     html.wa--teclado .wa-chat{min-height:calc(var(--wa-alto, 100vh) * .26)}
     /* La cabecera del contacto también cede un poco: con el teclado abierto
        el número ya lo tenés a la vista, no hace falta tanto aire. */
@@ -884,9 +896,13 @@
                 @endif
 
                 @if($pestana === 'chat')
+                    {{-- "Orden de envío" no entra en la cabecera del teléfono y
+                         quedaba cortado contra el borde. En pantalla chica dice
+                         solo "Orden"; el ícono ya cuenta el resto. --}}
                     <x-filament::button size="xs" color="success" wire:click="plantillaOrden"
                         icon="heroicon-m-clipboard-document-list">
-                        Orden de envío
+                        <span class="wa-t-largo">Orden de envío</span>
+                        <span class="wa-t-corto">Orden</span>
                     </x-filament::button>
                 @endif
 
