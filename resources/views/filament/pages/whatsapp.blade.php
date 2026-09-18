@@ -2125,18 +2125,16 @@
         document.addEventListener('pointerdown', soltarTeclado, true);
         document.addEventListener('touchstart', soltarTeclado, { capture: true, passive: true });
 
-        // Y al desplazar la conversación: si te pusiste a leer hacia arriba,
-        // el teclado ya no hace falta y está tapando media pantalla.
-        document.addEventListener('scroll', function (e) {
-            if (window.innerWidth > 900) return;
-            if (!e.target || !e.target.classList) return;
-            if (!e.target.classList.contains('wa-chat')) return;
-
-            var foco = document.activeElement;
-            if (foco && foco.blur && foco.closest && foco.closest('.wa-abajo')) {
-                foco.blur();
-            }
-        }, true);
+        // Acá había un tercer manejador que soltaba el teclado al desplazar la
+        // conversación. Se quitó porque impedía abrirlo: al enfocar el cuadro,
+        // el panel baja el chat al último mensaje, ese desplazamiento es del
+        // programa y no del dedo, y el manejador lo tomaba como que el usuario
+        // se había puesto a leer. Resultado: el teclado se cerraba en el mismo
+        // instante en que se abría.
+        //
+        // No hay forma confiable de distinguir un desplazamiento del dedo de
+        // uno hecho por código, así que no vuelve. Tocar fuera del cuadro
+        // alcanza.
     })();
 
     /*
