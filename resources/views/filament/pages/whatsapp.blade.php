@@ -19,9 +19,16 @@
         /* En el teléfono cada píxel de alto es contexto de la conversación.
            El título "WhatsApp" y los márgenes de Filament se comían un tercio
            de la pantalla para no decir nada que no se sepa. */
-        .fi-main{padding-top:.35rem !important;padding-bottom:.35rem !important}
+        /* Cero arriba: el chat arranca pegado a la barra gris de Filament.
+           Antes quedaba una franja negra entre las dos —el aire que Filament le
+           deja a cualquier página— y en un teléfono eso son píxeles de
+           conversación tirados para no mostrar nada. */
+        .fi-main{padding-top:0 !important;padding-bottom:0 !important}
         .fi-main-ctn{padding-top:0 !important;padding-bottom:0 !important}
-        .fi-page > *{gap:0 !important}
+        .fi-page{gap:0 !important}
+        .fi-page > *{gap:0 !important;margin-top:0 !important}
+        /* Filament separa las secciones de la página entre sí; acá hay una sola. */
+        .fi-page > * + *{margin-top:0 !important}
 
         /* Esa franja de arriba está casi vacía y mide 74 px. No se le puede
            meter el nombre del contacto (es de Filament, fuera de esta página),
@@ -35,8 +42,11 @@
         /* --wa-alto lo mantiene el JS de abajo con el alto REAL que queda
            libre cuando el teclado está abierto. El calc es el respaldo para
            navegadores que no avisan del teclado. */
+        /* 46 px = lo que mide la barra gris de Filament ya achicada. Antes se
+           descontaban 52 por el aire que había encima del panel; ese aire ya no
+           existe, así que descontar de más dejaba una franja negra abajo. */
         .wa{grid-template-columns:1fr;gap:0;min-height:0;
-            height:var(--wa-alto, calc(100dvh - 52px))}
+            height:var(--wa-alto, calc(100dvh - 46px))}
 
         /* Con el teclado abierto, la página se traba.
            Antes el panel se clavaba con position:fixed y se le corregía el
@@ -49,7 +59,10 @@
         html.wa--teclado body{overflow:hidden;overscroll-behavior:none}
         .wa--abierta .wa-izq{display:none}
         .wa:not(.wa--abierta) .wa-der{display:none}
-        .wa-col{border-radius:11px}
+        /* Sin esquinas redondeadas arriba: si el panel va pegado a la barra
+           gris, la curva dejaría ver el fondo negro por los costados y volvería
+           a parecer que hay una franja. Abajo sí se quedan. */
+        .wa-col{border-radius:0 0 11px 11px;border-top:none}
         .wa-glo{max-width:88%}
         .wa-cab{padding:7px 9px;gap:6px}
         .wa-tab{padding:0 7px;font-size:14px}
@@ -2035,9 +2048,11 @@
                     try { window.scrollTo(0, 0); } catch (e) {}
                 }
             } else {
+                // 46 = la barra gris de Filament. Es el mismo número que el
+                // respaldo del CSS; si se cambia uno, cambiar el otro.
                 document.documentElement.style.setProperty(
                     '--wa-alto',
-                    Math.max(Math.round(vv.height - 52), 240) + 'px'
+                    Math.max(Math.round(vv.height - 46), 240) + 'px'
                 );
             }
 
