@@ -561,6 +561,11 @@
 
     /* ── Etiquetas ── */
     /* Un solo renglón deslizable, en cualquier pantalla. */
+    /* Los días, debajo del buscador. Solo se ven cuando estás buscando. */
+    .wa-dias{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:8px}
+    .wa-dias-t{font-size:10.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;
+               letter-spacing:.03em;margin-right:2px}
+
     .wa-filtros{display:flex;gap:5px;flex-wrap:nowrap;margin-top:9px;
                 overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
     .wa-filtros::-webkit-scrollbar{display:none}
@@ -705,10 +710,38 @@
                 </div>
             @endif
 
-            <x-filament::input.wrapper prefix-icon="heroicon-m-magnifying-glass">
-                <x-filament::input type="text" wire:model.live.debounce.400ms="buscar"
-                    placeholder="Buscar nombre o número" />
-            </x-filament::input.wrapper>
+            {{-- El buscador, y debajo los días — que solo aparecen al tocarlo.
+                 Vivían fijos en el carrusel y ahí estorbaban: buscar por fecha
+                 es algo que se hace de vez en cuando, no todo el día. Ahora se
+                 muestran cuando ya estás en modo "buscar", que es cuando
+                 sirven, y se esconden al salir.
+
+                 focusin en el contenedor y no focus en el campo: así también
+                 cuenta el foco que cae adentro de lo que dibuja Filament.
+                 Y se cierra al tocar afuera, no al perder el foco — si se
+                 cerrara al perderlo, tocar un día lo haría desaparecer antes
+                 de que el toque llegue. --}}
+            <div x-data="{ abierto: @js($filtroDia !== null) }"
+                 x-on:focusin="abierto = true"
+                 x-on:click.outside="abierto = @js($filtroDia !== null)">
+
+                <x-filament::input.wrapper prefix-icon="heroicon-m-magnifying-glass">
+                    <x-filament::input type="text" wire:model.live.debounce.400ms="buscar"
+                        placeholder="Buscar nombre o número" />
+                </x-filament::input.wrapper>
+
+                <div class="wa-dias" x-show="abierto" x-cloak>
+                    <span class="wa-dias-t">Con movimiento…</span>
+                    @foreach(['hoy' => 'Hoy', 'ayer' => 'Ayer', 'anteayer' => 'Anteayer'] as $clave => $texto)
+                        <button type="button" wire:click="filtrarDia('{{ $clave }}')"
+                                wire:key="dia-{{ $clave }}"
+                                class="wa-fil {{ $filtroDia === $clave ? 'on' : '' }}"
+                                style="--c:#4aa3df">
+                            {{ $texto }}
+                        </button>
+                    @endforeach
+                </div>
+            </div>
 
             {{-- Solo aparece si todavía no se dieron los permisos. Una vez
                  activados, se esconde solo. --}}
@@ -740,19 +773,6 @@
                 {{-- Acá iba el filtro "Sin responder". La barra roja al costado
                      de cada conversación ya dice lo mismo sin ocupar lugar en
                      el carrusel. El método alternarSinResponder() sigue vivo. --}}
-
-                {{-- Por día. Tres y no más: para atrás está el buscador, que es
-                     mejor herramienta cuando ya no te acordás de cuándo fue.
-                     El mismo botón pone y quita, así que no hace falta una ✕. --}}
-                @foreach(['hoy' => 'Hoy', 'ayer' => 'Ayer', 'anteayer' => 'Anteayer'] as $clave => $texto)
-                    <button type="button" wire:click="filtrarDia('{{ $clave }}')"
-                            wire:key="dia-{{ $clave }}"
-                            class="wa-fil {{ $filtroDia === $clave ? 'on' : '' }}"
-                            style="--c:#4aa3df"
-                            title="Conversaciones con movimiento {{ mb_strtolower($texto) }}">
-                        {{ $texto }}
-                    </button>
-                @endforeach
 
                 @foreach($etqs as $e)
                     <button type="button" wire:click="filtrarPor({{ $e->id }})"
