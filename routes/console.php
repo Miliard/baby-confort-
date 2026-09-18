@@ -17,3 +17,17 @@ Artisan::command('inspire', function () {
 // quedaban colgadas. La limpieza igual se hace sola al subir fotos, una vez
 // al día (ver GuiaFotoController::limpiarSiTocaHoy).
 Schedule::command('fotos:limpiar')->dailyAt('03:15')->withoutOverlapping();
+
+// Cada media hora se le pregunta al courier por los paquetes que están
+// esperando entrega, y las conversaciones se mueven a Entregados solas.
+//
+// La media hora no es al azar: hacen falta dos revisiones seguidas diciendo
+// "entregado" antes de mover nada, porque al repartidor se le ha ido marcarlo
+// por error y corregirlo minutos después. Con este intervalo, la corrección
+// llega antes de la segunda vuelta y el error nunca se ve acá.
+//
+// Igual que la limpieza de fotos: esto necesita un programador levantado. En
+// Railway se agrega como servicio de cron corriendo "php artisan schedule:run"
+// cada minuto, o directamente "php artisan entregas:revisar" cada media hora.
+// Sin eso, el comando existe pero nadie lo llama.
+Schedule::command('entregas:revisar')->everyThirtyMinutes()->withoutOverlapping();

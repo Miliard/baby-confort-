@@ -28,6 +28,7 @@ class WaEtiqueta extends Model
     public const ROLES = [
         'pedido'    => 'Se pone sola cuando llega una orden de envío',
         'procesada' => 'Se pone sola cuando ya se mandó el enlace de rastreo',
+        'entregada' => 'Se pone sola cuando el courier confirma la entrega',
     ];
 
     /** La etiqueta que juega ese papel, si alguna lo tiene asignado. */

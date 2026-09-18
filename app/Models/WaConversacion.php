@@ -19,6 +19,7 @@ class WaConversacion extends Model
         'ultimo_saliente', 'ultimo_estado',
         'ultimo_del_cliente_at', 'agente_id', 'tomada_at', 'sin_leer', 'archivada',
         'fijada_at',
+        'guia', 'etapa_envio', 'entregas_seguidas', 'revisado_at',
     ];
 
     protected $casts = [
@@ -26,6 +27,9 @@ class WaConversacion extends Model
         'ultimo_del_cliente_at' => 'datetime',
         'tomada_at'             => 'datetime',
         'fijada_at'             => 'datetime',
+        'revisado_at'           => 'datetime',
+        'etapa_envio'           => 'integer',
+        'entregas_seguidas'     => 'integer',
         'archivada'             => 'boolean',
         'sin_leer'              => 'integer',
     ];

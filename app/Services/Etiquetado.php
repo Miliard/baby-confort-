@@ -105,4 +105,32 @@ class Etiquetado
         $pedido = WaEtiqueta::porRol('pedido');
         if ($pedido) $conv->etiquetas()->detach($pedido->id);
     }
+
+    /** El courier confirmó la entrega. */
+    public static function marcarEntregada(WaConversacion $conv): void
+    {
+        $fin = WaEtiqueta::porRol('entregada');
+        if ($fin) $conv->etiquetas()->syncWithoutDetaching([$fin->id]);
+
+        foreach (['pedido', 'procesada'] as $rol) {
+            $e = WaEtiqueta::porRol($rol);
+            if ($e) $conv->etiquetas()->detach($e->id);
+        }
+    }
+
+    /**
+     * Se había marcado entregada y el courier se desdijo.
+     *
+     * Pasa: al repartidor se le va marcar entregado y lo corrige después. La
+     * etiqueta tiene que poder volver, no solo avanzar — si solo avanzara, un
+     * error de ellos se quedaría acá para siempre.
+     */
+    public static function volverAPreparada(WaConversacion $conv): void
+    {
+        $lista = WaEtiqueta::porRol('procesada');
+        if ($lista) $conv->etiquetas()->syncWithoutDetaching([$lista->id]);
+
+        $fin = WaEtiqueta::porRol('entregada');
+        if ($fin) $conv->etiquetas()->detach($fin->id);
+    }
 }
