@@ -46,6 +46,45 @@ class Whatsapp extends Page
     /** Mostrar solo las que tienen mensajes sin leer. */
     public bool $soloSinLeer = false;
 
+    /**
+     * Mostrar solo las del día: 'hoy', 'ayer' o 'anteayer'.
+     *
+     * Null es sin filtro. Tres días y no más: para atrás está el buscador, que
+     * es mejor herramienta cuando ya no te acordás de cuándo fue.
+     */
+    public ?string $filtroDia = null;
+
+    public function filtrarDia(string $cual): void
+    {
+        // Tocar el que ya está puesto lo quita: el mismo botón sirve para las
+        // dos cosas y no hace falta una ✕ aparte.
+        $this->filtroDia = ($this->filtroDia === $cual) ? null : $cual;
+    }
+
+    /**
+     * El rango de ese día, en horas del reloj de acá.
+     *
+     * Las fechas se guardan en UTC y El Salvador va seis horas atrás, así que
+     * "hoy" no es de medianoche a medianoche en la base. Sin esta conversión,
+     * los mensajes de después de las 6 de la tarde aparecerían como de mañana.
+     */
+    private function rangoDelDia(?string $cual): ?array
+    {
+        if (! $cual) return null;
+
+        $tz = config('app.zona_local');
+
+        $inicio = now()->timezone($tz)->startOfDay();
+
+        if ($cual === 'ayer')     $inicio->subDay();
+        if ($cual === 'anteayer') $inicio->subDays(2);
+
+        return [
+            $inicio->copy()->utc(),
+            $inicio->copy()->endOfDay()->utc(),
+        ];
+    }
+
     public function alternarSinLeer(): void
     {
         $this->soloSinLeer = ! $this->soloSinLeer;
@@ -205,6 +244,10 @@ class Whatsapp extends Page
 
             if ($this->soloSinResponder) $q->where('ultimo_saliente', false);
             if ($this->soloSinLeer)      $q->where('sin_leer', '>', 0);
+
+            // Por día, según el último mensaje de la conversación.
+            $rango = $this->rangoDelDia($this->filtroDia);
+            if ($rango) $q->whereBetween('ultimo_mensaje_at', $rango);
 
             // Las fijadas van arriba siempre, aunque otras tengan mensajes más
             // nuevos: para eso se fijan. Entre ellas, la última que fijaste
@@ -1199,25 +1242,10 @@ class Whatsapp extends Page
         // quitaron: la barra roja de cada conversación ya marca las primeras, y
         // "Sin leer" ya está en el carrusel de filtros. Contarlas acá era gastar
         // dos consultas en cada dibujado para repetir algo que ya se veía.
-        $p = [
-            'sin_guia'        => 0,
-            'sin_enlace'      => 0,
-            'etiqueta_pedido' => null,
-        ];
-
-        // Órdenes que llegaron y todavía no se convirtieron en guía. Son las
-        // conversaciones que el etiquetado automático marcó como "pedido" y
-        // que nunca pasaron a "procesada".
-        try {
-            $pedido = \App\Models\WaEtiqueta::porRol('pedido');
-
-            if ($pedido) {
-                $p['etiqueta_pedido'] = $pedido->id;
-                $p['sin_guia'] = $pedido->conversaciones()
-                    ->where('archivada', false)->count();
-            }
-        } catch (\Throwable $e) {
-        }
+        // Queda solo "sin enlace". "Sin guía" se quitó porque era la etiqueta
+        // Pedidos contada de otra forma, y esa ya vive en el carrusel de
+        // filtros: dos botones para lo mismo confunden en vez de ayudar.
+        $p = ['sin_enlace' => 0];
 
         // Guías armadas a las que nunca se les mandó el enlace de rastreo.
         try {

@@ -691,16 +691,11 @@
                  que esperan respuesta, y "Sin leer" ya vive en el carrusel de
                  filtros de abajo. Repetirlo acá gastaba un renglón de pantalla
                  para no decir nada nuevo. --}}
-            @if($pend['sin_guia'] || $pend['sin_enlace'])
+            {{-- "Sin guía" se quitó: era la etiqueta Pedidos contada de otra
+                 forma, y esa ya está en el carrusel de abajo. Dos botones para
+                 lo mismo no ayudan, confunden. --}}
+            @if($pend['sin_enlace'])
                 <div class="wa-pendientes">
-                    @if($pend['sin_guia'] && $pend['etiqueta_pedido'])
-                        <button type="button" class="wa-pend wa-pend-ambar"
-                                wire:click="filtrarPor({{ $pend['etiqueta_pedido'] }})"
-                                title="Órdenes que llegaron y todavía no son guía">
-                            <b>{{ $pend['sin_guia'] }}</b> sin guía
-                        </button>
-                    @endif
-
                     @if($pend['sin_enlace'] && $this->enlaceCola())
                         <a href="{{ $this->enlaceCola() }}" class="wa-pend wa-pend-ambar"
                            title="Guías armadas a las que no les mandaste el enlace de rastreo">
@@ -745,6 +740,19 @@
                 {{-- Acá iba el filtro "Sin responder". La barra roja al costado
                      de cada conversación ya dice lo mismo sin ocupar lugar en
                      el carrusel. El método alternarSinResponder() sigue vivo. --}}
+
+                {{-- Por día. Tres y no más: para atrás está el buscador, que es
+                     mejor herramienta cuando ya no te acordás de cuándo fue.
+                     El mismo botón pone y quita, así que no hace falta una ✕. --}}
+                @foreach(['hoy' => 'Hoy', 'ayer' => 'Ayer', 'anteayer' => 'Anteayer'] as $clave => $texto)
+                    <button type="button" wire:click="filtrarDia('{{ $clave }}')"
+                            wire:key="dia-{{ $clave }}"
+                            class="wa-fil {{ $filtroDia === $clave ? 'on' : '' }}"
+                            style="--c:#4aa3df"
+                            title="Conversaciones con movimiento {{ mb_strtolower($texto) }}">
+                        {{ $texto }}
+                    </button>
+                @endforeach
 
                 @foreach($etqs as $e)
                     <button type="button" wire:click="filtrarPor({{ $e->id }})"
