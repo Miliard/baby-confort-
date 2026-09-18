@@ -540,6 +540,7 @@ class Whatsapp extends Page
                 : rtrim($this->texto) . "\n" . $m->texto;
 
             $this->pestana = 'chat';
+            $this->abrirCajaSiHaceFalta($this->texto);
         } catch (\Throwable $e) {
         }
     }
@@ -587,6 +588,7 @@ class Whatsapp extends Page
 
         $this->textoAntes = $original;
         $this->texto = $r['texto'];
+        $this->abrirCajaSiHaceFalta($r['texto']);
     }
 
     /** Vuelve a lo que habías escrito vos. */
@@ -658,6 +660,8 @@ class Whatsapp extends Page
         $this->textoAntes = '';
         $this->respondiendo = null;
         $this->rapidaFoto = null;
+        // Mandado: el cuadro vuelve a su tamaño chico y el chat recupera el alto.
+        $this->cajaGrande = false;
 
         // Con el envío en dos tiempos, el fallo se avisa en el segundo tiempo,
         // no acá: en este punto todavía no se sabe cómo le fue.
@@ -1462,6 +1466,7 @@ class Whatsapp extends Page
 
         $this->texto = $r->texto;
         $this->pestana = 'chat';
+        $this->abrirCajaSiHaceFalta($r->texto);
 
         // Si la respuesta lleva foto, la foto NO se manda todavía: queda
         // esperando pegada al cuadro de texto. Así seguís pudiendo corregir el
@@ -1472,6 +1477,42 @@ class Whatsapp extends Page
 
     /** La respuesta rápida cuya foto está esperando, si hay alguna. */
     public ?int $rapidaFoto = null;
+
+    /**
+     * El cuadro de escribir, abierto a lo alto.
+     *
+     * En el teléfono el cuadro está limitado a tres renglones para no comerse
+     * la conversación. Pero cuando cae una respuesta rápida de diez renglones,
+     * esos tres no alcanzan ni para leerla: había que borrar texto para ver el
+     * final, que es exactamente lo que no se debe hacer.
+     *
+     * Entonces se abre solo cuando llega un texto largo de un tirón —una
+     * respuesta rápida, una mejora de la IA, un mensaje traído para corregir—
+     * y se vuelve a cerrar al mandar. También se puede abrir y cerrar a mano.
+     */
+    public bool $cajaGrande = false;
+
+    public function alternarCaja(): void
+    {
+        $this->cajaGrande = ! $this->cajaGrande;
+    }
+
+    /** Abre el cuadro si lo que acaba de entrar no cabe en tres renglones. */
+    private function abrirCajaSiHaceFalta(?string $texto): void
+    {
+        $t = trim((string) $texto);
+
+        if ($t === '') return;
+
+        // Tres renglones escritos, o texto largo que va a envolverse en más de
+        // tres. Los 110 caracteres son el ancho aproximado de un renglón en un
+        // teléfono, por tres.
+        $renglones = substr_count($t, "\n");
+
+        if ($renglones >= 2 || mb_strlen($t) > 110) {
+            $this->cajaGrande = true;
+        }
+    }
 
     public function fotoPendiente(): ?\App\Models\RespuestaRapida
     {

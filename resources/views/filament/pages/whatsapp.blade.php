@@ -282,6 +282,25 @@
                      transition:max-height .18s ease}
         /* wa--teclado la pone el JS cuando el cursor está en el cuadro. */
         html.wa--teclado .wa-escribir{--wa-renglones:3}
+
+        /* Abierto a lo alto: para LEER un texto largo que acaba de entrar, no
+           para escribir. Se limita a la mitad de lo que se ve, así queda algo
+           de conversación arriba y uno no pierde el hilo de a qué contesta. */
+        .wa--caja-grande .wa-escribir,
+        html.wa--teclado .wa--caja-grande .wa-escribir{
+            max-height:calc(var(--wa-alto, 100vh) * .48)
+        }
+    }
+
+    /* El botón de abrir y cerrar. Solo tiene sentido en el teléfono: en la
+       computadora el cuadro ya llega a 38vh y no aprieta a nadie. */
+    .wa-agrandar{display:none}
+    @media(max-width:900px){
+        .wa-agrandar{display:block;width:100%;border:none;background:none;
+                     font-family:inherit;font-size:11px;font-weight:700;
+                     color:#94a3b8;cursor:pointer;padding:0 0 5px;text-align:right;
+                     letter-spacing:.02em}
+        .wa-agrandar:hover{color:inherit}
     }
     .wa-btns{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;align-items:center}
 
@@ -977,7 +996,7 @@
                 @endforelse
             </div>
 
-            <div class="wa-abajo">
+            <div class="wa-abajo {{ $cajaGrande ? 'wa--caja-grande' : '' }}">
                 @if($conv->ventanaAbierta())
                     @php $citando = $this->mensajeCitado(); @endphp
                     @if($citando)
@@ -1014,6 +1033,14 @@
                     {{-- El atajo mira si hay Shift: sin él manda, con él deja
                          saltar de línea. Antes se bloqueaba cualquier Enter y
                          no se podía escribir un mensaje de dos renglones. --}}
+                    {{-- Abrir y cerrar el cuadro a lo alto. Se abre solo cuando
+                         cae un texto largo —una respuesta rápida, una mejora—
+                         porque ahí es cuando hace falta leerlo entero. --}}
+                    <button type="button" class="wa-agrandar" wire:click="alternarCaja"
+                            title="{{ $cajaGrande ? 'Achicar el cuadro' : 'Agrandar el cuadro para leer todo' }}">
+                        {{ $cajaGrande ? '⌃ Achicar' : '⌄ Ver todo el texto' }}
+                    </button>
+
                     <textarea class="wa-escribir" rows="2" wire:model="texto"
                               placeholder="Escribí tu respuesta…" spellcheck="true" lang="es"
                               x-on:keydown.enter="
@@ -2072,13 +2099,38 @@
      * trabajo y quitarle el foco al cuadro estorbaría.
      */
     (function () {
-        document.addEventListener('pointerdown', function (e) {
+        function soltarTeclado(e) {
             if (window.innerWidth > 900) return;
 
-            var chat = e.target.closest && e.target.closest('.wa-chat');
-            if (!chat) return;
+            var t = e.target;
+            if (!t || !t.closest) return;
 
-            if (e.target.closest('button, a, audio, input, textarea, select, label')) return;
+            // Se suelta al tocar CUALQUIER cosa que no sea la zona de escribir.
+            // Antes solo miraba .wa-chat, y por eso tocar la cabecera, una
+            // etiqueta o el espacio entre globos no cerraba el teclado.
+            if (t.closest('.wa-abajo')) return;
+
+            // Salvo lo que tiene trabajo propio: un botón, un enlace, el
+            // reproductor de un audio. Ahí cerrar el teclado estorbaría.
+            if (t.closest('button, a, audio, input, textarea, select, label')) return;
+
+            var foco = document.activeElement;
+            if (foco && foco.blur && foco.closest && foco.closest('.wa-abajo')) {
+                foco.blur();
+            }
+        }
+
+        // Los dos eventos: pointerdown no llega en todos los Android cuando el
+        // gesto empieza como desplazamiento, y touchstart sí.
+        document.addEventListener('pointerdown', soltarTeclado, true);
+        document.addEventListener('touchstart', soltarTeclado, { capture: true, passive: true });
+
+        // Y al desplazar la conversación: si te pusiste a leer hacia arriba,
+        // el teclado ya no hace falta y está tapando media pantalla.
+        document.addEventListener('scroll', function (e) {
+            if (window.innerWidth > 900) return;
+            if (!e.target || !e.target.classList) return;
+            if (!e.target.classList.contains('wa-chat')) return;
 
             var foco = document.activeElement;
             if (foco && foco.blur && foco.closest && foco.closest('.wa-abajo')) {
