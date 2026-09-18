@@ -28,6 +28,28 @@
         .bc-tabla th{text-align:left;font-size:10.5px;text-transform:uppercase;opacity:.6;
                      padding:6px 8px 6px 0;border-bottom:1px solid rgba(125,140,160,.25)}
         .bc-tabla td{padding:5px 8px 5px 0;border-bottom:1px solid rgba(125,140,160,.12)}
+        /* ── El desglose del dinero ──
+           Renglones de ancho completo, con el monto a la derecha alineado. La
+           gracia es poder seguirlo con el dedo de arriba abajo sin hacer
+           ninguna cuenta de cabeza. */
+        .bc-viaje{margin-bottom:12px}
+        .bc-v{display:flex;justify-content:space-between;align-items:baseline;gap:14px;
+              padding:9px 0;border-bottom:1px solid rgba(125,140,160,.14);font-size:14px}
+        .bc-v:last-child{border-bottom:none}
+        .bc-v b{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+        /* El detalle chiquito debajo del concepto: cuántos bultos, a cuánto. */
+        .bc-v i{display:block;font-style:normal;font-size:11.5px;opacity:.6;margin-top:2px}
+        .bc-v-menos b{color:#dc2626}
+        /* El renglón donde se corta lo que no es tuyo. */
+        .bc-v-corte{border-top:2px solid rgba(125,140,160,.3);font-weight:700}
+        .bc-v-total{border-top:2px solid rgba(125,140,160,.3);font-size:17px;font-weight:800;
+                    padding-top:12px}
+        .bc-v-total b{color:#16a34a}
+        /* Lo que falta cargar se marca, para que no se lea como un cero real. */
+        .bc-v-falta{background:rgba(234,179,8,.10);border-radius:8px;padding:9px 10px}
+        .bc-v-falta i{opacity:.95;color:#a16207;font-weight:600}
+        .dark .bc-v-falta i{color:#f0d79a}
+
         @media(min-width:640px){ .bc-kpis{grid-template-columns:repeat(2,1fr)} .bc-2{grid-template-columns:1fr 1fr} }
         @media(min-width:1080px){ .bc-kpis{grid-template-columns:repeat(4,1fr)} .bc-cols{grid-template-columns:360px 1fr} }
     </style>
@@ -88,6 +110,65 @@
                     @endforeach
                 </div>
             @endif
+        </div>
+
+        {{-- ── Qué se hizo el dinero ──
+             La misma información que las tarjetas, pero en una sola columna y
+             en el orden en que pasa. Antes había que leer tres tarjetas y sacar
+             la cuenta de cabeza para llegar del número de Express al que te
+             queda; acá se sigue con el dedo, renglón por renglón. --}}
+        @php
+            $liquidado = $entro + ($r['aiwibiDepositado'] ?? 0);
+        @endphp
+
+        <div class="bc-caja bc-viaje">
+            <h3>💸 Qué se hizo el dinero</h3>
+            <p class="desc">Del número que liquidó Express hasta lo que te queda.</p>
+
+            <div class="bc-v">
+                <span>Express liquidó</span>
+                <b>${{ number_format($liquidado, 2) }}</b>
+            </div>
+
+            @if(($r['aiwibiDepositado'] ?? 0) > 0)
+                <div class="bc-v bc-v-menos">
+                    <span>De AIWIBI, no es tuyo
+                        <i>{{ $r['aiwibiBultos'] }} {{ $r['aiwibiBultos'] === 1 ? 'bulto' : 'bultos' }}</i>
+                    </span>
+                    <b>−${{ number_format($r['aiwibiDepositado'], 2) }}</b>
+                </div>
+            @endif
+
+            <div class="bc-v bc-v-corte">
+                <span>Entró a tu caja</span>
+                <b>${{ number_format($entro, 2) }}</b>
+            </div>
+
+            <div class="bc-v bc-v-menos">
+                <span>Guías usadas
+                    <i>{{ $r['bultos'] }} × ${{ number_format($r['costoBulto'], 2) }}</i>
+                </span>
+                <b>−${{ number_format($r['costoBultos'], 2) }}</b>
+            </div>
+
+            <div class="bc-v bc-v-menos {{ $r['proveedor'] == 0 ? 'bc-v-falta' : '' }}">
+                <span>Proveedor (la mercadería)
+                    @if($r['proveedor'] == 0)
+                        <i>⚠️ sin cargar — sin esto no es tu ganancia</i>
+                    @endif
+                </span>
+                <b>−${{ number_format($r['proveedor'], 2) }}</b>
+            </div>
+
+            <div class="bc-v bc-v-menos">
+                <span>Otros gastos</span>
+                <b>−${{ number_format($r['gastos'], 2) }}</b>
+            </div>
+
+            <div class="bc-v bc-v-total">
+                <span>Te quedó</span>
+                <b>${{ number_format($r['resultado'], 2) }}</b>
+            </div>
         </div>
 
         {{-- ── Las cuatro tarjetas ── --}}
