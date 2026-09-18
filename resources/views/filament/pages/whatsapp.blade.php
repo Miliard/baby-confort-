@@ -12,6 +12,15 @@
        y se lleva casi 100 px de alto de conversación. */
     .fi-header{display:none !important}
 
+    /* Etiquetas largas y cortas, según el ancho.
+       OJO CON EL ORDEN: estos dos valores por defecto tienen que ir ANTES del
+       @media. Una consulta de medios no suma especificidad, así que si la regla
+       general va después, gana igual y anula la del teléfono. Eso dejó al botón
+       "Orden de envío" sin texto: las dos versiones escondidas a la vez y solo
+       el ícono a la vista. */
+    .wa-t-largo{display:inline}
+    .wa-t-corto{display:none}
+
     /* En el teléfono se ve una cosa a la vez, como WhatsApp: la lista, o el
        chat abierto ocupando toda la pantalla. Antes se apilaban las dos y
        había que bajar media pantalla para llegar al cuadro de escribir. */
@@ -90,8 +99,6 @@
         .wa-filtros::-webkit-scrollbar{display:none}
         .wa-fil{flex:none}
     }
-
-    .wa-t-corto{display:none}
 
     /* Solo aparece en pantallas chicas: en la computadora estorba. */
     .wa-volver{display:none;border:none;background:rgba(120,140,170,.16);cursor:pointer;
