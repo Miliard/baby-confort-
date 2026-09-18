@@ -69,7 +69,12 @@
            puesta encima de algo. */
         .wa-col{border-radius:0;border:none}
         .wa-glo{max-width:88%}
-        .wa-cab{padding:7px 9px;gap:6px}
+        /* min-height porque la cabecera se desliza de lado, y una caja que se
+           desliza recorta también hacia arriba: con el número y "Ponerle
+           nombre" en dos renglones, al número se le cortaba la mitad de arriba.
+           Con alto suficiente no hay nada que recortar. */
+        .wa-cab{padding:7px 9px;gap:6px;min-height:54px}
+        .wa-cab .wa-nombre-col > div{line-height:1.25}
         .wa-tab{padding:0 7px;font-size:14px}
         .wa-volver{display:inline-flex !important}
         .wa-fila2{grid-template-columns:1fr}
@@ -2011,12 +2016,43 @@
         // hacer una sola vez lo que no debe repetirse en cada evento.
         var teclaAntes = false;
 
+        /**
+         * Cierra el hueco entre la barra gris y el panel, y devuelve dónde
+         * queda el panel dentro de lo que se ve.
+         *
+         * Se MIDE en vez de suponerse. Los contenedores de Filament tienen sus
+         * propios márgenes, cambian entre versiones y sus nombres de clase no
+         * son promesa de nadie: intentar apagarlos uno por uno fue lo que dejó
+         * esa franja negra arriba y abajo. Midiendo, da igual quién la ponga.
+         */
+        function pegarArriba() {
+            if (!caja) return 0;
+
+            // Se borra lo puesto antes para medir el hueco de verdad y no el
+            // que quedó después de la última corrección.
+            caja.style.marginTop = '';
+
+            var arriba = caja.getBoundingClientRect().top;
+            var barra  = document.querySelector('.fi-topbar');
+            var finBarra = barra ? barra.getBoundingClientRect().bottom : 0;
+
+            var hueco = Math.round(arriba - finBarra);
+
+            if (hueco > 0) {
+                caja.style.marginTop = (-hueco) + 'px';
+                return finBarra;
+            }
+
+            return arriba;
+        }
+
         function ajustar() {
             if (!caja) caja = document.querySelector('.wa');
 
             if (window.innerWidth > 900) {
                 document.documentElement.style.removeProperty('--wa-alto');
                 document.documentElement.classList.remove('wa--teclado');
+                if (caja) caja.style.marginTop = '';
                 teclaAntes = false;
                 return;
             }
@@ -2056,21 +2092,22 @@
                 // Ahora el panel no se clava ni se le toca el top. Se le da el
                 // alto de lo que se ve y se traba el desplazamiento de la
                 // página: si no hay adónde moverse, no hay nada que rebote.
-                document.documentElement.style.setProperty('--wa-alto', Math.round(vv.height) + 'px');
-
                 // Una sola vez al abrirse, no en cada evento: si se llamara
                 // siempre, volvería a pelear con el navegador.
                 if (!teclaAntes) {
                     try { window.scrollTo(0, 0); } catch (e) {}
                 }
-            } else {
-                // 46 = la barra gris de Filament. Es el mismo número que el
-                // respaldo del CSS; si se cambia uno, cambiar el otro.
-                document.documentElement.style.setProperty(
-                    '--wa-alto',
-                    Math.max(Math.round(vv.height - 46), 240) + 'px'
-                );
             }
+
+            // El alto sale de restar: lo que se ve, menos dónde empieza el
+            // panel. Así no queda franja abajo aunque arriba cambie algo.
+            var arriba = pegarArriba();
+            var alto = Math.round(vv.height - arriba);
+
+            document.documentElement.style.setProperty(
+                '--wa-alto',
+                Math.max(alto, 240) + 'px'
+            );
 
             teclaAntes = teclado;
         }
