@@ -109,11 +109,26 @@
             </div>
 
             <div class="bc-card">
-                <div class="bc-et">Entró</div>
+                {{-- Se dice "sin AIWIBI" en la etiqueta, y abajo cuánto fue lo
+                     de AIWIBI. Sin eso, al comparar contra el papel de Express
+                     los números no cuadran y uno cree que el panel está mal:
+                     Express liquida todo junto y acá van separados a propósito,
+                     porque esa plata no es del negocio. --}}
+                <div class="bc-et">Entró{{ ($r['aiwibiBultos'] ?? 0) > 0 ? ' · sin AIWIBI' : '' }}</div>
                 <div class="bc-n">${{ number_format($entro, 2) }}</div>
                 <div class="bc-sub">
                     Express cobró ${{ number_format($r['cobrado'], 2) }} y se quedó ${{ number_format($r['comision'], 2) }}
                     @if($r['transferido'] > 0)<span style="display:block">+ ${{ number_format($r['transferido'], 2) }} por transferencia</span>@endif
+
+                    @if(($r['aiwibiBultos'] ?? 0) > 0)
+                        <span style="display:block;margin-top:5px;opacity:.85">
+                            + ${{ number_format($r['aiwibiDepositado'], 2) }} de AIWIBI
+                            ({{ $r['aiwibiBultos'] }} {{ $r['aiwibiBultos'] === 1 ? 'bulto' : 'bultos' }}), aparte
+                        </span>
+                        <span style="display:block;font-weight:700">
+                            Express liquidó ${{ number_format($entro + $r['aiwibiDepositado'], 2) }} en total
+                        </span>
+                    @endif
                 </div>
             </div>
 
