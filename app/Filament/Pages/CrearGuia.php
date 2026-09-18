@@ -611,17 +611,122 @@ class CrearGuia extends Page implements HasForms
         $this->recargarLista();
     }
 
+    /**
+     * Lo último que se borró, por si hay que traerlo de vuelta.
+     *
+     * Se guarda el contenido entero de las filas, no los identificadores: la
+     * fila ya no existe, así que hay que poder volver a crearla tal cual.
+     */
+    public array $borradas = [];
+
     public function quitar(int $id): void
     {
-        \App\Models\GuiaBorrador::find($id)?->delete();
+        $g = \App\Models\GuiaBorrador::find($id);
+        if (! $g) return;
+
+        $this->recordarBorradas([$g]);
+
+        $nombre = trim((string) $g->nombre) ?: 'la guía';
+        $g->delete();
         $this->recargarLista();
+
+        $this->avisarConDeshacer("Se quitó {$nombre}", 1);
     }
 
     public function vaciar(): void
     {
-        try { \App\Models\GuiaBorrador::query()->delete(); } catch (\Throwable $e) {}
+        try {
+            $todas = \App\Models\GuiaBorrador::all();
+            $cuantas = $todas->count();
+
+            if ($cuantas === 0) {
+                Notification::make()->title('La lista ya estaba vacía')->warning()->send();
+                return;
+            }
+
+            $this->recordarBorradas($todas->all());
+
+            \App\Models\GuiaBorrador::query()->delete();
+        } catch (\Throwable $e) {
+            Notification::make()->title('No se pudo vaciar')->body($e->getMessage())->danger()->send();
+            return;
+        }
+
         $this->recargarLista();
-        Notification::make()->title('Lista vaciada')->success()->send();
+
+        $this->avisarConDeshacer(
+            $cuantas === 1 ? 'Se vació la lista (1 guía)' : "Se vació la lista ({$cuantas} guías)",
+            $cuantas
+        );
+    }
+
+    /** Se queda con los datos de lo borrado, listos para volver a crearse. */
+    private function recordarBorradas(array $filas): void
+    {
+        $this->borradas = array_map(function ($g) {
+            return [
+                'nombre'          => $g->nombre,
+                'telefono'        => $g->telefono,
+                'telefono_recibe' => $g->telefono_recibe,
+                'direccion'       => $g->direccion,
+                'municipio'       => $g->municipio,
+                'departamento'    => $g->departamento,
+                'descripcion'     => $g->descripcion,
+                'cobrar'          => (float) $g->cobrar,
+                'enviado_at'      => $g->enviado_at?->toDateTimeString(),
+                'user_id'         => $g->user_id ?? null,
+            ];
+        }, $filas);
+    }
+
+    /**
+     * El aviso con el botón de volver atrás.
+     *
+     * Persistente a propósito: si se fuera solo a los cinco segundos, la mitad
+     * de las veces uno se da cuenta del error cuando ya se fue. Se queda hasta
+     * que lo cierres.
+     */
+    private function avisarConDeshacer(string $titulo, int $cuantas): void
+    {
+        Notification::make()
+            ->title($titulo)
+            ->body($cuantas === 1
+                ? 'Si fue sin querer, se puede traer de vuelta.'
+                : 'Si fue sin querer, se pueden traer las ' . $cuantas . ' de vuelta.')
+            ->warning()->persistent()
+            ->actions([
+                \Filament\Notifications\Actions\Action::make('deshacer')
+                    ->label('↶ Deshacer')
+                    ->button()->close()->dispatch('deshacer-borrado'),
+            ])
+            ->send();
+    }
+
+    /** Vuelve a crear lo último que se borró. */
+    #[\Livewire\Attributes\On('deshacer-borrado')]
+    public function deshacerBorrado(): void
+    {
+        if (empty($this->borradas)) {
+            Notification::make()->title('Ya no hay nada que deshacer')->warning()->send();
+            return;
+        }
+
+        $vueltas = 0;
+
+        foreach ($this->borradas as $fila) {
+            try {
+                \App\Models\GuiaBorrador::create($fila);
+                $vueltas++;
+            } catch (\Throwable $e) {
+            }
+        }
+
+        $this->borradas = [];
+        $this->recargarLista();
+
+        Notification::make()
+            ->title($vueltas === 1 ? '↶ Volvió la guía' : "↶ Volvieron las {$vueltas} guías")
+            ->success()->send();
     }
 
     public function descargar(bool $aunAsi = false)

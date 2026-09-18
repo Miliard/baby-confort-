@@ -1073,7 +1073,7 @@ class Whatsapp extends Page
             // Las fotos del producto ya puesto. Salen de la galería del
             // producto en el admin, después de la principal.
             if ($this->conFotosUso) {
-                foreach ($this->fotosDeUso($p) as $uso) {
+                foreach ($this->fotosDeUso($s) as $uso) {
                     $mu = WhatsappApi::enviarImagen($conv, $uso, null, auth()->id());
                     $mu->estado === 'fallido' ? $fallados++ : $mandados++;
                 }
@@ -1178,6 +1178,58 @@ class Whatsapp extends Page
         }
     }
 
+    /**
+     * Todo lo que quedó a medias, en un solo lugar.
+     *
+     * El panel ya sabía estas cuatro cosas, pero cada una vivía en su pantalla.
+     * Juntarlas importa porque el trabajo no se pierde por falta de funciones,
+     * se pierde en los pasos que nadie ve: la orden que no llegó a guía, la
+     * guía cuyo enlace nunca se mandó, el cliente que quedó esperando.
+     *
+     * Cada número lleva a su lista. La idea es dejar de acordarse y empezar a
+     * mirar.
+     */
+    public function pendientes(): array
+    {
+        $p = [
+            'sin_leer'      => 0,
+            'sin_responder' => 0,
+            'sin_guia'      => 0,
+            'sin_enlace'    => 0,
+            'etiqueta_pedido' => null,
+        ];
+
+        try {
+            $p['sin_leer']      = $this->cuantasSinLeer();
+            $p['sin_responder'] = $this->cuantasSinResponder();
+        } catch (\Throwable $e) {
+        }
+
+        // Órdenes que llegaron y todavía no se convirtieron en guía. Son las
+        // conversaciones que el etiquetado automático marcó como "pedido" y
+        // que nunca pasaron a "procesada".
+        try {
+            $pedido = \App\Models\WaEtiqueta::porRol('pedido');
+
+            if ($pedido) {
+                $p['etiqueta_pedido'] = $pedido->id;
+                $p['sin_guia'] = $pedido->conversaciones()
+                    ->where('archivada', false)->count();
+            }
+        } catch (\Throwable $e) {
+        }
+
+        // Guías armadas a las que nunca se les mandó el enlace de rastreo.
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('guias_borrador')) {
+                $p['sin_enlace'] = \App\Models\GuiaBorrador::whereNull('enviado_at')->count();
+            }
+        } catch (\Throwable $e) {
+        }
+
+        return $p;
+    }
+
     /** Cuántas guías hay esperando en la cola, listas para el Excel. */
     public function enCola(): int
     {
@@ -1199,26 +1251,23 @@ class Whatsapp extends Page
     }
 
     /**
-     * Las fotos del producto ya puesto, sacadas de la galería del admin.
+     * Las fotos de cómo queda puesta ESA talla.
      *
-     * Se saltea la primera, que es la del paquete y ya se mandó. Van dos como
-     * mucho: el cliente quiere ver cómo queda, no un álbum.
+     * Antes salían de la galería del producto en la página, así que Magic M y
+     * Magic XXL mandaban las mismas — y no se parecen en nada puestos. Ahora
+     * cada talla tiene las suyas, cargadas en el admin del producto, y esas
+     * fotos no se publican en la página: existen solo para el chat.
+     *
+     * Si una talla no tiene fotos propias, no manda nada. Mandar la de otra
+     * talla sería peor que no mandar ninguna.
      */
-    public function fotosDeUso($producto): array
+    public function fotosDeUso($talla): array
     {
         try {
-            $todas = $producto->galleryUrls();
+            return $talla?->fotosUsoUrls() ?? [];
         } catch (\Throwable $e) {
             return [];
         }
-
-        // La primera es la principal: esa ya salió con su precio.
-        $extra = array_slice(array_filter($todas), 1, 2);
-
-        return array_map(
-            fn ($u) => str_starts_with($u, 'http') ? $u : url($u),
-            $extra
-        );
     }
 
     /** Cuántas fotos de uso hay entre lo que se va a mandar. */
@@ -1227,20 +1276,17 @@ class Whatsapp extends Page
         if (empty($this->elegidas)) return 0;
 
         try {
-            $filas = \App\Models\ProductSize::with('product')
-                ->whereIn('id', $this->elegidas)->get();
+            $filas = \App\Models\ProductSize::whereIn('id', $this->elegidas)->get();
         } catch (\Throwable $e) {
             return 0;
         }
 
         $n = 0;
-        $vistos = [];
 
+        // Sin agrupar por producto: ahora son de la talla, y dos tallas del
+        // mismo producto tienen fotos distintas.
         foreach ($filas as $s) {
-            if (! $s->product || isset($vistos[$s->product->id])) continue;
-
-            $vistos[$s->product->id] = true;
-            $n += count($this->fotosDeUso($s->product));
+            $n += count($this->fotosDeUso($s));
         }
 
         return $n;

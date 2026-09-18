@@ -75,6 +75,26 @@
             display:flex;flex-direction:column;overflow:hidden;height:100%}
     html.dark .wa-col{background:#16202f;border-color:rgba(255,255,255,.10)}
 
+    /* ── Lo que quedó a medias ──
+       Se desliza si no entra, como el carrusel de filtros: en el teléfono es
+       mejor que se corra de lado a que parta el renglón en tres. */
+    .wa-pendientes{display:flex;gap:6px;margin-bottom:9px;overflow-x:auto;
+                   scrollbar-width:none;-ms-overflow-style:none;padding-bottom:2px}
+    .wa-pendientes::-webkit-scrollbar{display:none}
+    .wa-pend{flex:none;border:1px solid var(--c);background:transparent;color:inherit;
+             border-radius:999px;padding:5px 11px;font-size:11.5px;font-weight:600;
+             font-family:inherit;cursor:pointer;white-space:nowrap;
+             text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+    .wa-pend b{color:var(--c);font-weight:800;font-size:13px}
+    .wa-pend:hover{background:rgba(120,140,170,.12)}
+    /* Encendido = ese filtro está puesto. Sin esto no habría cómo saber por qué
+       la lista se ve corta, ni cómo volver a verla entera. */
+    .wa-pend.on{background:var(--c);border-color:var(--c);color:#fff}
+    .wa-pend.on b{color:#fff}
+    /* Rojo lo que espera a un cliente; ámbar lo que espera a vos. */
+    .wa-pend-rojo{--c:#e5695f}
+    .wa-pend-ambar{--c:#d4a017}
+
     .wa-top{padding:11px 13px;border-bottom:1px solid #e5e7eb;flex:none}
     html.dark .wa-top{border-color:rgba(255,255,255,.10)}
 
@@ -599,6 +619,52 @@
     {{-- ═══ IZQUIERDA: las conversaciones ═══ --}}
     <div class="wa-col wa-izq">
         <div class="wa-top">
+
+            {{-- Lo que quedó a medias, en un renglón.
+                 El panel sabía las cuatro cosas por separado, cada una en su
+                 pantalla. Juntas se leen de un vistazo, y cada número lleva a
+                 su lista. Es para dejar de acordarse y empezar a mirar. --}}
+            @php $pend = $this->pendientes(); @endphp
+
+            @if($pend['sin_leer'] || $pend['sin_responder'] || $pend['sin_guia'] || $pend['sin_enlace'])
+                <div class="wa-pendientes">
+                    @if($pend['sin_responder'])
+                        <button type="button"
+                                class="wa-pend wa-pend-rojo {{ $soloSinResponder ? 'on' : '' }}"
+                                wire:click="alternarSinResponder"
+                                title="{{ $soloSinResponder ? 'Quitar el filtro' : 'Ver solo las que esperan tu respuesta' }}">
+                            <b>{{ $pend['sin_responder'] }}</b> sin responder
+                            @if($soloSinResponder)✕@endif
+                        </button>
+                    @endif
+
+                    @if($pend['sin_leer'])
+                        <button type="button"
+                                class="wa-pend wa-pend-rojo {{ $soloSinLeer ? 'on' : '' }}"
+                                wire:click="alternarSinLeer"
+                                title="{{ $soloSinLeer ? 'Quitar el filtro' : 'Ver solo las que no abriste' }}">
+                            <b>{{ $pend['sin_leer'] }}</b> sin leer
+                            @if($soloSinLeer)✕@endif
+                        </button>
+                    @endif
+
+                    @if($pend['sin_guia'] && $pend['etiqueta_pedido'])
+                        <button type="button" class="wa-pend wa-pend-ambar"
+                                wire:click="filtrarPor({{ $pend['etiqueta_pedido'] }})"
+                                title="Órdenes que llegaron y todavía no son guía">
+                            <b>{{ $pend['sin_guia'] }}</b> sin guía
+                        </button>
+                    @endif
+
+                    @if($pend['sin_enlace'] && $this->enlaceCola())
+                        <a href="{{ $this->enlaceCola() }}" class="wa-pend wa-pend-ambar"
+                           title="Guías armadas a las que no les mandaste el enlace de rastreo">
+                            <b>{{ $pend['sin_enlace'] }}</b> sin enlace
+                        </a>
+                    @endif
+                </div>
+            @endif
+
             <x-filament::input.wrapper prefix-icon="heroicon-m-magnifying-glass">
                 <x-filament::input type="text" wire:model.live.debounce.400ms="buscar"
                     placeholder="Buscar nombre o número" />
@@ -1396,11 +1462,11 @@
                 <label class="wa-uso {{ $usos ? '' : 'wa-uso-no' }}">
                     <input type="checkbox" wire:model.live="conFotosUso" @disabled(! $usos)>
                     <span>
-                        <b>También las fotos del producto puesto</b>
+                        <b>También las fotos reales de cómo queda puesto</b>
                         @if($usos)
-                            <span style="color:#94a3b8">· {{ $usos }} {{ $usos == 1 ? 'foto' : 'fotos' }} más</span>
+                            <span style="color:#94a3b8">· {{ $usos }} {{ $usos == 1 ? 'foto' : 'fotos' }} más, de esta talla</span>
                         @else
-                            <span style="color:#94a3b8">· no hay cargadas todavía</span>
+                            <span style="color:#94a3b8">· esta talla no tiene fotos cargadas</span>
                         @endif
                     </span>
                 </label>

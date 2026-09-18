@@ -76,6 +76,20 @@ class ProductResource extends Resource
                                 ->helperText('Al elegir esta talla, la imagen principal cambia a esta.'),
                             Forms\Components\FileUpload::make('image_upload')->label('…o sube la foto de esta talla')
                                 ->image()->disk('public')->directory('productos/tallas')->columnSpanFull(),
+                            // Solo para WhatsApp. La página no las muestra: son
+                            // fotos reales para convencer a quien está
+                            // preguntando, no material de catálogo.
+                            Forms\Components\FileUpload::make('fotos_uso')
+                                ->label('📷 Fotos de cómo queda puesto (solo WhatsApp)')
+                                ->helperText('Se mandan desde el chat al elegir ESTA talla en el catálogo. '
+                                           . 'No aparecen en la página. Podés arrastrar varias; se mandan '
+                                           . 'en el orden en que las pongas.')
+                                ->image()->multiple()->reorderable()
+                                ->disk('public')->directory('productos/uso')
+                                ->maxSize(5120)
+                                ->panelLayout('grid')
+                                ->columnSpanFull(),
+
                             Forms\Components\TextInput::make('price')->label('Precio')->numeric()->prefix('$')->required(),
                             Forms\Components\TextInput::make('price_before')->label('Precio antes (oferta)')->numeric()->prefix('$')
                                 ->helperText('Opcional. Si es mayor al precio, se muestra tachado.'),

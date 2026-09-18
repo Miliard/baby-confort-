@@ -8,14 +8,43 @@ use Illuminate\Support\Facades\Storage;
 
 class ProductSize extends Model
 {
-    protected $fillable = ['product_id', 'size', 'price', 'price_before', 'weight', 'unidades', 'details', 'image', 'image_upload', 'quantity', 'combo_qty', 'combo_price'];
+    protected $fillable = ['product_id', 'size', 'price', 'price_before', 'weight', 'unidades', 'details', 'image', 'image_upload', 'fotos_uso', 'quantity', 'combo_qty', 'combo_price'];
 
     protected $casts = [
         'price'       => 'decimal:2',
         'combo_price' => 'decimal:2',
         'quantity'    => 'integer',
         'unidades'    => 'integer',
+        'fotos_uso'   => 'array',
     ];
+
+    /**
+     * Las fotos de cómo queda puesta esta talla, con dirección completa.
+     *
+     * Completa y no relativa porque Meta las va a buscar a nuestro sitio desde
+     * afuera: con una ruta relativa no llegaría a ninguna parte.
+     *
+     * Solo se usan en el chat. La página no las muestra.
+     */
+    public function fotosUsoUrls(): array
+    {
+        $rutas = $this->fotos_uso;
+
+        if (! is_array($rutas) || ! $rutas) return [];
+
+        $urls = [];
+
+        foreach ($rutas as $r) {
+            $r = trim((string) $r);
+            if ($r === '') continue;
+
+            $urls[] = str_starts_with($r, 'http')
+                ? $r
+                : url('/storage/' . ltrim($r, '/'));
+        }
+
+        return $urls;
+    }
 
     public function product(): BelongsTo
     {
