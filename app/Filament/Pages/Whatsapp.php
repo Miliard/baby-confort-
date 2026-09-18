@@ -1195,19 +1195,15 @@ class Whatsapp extends Page
      */
     public function pendientes(): array
     {
+        // Solo el circuito de las guías. Las de "sin responder" y "sin leer" se
+        // quitaron: la barra roja de cada conversación ya marca las primeras, y
+        // "Sin leer" ya está en el carrusel de filtros. Contarlas acá era gastar
+        // dos consultas en cada dibujado para repetir algo que ya se veía.
         $p = [
-            'sin_leer'      => 0,
-            'sin_responder' => 0,
-            'sin_guia'      => 0,
-            'sin_enlace'    => 0,
+            'sin_guia'        => 0,
+            'sin_enlace'      => 0,
             'etiqueta_pedido' => null,
         ];
-
-        try {
-            $p['sin_leer']      = $this->cuantasSinLeer();
-            $p['sin_responder'] = $this->cuantasSinResponder();
-        } catch (\Throwable $e) {
-        }
 
         // Órdenes que llegaron y todavía no se convirtieron en guía. Son las
         // conversaciones que el etiquetado automático marcó como "pedido" y

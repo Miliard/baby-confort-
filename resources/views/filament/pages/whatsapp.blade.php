@@ -38,11 +38,15 @@
         .wa{grid-template-columns:1fr;gap:0;min-height:0;
             height:var(--wa-alto, calc(100dvh - 52px))}
 
-        /* Con el teclado abierto, el chat se clava al pedazo de pantalla que
-           queda libre. Es la única forma segura: Android no mueve la página,
-           dibuja el teclado encima de ella. */
-        .wa--anclada{position:fixed;left:0;right:0;z-index:40;
-                     top:var(--wa-arriba, 0px);padding:0 6px}
+        /* Con el teclado abierto, la página se traba.
+           Antes el panel se clavaba con position:fixed y se le corregía el
+           "top" en cada evento; eso generaba un ida y vuelta —mover el panel
+           desplazaba la página, y el desplazamiento volvía a mover el panel—
+           que se veía como un sube y baja.
+           Trabando el desplazamiento no hay adónde rebotar: el panel mide
+           exactamente lo que se ve y se queda quieto. */
+        html.wa--teclado,
+        html.wa--teclado body{overflow:hidden;overscroll-behavior:none}
         .wa--abierta .wa-izq{display:none}
         .wa:not(.wa--abierta) .wa-der{display:none}
         .wa-col{border-radius:11px}
@@ -645,28 +649,13 @@
                  su lista. Es para dejar de acordarse y empezar a mirar. --}}
             @php $pend = $this->pendientes(); @endphp
 
-            @if($pend['sin_leer'] || $pend['sin_responder'] || $pend['sin_guia'] || $pend['sin_enlace'])
+            {{-- Solo lo del circuito de las guías. "Sin responder" y "Sin leer"
+                 estaban de más: la barra roja de cada conversación ya marca las
+                 que esperan respuesta, y "Sin leer" ya vive en el carrusel de
+                 filtros de abajo. Repetirlo acá gastaba un renglón de pantalla
+                 para no decir nada nuevo. --}}
+            @if($pend['sin_guia'] || $pend['sin_enlace'])
                 <div class="wa-pendientes">
-                    @if($pend['sin_responder'])
-                        <button type="button"
-                                class="wa-pend wa-pend-rojo {{ $soloSinResponder ? 'on' : '' }}"
-                                wire:click="alternarSinResponder"
-                                title="{{ $soloSinResponder ? 'Quitar el filtro' : 'Ver solo las que esperan tu respuesta' }}">
-                            <b>{{ $pend['sin_responder'] }}</b> sin responder
-                            @if($soloSinResponder)✕@endif
-                        </button>
-                    @endif
-
-                    @if($pend['sin_leer'])
-                        <button type="button"
-                                class="wa-pend wa-pend-rojo {{ $soloSinLeer ? 'on' : '' }}"
-                                wire:click="alternarSinLeer"
-                                title="{{ $soloSinLeer ? 'Quitar el filtro' : 'Ver solo las que no abriste' }}">
-                            <b>{{ $pend['sin_leer'] }}</b> sin leer
-                            @if($soloSinLeer)✕@endif
-                        </button>
-                    @endif
-
                     @if($pend['sin_guia'] && $pend['etiqueta_pedido'])
                         <button type="button" class="wa-pend wa-pend-ambar"
                                 wire:click="filtrarPor({{ $pend['etiqueta_pedido'] }})"
@@ -1989,13 +1978,17 @@
 
         var caja = document.querySelector('.wa');
 
+        // Si el teclado ya estaba abierto en la vuelta anterior. Sirve para
+        // hacer una sola vez lo que no debe repetirse en cada evento.
+        var teclaAntes = false;
+
         function ajustar() {
             if (!caja) caja = document.querySelector('.wa');
 
             if (window.innerWidth > 900) {
                 document.documentElement.style.removeProperty('--wa-alto');
                 document.documentElement.classList.remove('wa--teclado');
-                if (caja) caja.classList.remove('wa--anclada');
+                teclaAntes = false;
                 return;
             }
 
@@ -2023,20 +2016,32 @@
             document.documentElement.classList.toggle('wa--teclado', teclado);
 
             if (teclado) {
-                // Con el teclado abierto no alcanza con achicar el alto: hay
-                // que clavar el chat al pedazo de pantalla que queda visible,
-                // porque el navegador no mueve la página, solo dibuja encima.
-                caja && caja.classList.add('wa--anclada');
-                document.documentElement.style.setProperty('--wa-arriba', Math.round(vv.offsetTop) + 'px');
+                // Acá había un lazo que hacía bailar la pantalla.
+                //
+                // El panel se clavaba con position:fixed y se le movía el
+                // "top" al ritmo de vv.offsetTop, en cada evento. Pero mover un
+                // elemento clavado cambia la altura de la página, la página se
+                // desplaza, offsetTop cambia, y se lo volvía a mover. Ese ida y
+                // vuelta es el sube y baja.
+                //
+                // Ahora el panel no se clava ni se le toca el top. Se le da el
+                // alto de lo que se ve y se traba el desplazamiento de la
+                // página: si no hay adónde moverse, no hay nada que rebote.
                 document.documentElement.style.setProperty('--wa-alto', Math.round(vv.height) + 'px');
+
+                // Una sola vez al abrirse, no en cada evento: si se llamara
+                // siempre, volvería a pelear con el navegador.
+                if (!teclaAntes) {
+                    try { window.scrollTo(0, 0); } catch (e) {}
+                }
             } else {
-                caja && caja.classList.remove('wa--anclada');
-                document.documentElement.style.removeProperty('--wa-arriba');
                 document.documentElement.style.setProperty(
                     '--wa-alto',
                     Math.max(Math.round(vv.height - 52), 240) + 'px'
                 );
             }
+
+            teclaAntes = teclado;
         }
 
         vv.addEventListener('resize', ajustar);
