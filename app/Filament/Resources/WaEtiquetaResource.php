@@ -46,10 +46,11 @@ class WaEtiquetaResource extends Resource
                 ->helperText('Si elegís un papel acá, el panel pone esta etiqueta sin que nadie '
                            . 'se acuerde de hacerlo. Solo una etiqueta puede tener cada papel: '
                            . 'si se lo das a esta, la que lo tenía lo suelta.')
-                ->options([
-                    'pedido'    => 'Cuando llega una orden de envío',
-                    'procesada' => 'Cuando ya se mandó el enlace de rastreo',
-                ])
+                // Salen del modelo y no de una lista escrita acá: cuando se
+                // agregó el papel "entregada" al modelo, este desplegable se
+                // quedó con los dos viejos y no había forma de elegirlo. Con
+                // una sola lista, eso no puede volver a pasar.
+                ->options(\App\Models\WaEtiqueta::ROLES)
                 ->placeholder('No, esta la pongo yo a mano')
                 // Al guardar, se le quita el papel a la que lo tuviera antes:
                 // dos etiquetas de "pedido" no querrían decir nada.
