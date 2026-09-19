@@ -1258,6 +1258,58 @@ class Whatsapp extends Page
         return $p;
     }
 
+    /**
+     * Revisa las entregas ahora mismo, sin esperar al programador.
+     *
+     * El comando corre solo cada media hora, pero eso necesita un cron
+     * levantado en Railway. Este botón hace lo mismo a pedido: sirve para
+     * probar que todo está bien enganchado, y como salida mientras el cron no
+     * exista.
+     *
+     * Tarda: cada guía es una consulta a la página del courier. Por eso se
+     * limita a unas pocas por vez y se avisa qué pasó.
+     */
+    public function revisarEntregas(): void
+    {
+        try {
+            $entregada = \App\Models\WaEtiqueta::porRol('entregada');
+
+            if (! $entregada) {
+                Notification::make()
+                    ->title('Falta decir cuál etiqueta es la de entregado')
+                    ->body('Andá a Etiquetas → Entregados y en "¿Se pone sola?" elegí '
+                         . '"Cuando el courier confirma la entrega". Sin eso el panel no '
+                         . 'sabe adónde moverlas.')
+                    ->warning()->persistent()->send();
+                return;
+            }
+
+            \Illuminate\Support\Facades\Artisan::call('entregas:revisar', ['--limite' => 15]);
+
+            Notification::make()
+                ->title('Revisión terminada')
+                ->body(trim(\Illuminate\Support\Facades\Artisan::output()) ?: 'Sin novedades.')
+                ->success()->persistent()->send();
+        } catch (\Throwable $e) {
+            Notification::make()
+                ->title('No se pudo revisar')
+                ->body($e->getMessage())
+                ->danger()->persistent()->send();
+        }
+    }
+
+    /** Cuántas conversaciones están esperando entrega. */
+    public function cuantasEsperandoEntrega(): int
+    {
+        try {
+            $p = \App\Models\WaEtiqueta::porRol('procesada');
+
+            return $p ? $p->conversaciones()->where('archivada', false)->count() : 0;
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
     /** Cuántas guías hay esperando en la cola, listas para el Excel. */
     public function enCola(): int
     {

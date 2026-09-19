@@ -128,6 +128,7 @@
     /* Rojo lo que espera a un cliente; ámbar lo que espera a vos. */
     .wa-pend-rojo{--c:#e5695f}
     .wa-pend-ambar{--c:#d4a017}
+    .wa-pend-azul{--c:#4aa3df}
 
     .wa-top{padding:11px 13px;border-bottom:1px solid #e5e7eb;flex:none}
     html.dark .wa-top{border-color:rgba(255,255,255,.10)}
@@ -730,13 +731,30 @@
             {{-- "Sin guía" se quitó: era la etiqueta Pedidos contada de otra
                  forma, y esa ya está en el carrusel de abajo. Dos botones para
                  lo mismo no ayudan, confunden. --}}
-            @if($pend['sin_enlace'])
+            @php $esperando = $this->cuantasEsperandoEntrega(); @endphp
+
+            @if($pend['sin_enlace'] || $esperando)
                 <div class="wa-pendientes">
                     @if($pend['sin_enlace'] && $this->enlaceCola())
                         <a href="{{ $this->enlaceCola() }}" class="wa-pend wa-pend-ambar"
                            title="Guías armadas a las que no les mandaste el enlace de rastreo">
                             <b>{{ $pend['sin_enlace'] }}</b> sin enlace
                         </a>
+                    @endif
+
+                    {{-- Preguntarle al courier ahora, sin esperar al programador.
+                         Sirve de salida mientras el cron no exista, y para
+                         comprobar que todo está bien enganchado. --}}
+                    @if($esperando)
+                        <button type="button" class="wa-pend wa-pend-azul"
+                                wire:click="revisarEntregas"
+                                wire:loading.attr="disabled" wire:target="revisarEntregas"
+                                title="Preguntarle al courier por los paquetes que están en camino">
+                            <span wire:loading.remove wire:target="revisarEntregas">
+                                <b>{{ $esperando }}</b> en camino · revisar
+                            </span>
+                            <span wire:loading wire:target="revisarEntregas">Preguntando…</span>
+                        </button>
                     @endif
                 </div>
             @endif
