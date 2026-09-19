@@ -336,6 +336,30 @@
                      letter-spacing:.02em}
         .wa-agrandar:hover{color:inherit}
     }
+    /* ── La lista que abre la barra "/" ──
+       Va flotando ENCIMA del cuadro de escribir, no debajo: debajo quedaría
+       tapada por el teclado del teléfono, que es justo donde más sirve. */
+    .wa-slash-wrap{position:relative}
+    .wa-slash{position:absolute;left:0;right:0;bottom:calc(100% + 6px);z-index:30;
+              max-height:260px;overflow-y:auto;padding:5px;
+              background:#fff;border:1px solid #d1d5db;border-radius:12px;
+              box-shadow:0 -10px 30px rgba(10,16,26,.20)}
+    html.dark .wa-slash{background:#16202f;border-color:rgba(255,255,255,.16)}
+    .wa-slash-t{font-size:10.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;
+                letter-spacing:.04em;padding:6px 9px 4px}
+    .wa-slash-op{display:block;width:100%;text-align:left;border:none;background:none;
+                 font-family:inherit;color:inherit;cursor:pointer;padding:8px 9px;
+                 border-radius:8px}
+    .wa-slash-op:hover{background:rgba(120,140,170,.14)}
+    .wa-slash-op b{display:block;font-size:13.5px}
+    .wa-slash-op span{display:block;font-size:11.5px;color:#94a3b8;margin-top:2px;
+                      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .wa-slash-nada{padding:9px;font-size:12px;color:#94a3b8}
+    @media(max-width:900px){
+        .wa-slash{max-height:210px}
+        .wa-slash-op{padding:10px 9px}
+    }
+
     .wa-btns{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;align-items:center}
 
     /* ── Con el teclado abierto en el teléfono ──────────────────────────────
@@ -1099,14 +1123,82 @@
                         {{ $cajaGrande ? '⌃ Achicar' : '⌄ Ver todo el texto' }}
                     </button>
 
-                    <textarea class="wa-escribir" rows="2" wire:model="texto"
-                              placeholder="Escribí tu respuesta…" spellcheck="true" lang="es"
-                              x-on:keydown.enter="
-                                  if (! $event.shiftKey && window.innerWidth > 900) {
-                                      $event.preventDefault();
-                                      $wire.enviar();
-                                  }
-                              "></textarea>
+                    {{-- Escribir "/" abre las respuestas rápidas, como en la app
+                         de WhatsApp Business. Se filtra tecleando: "/cob" deja
+                         solo cobertura. Es más rápido que buscar el botón entre
+                         diez, y no ocupa lugar en pantalla.
+
+                         Solo cuenta si la barra es lo ÚNICO escrito y todavía no
+                         hay espacios. Así un enlace con barras —o una fracción—
+                         nunca dispara la lista. --}}
+                    @php
+                        $paraSlash = $resp->map(fn ($r) => [
+                            'id'     => $r->id,
+                            'titulo' => $r->titulo,
+                            'previa' => \Illuminate\Support\Str::limit(strip_tags($r->texto), 70),
+                            'foto'   => $r->tieneFoto(),
+                        ])->values();
+                    @endphp
+
+                    <div class="wa-slash-wrap"
+                         x-data="{
+                             abierto: false,
+                             termino: '',
+                             lista: @js($paraSlash),
+                             limpio(s) {
+                                 return (s || '').toString().toLowerCase()
+                                     .normalize('NFD').replace(/[̀-ͯ]/g, '');
+                             },
+                             get filtradas() {
+                                 const t = this.limpio(this.termino);
+                                 if (t === '') return this.lista;
+                                 return this.lista.filter(r => this.limpio(r.titulo).includes(t));
+                             },
+                             alEscribir(valor) {
+                                 const m = (valor || '').match(/^\/(\S*)$/);
+                                 if (m) { this.termino = m[1]; this.abierto = true; }
+                                 else   { this.abierto = false; this.termino = ''; }
+                             },
+                             elegir(r) {
+                                 this.abierto = false;
+                                 this.termino = '';
+                                 $wire.usarRespuesta(r.id);
+                             }
+                         }"
+                         x-on:click.outside="abierto = false">
+
+                        <div class="wa-slash" x-show="abierto" x-cloak>
+                            <div class="wa-slash-t">Respuestas rápidas</div>
+
+                            <template x-for="r in filtradas" :key="r.id">
+                                <button type="button" class="wa-slash-op" x-on:click="elegir(r)">
+                                    <b><span x-show="r.foto">📷 </span><span x-text="r.titulo"></span></b>
+                                    <span x-text="r.previa"></span>
+                                </button>
+                            </template>
+
+                            <div class="wa-slash-nada" x-show="filtradas.length === 0">
+                                Ninguna se llama así. Borrá la barra para seguir escribiendo.
+                            </div>
+                        </div>
+
+                        <textarea class="wa-escribir" rows="2" wire:model="texto"
+                                  placeholder="Escribí tu respuesta… o / para las rápidas"
+                                  spellcheck="true" lang="es"
+                                  x-on:input="alEscribir($event.target.value)"
+                                  x-on:keydown.escape="abierto = false"
+                                  x-on:keydown.enter="
+                                      if (abierto && filtradas.length) {
+                                          $event.preventDefault();
+                                          elegir(filtradas[0]);
+                                          return;
+                                      }
+                                      if (! $event.shiftKey && window.innerWidth > 900) {
+                                          $event.preventDefault();
+                                          $wire.enviar();
+                                      }
+                                  "></textarea>
+                    </div>
 
                     <div class="wa-btns">
                         <x-filament::button size="sm" wire:click="enviar" icon="heroicon-m-paper-airplane">
