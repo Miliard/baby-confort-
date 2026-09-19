@@ -101,7 +101,20 @@
                     $faltanMensaje = collect($lista)->reject(fn ($x) => $x['enviado'] ?? false)->count();
                 @endphp
 
-                @php $chequeo = \App\Services\RevisarGuia::resumen($lista); @endphp
+                {{-- La revisión mira solo lo que está por salir. Lo de lotes ya
+                     cerrados no tiene arreglo desde acá: ese Excel ya se subió. --}}
+                @php
+                    $porSalir = collect($lista)->filter(fn ($g) => $g['pendiente'] ?? true)->values();
+                    $chequeo  = \App\Services\RevisarGuia::resumen($porSalir->all());
+                @endphp
+
+                @if($porSalir->count() !== count($lista))
+                    <div class="mb-2 rounded-lg bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-600 dark:bg-white/5 dark:text-gray-300">
+                        📦 <b>{{ $porSalir->count() }}</b>
+                        {{ $porSalir->count() === 1 ? 'guía espera' : 'guías esperan' }} el próximo lote.
+                        Las demás ya se bajaron y no vuelven a salir.
+                    </div>
+                @endif
 
                 @if($chequeo['errores'] > 0 || $chequeo['ojos'] > 0)
                     <div @class([
@@ -136,6 +149,8 @@
                 @endif
 
                 <div class="space-y-2">
+                    @php $corteDibujado = false; @endphp
+
                     @forelse($lista as $g)
                         @php
                             $tel = preg_replace('/\D/', '', (string) ($g['telefono'] ?? ''));
@@ -144,7 +159,24 @@
                             // Lo que está raro en esta guía, si hay algo.
                             $avisos  = \App\Services\RevisarGuia::de($g);
                             $conMal  = \App\Services\RevisarGuia::tieneError($g);
+
+                            $esPend = $g['pendiente'] ?? true;
                         @endphp
+
+                        {{-- La línea de corte. La lista va de lo más nuevo a lo
+                             más viejo, así que arriba están las que esperan y
+                             abajo las que ya bajaste: la línea cae justo en el
+                             medio y dice, literal, hasta dónde llegaste. --}}
+                        @if(! $esPend && ! $corteDibujado)
+                            @php $corteDibujado = true; @endphp
+                            <div class="flex items-center gap-3 py-1">
+                                <div class="h-px flex-1 bg-success-400/60"></div>
+                                <span class="whitespace-nowrap rounded-full bg-success-50 px-3 py-1 text-xs font-bold text-success-700 dark:bg-success-500/10 dark:text-success-400">
+                                    ✅ Hasta aquí ya descargaste
+                                </span>
+                                <div class="h-px flex-1 bg-success-400/60"></div>
+                            </div>
+                        @endif
 
                         <div wire:key="guia-{{ $g['id'] ?? $loop->index }}" @class([
                             'flex items-start gap-3 rounded-xl border p-3 shadow-sm transition',
@@ -171,6 +203,14 @@
                                     @endif
                                     @if($conMal)
                                         <x-filament::badge color="danger" size="xs">revisar</x-filament::badge>
+                                    @endif
+
+                                    {{-- En qué lote está. Sin esto no habría cómo
+                                         saber cuál ya se subió a Sistrack. --}}
+                                    @if($g['pendiente'] ?? true)
+                                        <x-filament::badge color="warning" size="xs">espera lote</x-filament::badge>
+                                    @else
+                                        <x-filament::badge color="gray" size="xs">lote {{ $g['lote'] }}</x-filament::badge>
                                     @endif
                                 </div>
 
@@ -260,16 +300,43 @@
                     @endforelse
                 </div>
 
-                @if(count($lista))
+                @if($porSalir->count())
                     <x-filament::button wire:click="descargar" size="lg" icon="heroicon-m-arrow-down-tray"
                         class="mt-4 w-full justify-center">
-                        Descargar Excel ({{ count($lista) }})
+                        Bajar lote {{ \App\Models\GuiaBorrador::proximoNumero() }} ({{ $porSalir->count() }})
                     </x-filament::button>
 
                     <p class="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
-                        Subí este archivo en Sistrack → <span class="font-semibold">Importación masiva</span>
-                        para crear todas las guías de una vez.
+                        Subí este archivo en Sistrack → <span class="font-semibold">Importación masiva</span>.
+                        Al bajarlo, estas {{ $porSalir->count() === 1 ? 'queda marcada' : 'quedan marcadas' }}
+                        y lo que agregues después arranca el lote siguiente.
                     </p>
+                @elseif(count($lista))
+                    <p class="mt-4 rounded-xl border border-dashed border-gray-300 p-4 text-center text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">
+                        Todo lo de la lista ya se bajó. Lo que agregues ahora va a formar el
+                        <span class="font-semibold">lote {{ \App\Models\GuiaBorrador::proximoNumero() }}</span>.
+                    </p>
+                @endif
+
+                {{-- Volver a bajar un lote ya cerrado: pasa que se pierde el
+                     archivo o que Sistrack rechaza la carga. No reabre nada. --}}
+                @php
+                    $lotes = collect($lista)->reject(fn ($g) => $g['pendiente'] ?? true)
+                        ->groupBy('lote')->sortKeysDesc();
+                @endphp
+
+                @if($lotes->count())
+                    <div class="mt-4 flex flex-wrap items-center gap-2">
+                        <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                            Bajar de nuevo:
+                        </span>
+                        @foreach($lotes as $n => $g)
+                            <x-filament::button size="xs" color="gray"
+                                wire:click="bajarLote({{ $n }})" wire:key="lote-{{ $n }}">
+                                Lote {{ $n }} ({{ $g->count() }})
+                            </x-filament::button>
+                        @endforeach
+                    </div>
                 @endif
             </div>
         </div>

@@ -17,10 +17,63 @@ class GuiaBorrador extends Model
     protected $fillable = [
         'nombre', 'telefono', 'telefono_recibe', 'direccion',
         'municipio', 'departamento', 'descripcion', 'cobrar', 'enviado_at',
-        'user_id',
+        'user_id', 'lote', 'descargado_at',
     ];
 
-    protected $casts = ['cobrar' => 'decimal:2', 'enviado_at' => 'datetime'];
+    protected $casts = [
+        'cobrar'        => 'decimal:2',
+        'enviado_at'    => 'datetime',
+        'descargado_at' => 'datetime',
+        'lote'          => 'integer',
+    ];
+
+    /** ¿Todavía no se ha bajado? Entonces va en el lote que viene. */
+    public function pendiente(): bool
+    {
+        return is_null($this->lote ?? null);
+    }
+
+    /** ¿La tabla ya tiene la columna de lotes? */
+    public static function hayLotes(): bool
+    {
+        static $hay = null;
+
+        if ($hay !== null) return $hay;
+
+        try {
+            $hay = Schema::hasTable('guias_borrador')
+                && Schema::hasColumn('guias_borrador', 'lote');
+        } catch (\Throwable $e) {
+            $hay = false;
+        }
+
+        return $hay;
+    }
+
+    /** Las que van a salir en la próxima descarga. */
+    public static function delProximoLote()
+    {
+        try {
+            if (! Schema::hasTable('guias_borrador')) return collect();
+            if (! static::hayLotes()) return static::orderByDesc('id')->get();
+
+            return static::whereNull('lote')->orderByDesc('id')->get();
+        } catch (\Throwable $e) {
+            return collect();
+        }
+    }
+
+    /** El número que le toca al próximo lote. */
+    public static function proximoNumero(): int
+    {
+        try {
+            if (! static::hayLotes()) return 1;
+
+            return ((int) static::max('lote')) + 1;
+        } catch (\Throwable $e) {
+            return 1;
+        }
+    }
 
     public function autor(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
@@ -197,6 +250,8 @@ class GuiaBorrador extends Model
         return [
             'cuando'          => $this->cuando(),
             'quien'           => $this->quien(),
+            'lote'            => $this->lote,
+            'pendiente'       => $this->pendiente(),
             'tel_legible'     => $this->telefonoLegible(),
             'nombre'          => $this->nombre,
             'telefono'        => $this->telefono,

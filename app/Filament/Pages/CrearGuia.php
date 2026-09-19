@@ -729,10 +729,29 @@ class CrearGuia extends Page implements HasForms
             ->success()->send();
     }
 
+    /**
+     * Baja el Excel del lote que está esperando y lo cierra.
+     *
+     * Solo salen las guías sin número de lote, que son las que todavía no se
+     * han bajado nunca. Al terminar quedan marcadas con su número y su fecha,
+     * así que las que entren después arrancan el lote siguiente y la próxima
+     * bajada no las repite.
+     *
+     * Ese era el riesgo antes: la lista no se vaciaba —a propósito, por si hay
+     * que repetir el archivo— y la segunda bajada traía otra vez las primeras.
+     * Sistrack las habría recibido dos veces.
+     */
     public function descargar(bool $aunAsi = false)
     {
-        if (empty($this->lista)) {
-            Notification::make()->title('No hay guías en la lista')->warning()->send();
+        $pendientes = collect($this->lista)->filter(fn ($g) => $g['pendiente'] ?? true)->values();
+
+        if ($pendientes->isEmpty()) {
+            Notification::make()
+                ->title('No hay guías esperando')
+                ->body(empty($this->lista)
+                    ? 'La lista está vacía.'
+                    : 'Todas las de la lista ya se bajaron. Las nuevas van a formar el lote siguiente.')
+                ->warning()->send();
             return null;
         }
 
@@ -741,7 +760,7 @@ class CrearGuia extends Page implements HasForms
         if (! $aunAsi) {
             $malas = [];
 
-            foreach ($this->lista as $g) {
+            foreach ($pendientes as $g) {
                 if (\App\Services\RevisarGuia::tieneError($g)) {
                     $malas[] = trim((string) ($g['nombre'] ?? '')) ?: 'sin nombre';
                 }
@@ -765,14 +784,64 @@ class CrearGuia extends Page implements HasForms
             }
         }
 
-        $nombre = 'sistrack_' . now()->format('Y-m-d_Hi') . '.xlsx';
+        $numero = \App\Models\GuiaBorrador::proximoNumero();
+
+        $nombre = 'sistrack_lote' . $numero . '_' . now()->format('Y-m-d_Hi') . '.xlsx';
         $path   = storage_path('app/' . $nombre);
 
         // En pantalla el último va arriba; en el Excel se exporta en el orden en que
         // se fueron agregando.
-        SistrackExcel::generarDesdeLista(array_reverse($this->lista), $path);
+        SistrackExcel::generarDesdeLista(array_reverse($pendientes->all()), $path);
 
-        // La lista queda guardada por si hay que volver a bajarla; se limpia con "Vaciar".
+        // Recién con el archivo en la mano se cierra el lote. Si la generación
+        // fallara arriba, nada queda marcado y se puede volver a intentar.
+        try {
+            if (\App\Models\GuiaBorrador::hayLotes()) {
+                \App\Models\GuiaBorrador::whereNull('lote')->update([
+                    'lote'          => $numero,
+                    'descargado_at' => now(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Notification::make()
+                ->title('El Excel se bajó, pero no se pudo cerrar el lote')
+                ->body('Ojo: la próxima descarga podría repetir estas guías. ' . $e->getMessage())
+                ->danger()->persistent()->send();
+        }
+
+        $this->recargarLista();
+
+        // La lista queda guardada por si hay que volver a bajar el archivo.
+        return response()->download($path, $nombre)->deleteFileAfterSend();
+    }
+
+    /**
+     * Vuelve a bajar un lote ya cerrado.
+     *
+     * Pasa: se pierde el archivo, o Sistrack rechaza la carga y hay que
+     * repetirla. No reabre nada — el lote sigue cerrado y las guías nuevas
+     * siguen esperando en el siguiente.
+     */
+    public function bajarLote(int $numero)
+    {
+        try {
+            $filas = \App\Models\GuiaBorrador::where('lote', $numero)
+                ->orderBy('id')->get()->map(fn ($g) => $g->aFila())->all();
+        } catch (\Throwable $e) {
+            Notification::make()->title('No se pudo leer ese lote')->danger()->send();
+            return null;
+        }
+
+        if (! $filas) {
+            Notification::make()->title('Ese lote ya no tiene guías')->warning()->send();
+            return null;
+        }
+
+        $nombre = 'sistrack_lote' . $numero . '.xlsx';
+        $path   = storage_path('app/' . $nombre);
+
+        SistrackExcel::generarDesdeLista($filas, $path);
+
         return response()->download($path, $nombre)->deleteFileAfterSend();
     }
 }
