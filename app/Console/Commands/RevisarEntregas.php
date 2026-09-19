@@ -72,6 +72,8 @@ class RevisarEntregas extends Command
         $movidas = 0;
         $vueltas = 0;
         $cerradas = 0;
+        $sinGuia = 0;
+        $contando = 0;
 
         foreach ($convs as $conv) {
             try {
@@ -80,12 +82,26 @@ class RevisarEntregas extends Command
                 if ($r === 'entregada') $movidas++;
                 if ($r === 'volvio')    $vueltas++;
                 if ($r === 'cerrada')   $cerradas++;
+                if ($r === 'sin-guia')  $sinGuia++;
+                if ($r === 'primera')   $contando++;
             } catch (\Throwable $e) {
                 Log::warning('Revisar entregas (conv ' . $conv->id . '): ' . $e->getMessage());
             }
         }
 
         $this->info("Revisadas {$convs->count()} · {$movidas} a Entregados · {$vueltas} devueltas · {$cerradas} cerradas por liquidación");
+
+        // Esto es lo que explica por qué una conversación no se mueve nunca.
+        // Sin número de guía no hay a quién preguntarle, así que se saltea en
+        // silencio — y en silencio parece que el panel no funciona.
+        if ($sinGuia > 0) {
+            $this->warn("{$sinGuia} sin número de guía: no se les puede preguntar. "
+                . 'El número aparece al importar el PDF de Sistrack en Crear guías → PDF guías.');
+        }
+
+        if ($contando > 0) {
+            $this->line("{$contando} dijeron entregado por primera vez: se mueven en la próxima revisión.");
+        }
 
         return self::SUCCESS;
     }
@@ -97,11 +113,13 @@ class RevisarEntregas extends Command
 
         $conv->revisado_at = now();
 
-        // Sin guía todavía: la guía se arma y el número lo asigna Sistrack, así
-        // que puede tardar. Se deja para la próxima vuelta.
+        // Sin guía no hay a quién preguntarle. El número lo asigna Sistrack y
+        // llega al panel cuando se importa el PDF de guías: hasta entonces,
+        // esta conversación no se puede revisar y se quedaría en Preparados
+        // para siempre sin que nada lo explique. Por eso se cuenta y se avisa.
         if (! $guia) {
             $conv->save();
-            return null;
+            return 'sin-guia';
         }
 
         $conv->guia = $guia;
@@ -132,7 +150,9 @@ class RevisarEntregas extends Command
             }
 
             $conv->save();
-            return null;
+
+            // Primera vez que lo dice: falta una confirmación más.
+            return $conv->entregas_seguidas === 1 ? 'primera' : null;
         }
 
         // Dice que NO está entregada. Se reinicia la cuenta.
