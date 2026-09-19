@@ -1528,12 +1528,14 @@ class Whatsapp extends Page
 
         if ($t === '') return;
 
-        // Tres renglones escritos, o texto largo que va a envolverse en más de
-        // tres. Los 110 caracteres son el ancho aproximado de un renglón en un
-        // teléfono, por tres.
+        // Con pasar de dos renglones ya conviene abrirlo. Antes el umbral era
+        // el triple y casi ninguna respuesta rápida lo alcanzaba, así que el
+        // cuadro se quedaba chico justo cuando acababa de llenarse.
+        //
+        // Los 80 caracteres son, más o menos, dos renglones en un teléfono.
         $renglones = substr_count($t, "\n");
 
-        if ($renglones >= 2 || mb_strlen($t) > 110) {
+        if ($renglones >= 1 || mb_strlen($t) > 80) {
             $this->cajaGrande = true;
         }
     }

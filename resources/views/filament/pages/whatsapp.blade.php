@@ -317,6 +317,13 @@
         /* wa--teclado la pone el JS cuando el cursor está en el cuadro. */
         html.wa--teclado .wa-escribir{--wa-renglones:3}
 
+        /* Con algo escrito adentro, NUNCA un solo renglón.
+           El renglón único es para cuando el cuadro está vacío y no estorba.
+           Pero al traer una respuesta rápida el cuadro se llena sin que vos
+           toques nada: si ahí se queda en un renglón, tu propio texto queda
+           aplastado y hay que abrirlo a mano para verlo. */
+        .wa--con-texto .wa-escribir{--wa-renglones:3}
+
         /* Abierto a lo alto: para LEER un texto largo que acaba de entrar, no
            para escribir. Se limita a la mitad de lo que se ve, así queda algo
            de conversación arriba y uno no pierde el hilo de a qué contesta. */
@@ -1078,7 +1085,7 @@
                 @endforelse
             </div>
 
-            <div class="wa-abajo {{ $cajaGrande ? 'wa--caja-grande' : '' }}">
+            <div class="wa-abajo {{ $cajaGrande ? 'wa--caja-grande' : '' }} {{ trim($texto) !== '' ? 'wa--con-texto' : '' }}">
                 @if($conv->ventanaAbierta())
                     @php $citando = $this->mensajeCitado(); @endphp
                     @if($citando)
