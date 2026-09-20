@@ -58,18 +58,62 @@
     <script>window.BC_ENVIO = {{ (float) ($envio ?? 2.5) }};</script>
     <script>window.BC_ENVIO_GRATIS = {{ (float) \App\Models\Setting::envioGratisDesde() }};</script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    {{-- Rubik para títulos, Nunito Sans para texto. Solo los pesos que se usan:
+         cada peso extra es más que descargar antes de ver la página.
+         display=swap muestra el texto con la letra del sistema mientras cargan,
+         así nunca se ve una página en blanco esperando la tipografía. --}}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&family=Rubik:wght@500;600;700;800&display=swap" rel="stylesheet">
+
     <style>
         :root{
-            --azul:#4aa3df;--azul-osc:#2f7fbf;--azul-claro:#eaf5fc;
+            /* El azul pasó de #4aa3df a #1558b0. No es gusto: el celeste sobre
+               blanco daba 2.6 de contraste y el mínimo legible es 4.5. Los
+               precios, los enlaces y los títulos en celeste se leían mal a
+               plena luz — que es donde la gente mira un teléfono. Este da 6.9.
+               El celeste sigue vivo como --azul-claro, para fondos. */
+            --azul:#1558b0;--azul-osc:#0f4488;--azul-claro:#eaf2fd;
             --teal:#2fb2ac;--teal-osc:#259a95;
-            --coral:#ff8a80;--coral-osc:#e5695f;--texto:#2b3a4a;--gris:#6b7c8c;
-            --borde:#e2e8ee;--ok:#2e9e6b;--fondo:#f7fbfe;
+            --coral:#ff8a80;--coral-osc:#e5695f;
+
+            /* Texto más oscuro y gris secundario más firme, por lo mismo. */
+            --texto:#0f172a;--gris:#475569;
+            --borde:#e2e8f0;--ok:#15803d;--fondo:#f7f9fc;
+
             /* Color exclusivo del botón de compra. Va aparte del teal de marca
                porque teal + texto blanco solo da 2.1:1 de contraste. */
-            --cta:#c2410c;--cta-osc:#9a330a;--on-cta:#ffffff;--sombra:0 6px 18px rgba(47,127,191,.10);--radio:16px;
+            --cta:#c2410c;--cta-osc:#9a330a;--on-cta:#ffffff;
+
+            --sombra:0 1px 2px rgba(15,23,42,.06),0 8px 24px rgba(15,23,42,.06);
+            --sombra-lg:0 2px 4px rgba(15,23,42,.08),0 16px 40px rgba(15,23,42,.10);
+            --radio:16px;--radio-sm:10px;--radio-lg:24px;
+
+            /* Escala de espaciados. Tener una escala y no números sueltos es lo
+               que hace que las pantallas se vean de la misma familia. */
+            --s1:8px;--s2:16px;--s3:24px;--s4:32px;--s5:48px;--s6:72px;
+
+            --tipo-titulo:"Rubik",system-ui,sans-serif;
+            --tipo-texto:"Nunito Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
         }
         *{box-sizing:border-box}
-        body{margin:0;background:var(--fondo);color:var(--texto);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+        body{margin:0;background:var(--fondo);color:var(--texto);font-family:var(--tipo-texto);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+
+        /* Los títulos con su propia tipografía: es lo que le da carácter a la
+           página sin tener que cambiar ninguna estructura. */
+        h1,h2,h3{font-family:var(--tipo-titulo);line-height:1.2;letter-spacing:-.01em}
+
+        /* El anillo de foco. Sin esto, quien navega con teclado no sabe dónde
+           está parado. Con :focus-visible solo aparece al usar el teclado, así
+           que con el mouse no se ve nada raro. */
+        :focus-visible{outline:3px solid var(--azul);outline-offset:2px;border-radius:6px}
+
+        /* Saltar al contenido: el primer tabulador de la página. Escondido
+           hasta que alguien lo enfoca. */
+        .saltar{position:absolute;left:-9999px;top:0;background:var(--azul);color:#fff;
+                padding:12px 20px;z-index:100;border-radius:0 0 var(--radio-sm) 0;font-weight:700}
+        .saltar:focus{left:0}
         img{max-width:100%;display:block}
         a{color:inherit;text-decoration:none}
         .contenedor{max-width:1100px;margin:0 auto;padding:0 16px}
@@ -370,6 +414,10 @@
     </style>
 </head>
 <body>
+{{-- El primer tabulador de la página. Quien navega con teclado no tiene que
+     pasar por todo el menú cada vez que cambia de pantalla. --}}
+<a class="saltar" href="#contenido">Saltar al contenido</a>
+
 <div x-data>
     {{-- Header --}}
     @php
@@ -406,7 +454,9 @@
         </div>
     </header>
 
-    @yield('content')
+    <main id="contenido">
+        @yield('content')
+    </main>
 
     <footer class="footer">
         <div class="contenedor"><b>Baby-Confort</b> · Pedidos por WhatsApp · El Salvador 🇸🇻<br>Atención personalizada para coordinar tu entrega.
