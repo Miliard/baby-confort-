@@ -12,6 +12,37 @@
        y se lleva casi 100 px de alto de conversación. */
     .fi-header{display:none !important}
 
+    /* ── Gris secundario, uno por tema ──────────────────────────────────────
+       Estaba escrito a mano, el mismo gris, en todos lados. Sobre el fondo
+       oscuro da 5.6 de contraste y está bien; sobre blanco da 2.8, y el mínimo
+       para texto es 4.5. O sea: en modo claro las horas, las ayudas y las
+       vistas previas se leían mal. Un valor por tema lo arregla de una vez. */
+    :root{--wa-suave:#5b6b7f}
+    html.dark{--wa-suave:#94a3b8}
+
+    /* ── Respuesta al toque ─────────────────────────────────────────────────
+       En el teléfono no hay "hover": si un botón no responde al apretarlo, se
+       siente muerto y uno lo toca de nuevo. Un cambio inmediato al presionar
+       es lo que hace que la interfaz se sienta viva. */
+    .wa-chip:active,.wa-fil:active,.wa-pend:active,.wa-volver:active,
+    .wa-clavo:active,.wa-resp-btn:active,.wa-opcion:active,.wa-slash-op:active,
+    .wa-foto:active,.wa-pres:active,.wa-procesar:active{
+        transform:scale(.97);filter:brightness(.92)
+    }
+    .wa-item:active{background:rgba(120,140,170,.18)}
+
+    /* ── Quien pidió menos movimiento, menos movimiento ─────────────────────
+       Es un ajuste del sistema operativo, y hay gente que lo activa porque el
+       movimiento le marea de verdad. Se respeta. */
+    @media(prefers-reduced-motion:reduce){
+        *,*::before,*::after{
+            animation-duration:.01ms !important;animation-iteration-count:1 !important;
+            transition-duration:.01ms !important;scroll-behavior:auto !important
+        }
+        .wa-chip:active,.wa-fil:active,.wa-pend:active,.wa-volver:active,
+        .wa-clavo:active,.wa-resp-btn:active{transform:none}
+    }
+
     /* Etiquetas largas y cortas, según el ancho.
        OJO CON EL ORDEN: estos dos valores por defecto tienen que ir ANTES del
        @media. Una consulta de medios no suma especificidad, así que si la regla
@@ -88,7 +119,10 @@
         .wa-volver{display:inline-flex !important}
         .wa-fila2{grid-template-columns:1fr}
         .wa-chat{padding:10px}
-        .wa-abajo{padding:8px}
+        /* El área segura de abajo: en los teléfonos con barra de gestos, sin
+           esto el botón de Enviar queda debajo de la barra del sistema y al
+           tocarlo se sale de la aplicación en vez de mandar el mensaje. */
+        .wa-abajo{padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
         .wa-escribir{padding:8px 10px}
 
         /* Etiquetas cortas para que las tres pestañas entren en un renglón */
@@ -147,7 +181,7 @@
     /* Tipografía un punto más grande, como la de Wasapi: base de 15 px.
        Buena parte de la sensación de "se ve chiquito" estaba acá. */
     .wa-nom{font-weight:700;font-size:15px;display:flex;gap:7px;align-items:center}
-    .wa-prev{font-size:13.5px;color:#94a3b8;margin-top:3px;overflow:hidden;
+    .wa-prev{font-size:13.5px;color:var(--wa-suave);margin-top:3px;overflow:hidden;
              text-overflow:ellipsis;white-space:nowrap}
 
     /* Sin palomitas y con la barrita: el último mensaje es del cliente y está
@@ -156,7 +190,7 @@
                   border-left:3px solid #e5695f;padding-left:7px;margin-left:-1px}
     /* El renglón chico de abajo: solo el teléfono, y solo cuando arriba va un
        nombre que vos pusiste. El nombre del perfil de WhatsApp no se muestra. */
-    .wa-apodo{font-size:11.5px;color:#94a3b8;opacity:.8;margin-top:1px;overflow:hidden;
+    .wa-apodo{font-size:11.5px;color:var(--wa-suave);opacity:.8;margin-top:1px;overflow:hidden;
               text-overflow:ellipsis;white-space:nowrap}
 
     /* El chinche de la lista. Fija y suelta desde acá, sin entrar al chat:
@@ -188,7 +222,7 @@
 
     .wa-alias-edit{display:flex;gap:6px;align-items:center;flex:1;min-width:180px}
     .wa-alias-edit .wa-in{flex:1;min-width:120px}
-    .wa-hora{font-size:11.5px;color:#94a3b8;float:right;font-weight:400}
+    .wa-hora{font-size:11.5px;color:var(--wa-suave);float:right;font-weight:400}
     .wa-pin{background:#e5695f;color:#fff;font-size:10.5px;font-weight:800;
             border-radius:999px;padding:1px 7px;flex:none}
     .wa-quien{font-size:10.5px;color:#4aa3df;font-weight:700}
@@ -301,7 +335,7 @@
     .wa-citando{display:flex;gap:10px;align-items:center;margin-bottom:8px;
                 background:rgba(120,140,170,.12);border-left:3px solid #2e9e6b;
                 border-radius:0 9px 9px 0;padding:7px 10px}
-    .wa-citando-x{font-size:12.5px;color:#94a3b8;overflow:hidden;
+    .wa-citando-x{font-size:12.5px;color:var(--wa-suave);overflow:hidden;
                   text-overflow:ellipsis;white-space:nowrap}
     /* La miniatura de la foto que está esperando para salir. */
     .wa-pend-img{width:38px;height:38px;object-fit:cover;border-radius:7px;flex:none}
@@ -356,7 +390,7 @@
     @media(max-width:900px){
         .wa-agrandar{display:block;width:100%;border:none;background:none;
                      font-family:inherit;font-size:11px;font-weight:700;
-                     color:#94a3b8;cursor:pointer;padding:0 0 5px;text-align:right;
+                     color:var(--wa-suave);cursor:pointer;padding:0 0 5px;text-align:right;
                      letter-spacing:.02em}
         .wa-agrandar:hover{color:inherit}
     }
@@ -369,16 +403,16 @@
               background:#fff;border:1px solid #d1d5db;border-radius:12px;
               box-shadow:0 -10px 30px rgba(10,16,26,.20)}
     html.dark .wa-slash{background:#16202f;border-color:rgba(255,255,255,.16)}
-    .wa-slash-t{font-size:12px;font-weight:800;color:#94a3b8;text-transform:uppercase;
+    .wa-slash-t{font-size:12px;font-weight:800;color:var(--wa-suave);text-transform:uppercase;
                 letter-spacing:.04em;padding:6px 9px 4px}
     .wa-slash-op{display:block;width:100%;text-align:left;border:none;background:none;
                  font-family:inherit;color:inherit;cursor:pointer;padding:8px 9px;
                  border-radius:8px}
     .wa-slash-op:hover{background:rgba(120,140,170,.14)}
     .wa-slash-op b{display:block;font-size:14px}
-    .wa-slash-op span{display:block;font-size:12px;color:#94a3b8;margin-top:2px;
+    .wa-slash-op span{display:block;font-size:12px;color:var(--wa-suave);margin-top:2px;
                       overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .wa-slash-nada{padding:9px;font-size:12px;color:#94a3b8}
+    .wa-slash-nada{padding:9px;font-size:12px;color:var(--wa-suave)}
     @media(max-width:900px){
         .wa-slash{max-height:210px}
         .wa-slash-op{padding:10px 9px}
@@ -451,7 +485,7 @@
     .wa-aviso-ok{background:rgba(46,158,107,.13);border:1px solid #2e9e6b;color:#15603f}
     html.dark .wa-aviso-mal{color:#f5c4b3} html.dark .wa-aviso-ok{color:#9fe1cb}
 
-    .wa-vacio{flex:1;display:grid;place-items:center;color:#94a3b8;font-size:14px;text-align:center;padding:30px}
+    .wa-vacio{flex:1;display:grid;place-items:center;color:var(--wa-suave);font-size:14px;text-align:center;padding:30px}
     /* ── Pestañas de la derecha ── */
     /* Las pestañas ahora son botones dentro de la misma fila de la cabecera. */
     .wa-tab{border:1.5px solid transparent;background:rgba(120,140,170,.14);cursor:pointer;
@@ -465,7 +499,7 @@
     /* ── Formulario de pedido ── */
     .wa-panel{flex:1;overflow-y:auto;padding:16px}
     .wa-campo{margin-bottom:11px}
-    .wa-lab{font-size:11.5px;font-weight:700;color:#94a3b8;display:block;margin-bottom:4px;
+    .wa-lab{font-size:11.5px;font-weight:700;color:var(--wa-suave);display:block;margin-bottom:4px;
             text-transform:uppercase;letter-spacing:.03em}
     /* Ojo con esto: acá va "background-color" y no "background" a secas. El
        atajo reinicia también el fondo repetido, y Filament le pone a los
@@ -482,7 +516,7 @@
     .wa-sel{position:relative}
     .wa-sel::after{content:'';position:absolute;right:13px;top:50%;margin-top:-6px;
                    width:8px;height:8px;pointer-events:none;transform:rotate(45deg);
-                   border-right:2px solid #94a3b8;border-bottom:2px solid #94a3b8}
+                   border-right:2px solid var(--wa-suave);border-bottom:2px solid var(--wa-suave)}
     /* La lista que se abre la dibuja el sistema: sin esto sale en blanco
        encima del panel oscuro y no se lee. */
     select.wa-in option{background:#ffffff;color:#111827}
@@ -490,7 +524,7 @@
     html.dark select.wa-in option{background:#1f2937;color:#e5e7eb}
     /* 12 px es el piso para que un texto se lea sin esfuerzo. Debajo de eso,
        lo que pasa no es que cueste: es que no se lee y se pasa por alto. */
-    .wa-ayuda{font-size:12px;color:#94a3b8;margin-top:4px;line-height:1.4}
+    .wa-ayuda{font-size:12px;color:var(--wa-suave);margin-top:4px;line-height:1.4}
 
     /* ── El buscador de municipio ── */
     [x-cloak]{display:none !important}
@@ -506,7 +540,7 @@
                font-family:inherit;font-size:14px;color:inherit;cursor:pointer;
                padding:9px 11px;border-radius:8px}
     .wa-opcion:hover{background:rgba(120,140,170,.14)}
-    .wa-opcion-nada{padding:10px 11px;font-size:12.5px;color:#94a3b8}
+    .wa-opcion-nada{padding:10px 11px;font-size:12.5px;color:var(--wa-suave)}
     @media(max-width:900px){
         /* Más alto para el dedo, y la lista más corta para que no tape el
            teclado cuando está abierto. */
@@ -530,7 +564,7 @@
     html.dark .wa-resp{background:#1c2739;border-color:rgba(255,255,255,.10)}
     .wa-resp:hover{border-color:#2e9e6b}
     .wa-resp-t{font-weight:700;font-size:13.5px}
-    .wa-resp-p{font-size:12px;color:#94a3b8;margin-top:3px;overflow:hidden;
+    .wa-resp-p{font-size:12px;color:var(--wa-suave);margin-top:3px;overflow:hidden;
                text-overflow:ellipsis;white-space:nowrap}
 
     /* La orden pegada arriba del formulario, para comparar sin cambiar de ventana */
@@ -593,7 +627,7 @@
     html.dark .wa-zona-mal{color:#f5c4b3}
     html.dark .wa-zona-ojo{color:#f0d79a}
 
-    .wa-cola{margin-top:14px;font-size:12.5px;line-height:1.6;color:#94a3b8;
+    .wa-cola{margin-top:14px;font-size:12.5px;line-height:1.6;color:var(--wa-suave);
              border-top:1px solid rgba(120,140,170,.18);padding-top:12px}
     .wa-cola b{color:inherit;font-weight:800}
 
@@ -604,7 +638,7 @@
     .wa-pv{display:flex;gap:10px;padding:5px 0;font-size:13px;
            border-bottom:1px solid rgba(46,158,107,.16);align-items:baseline}
     .wa-pv:last-child{border-bottom:none}
-    .wa-pv span{color:#94a3b8;min-width:104px;flex:none}
+    .wa-pv span{color:var(--wa-suave);min-width:104px;flex:none}
     .wa-pv b{word-break:break-word}
     .wa-mini{border:none;background:rgba(120,140,170,.18);border-radius:7px;padding:3px 9px;
              font-size:11px;cursor:pointer;font-family:inherit;color:inherit;font-weight:700}
@@ -621,7 +655,7 @@
     /* Un solo renglón deslizable, en cualquier pantalla. */
     /* Los días, debajo del buscador. Solo se ven cuando estás buscando. */
     .wa-dias{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:8px}
-    .wa-dias-t{font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;
+    .wa-dias-t{font-size:12px;font-weight:700;color:var(--wa-suave);text-transform:uppercase;
                letter-spacing:.03em;margin-right:2px}
 
     .wa-filtros{display:flex;gap:5px;flex-wrap:nowrap;margin-top:9px;
@@ -681,7 +715,7 @@
     .wa-talla-btn:hover{border-color:#2e9e6b;background:rgba(46,158,107,.08)}
     html.dark .wa-talla-btn{border-color:rgba(255,255,255,.16)}
     .wa-talla-n{font-size:19px;font-weight:800}
-    .wa-talla-c{font-size:11px;color:#94a3b8}
+    .wa-talla-c{font-size:11px;color:var(--wa-suave)}
 
     .wa-pres{width:100%;border:1.5px solid #e5e7eb;background:none;border-radius:11px;
              padding:11px 13px;margin-bottom:8px;cursor:pointer;font-family:inherit;
@@ -700,14 +734,14 @@
     .wa-foto.on .wa-pres-check{background:#2e9e6b;border-color:#2e9e6b;color:#fff}
     .wa-foto img{width:56px;height:56px;object-fit:cover;border-radius:8px;flex:none}
     .wa-foto b{display:block;font-size:14px}
-    .wa-foto-p{display:block;font-size:12px;color:#94a3b8;margin-top:2px}
+    .wa-foto-p{display:block;font-size:12px;color:var(--wa-suave);margin-top:2px}
 
     .wa-uso{display:flex;gap:9px;align-items:center;font-size:12.5px;cursor:pointer;
             background:rgba(120,140,170,.10);border-radius:9px;padding:9px 11px}
     .wa-uso-no{opacity:.5;cursor:not-allowed}
 
     .wa-pres-t{display:block;font-weight:700;font-size:14px}
-    .wa-pres-p{display:block;font-size:12.5px;color:#94a3b8;margin-top:2px}
+    .wa-pres-p{display:block;font-size:12.5px;color:var(--wa-suave);margin-top:2px}
 
     .wa-eti{font-size:11px;font-weight:700;border-radius:7px;padding:2px 8px}
     .wa-eti-ok{background:rgba(46,158,107,.16);color:#15603f}
@@ -811,7 +845,9 @@
                         <button type="button" wire:click="filtrarDia('{{ $clave }}')"
                                 wire:key="dia-{{ $clave }}"
                                 class="wa-fil {{ $filtroDia === $clave ? 'on' : '' }}"
-                                style="--c:#4aa3df">
+                                style="--c:#4aa3df"
+                                aria-pressed="{{ $filtroDia === $clave ? 'true' : 'false' }}"
+                                aria-label="Ver solo las conversaciones con movimiento {{ mb_strtolower($texto) }}">
                             {{ $texto }}
                         </button>
                     @endforeach
@@ -839,8 +875,11 @@
             <span id="wa-sinleer" data-n="{{ $sinLeer }}" style="display:none"></span>
 
             <div class="wa-filtros">
+                {{-- aria-pressed en los filtros: sin eso, un lector de pantalla
+                     dice "Sin leer, botón" tanto si está puesto como si no. --}}
                 <button type="button" wire:click="alternarSinLeer"
-                        class="wa-fil {{ $soloSinLeer ? 'on' : '' }}" style="--c:#e5695f">
+                        class="wa-fil {{ $soloSinLeer ? 'on' : '' }}" style="--c:#e5695f"
+                        aria-pressed="{{ $soloSinLeer ? 'true' : 'false' }}">
                     Sin leer
                     @if($sinLeer > 0)<span class="wa-fil-n">{{ $sinLeer }}</span>@endif
                 </button>
@@ -853,7 +892,8 @@
                     <button type="button" wire:click="filtrarPor({{ $e->id }})"
                             wire:key="filtro-{{ $e->id }}"
                             class="wa-fil {{ $filtroEtiqueta === $e->id ? 'on' : '' }}"
-                            style="--c:{{ $e->hex() }}">
+                            style="--c:{{ $e->hex() }}"
+                            aria-pressed="{{ $filtroEtiqueta === $e->id ? 'true' : 'false' }}">
                         {{ $e->nombre }}
                         @if(($cuentas[$e->id] ?? 0) > 0)
                             <span class="wa-fil-n">{{ $cuentas[$e->id] }}</span>
@@ -884,7 +924,9 @@
                         <button type="button"
                                 class="wa-clavo {{ $c->fijada() ? 'on' : '' }}"
                                 wire:click.stop="fijar({{ $c->id }})"
-                                title="{{ $c->fijada() ? 'Soltar este chat de arriba' : 'Fijar este chat arriba' }}">📌</button>
+                                aria-pressed="{{ $c->fijada() ? 'true' : 'false' }}"
+                                aria-label="{{ $c->fijada() ? 'Soltar' : 'Fijar arriba' }} el chat de {{ $c->titulo() }}"
+                                title="{{ $c->fijada() ? 'Soltar este chat de arriba' : 'Fijar este chat arriba' }}"><span aria-hidden="true">📌</span></button>
                         {{ $c->titulo() }}
                         @if($c->sin_leer > 0)<span class="wa-pin">{{ $c->sin_leer }}</span>@endif
                     </span>
@@ -917,7 +959,7 @@
                     @endif
                 </div>
             @empty
-                <div style="padding:24px 14px;color:#94a3b8;font-size:13px;text-align:center">
+                <div style="padding:24px 14px;color:var(--wa-suave);font-size:13px;text-align:center">
                     No hay conversaciones todavía.<br>
                     Van a aparecer solas cuando alguien escriba.
                 </div>
@@ -957,9 +999,14 @@
                      un botón entero, y un botón adentro de otro no se puede.
                      Acá además se fija el chat que estás leyendo, que es el
                      momento en que uno se da cuenta de que lo quiere a mano. --}}
+                {{-- aria-label y no solo title: el title lo lee el mouse, no el
+                     lector de pantalla ni el teléfono. aria-pressed dice si
+                     está puesto, que es media información del botón. --}}
                 <button type="button" class="wa-volver wa-fijar {{ $conv->fijada() ? 'on' : '' }}"
                         wire:click="fijar({{ $conv->id }})"
-                        title="{{ $conv->fijada() ? 'Soltar este chat de arriba' : 'Fijar este chat arriba de la lista' }}">📌</button>
+                        aria-pressed="{{ $conv->fijada() ? 'true' : 'false' }}"
+                        aria-label="{{ $conv->fijada() ? 'Soltar este chat de arriba de la lista' : 'Fijar este chat arriba de la lista' }}"
+                        title="{{ $conv->fijada() ? 'Soltar este chat de arriba' : 'Fijar este chat arriba de la lista' }}"><span aria-hidden="true">📌</span></button>
 
                 {{-- Copiar el número en 4x4, con el espacio en medio.
                      Así es exactamente como quedó guardado en Sistrack —el
@@ -969,7 +1016,8 @@
                 <button type="button" class="wa-volver wa-copia"
                         data-copiar="{{ $conv->telefonoLegible() }}"
                         onclick="waCopiar(this)"
-                        title="Copiar el número del cliente">📋</button>
+                        aria-label="Copiar el número {{ $conv->telefonoLegible() }}"
+                        title="Copiar el número del cliente"><span aria-hidden="true">📋</span></button>
 
                 @if($editandoAlias)
                     <div class="wa-alias-edit">
@@ -983,7 +1031,7 @@
                 <div class="wa-nombre-col" style="flex:1;min-width:110px">
                     <div style="font-weight:800;font-size:15px">{{ $conv->titulo() }}</div>
 
-                    <div style="font-size:12px;color:#94a3b8">
+                    <div style="font-size:12px;color:var(--wa-suave)">
                         <button type="button" class="wa-alias-btn {{ $conv->nombrePropio() ? 'on' : '' }}"
                                 wire:click="editarAlias"
                                 title="{{ $conv->nombrePropio() ? 'Cambiar el nombre' : 'Ponerle un nombre a este contacto' }}">
@@ -1080,10 +1128,13 @@
                         @if(filled($m->texto))<div class="wa-txt">{!! $m->textoHtml() !!}</div>@endif
 
                         <div class="wa-pie">
+                            @php $deQuien = $m->esDelCliente() ? 'del cliente' : 'tuyo'; @endphp
+
                             @if(filled($m->wa_message_id))
                                 <button type="button" class="wa-resp-btn"
                                         wire:click="responderA({{ $m->id }})"
-                                        title="Responder a este mensaje">↩</button>
+                                        aria-label="Responder a este mensaje {{ $deQuien }} de las {{ $m->hora() }}"
+                                        title="Responder a este mensaje"><span aria-hidden="true">↩</span></button>
                             @endif
 
                             @if(filled($m->texto))
@@ -1093,14 +1144,16 @@
                                 <button type="button" class="wa-resp-btn"
                                         data-copiar="{{ $m->texto }}"
                                         onclick="waCopiar(this)"
-                                        title="Copiar este texto">📋</button>
+                                        aria-label="Copiar el texto de este mensaje"
+                                        title="Copiar este texto"><span aria-hidden="true">📋</span></button>
 
                                 {{-- Traerlo al cuadro de escribir. Es lo que uno
                                      quiere de verdad cuando se le fue una letra:
                                      corregir y mandar de nuevo. --}}
                                 <button type="button" class="wa-resp-btn"
                                         wire:click="reusar({{ $m->id }})"
-                                        title="Traerlo abajo para corregirlo y mandarlo de nuevo">✏️</button>
+                                        aria-label="Traer este texto al cuadro para corregirlo y mandarlo de nuevo"
+                                        title="Traerlo abajo para corregirlo y mandarlo de nuevo"><span aria-hidden="true">✏️</span></button>
                             @endif
 
                             {{ $m->hora() }}
@@ -1297,7 +1350,7 @@
 
                         {{-- En el teléfono el Enter salta línea siempre, así que
                              esta ayuda solo aplica en la computadora. --}}
-                        <span class="wa-t-largo" style="font-size:11.5px;color:#94a3b8">
+                        <span class="wa-t-largo" style="font-size:11.5px;color:var(--wa-suave)">
                             Enter envía · Shift+Enter salta línea
                         </span>
                     </div>
@@ -1557,7 +1610,7 @@
 
         <div class="wa-modal-cuerpo">
             @if($fotos->count())
-                <div style="font-size:13px;color:#94a3b8;margin-bottom:12px">
+                <div style="font-size:13px;color:var(--wa-suave);margin-bottom:12px">
                     Tocá las que querés mandar. Se van todas juntas, una detrás de otra.
                 </div>
             @endif
@@ -1577,7 +1630,7 @@
                     </span>
                 </button>
             @empty
-                <div style="font-size:13.5px;color:#94a3b8;line-height:1.6;padding:10px 0">
+                <div style="font-size:13.5px;color:var(--wa-suave);line-height:1.6;padding:10px 0">
                     Todavía no hay fotos guardadas.<br><br>
                     Se suben en el menú, en <b>Fotos para mandar</b>. Son las que mandás
                     seguido y no son del catálogo: el producto ya puesto, el empaque
@@ -1602,7 +1655,7 @@
                     {{ count($fotosElegidas) == 1 ? 'foto' : 'fotos' }}
                 </x-filament::button>
 
-                <span style="font-size:11.5px;color:#94a3b8">
+                <span style="font-size:11.5px;color:var(--wa-suave)">
                     Salen seguidas, en el orden de la lista.
                 </span>
             </div>
@@ -1631,7 +1684,7 @@
                 @php $tallas = $this->tallasDisponibles(); @endphp
 
                 @if(count($tallas))
-                    <div style="font-size:13px;color:#94a3b8;margin-bottom:12px">
+                    <div style="font-size:13px;color:var(--wa-suave);margin-bottom:12px">
                         Elegí la talla que te pidió. Solo aparecen las que tienen existencia.
                     </div>
 
@@ -1646,7 +1699,7 @@
                         @endforeach
                     </div>
                 @else
-                    <div style="font-size:13.5px;color:#94a3b8;line-height:1.6">
+                    <div style="font-size:13.5px;color:var(--wa-suave);line-height:1.6">
                         No hay presentaciones con existencia. Revisá las cantidades en el admin.
                     </div>
                 @endif
@@ -1660,7 +1713,7 @@
             @else
                 @php $pres = $this->presentacionesDe($tallaElegida); @endphp
 
-                <div style="font-size:13px;color:#94a3b8;margin-bottom:12px">
+                <div style="font-size:13px;color:var(--wa-suave);margin-bottom:12px">
                     Vienen todos marcados. Desmarcá lo que no quieras mandar.
                 </div>
 
@@ -1692,9 +1745,9 @@
                     <span>
                         <b>También las fotos reales de cómo queda puesto</b>
                         @if($usos)
-                            <span style="color:#94a3b8">· {{ $usos }} {{ $usos == 1 ? 'foto' : 'fotos' }} más, de esta talla</span>
+                            <span style="color:var(--wa-suave)">· {{ $usos }} {{ $usos == 1 ? 'foto' : 'fotos' }} más, de esta talla</span>
                         @else
-                            <span style="color:#94a3b8">· esta talla no tiene fotos cargadas</span>
+                            <span style="color:var(--wa-suave)">· esta talla no tiene fotos cargadas</span>
                         @endif
                     </span>
                 </label>
@@ -1705,7 +1758,7 @@
                         {{ (count($elegidas) + ($conFotosUso ? $usos : 0)) == 1 ? 'foto' : 'fotos' }}
                     </x-filament::button>
 
-                    <span style="font-size:11.5px;color:#94a3b8">
+                    <span style="font-size:11.5px;color:var(--wa-suave)">
                         Una foto por producto, con su precio y su enlace.
                     </span>
                 </div>
