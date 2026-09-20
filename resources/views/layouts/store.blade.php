@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <script>(function(){try{if(localStorage.getItem('bc_theme')==='dark'){document.documentElement.classList.add('dark');}}catch(e){}})();</script>
+    <script>(function(){try{var t=localStorage.getItem('bc_theme');var s=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;if(t==='dark'||(!t&&s)){document.documentElement.classList.add('dark');}}catch(e){}})();</script>
     <title>@yield('title', 'Baby-Confort | Pañales Aiwibi antialérgicos en El Salvador')</title>
     <link rel="canonical" href="{{ url()->current() }}">
     <meta property="og:type" content="website">
@@ -63,7 +63,10 @@
             --azul:#4aa3df;--azul-osc:#2f7fbf;--azul-claro:#eaf5fc;
             --teal:#2fb2ac;--teal-osc:#259a95;
             --coral:#ff8a80;--coral-osc:#e5695f;--texto:#2b3a4a;--gris:#6b7c8c;
-            --borde:#e2e8ee;--ok:#2e9e6b;--fondo:#f7fbfe;--sombra:0 6px 18px rgba(47,127,191,.10);--radio:16px;
+            --borde:#e2e8ee;--ok:#2e9e6b;--fondo:#f7fbfe;
+            /* Color exclusivo del botón de compra. Va aparte del teal de marca
+               porque teal + texto blanco solo da 2.1:1 de contraste. */
+            --cta:#c2410c;--cta-osc:#9a330a;--on-cta:#ffffff;--sombra:0 6px 18px rgba(47,127,191,.10);--radio:16px;
         }
         *{box-sizing:border-box}
         body{margin:0;background:var(--fondo);color:var(--texto);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
@@ -90,7 +93,8 @@
         .hero h1{margin:0 0 8px;font-size:28px;line-height:1.15}
         .hero p{margin:0;color:var(--gris);font-size:16px;max-width:620px}
         .pills{margin-top:16px;display:flex;flex-wrap:wrap;gap:8px}
-        .pill-i{background:#fff;border:1px solid var(--borde);color:var(--azul-osc);padding:6px 12px;border-radius:999px;font-size:13px;font-weight:600}
+        .pill-i{background:#fff;border:1px solid var(--borde);color:var(--azul-osc);padding:6px 12px;border-radius:999px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:7px}
+        .pill-i svg{flex:none}
         .seccion-titulo{font-size:22px;margin:28px 0 4px}
         .seccion-sub{color:var(--gris);margin:0 0 20px;font-size:15px}
         /* catálogo */
@@ -98,26 +102,27 @@
         @media(max-width:600px){.grid{grid-template-columns:repeat(2,1fr);gap:12px}}
         .pcard{background:#fff;border:1px solid var(--borde);border-radius:var(--radio);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--sombra);transition:transform .08s, box-shadow .08s}
         .pcard:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(47,127,191,.16)}
-        .pcard .img{background:var(--azul-claro);aspect-ratio:1/1;display:grid;place-items:center;padding:14px}
+        .pcard .img{background:#fff;aspect-ratio:1/1;display:grid;place-items:center;padding:14px;border-bottom:1px solid var(--borde)}
         .pcard .img img{width:100%;height:100%;max-height:100%;object-fit:contain}
         .pcard .body{padding:16px;display:flex;flex-direction:column;gap:6px;flex:1}
         .pcard .marca{font-size:12px;color:var(--gris);text-transform:uppercase;letter-spacing:.5px}
         .pcard .nom{font-size:16px;font-weight:700;line-height:1.25;flex:1}
         .pcard .precio{color:var(--azul-osc);font-weight:800;font-size:18px}
-        .pcard .ver{margin-top:6px;background:var(--teal);color:#fff;text-align:center;border-radius:10px;padding:9px;font-weight:700;font-size:14px}
-        .pcard:hover .ver{background:var(--teal-osc)}
+        .pcard .ver{margin-top:6px;background:var(--cta);color:var(--on-cta);text-align:center;border-radius:10px;padding:9px;font-weight:700;font-size:14px;min-height:44px;display:grid;place-items:center}
+        .pcard:hover .ver{background:var(--cta-osc)}
+        .pcard .unidad{font-size:12.5px;color:var(--gris);font-weight:600;margin-top:-2px}
         /* ===== Página de producto ===== */
         .pdp{display:grid;grid-template-columns:1.1fr 1fr;gap:30px;padding:24px 0 48px}
         @media(max-width:820px){.pdp{grid-template-columns:1fr;gap:20px}}
-        .gal-main{background:#0e1420;border-radius:16px;overflow:hidden;aspect-ratio:1/1;display:grid;place-items:center;position:relative}
+        .gal-main{background:#fff;border:1px solid var(--borde);border-radius:16px;overflow:hidden;aspect-ratio:1/1;display:grid;place-items:center;position:relative}
         .gal-main img{width:100%;height:100%;object-fit:contain}
         .gal-nav{z-index:3}
         .gal-main img.anim{animation:slideFade .7s ease}
         @keyframes slideFade{0%{opacity:0;transform:translateX(34px)}100%{opacity:1;transform:translateX(0)}}
-        .gal-nav{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:999px;background:rgba(255,255,255,.85);border:none;cursor:pointer;font-size:20px;display:grid;place-items:center}
+        .gal-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:999px;background:#fff;border:1px solid var(--borde);box-shadow:0 2px 10px rgba(15,23,42,.12);color:#2b3a4a;cursor:pointer;font-size:20px;display:grid;place-items:center}
         .gal-nav.prev{left:10px}.gal-nav.next{right:10px}
         .gal-thumbs{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
-        .gal-thumbs .th{width:74px;height:74px;border-radius:10px;overflow:hidden;border:2px solid var(--borde);cursor:pointer;background:#0e1420;display:grid;place-items:center;padding:4px}
+        .gal-thumbs .th{width:74px;height:74px;border-radius:10px;overflow:hidden;border:2px solid var(--borde);cursor:pointer;background:#fff;display:grid;place-items:center;padding:4px}
         .gal-thumbs .th.sel{border-color:var(--teal)}
         .gal-thumbs .th img{width:100%;height:100%;object-fit:contain}
         .trust{display:flex;align-items:center;gap:10px;background:#fff5f2;border-radius:12px;padding:10px 12px;font-size:13px}
@@ -138,8 +143,8 @@
         .spill.sel{border-color:var(--teal);background:#e9f8f7;color:var(--teal-osc)}
         .spill:disabled{opacity:.7;cursor:not-allowed;color:var(--gris);border-style:dashed;background:#f7f9fb}
         .spill:disabled small{color:var(--coral-osc);font-weight:800;font-size:10.5px}
-        .cta{margin-top:16px;background:var(--teal);color:#fff;border:none;border-radius:12px;padding:15px;font-size:16px;font-weight:800;width:100%;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
-        .cta:hover{background:var(--teal-osc)}
+        .cta{margin-top:16px;background:var(--cta);color:var(--on-cta);border:none;border-radius:12px;padding:15px;font-size:16px;font-weight:800;width:100%;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+        .cta:hover{background:var(--cta-osc)}
         .metarow{display:flex;gap:16px;margin-top:16px;flex-wrap:wrap}
         .metarow .m{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--gris)}
         .metarow .m b{color:var(--texto)}
@@ -285,17 +290,18 @@
         .fila-imagen .btn-compartir{flex:1;width:auto}
         .btn-compartir-alt:hover{background:#f7fafc}
         html.dark .btn-compartir-alt{background:#16202f;border-color:var(--borde);color:var(--gris)}
-        .agotado-chip{position:absolute;top:10px;left:10px;z-index:3;background:#6b7c8c;color:#fff;font-weight:800;font-size:12px;padding:6px 12px;border-radius:999px;letter-spacing:.3px}
-        .oferta-bubble{position:absolute;top:10px;left:10px;z-index:3;background:linear-gradient(135deg,#ff8a80,#e5695f);color:#fff;font-weight:800;font-size:12.5px;padding:7px 13px;border-radius:999px;box-shadow:0 4px 12px rgba(229,105,95,.45);transform:rotate(-7deg);letter-spacing:.3px}
+        .agotado-chip{position:absolute;top:10px;left:10px;z-index:3;background:#55606e;color:#fff;font-weight:800;font-size:12px;padding:6px 12px;border-radius:999px;letter-spacing:.3px}
+        .oferta-bubble{position:absolute;top:10px;left:10px;z-index:3;background:linear-gradient(135deg,#d94b3f,#b93327);color:#fff;font-weight:800;font-size:12.5px;padding:7px 13px;border-radius:999px;box-shadow:0 4px 12px rgba(229,105,95,.45);transform:rotate(-7deg);letter-spacing:.3px}
         .pcard .img{position:relative}
         .gal-main .oferta-bubble{top:12px;left:12px;font-size:13.5px}
         .precio-antes{color:var(--gris);text-decoration:line-through;font-weight:600;margin-right:8px;font-size:.82em}
         /* ===== Botón modo noche ===== */
         .theme-btn{background:none;border:1px solid var(--borde);border-radius:999px;width:40px;height:40px;font-size:18px;cursor:pointer;display:grid;place-items:center;flex:none;line-height:1}
         .theme-btn:hover{border-color:var(--azul)}
+        .theme-btn .th-moon,.theme-btn .th-sun{display:grid;place-items:center}
         .theme-btn .th-sun{display:none}
         html.dark .theme-btn .th-moon{display:none}
-        html.dark .theme-btn .th-sun{display:inline}
+        html.dark .theme-btn .th-sun{display:grid}
         /* ===== MODO NOCHE ===== */
         html.dark{
             --azul:#5cb0e6;--azul-osc:#9ccff2;--azul-claro:#16273f;
@@ -303,14 +309,14 @@
             --coral:#ff9a90;--coral-osc:#ffb2aa;
             --texto:#e7eef6;--gris:#9db0c2;
             --borde:#2a3547;--ok:#43c07f;--fondo:#0e1420;
+            --cta:#f97316;--cta-osc:#fb8a3c;--on-cta:#16110a;
             --sombra:0 6px 18px rgba(0,0,0,.4);
         }
         html.dark body{
+            /* Fondo sólido con una sola veladura: el producto es lo unico que
+               tiene que llamar la atencion. (El cielo estrellado estaba aqui.) */
             background:
-                radial-gradient(1100px 620px at 12% 8%, rgba(46,74,130,.35), transparent 62%),
-                radial-gradient(1000px 700px at 88% 16%, rgba(70,52,116,.32), transparent 60%),
-                radial-gradient(900px 650px at 78% 95%, rgba(40,80,110,.22), transparent 62%),
-                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='130' viewBox='0 0 130 130'%3E%3Cg fill='%23ffffff' opacity='0.5'%3E%3Ccircle cx='16' cy='22' r='1.4'/%3E%3Ccircle cx='48' cy='64' r='1'/%3E%3Ccircle cx='84' cy='30' r='1.7'/%3E%3Ccircle cx='104' cy='86' r='1.1'/%3E%3Ccircle cx='30' cy='100' r='1'/%3E%3Ccircle cx='68' cy='112' r='1.3'/%3E%3Ccircle cx='116' cy='48' r='1'/%3E%3Ccircle cx='58' cy='16' r='.9'/%3E%3C/g%3E%3Cg fill='%23ffd98a' opacity='0.55'%3E%3Ccircle cx='95' cy='102' r='3.4'/%3E%3C/g%3E%3C/svg%3E"),
+                radial-gradient(1200px 700px at 50% 0%, rgba(38,60,104,.28), transparent 70%),
                 linear-gradient(180deg,#0e1420 0%,#111a2b 55%,#0e1622 100%);
             background-attachment:fixed;
         }
@@ -373,18 +379,18 @@
     <header class="header" x-data="{ menu: false }">
         <div class="contenedor header-inner">
             <div style="display:flex;align-items:center;gap:10px">
-                <button class="ham-btn" @click="menu = !menu" aria-label="Menú">☰</button>
+                <button class="ham-btn" @click="menu = !menu" aria-label="Menú"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
                 <a href="/" class="logo">
-                    <span class="logo-badge">👶</span>
+                    <span class="logo-badge" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 11h.01M15 11h.01M9.2 15.2a4 4 0 0 0 5.6 0"/></svg></span>
                     <span class="marca">Baby-<span>Confort</span><small>Bienestar para tu bebé</small></span>
                 </a>
             </div>
             <div style="display:flex;align-items:center;gap:10px">
                 <button class="theme-btn" onclick="bcToggleTheme()" aria-label="Cambiar modo día/noche" title="Modo día/noche">
-                    <span class="th-moon">🌙</span><span class="th-sun">☀️</span>
+                    <span class="th-moon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg></span><span class="th-sun"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/></svg></span>
                 </button>
                 <button class="btn-carrito" @click="$store.cart.abierto = true">
-                    🛒 Carrito
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg> Carrito
                     <span class="badge" x-show="$store.cart.cantidadTotal() > 0" x-text="$store.cart.cantidadTotal()"></span>
                 </button>
             </div>

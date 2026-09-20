@@ -150,8 +150,9 @@
                 $<span x-text="precio().toFixed(2)"></span> <small>USD</small>
             </div>
             <template x-if="sel().unidades">
-                <div class="unidades-badge" style="display:inline-block;margin-top:6px;background:var(--azul-claro);border:1px solid var(--borde);color:var(--azul-osc);border-radius:999px;padding:5px 14px;font-size:13.5px;font-weight:700">
-                    📦 Esta talla trae <span x-text="sel().unidades"></span> unidades
+                <div class="unidades-badge" style="display:inline-flex;align-items:center;gap:7px;margin-top:6px;background:var(--azul-claro);border:1px solid var(--borde);color:var(--azul-osc);border-radius:999px;padding:5px 14px;font-size:13.5px;font-weight:700">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px"><path d="M21 8 12 3 3 8v8l9 5 9-5Z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>
+                    <span><span x-text="sel().unidades"></span> unidades · $<span x-text="(precio() / sel().unidades).toFixed(2)"></span> c/u</span>
                 </div>
             </template>
 
