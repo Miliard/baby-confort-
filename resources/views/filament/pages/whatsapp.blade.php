@@ -3,14 +3,36 @@
 <style>
     /* Las proporciones salen de medir Wasapi: lista de 400 px y separación de
        24 px. Con 320 el nombre y la vista previa quedaban apretados. */
+    /* 132 px descontaba la barra de arriba MÁS los 64 de relleno de la sección.
+       Ese relleno ya no existe, así que descontar de más dejaba espacio
+       muerto abajo. Ahora solo se descuenta la barra. */
     .wa{display:grid;grid-template-columns:400px 1fr;gap:20px;align-items:start;
-        height:calc(100vh - 132px);min-height:460px}
+        height:calc(100dvh - 72px);min-height:460px}
 
     @media(max-width:1200px){ .wa{grid-template-columns:340px 1fr;gap:14px} }
 
     /* El título "WhatsApp" no dice nada que no se sepa por el menú de arriba,
        y se lleva casi 100 px de alto de conversación. */
     .fi-header{display:none !important}
+
+    /* ── LA FRANJA NEGRA, POR FIN ───────────────────────────────────────────
+       Filament envuelve la página en:
+
+           <section class="flex flex-col gap-y-8 py-8">
+
+       py-8 son 32 píxeles arriba y 32 abajo. Eso era la franja.
+
+       Lo que me costó encontrarlo: esa sección NO lleva la clase "fi-page".
+       Son utilidades de Tailwind y nada más. Estuve apagando .fi-page,
+       .fi-main y .fi-main-ctn, que existen pero no eran las que ponían el
+       espacio. Y midiendo tampoco se cerraba, porque el relleno está DENTRO
+       del contenedor: no es un hueco entre dos elementos.
+
+       :has() la agarra por lo único estable que tiene — contener el panel —
+       en vez de por un nombre de clase que puede cambiar en la próxima
+       versión. Va sin media query: el espacio sobra igual en la computadora. */
+    section:has(.wa){padding-top:0 !important;padding-bottom:0 !important;
+                     gap:0 !important}
 
     /* ── Gris secundario, uno por tema ──────────────────────────────────────
        Estaba escrito a mano, el mismo gris, en todos lados. Sobre el fondo
