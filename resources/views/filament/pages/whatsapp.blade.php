@@ -97,7 +97,13 @@
 
         .wa-filtros{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
         .wa-filtros::-webkit-scrollbar{display:none}
-        .wa-fil{flex:none}
+        /* Los filtros y los chips de pendientes, a altura de dedo.
+           En la computadora se aciertan con el puntero; en el teléfono, con
+           22 px de alto, se falla y se termina abriendo una conversación. */
+        .wa-fil{flex:none;min-height:38px;padding:7px 13px;font-size:12.5px}
+        .wa-pend{min-height:38px;padding:8px 13px;font-size:12.5px}
+        .wa-volver{width:42px;height:42px}
+        .wa-clavo{font-size:16px;padding:9px 10px;margin:-9px 0 -9px -10px}
     }
 
     /* Solo aparece en pantallas chicas: en la computadora estorba. */
@@ -274,8 +280,18 @@
     .wa-txt{-webkit-user-select:text;user-select:text}
 
     @media(max-width:900px){
-        /* Más grande para el dedo, aunque el camino rápido sea deslizar. */
-        .wa-resp-btn{font-size:16px;padding:2px 9px 2px 0;opacity:.7}
+        /* Área de toque de 44 px, que es el mínimo para el dedo.
+           El dibujo sigue chico —no queremos tres íconos gigantes adentro del
+           globo— pero el área que responde al toque es la que importa: son
+           tres botones seguidos y errarle a uno significa copiar cuando
+           querías responder.
+
+           El margen negativo compensa el relleno, así el pie del globo no
+           crece de alto por esto. */
+        .wa-resp-btn{font-size:16px;opacity:.75;
+                     min-width:44px;min-height:44px;
+                     padding:0 6px;margin:-11px 0;
+                     display:inline-flex;align-items:center;justify-content:center}
     }
 
     .wa-cita{border-left:3px solid currentColor;padding:4px 0 4px 8px;margin-bottom:6px;
@@ -353,14 +369,14 @@
               background:#fff;border:1px solid #d1d5db;border-radius:12px;
               box-shadow:0 -10px 30px rgba(10,16,26,.20)}
     html.dark .wa-slash{background:#16202f;border-color:rgba(255,255,255,.16)}
-    .wa-slash-t{font-size:10.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;
+    .wa-slash-t{font-size:12px;font-weight:800;color:#94a3b8;text-transform:uppercase;
                 letter-spacing:.04em;padding:6px 9px 4px}
     .wa-slash-op{display:block;width:100%;text-align:left;border:none;background:none;
                  font-family:inherit;color:inherit;cursor:pointer;padding:8px 9px;
                  border-radius:8px}
     .wa-slash-op:hover{background:rgba(120,140,170,.14)}
-    .wa-slash-op b{display:block;font-size:13.5px}
-    .wa-slash-op span{display:block;font-size:11.5px;color:#94a3b8;margin-top:2px;
+    .wa-slash-op b{display:block;font-size:14px}
+    .wa-slash-op span{display:block;font-size:12px;color:#94a3b8;margin-top:2px;
                       overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .wa-slash-nada{padding:9px;font-size:12px;color:#94a3b8}
     @media(max-width:900px){
@@ -472,7 +488,9 @@
     select.wa-in option{background:#ffffff;color:#111827}
     html.dark select.wa-in{color-scheme:dark}
     html.dark select.wa-in option{background:#1f2937;color:#e5e7eb}
-    .wa-ayuda{font-size:11px;color:#94a3b8;margin-top:4px;line-height:1.35}
+    /* 12 px es el piso para que un texto se lea sin esfuerzo. Debajo de eso,
+       lo que pasa no es que cueste: es que no se lee y se pasa por alto. */
+    .wa-ayuda{font-size:12px;color:#94a3b8;margin-top:4px;line-height:1.4}
 
     /* ── El buscador de municipio ── */
     [x-cloak]{display:none !important}
@@ -546,15 +564,23 @@
         /* En el teléfono, más chico y más apretado: el objetivo es que los dos
            entren a la vez, no que se lean cómodos. Para leer cómodo está el
            formulario de abajo. */
+        /* Los dos cuadros de comparar, uno al lado del otro.
+           Acá había letra de 9.5 px. La apreté yo para que los dos entraran, y
+           es el peor lugar posible para hacerlo: este recuadro es el que se
+           lee para revisar una guía ANTES de guardarla. Si cuesta leerlo, se
+           lee por encima, y por ahí se cuela el error que todo esto quería
+           evitar.
+           Ahora el piso es 12 px, que es el mínimo legible. Entran igual
+           porque cada cuadro se desliza por dentro. */
         .wa-arriba{gap:7px;margin-bottom:11px}
         .wa-arriba .wa-origen,
-        .wa-arriba .wa-previa{padding:8px 9px;max-height:40vh;overflow-y:auto}
-        .wa-arriba .wa-origen-x{font-size:11px;line-height:1.45;max-height:none}
+        .wa-arriba .wa-previa{padding:9px 10px;max-height:44vh;overflow-y:auto}
+        .wa-arriba .wa-origen-x{font-size:12px;line-height:1.5;max-height:none}
         .wa-arriba .wa-origen-t,
-        .wa-arriba .wa-previa-t{font-size:10.5px;margin-bottom:5px}
-        .wa-arriba .wa-pv{font-size:11px;padding:3px 0;gap:5px;
+        .wa-arriba .wa-previa-t{font-size:12px;margin-bottom:6px}
+        .wa-arriba .wa-pv{font-size:13px;padding:4px 0;gap:2px;
                           flex-direction:column;align-items:flex-start}
-        .wa-arriba .wa-pv span{font-size:9.5px;opacity:.75}
+        .wa-arriba .wa-pv span{font-size:12px;opacity:.8}
     }
 
     /* El aviso de municipio/departamento, justo debajo de los dos campos. */
@@ -595,7 +621,7 @@
     /* Un solo renglón deslizable, en cualquier pantalla. */
     /* Los días, debajo del buscador. Solo se ven cuando estás buscando. */
     .wa-dias{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:8px}
-    .wa-dias-t{font-size:10.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;
+    .wa-dias-t{font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;
                letter-spacing:.03em;margin-right:2px}
 
     .wa-filtros{display:flex;gap:5px;flex-wrap:nowrap;margin-top:9px;
