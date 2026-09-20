@@ -56,6 +56,22 @@ class RevisarEntregas extends Command
 
         $ids = $ids->unique();
 
+        // Fuera las que tienen una orden NUEVA esperando.
+        //
+        // Un cliente que ya recibió su pedido vuelve a pedir: la conversación
+        // se marca "Pedidos" y todavía arrastra la guía anterior. Si el
+        // vigilante la mira, encuentra esa guía vieja —entregada hace una
+        // semana— y trata el pedido nuevo como si ya hubiera llegado.
+        //
+        // Mientras haya un pedido por armar, acá no hay nada que vigilar: la
+        // guía de ese pedido ni siquiera existe todavía.
+        $pedido = WaEtiqueta::porRol('pedido');
+
+        if ($pedido && $ids->isNotEmpty()) {
+            $conOrdenNueva = $pedido->conversaciones()->pluck('wa_conversaciones.id');
+            $ids = $ids->diff($conOrdenNueva);
+        }
+
         if ($ids->isEmpty()) {
             $this->info('No hay nada esperando entrega.');
             return self::SUCCESS;

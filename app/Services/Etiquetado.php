@@ -79,15 +79,47 @@ class Etiquetado
         }
     }
 
-    /** Hay una orden en esta conversación. */
+    /**
+     * Hay una orden nueva en esta conversación.
+     *
+     * Una orden nueva EMPIEZA EL RECORRIDO DE CERO. Eso significa soltar las
+     * etiquetas del pedido anterior y olvidar la guía vieja que se estaba
+     * vigilando.
+     *
+     * Sin esto pasaba algo grave: un cliente que ya había recibido su pedido
+     * volvía a pedir, la conversación quedaba marcada "Pedidos" Y "Entregados"
+     * a la vez, y en la siguiente revisión el vigilante miraba la guía VIEJA
+     * —que seguía entregada— y le quitaba el "Pedidos". El pedido nuevo
+     * desaparecía del tablero y nadie lo armaba.
+     */
     public static function marcarPedido(WaConversacion $conv): void
     {
         $pedido = WaEtiqueta::porRol('pedido');
         if (! $pedido) return;
 
-        // syncWithoutDetaching: no le toca las demás etiquetas. Si además está
-        // marcada como "San Miguel", sigue estándolo.
+        // syncWithoutDetaching: no le toca las etiquetas que no son del
+        // recorrido. Si además está marcada como "San Miguel", sigue estándolo.
         $conv->etiquetas()->syncWithoutDetaching([$pedido->id]);
+
+        // Fuera las del recorrido anterior.
+        foreach (['procesada', 'entregada'] as $rol) {
+            $e = WaEtiqueta::porRol($rol);
+            if ($e) $conv->etiquetas()->detach($e->id);
+        }
+
+        // Y a olvidar la guía anterior: si no, el vigilante seguiría
+        // preguntando por un paquete que ya llegó hace una semana.
+        try {
+            $conv->forceFill([
+                'guia'              => null,
+                'etapa_envio'       => null,
+                'entregas_seguidas' => 0,
+                'revisado_at'       => null,
+            ])->save();
+        } catch (\Throwable $e) {
+            // Si las columnas todavía no existen, no pasa nada: el etiquetado
+            // es lo que importa.
+        }
     }
 
     /**
@@ -106,16 +138,20 @@ class Etiquetado
         if ($pedido) $conv->etiquetas()->detach($pedido->id);
     }
 
-    /** El courier confirmó la entrega. */
+    /**
+     * El courier confirmó la entrega.
+     *
+     * NO le toca el "Pedidos". Si esa etiqueta está puesta es porque llegó una
+     * orden NUEVA después de este envío, y ese pedido todavía está por armarse.
+     * Quitárselo acá lo borraba del tablero — que es lo que pasó.
+     */
     public static function marcarEntregada(WaConversacion $conv): void
     {
         $fin = WaEtiqueta::porRol('entregada');
         if ($fin) $conv->etiquetas()->syncWithoutDetaching([$fin->id]);
 
-        foreach (['pedido', 'procesada'] as $rol) {
-            $e = WaEtiqueta::porRol($rol);
-            if ($e) $conv->etiquetas()->detach($e->id);
-        }
+        $lista = WaEtiqueta::porRol('procesada');
+        if ($lista) $conv->etiquetas()->detach($lista->id);
     }
 
     /**
