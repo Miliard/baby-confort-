@@ -254,6 +254,20 @@
             min-height:44px;display:inline-flex;align-items:center}
     [x-cloak]{display:none !important}
 
+    /* En modo oscuro, la tarjeta no puede quedar blanca: el texto del tema se
+       vuelve claro y desaparece encima del blanco. Le puse fondo #fff fijo y
+       ese fue el error — lo que va fijo es el CONTRASTE, no el color. */
+    html.dark .buscatalla{background:#121b2a;border-color:var(--borde);
+                          box-shadow:0 6px 18px rgba(0,0,0,.4)}
+    html.dark .bt-campo input{background:#16202f;color:var(--texto);border-color:var(--borde)}
+    html.dark .bt-campo input::placeholder{color:#7d8ea1}
+    html.dark .bt-res{background:#14261c;border-color:#2f5a3f}
+    html.dark .hero-eyebrow{background:#16202f;border-color:var(--borde)}
+    html.dark .pasos-sec{background:transparent;border-top-color:var(--borde)}
+    html.dark .paso{background:#121b2a;border-color:var(--borde)}
+    html.dark .barra-abajo{background:rgba(18,27,42,.96);border-top-color:var(--borde)}
+    html.dark .ba-wa{background:#16202f;border-color:var(--borde);color:var(--texto)}
+
     @media(max-width:820px){
         .buscatalla{padding:var(--s3)}
         .bt-campo{flex-wrap:wrap}
