@@ -791,9 +791,7 @@
             {{-- "Sin guía" se quitó: era la etiqueta Pedidos contada de otra
                  forma, y esa ya está en el carrusel de abajo. Dos botones para
                  lo mismo no ayudan, confunden. --}}
-            @php $esperando = $this->cuantasEsperandoEntrega(); @endphp
-
-            @if($pend['sin_enlace'] || $esperando)
+            @if($pend['sin_enlace'])
                 <div class="wa-pendientes">
                     @if($pend['sin_enlace'] && $this->enlaceCola())
                         <a href="{{ $this->enlaceCola() }}" class="wa-pend wa-pend-ambar"
@@ -802,20 +800,10 @@
                         </a>
                     @endif
 
-                    {{-- Preguntarle al courier ahora, sin esperar al programador.
-                         Sirve de salida mientras el cron no exista, y para
-                         comprobar que todo está bien enganchado. --}}
-                    @if($esperando)
-                        <button type="button" class="wa-pend wa-pend-azul"
-                                wire:click="revisarEntregas"
-                                wire:loading.attr="disabled" wire:target="revisarEntregas"
-                                title="Preguntarle al courier por los paquetes que están en camino">
-                            <span wire:loading.remove wire:target="revisarEntregas">
-                                <b>{{ $esperando }}</b> en camino · revisar
-                            </span>
-                            <span wire:loading wire:target="revisarEntregas">Preguntando…</span>
-                        </button>
-                    @endif
+                    {{-- El botón de "revisar entregas" se quitó junto con el
+                         vigilante automático: buscaba la guía por teléfono y en
+                         un cliente que vuelve a pedir encontraba la anterior.
+                         El paso a Entregados se hace a mano. --}}
                 </div>
             @endif
 

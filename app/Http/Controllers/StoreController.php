@@ -123,10 +123,29 @@ class StoreController extends Controller
                 $opciones = \App\Models\GuiaFoto::porTelefono($digitos);
 
                 if ($opciones->isNotEmpty()) {
-                    // Se muestra el paquete más reciente. Los anteriores quedan
-                    // abajo, discretos: casi siempre son guías que se rehicieron.
-                    $guia     = (string) $opciones->first()->guia;
-                    $opciones = $opciones->slice(1)->values();
+                    // OJO acá, que esto le mintió a un cliente.
+                    //
+                    // Un cliente que ya compró antes vuelve a pedir. Su pedido
+                    // nuevo todavía no tiene número de guía —lo asigna Sistrack
+                    // y llega al panel al importar el PDF—, así que lo único
+                    // con número era la guía VIEJA. Y esa sigue entregada,
+                    // porque lo está: el cliente abría su enlace el mismo día
+                    // que hacía el pedido y leía "Entregado".
+                    //
+                    // Si hay un pedido más nuevo esperando número, ESE es el
+                    // que se muestra. Las guías con número quedan abajo, como
+                    // historial.
+                    $pendiente = \App\Models\GuiaFoto::pendientePorTelefono($digitos);
+
+                    if ($pendiente && $pendiente->id > $opciones->first()->id) {
+                        $sinGuia  = $pendiente;
+                        $opciones = collect();
+                    } else {
+                        // Se muestra el paquete más reciente. Los anteriores quedan
+                        // abajo, discretos: casi siempre son guías que se rehicieron.
+                        $guia     = (string) $opciones->first()->guia;
+                        $opciones = $opciones->slice(1)->values();
+                    }
                 } else {
                     // Sin guía todavía. Dos casos: la guía ya se armó y espera el
                     // PDF, o el pedido se hizo en la tienda y aún no se procesa.

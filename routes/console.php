@@ -18,16 +18,17 @@ Artisan::command('inspire', function () {
 // al día (ver GuiaFotoController::limpiarSiTocaHoy).
 Schedule::command('fotos:limpiar')->dailyAt('03:15')->withoutOverlapping();
 
-// Cada media hora se le pregunta al courier por los paquetes que están
-// esperando entrega, y las conversaciones se mueven a Entregados solas.
+// El paso a "Entregados" está APAGADO y se hace a mano.
 //
-// La media hora no es al azar: hacen falta dos revisiones seguidas diciendo
-// "entregado" antes de mover nada, porque al repartidor se le ha ido marcarlo
-// por error y corregirlo minutos después. Con este intervalo, la corrección
-// llega antes de la segunda vuelta y el error nunca se ve acá.
+// Se probó automático, preguntándole al courier cada media hora, y el problema
+// no fue la consulta sino de qué guía. El panel busca la guía por teléfono, y
+// un cliente que vuelve a pedir tiene dos: la vieja, entregada, y la nueva, que
+// todavía no tiene número porque lo asigna Sistrack. Encontraba la vieja y daba
+// el pedido nuevo por entregado el mismo día que entraba.
 //
-// Igual que la limpieza de fotos: esto necesita un programador levantado. En
-// Railway se agrega como servicio de cron corriendo "php artisan schedule:run"
-// cada minuto, o directamente "php artisan entregas:revisar" cada media hora.
-// Sin eso, el comando existe pero nadie lo llama.
-Schedule::command('entregas:revisar')->everyThirtyMinutes()->withoutOverlapping();
+// Para que funcione de verdad hay que atar cada conversación a SU guía cuando
+// se arma, no buscarla por teléfono después. Hasta entonces, a mano: equivocarse
+// en esto cuesta pedidos.
+//
+// El comando "entregas:revisar" sigue existiendo por si se retoma.
+// Schedule::command('entregas:revisar')->everyThirtyMinutes()->withoutOverlapping();
