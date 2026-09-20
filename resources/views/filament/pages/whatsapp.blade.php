@@ -34,6 +34,27 @@
     section:has(.wa){padding-top:0 !important;padding-bottom:0 !important;
                      gap:0 !important}
 
+    /* ── Y LA FRANJA DE LOS COSTADOS ────────────────────────────────────────
+       Misma historia, otro elemento. El <main> es:
+
+           <main class="fi-main mx-auto h-full w-full px-4 md:px-6 lg:px-8">
+
+       px-4 md:px-6 lg:px-8 = 16 píxeles a cada lado, 24 en pantalla mediana,
+       32 en la grande. Eso es lo que se ve como franja negra a izquierda y
+       derecha.
+
+       Ese relleno estaba apagado SOLO dentro del @media de 900. En la
+       computadora seguía puesto, y es justo donde más molesta: son 64 píxeles
+       de ancho que no son ni lista ni conversación.
+
+       Mismo criterio que arriba: se agarra por contener el panel, no por el
+       nombre de la clase. Así solo se apaga en esta página; el resto del admin
+       conserva su aire. */
+    main:has(.wa){padding-left:0 !important;padding-right:0 !important;
+                  padding-top:0 !important;padding-bottom:0 !important;
+                  max-width:100% !important}
+    div:has(> main .wa){padding:0 !important}
+
     /* ── Gris secundario, uno por tema ──────────────────────────────────────
        Estaba escrito a mano, el mismo gris, en todos lados. Sobre el fondo
        oscuro da 5.6 de contraste y está bien; sobre blanco da 2.8, y el mínimo
