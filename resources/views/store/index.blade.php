@@ -234,7 +234,19 @@
                 padding:var(--s4);box-shadow:var(--sombra-lg)}
     .bt-t{font-size:21px;margin:0}
     .bt-p{color:var(--gris);font-size:15px;margin:6px 0 0}
-    .bt-lab{display:block;font-weight:700;font-size:14px;margin:var(--s3) 0 8px}
+    .bt-cab{display:flex;align-items:center;justify-content:space-between;gap:12px;
+            margin:var(--s3) 0 8px;flex-wrap:wrap}
+    .bt-lab{display:block;font-weight:700;font-size:14px;margin:0}
+
+    /* Kilos o libras. Dos botones y no un desplegable: son dos opciones, se ven
+       las dos, y se cambia con un toque. */
+    .bt-unidades{display:flex;background:var(--fondo);border:1px solid var(--borde);
+                 border-radius:999px;padding:3px;gap:2px}
+    .bt-u{border:none;background:none;font:inherit;font-size:13.5px;font-weight:700;
+          color:var(--gris);cursor:pointer;border-radius:999px;padding:8px 14px;
+          min-height:38px;transition:background .15s,color .15s}
+    .bt-u.on{background:var(--azul);color:#fff}
+    .bt-u:not(.on):hover{color:var(--texto)}
     .bt-campo{display:flex;gap:10px}
     .bt-campo input{flex:1;min-width:0;min-height:52px;padding:12px 16px;
                     border:1.5px solid var(--borde);border-radius:var(--radio-sm);
@@ -260,6 +272,7 @@
     html.dark .buscatalla{background:#121b2a;border-color:var(--borde);
                           box-shadow:0 6px 18px rgba(0,0,0,.4)}
     html.dark .bt-campo input{background:#16202f;color:var(--texto);border-color:var(--borde)}
+    html.dark .bt-unidades{background:#16202f;border-color:var(--borde)}
     html.dark .bt-campo input::placeholder{color:#7d8ea1}
     html.dark .bt-res{background:#14261c;border-color:#2f5a3f}
     html.dark .hero-eyebrow{background:#16202f;border-color:var(--borde)}
