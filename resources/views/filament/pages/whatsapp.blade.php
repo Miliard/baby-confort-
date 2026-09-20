@@ -74,12 +74,21 @@
         /* Filament separa las secciones de la página entre sí; acá hay una sola. */
         .fi-page > * + *{margin-top:0 !important}
 
-        /* Esa franja de arriba está casi vacía y mide 74 px. No se le puede
-           meter el nombre del contacto (es de Filament, fuera de esta página),
-           pero sí se puede achicar a la mitad. */
-        .fi-topbar nav{min-height:44px !important;
+        /* Esa franja de arriba está casi vacía. No se le puede meter el nombre
+           del contacto (es de Filament, fuera de esta página), pero sí se puede
+           achicar.
+
+           OJO: hay que achicar la barra Y el nav de adentro. Antes solo tocaba
+           el nav, y la barra seguía midiendo lo mismo: lo que sobraba se veía
+           como una franja negra debajo del menú. Y no había forma de cerrarla
+           midiendo, porque no era un hueco entre dos elementos — era el fondo
+           de la barra asomando por dentro. */
+        .fi-topbar{box-shadow:none !important;
+                   min-height:0 !important;height:auto !important;
+                   padding-top:0 !important;padding-bottom:0 !important}
+        .fi-topbar > *{min-height:0 !important}
+        .fi-topbar nav{min-height:44px !important;height:44px !important;
                        padding-top:.2rem !important;padding-bottom:.2rem !important}
-        .fi-topbar{box-shadow:none !important}
 
         .wa-cab .wa-nombre-col{min-width:70px}
 
@@ -2345,7 +2354,14 @@
             caja.style.marginTop = '';
 
             var arriba = caja.getBoundingClientRect().top;
-            var barra  = document.querySelector('.fi-topbar');
+
+            // Se mide contra el MENÚ, no contra la barra que lo contiene.
+            // Si la barra tiene relleno de sobra debajo del menú, ese relleno
+            // es parte del problema: midiendo la barra entera, ese espacio
+            // queda del lado de "esto ya está ocupado" y nunca se cierra.
+            var barra = document.querySelector('.fi-topbar nav')
+                     || document.querySelector('.fi-topbar');
+
             var finBarra = barra ? barra.getBoundingClientRect().bottom : 0;
 
             var hueco = Math.round(arriba - finBarra);
