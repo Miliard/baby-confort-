@@ -238,6 +238,34 @@
     .wa-cab .wa-nombre-col > div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     html.dark .wa-cab{border-color:rgba(255,255,255,.10)}
 
+    /* ── La ficha del cliente ──
+       Un renglón, no una tarjeta: el alto que ocupe se lo quita a la
+       conversación, y la conversación es el trabajo. Abierta puede crecer;
+       cerrada tiene que costar casi nada. */
+    .wa-ficha{flex:none;border-bottom:1px solid #e5e7eb;background:rgba(74,163,223,.06)}
+    html.dark .wa-ficha{border-color:rgba(255,255,255,.10);background:rgba(74,163,223,.08)}
+    .wa-ficha-top{width:100%;display:flex;align-items:center;justify-content:space-between;
+                  gap:10px;border:none;background:none;cursor:pointer;font-family:inherit;
+                  color:inherit;text-align:left;padding:9px 12px;min-height:44px}
+    .wa-ficha-res{display:flex;align-items:center;gap:9px;flex-wrap:wrap;min-width:0;
+                  font-size:12.5px}
+    .wa-ficha-res b{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .wa-ficha-veces{background:rgba(46,158,107,.16);color:#15603f;font-weight:800;
+                    font-size:11px;border-radius:999px;padding:2px 9px;flex:none}
+    html.dark .wa-ficha-veces{color:#9fe1cb}
+    .wa-ficha-flecha{color:var(--wa-suave);font-size:14px;flex:none}
+
+    .wa-ficha-mas{padding:0 12px 11px;font-size:13px}
+    .wa-ficha-fila{display:flex;gap:10px;padding:5px 0;align-items:baseline}
+    .wa-ficha-fila span{flex:none;width:74px;font-size:11.5px;color:var(--wa-suave);
+                        text-transform:uppercase;letter-spacing:.03em;font-weight:700}
+    .wa-ficha-fila b{font-weight:600;line-height:1.45}
+    .wa-ficha-copiar{margin-top:7px;border:1px solid #d1d5db;background:none;color:inherit;
+                     font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;
+                     border-radius:9px;padding:9px 13px;min-height:44px;width:100%}
+    html.dark .wa-ficha-copiar{border-color:rgba(255,255,255,.16)}
+    .wa-ficha-ojo{margin-top:9px;font-size:11.5px;color:var(--wa-suave);line-height:1.45}
+
     .wa-chat{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px;
              background:#f6f8fa}
     html.dark .wa-chat{background:#0f1828}
@@ -1073,6 +1101,71 @@
                     @endforeach
                 @endif
             </div>
+
+            {{-- ═══ La ficha del cliente ═══
+                 El panel ya sabía la dirección y cuántas veces te compró, pero
+                 solo lo mostraba en la pestaña de pedido. Para leerlo había que
+                 salir de la conversación, mirar, y volver: dos toques y perder
+                 de vista lo que el cliente está escribiendo, decenas de veces
+                 al día.
+
+                 Va en un renglón. Lo justo para contestar "sí, a la misma
+                 dirección" sin moverse de acá; tocándolo se abre completa.
+
+                 Alpine y no Livewire: abrir y cerrar no necesita ir al
+                 servidor, y así responde en el acto. --}}
+            @php $ficha = $this->clienteConocido(); @endphp
+
+            @if($pestana === 'chat' && $ficha && (filled($ficha['direccion'] ?? null) || ($ficha['veces'] ?? 0) > 1))
+                <div class="wa-ficha" x-data="{ abierta: false }">
+                    <button type="button" class="wa-ficha-top"
+                            @click="abierta = !abierta"
+                            :aria-expanded="abierta"
+                            aria-label="Ver los datos guardados de este cliente">
+                        <span class="wa-ficha-res">
+                            @if(filled($ficha['municipio'] ?? null))
+                                <b>📍 {{ $ficha['municipio'] }}@if(filled($ficha['departamento'] ?? null)), {{ $ficha['departamento'] }}@endif</b>
+                            @elseif(filled($ficha['direccion'] ?? null))
+                                <b>📍 Tiene dirección guardada</b>
+                            @endif
+
+                            @if(($ficha['veces'] ?? 0) > 1)
+                                <span class="wa-ficha-veces">{{ $ficha['veces'] }}ª compra</span>
+                            @endif
+                        </span>
+
+                        <span class="wa-ficha-flecha" x-text="abierta ? '⌃' : '⌄'" aria-hidden="true"></span>
+                    </button>
+
+                    <div class="wa-ficha-mas" x-show="abierta" x-cloak>
+                        @if(filled($ficha['nombre'] ?? null))
+                            <div class="wa-ficha-fila">
+                                <span>Nombre</span><b>{{ $ficha['nombre'] }}</b>
+                            </div>
+                        @endif
+
+                        @if(filled($ficha['direccion'] ?? null))
+                            <div class="wa-ficha-fila">
+                                <span>Dirección</span>
+                                <b>{{ $ficha['direccion'] }}</b>
+                            </div>
+
+                            {{-- Copiar: casi siempre esto se va a pegar en la
+                                 orden de envío o en la guía. --}}
+                            <button type="button" class="wa-ficha-copiar"
+                                    data-copiar="{{ trim($ficha['direccion'] . ', ' . ($ficha['municipio'] ?? '') . ', ' . ($ficha['departamento'] ?? ''), ' ,') }}"
+                                    onclick="waCopiar(this)">
+                                📋 Copiar la dirección completa
+                            </button>
+                        @endif
+
+                        <div class="wa-ficha-ojo">
+                            Son los datos de la última entrega. Preguntale si siguen buenos
+                            antes de mandar.
+                        </div>
+                    </div>
+                </div>
+            @endif
 
             @if($pestana === 'chat')
             <div class="wa-chat" data-conv="{{ $abierta }}">
