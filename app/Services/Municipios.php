@@ -27,6 +27,34 @@ class Municipios
         return trim(preg_replace('/\s+/u', ' ', $t));
     }
 
+    /**
+     * Departamentos que los dos catálogos escriben distinto.
+     *
+     * A la izquierda, el nombre normalizado venga de donde venga. A la derecha,
+     * cómo hay que escribirlo: se eligió la grafía de Sistrack —aunque a dos les
+     * falte la tilde y una esté mal escrita— porque es la que termina en el
+     * Excel de la guía. Que el courier lo acepte pesa más que la ortografía.
+     *
+     * Sin esto, al unir los catálogos el desplegable mostraba "Chalatenango" y
+     * "Chaletenango" como si fueran dos departamentos distintos, cada uno con la
+     * mitad de sus municipios.
+     */
+    private const IGUALES = [
+        'chalatenango' => 'Chaletenango',
+        'chaletenango' => 'Chaletenango',
+        'cuscatlan'    => 'Cuscatlan',
+        'usulutan'     => 'Usulutan',
+    ];
+
+    /** El nombre con el que se guarda y se muestra ese departamento. */
+    public static function departamentoCanonico(?string $departamento): string
+    {
+        $d = trim((string) $departamento);
+        if ($d === '') return '';
+
+        return static::IGUALES[static::normalizar($d)] ?? $d;
+    }
+
     /** El listado con las llaves ya normalizadas, para buscar rápido. */
     private static function tabla(): array
     {
@@ -39,7 +67,12 @@ class Municipios
         foreach (config('municipios', []) as $municipio => $departamento) {
             $tabla[static::normalizar($municipio)] = [
                 'nombre'        => $municipio,
-                'departamentos' => (array) $departamento,
+                // Por el canónico: si no, los tres departamentos que los dos
+                // catálogos escriben distinto quedarían duplicados.
+                'departamentos' => array_map(
+                    fn ($d) => static::departamentoCanonico($d),
+                    (array) $departamento
+                ),
             ];
         }
 
@@ -61,7 +94,7 @@ class Municipios
 
                 $tabla[$clave] = [
                     'nombre'        => $municipio,
-                    'departamentos' => [$departamento],
+                    'departamentos' => [static::departamentoCanonico($departamento)],
                 ];
             }
         }
@@ -144,8 +177,12 @@ class Municipios
                 ];
         }
 
+        // Se comparan los canónicos, no los nombres crudos: así una guía vieja
+        // guardada como "Chalatenango" sigue validando contra "Chaletenango",
+        // que es como se escribe ahora. Si no, todo lo cargado antes del cambio
+        // empezaría a marcarse como error sin que nada esté mal.
         foreach ($posibles as $p) {
-            if (static::normalizar($p) === static::normalizar($dep)) {
+            if (static::departamentoCanonico($p) === static::departamentoCanonico($dep)) {
                 return ['estado' => 'ok', 'mensaje' => '', 'sugerido' => $p];
             }
         }
@@ -198,7 +235,7 @@ class Municipios
      */
     public static function deDepartamento(?string $departamento): array
     {
-        $d = static::normalizar($departamento);
+        $d = static::departamentoCanonico($departamento);
         if ($d === '') return [];
 
         $lista = [];
@@ -207,7 +244,7 @@ class Municipios
         // que solo trae el catálogo de Sistrack.
         foreach (static::tabla() as $fila) {
             foreach ($fila['departamentos'] as $uno) {
-                if (static::normalizar($uno) === $d) {
+                if (static::departamentoCanonico($uno) === $d) {
                     $lista[] = $fila['nombre'];
                     break;
                 }
