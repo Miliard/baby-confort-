@@ -61,20 +61,39 @@
         return true;
     },
 }">
+{{-- El encabezado, en dos columnas: a la izquierda qué vendemos y por qué
+     confiar; a la derecha, el buscador de talla. Antes era una sola columna con
+     el buscador de productos, y el cliente que no sabe la talla —que es la
+     mayoría de los que escriben— no tenía dónde empezar. --}}
 <section class="hero">
-    <div class="contenedor">
-        <h1>Todo para el confort de tu bebé</h1>
-        <p>Pañales y calzoncitos premium, suaves y de alta absorción. Elige tu producto y haz tu pedido en minutos.</p>
-        <div class="buscador-wrap">
-            <span class="buscador-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
-            <input x-model="q" type="text" class="buscador" placeholder="Buscar por producto o talla: pañales, XXL, pachas…">
-            <button class="buscador-x" x-show="q" @click="q = ''" style="display:none">✕</button>
+    <div class="contenedor hero-grid">
+        <div>
+            <span class="hero-eyebrow">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg>
+                Distribuidor Aiwibi en El Salvador
+            </span>
+
+            <h1>Pañales que no irritan, en la puerta de tu casa mañana</h1>
+            <p class="hero-lead">Aiwibi Australia: alta absorción, hipoalergénicos y con indicador
+                de humedad. Pagás cuando los recibís.</p>
+
+            <div class="buscador-wrap">
+                <span class="buscador-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
+                <input x-model="q" type="text" class="buscador" placeholder="Buscar por producto o talla: pañales, XXL, pachas…">
+                <button class="buscador-x" x-show="q" @click="q = ''" style="display:none">✕</button>
+            </div>
+
+            {{-- Las razones para confiar, arriba y a la vista. Son las que uno
+                 contesta por WhatsApp antes de cada compra. --}}
+            <div class="confia" x-show="q.trim() === ''">
+                <span class="confia-i"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg> Entrega en 24 h hábiles</span>
+                <span class="confia-i"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg> Pagás al recibir</span>
+                <span class="confia-i"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg> Envío ${{ number_format((float) ($envio ?? 2.5), 2) }} a todo el país</span>
+                <span class="confia-i"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg> Alta absorción e hipoalergénicos</span>
+            </div>
         </div>
-        <div class="pills" x-show="q.trim() === ''">
-            <span class="pill-i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg> Alta absorción</span>
-            <span class="pill-i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 17h4V5H2v12h3M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h2"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg> Entrega en El Salvador</span>
-            <span class="pill-i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg> Transferencia · Efectivo · Link</span>
-        </div>
+
+        <div x-show="q.trim() === ''">@include('store.partials.busca-talla')</div>
     </div>
 </section>
 
@@ -93,7 +112,7 @@
 
 <div class="contenedor bc-tallas" x-show="q.trim() === ''">@include('store.partials.size-guide')</div>
 
-<main class="contenedor">
+<main class="contenedor" id="productos">
     <h2 class="seccion-titulo" x-text="q.trim() === '' ? 'Nuestros productos' : 'Resultados de tu búsqueda'"></h2>
     <p class="seccion-sub" x-show="q.trim() === ''">Toca un producto para ver sus tallas, precios y detalles.</p>
 
@@ -124,10 +143,55 @@
     <div class="sg-none" style="margin:24px 0;display:none"
          x-show="sinResultados()">
         No encontramos productos con "<span x-text="q"></span>".
-        <a style="color:var(--teal-osc);font-weight:700" target="_blank"
+        <a style="color:var(--azul-osc);font-weight:700" target="_blank"
            href="https://wa.me/{{ config('babyconfort.whatsapp') }}?text=Hola%2C%20busco%20un%20producto">Pregúntanos por WhatsApp</a>.
     </div>
 </main>
+
+{{-- Cómo se compra. Va al final a propósito: lo lee quien ya vio algo que le
+     gustó y le falta animarse. Responde las tres dudas de siempre —cómo pido,
+     cuándo llega, cómo pago— sin que tenga que escribir para preguntarlas. --}}
+<section class="pasos-sec" x-show="q.trim() === ''">
+    <div class="contenedor">
+        <h2 class="seccion-titulo">Comprar es fácil y seguro</h2>
+        <p class="seccion-sub">Tres pasos. Pagás cuando el paquete está en tus manos.</p>
+
+        <div class="pasos">
+            <div class="paso">
+                <div class="paso-ic" aria-hidden="true"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></div>
+                <h3>1. Elegí y agregá</h3>
+                <p>Escogé producto y talla, agregalo al carrito y confirmá con tu nombre,
+                   teléfono y dirección.</p>
+            </div>
+
+            <div class="paso">
+                <div class="paso-ic" aria-hidden="true"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17h4V5H2v12h3M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h2"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div>
+                <h3>2. Te escribimos</h3>
+                <p>Te contactamos por WhatsApp para coordinar la entrega. Llega en 24 horas
+                   hábiles con Expres El Salvador.</p>
+            </div>
+
+            <div class="paso">
+                <div class="paso-ic" aria-hidden="true"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div>
+                <h3>3. Pagás al recibir</h3>
+                <p>Efectivo contra entrega, transferencia o link de pago. Vos elegís.
+                   Envío ${{ number_format((float) ($envio ?? 2.5), 2) }} a todo el país.</p>
+            </div>
+        </div>
+    </div>
+</section>
+</div>
+
+{{-- La barra fija de abajo, solo en el teléfono. Las dos cosas que el cliente
+     quiere hacer están siempre a un toque, sin importar cuánto haya bajado. --}}
+<div class="barra-abajo">
+    <a class="ba-btn ba-ver" href="#productos">Ver productos</a>
+    <a class="ba-btn ba-wa" target="_blank" rel="noopener"
+       href="https://wa.me/{{ config('babyconfort.whatsapp') }}?text=Hola%2C%20quiero%20hacer%20un%20pedido"
+       aria-label="Escribinos por WhatsApp">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.1A8.5 8.5 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5Z"/></svg>
+        WhatsApp
+    </a>
 </div>
 
 <style>
@@ -138,8 +202,90 @@
         .bc-portada{display:flex;flex-direction:column}
         .bc-portada > .bc-tallas{order:-1;margin-top:14px}
     }
-    .buscador-wrap{position:relative;max-width:560px;margin:16px auto 4px}
-    @media(min-width:821px){.hero .contenedor{text-align:center}.hero p{margin-left:auto;margin-right:auto}.pills{justify-content:center}.cat-chips{justify-content:center}}
+    .buscador-wrap{position:relative;max-width:560px;margin:16px 0 4px}
+
+    /* ── El encabezado en dos columnas ──
+       A la izquierda el qué y el por qué; a la derecha el buscador de talla.
+       En el teléfono se apilan, y el de talla va PRIMERO: es la duda que trae
+       casi todo el que escribe, y si queda abajo nadie baja a buscarla. */
+    .hero{padding:var(--s5) 0}
+    .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:var(--s5);align-items:center}
+    .hero h1{font-size:clamp(28px,4.4vw,46px);margin:0 0 var(--s2);text-wrap:balance}
+    .hero-lead{font-size:clamp(16px,1.6vw,18px);color:var(--gris);max-width:36ch;margin:0}
+    .hero-eyebrow{display:inline-flex;align-items:center;gap:8px;background:#fff;
+                  border:1px solid var(--borde);color:var(--azul);font-weight:700;
+                  font-size:13.5px;padding:7px 14px;border-radius:999px;margin-bottom:var(--s2)}
+
+    .confia{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:var(--s3);
+            padding-top:var(--s3);border-top:1px solid var(--borde)}
+    .confia-i{display:flex;align-items:center;gap:8px;font-size:14.5px;font-weight:600}
+    .confia-i svg{color:var(--ok);flex:none}
+
+    @media(max-width:820px){
+        .hero-grid{grid-template-columns:1fr;gap:var(--s3)}
+        .hero-grid > div:last-child{order:-1}
+        .hero h1{font-size:26px}
+        .confia{gap:8px 14px}
+        .confia-i{font-size:13.5px}
+    }
+
+    /* ── Buscador de talla por peso ── */
+    .buscatalla{background:#fff;border:1px solid var(--borde);border-radius:var(--radio-lg);
+                padding:var(--s4);box-shadow:var(--sombra-lg)}
+    .bt-t{font-size:21px;margin:0}
+    .bt-p{color:var(--gris);font-size:15px;margin:6px 0 0}
+    .bt-lab{display:block;font-weight:700;font-size:14px;margin:var(--s3) 0 8px}
+    .bt-campo{display:flex;gap:10px}
+    .bt-campo input{flex:1;min-width:0;min-height:52px;padding:12px 16px;
+                    border:1.5px solid var(--borde);border-radius:var(--radio-sm);
+                    font:inherit;font-size:16px;background:#fff;color:var(--texto)}
+    .bt-campo input:focus{border-color:var(--azul);outline:none;
+                          box-shadow:0 0 0 3px rgba(21,88,176,.15)}
+    .bt-btn{min-height:52px;padding:12px 22px;border:0;border-radius:var(--radio-sm);
+            background:var(--azul);color:#fff;font:inherit;font-weight:700;font-size:16px;
+            cursor:pointer;flex:none}
+    .bt-btn:hover{background:var(--azul-osc)}
+    .bt-ayuda{font-size:13.5px;color:var(--gris);margin:8px 0 0}
+    .bt-res{margin-top:var(--s2);padding:16px;border-radius:var(--radio-sm);
+            background:#ecfdf3;border:1px solid #bbf7d0}
+    .bt-res strong{font-family:var(--tipo-titulo);font-size:20px;color:var(--ok);display:block}
+    .bt-res > span{display:block;font-size:14px;color:var(--gris);margin-top:2px}
+    .bt-ver{display:inline-block;margin-top:10px;font-weight:700;color:var(--azul-osc);
+            min-height:44px;display:inline-flex;align-items:center}
+    [x-cloak]{display:none !important}
+
+    @media(max-width:820px){
+        .buscatalla{padding:var(--s3)}
+        .bt-campo{flex-wrap:wrap}
+        .bt-btn{width:100%}
+    }
+
+    /* ── Los tres pasos ── */
+    .pasos-sec{background:#fff;border-top:1px solid var(--borde);
+               padding:var(--s5) 0 var(--s6);margin-top:var(--s4)}
+    .pasos{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s3);margin-top:var(--s3)}
+    .paso{background:var(--fondo);border:1px solid var(--borde);
+          border-radius:var(--radio);padding:var(--s3)}
+    .paso-ic{width:46px;height:46px;border-radius:14px;background:var(--azul-claro);
+             color:var(--azul-osc);display:grid;place-items:center;margin-bottom:var(--s2)}
+    .paso h3{font-size:17px;margin:0 0 6px}
+    .paso p{margin:0;color:var(--gris);font-size:14.5px;line-height:1.6}
+    @media(max-width:820px){ .pasos{grid-template-columns:1fr} }
+
+    /* ── Barra fija de abajo, solo en el teléfono ── */
+    .barra-abajo{display:none}
+    @media(max-width:820px){
+        .barra-abajo{display:flex;gap:10px;position:fixed;left:0;right:0;bottom:0;z-index:60;
+                     padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+                     background:rgba(255,255,255,.96);backdrop-filter:blur(8px);
+                     border-top:1px solid var(--borde)}
+        .ba-btn{flex:1;min-height:48px;display:inline-flex;align-items:center;
+                justify-content:center;gap:8px;border-radius:999px;font-weight:700;font-size:15.5px}
+        .ba-ver{background:var(--cta);color:var(--on-cta)}
+        .ba-wa{background:#fff;border:1.5px solid var(--borde);color:var(--texto)}
+        /* Para que la barra no tape el último producto de la cuadrícula. */
+        body{padding-bottom:76px}
+    }
     .buscador{width:100%;padding:13px 40px 13px 42px;border:1px solid var(--borde);border-radius:999px;font-size:15px;background:#fff;box-shadow:0 2px 8px rgba(47,127,191,.06)}
     .buscador:focus{outline:none;border-color:var(--azul);box-shadow:0 0 0 3px rgba(74,163,223,.15)}
     .buscador-ic{position:absolute;left:15px;top:50%;transform:translateY(-50%);display:grid;place-items:center;color:var(--gris)}
