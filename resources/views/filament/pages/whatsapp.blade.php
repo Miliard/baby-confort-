@@ -2347,6 +2347,16 @@
          * esa franja negra arriba y abajo. Midiendo, da igual quién la ponga.
          */
         function pegarArriba() {
+            // Se vuelve a buscar SIEMPRE, no se confía en la guardada.
+            //
+            // Acá estaba el problema de la franja al abrir un chat: el elemento
+            // se guardaba una sola vez al cargar la página. Al abrir una
+            // conversación, Livewire redibuja y puede reemplazarlo — y a partir
+            // de ahí todas las correcciones se le aplicaban al elemento viejo,
+            // que ya no está en la pantalla. En la lista se veía bien porque
+            // ahí la corrección se había aplicado antes del reemplazo.
+            caja = document.querySelector('.wa');
+
             if (!caja) return 0;
 
             // Se borra lo puesto antes para medir el hueco de verdad y no el
@@ -2450,7 +2460,18 @@
         // volver a ponerla después de cada refresco.
         function engancharLivewire() {
             if (!window.Livewire || !window.Livewire.hook) return false;
-            window.Livewire.hook('morph.updated', function () { ajustar(); });
+
+            window.Livewire.hook('morph.updated', function () {
+                ajustar();
+
+                // Y otra vez un instante después. Al abrir una conversación
+                // cambia todo el lado derecho —cabecera, ficha del cliente,
+                // globos— y el alto definitivo no está listo en el mismo
+                // momento del redibujado. Sin esta segunda pasada, la medición
+                // se hace sobre una pantalla a medio armar.
+                setTimeout(ajustar, 60);
+            });
+
             return true;
         }
 
