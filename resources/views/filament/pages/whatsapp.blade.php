@@ -63,6 +63,18 @@
     :root{--wa-suave:#5b6b7f}
     html.dark{--wa-suave:#94a3b8}
 
+    /* ── Los dos colores de "quién habló" ───────────────────────────────────
+       Uno por tema, no un valor fijo: sobre fondo oscuro hacen falta tonos
+       claros, y sobre blanco hacen falta oscuros. Los cuatro pasan el mínimo
+       de contraste para texto (4.5), así que se leen de verdad, no solo se
+       distinguen de lejos.
+
+       Verdes y rojos apagados a propósito. Un verde o un rojo fuertes, en una
+       lista entera y repetidos cincuenta veces, cansan a los diez minutos —
+       y esta pantalla se mira todo el día. */
+    :root{--wa-mio-txt:#0f7a4d;--wa-suyo-txt:#c0322a}
+    html.dark{--wa-mio-txt:#6fcfa0;--wa-suyo-txt:#f59289}
+
     /* ── Respuesta al toque ─────────────────────────────────────────────────
        En el teléfono no hay "hover": si un botón no responde al apretarlo, se
        siente muerto y uno lo toca de nuevo. Un cambio inmediato al presionar
@@ -233,12 +245,22 @@
     /* Tipografía un punto más grande, como la de Wasapi: base de 15 px.
        Buena parte de la sensación de "se ve chiquito" estaba acá. */
     .wa-nom{font-weight:700;font-size:15px;display:flex;gap:7px;align-items:center}
-    .wa-prev{font-size:13.5px;color:var(--wa-suave);margin-top:3px;overflow:hidden;
+    /* ── De quién fue el último mensaje, por color ──────────────────────────
+       Verde lo escribimos nosotros, rojo lo escribió el cliente.
+
+       Antes la diferencia era gris contra blanco, y a media pantalla de chats
+       todo se veía del mismo tono claro: había que fijarse en si estaban los
+       puntitos del semáforo para saber si ya habías contestado. Eso es leer,
+       no ver.
+
+       El color se lee sin leer. Y usa el mismo idioma que el resto del panel:
+       rojo es lo que espera a alguien, verde es lo que ya salió. */
+    .wa-prev{font-size:13.5px;color:var(--wa-mio-txt);margin-top:3px;overflow:hidden;
              text-overflow:ellipsis;white-space:nowrap}
 
     /* Sin palomitas y con la barrita: el último mensaje es del cliente y está
        esperando respuesta. Es el estado que hay que poder ver de lejos. */
-    .wa-prev-debo{color:inherit;font-weight:600;
+    .wa-prev-debo{color:var(--wa-suyo-txt);font-weight:600;
                   border-left:3px solid #e5695f;padding-left:7px;margin-left:-1px}
     /* El renglón chico de abajo: solo el teléfono, y solo cuando arriba va un
        nombre que vos pusiste. El nombre del perfil de WhatsApp no se muestra. */
