@@ -209,6 +209,34 @@
                border-radius:9px;width:34px;height:34px;font-size:17px;align-items:center;
                justify-content:center;font-family:inherit;color:inherit;flex:none}
 
+    /* ── El de volver, clavado ──────────────────────────────────────────────
+       La cabecera se desliza de lado para que entren las pestañas y las
+       etiquetas sin partir el renglón. Efecto no buscado: el botón de salir
+       se iba con ellas. Y es el único del que dependés para volver a la
+       lista — quedarte sin él mientras buscás una pestaña es quedarte
+       encerrado.
+
+       position:sticky dentro de un contenedor que se desliza a lo ancho lo
+       deja quieto en el borde izquierdo mientras el resto pasa por detrás.
+
+       Dos detalles para que se vea bien:
+
+       · El fondo TIENE que ser opaco. El de los otros botones es translúcido
+         y se vería el texto de la cabecera moviéndose por debajo.
+       · La primera sombra no es sombra: es un bloque sólido de 7 px del color
+         del panel, para tapar el hueco que la fila deja entre botones. La
+         segunda sí es sombra, y es la que cuenta que ahí hay algo pasando
+         por detrás. */
+    :root{--wa-cab-bg:#fff}
+    html.dark{--wa-cab-bg:#16202f}
+
+    .wa-atras{position:sticky;left:0;z-index:4;background:#e9edf3;
+              box-shadow:7px 0 0 var(--wa-cab-bg),
+                         14px 0 11px -8px rgba(10,16,26,.30)}
+    html.dark .wa-atras{background:#26344a;
+                        box-shadow:7px 0 0 var(--wa-cab-bg),
+                                   14px 0 11px -8px rgba(0,0,0,.55)}
+
     .wa-col{background:#fff;border:1px solid #e5e7eb;border-radius:14px;
             display:flex;flex-direction:column;overflow:hidden;height:100%}
     html.dark .wa-col{background:#16202f;border-color:rgba(255,255,255,.10)}
@@ -1069,8 +1097,23 @@
             {{-- Una sola fila con todo, que se desliza de derecha a izquierda.
                  Antes eran tres renglones: datos, botones y pestañas. --}}
             <div class="wa-cab">
-                <button type="button" class="wa-volver" wire:click="cerrarChat"
-                        title="Volver a la lista">←</button>
+                {{-- El de volver va PRIMERO y se queda clavado a la izquierda
+                     (ver .wa-atras en el CSS). La fila se desliza; este no.
+                     Era el único botón del que dependés para salir, y se
+                     perdía de vista justo cuando estabas corriendo la fila
+                     para buscar una pestaña.
+
+                     La flecha ← de antes era el carácter de texto pelado: se
+                     ve de un grosor distinto en cada teléfono y queda flaca al
+                     lado de los emojis. Esta es dibujada, con las puntas
+                     redondeadas, y hereda el color y el grosor que le
+                     pongamos. --}}
+                <button type="button" class="wa-volver wa-atras" wire:click="cerrarChat"
+                        aria-label="Volver a la lista de conversaciones"
+                        title="Volver a la lista"><svg viewBox="0 0 24 24" width="21" height="21"
+                        fill="none" stroke="currentColor" stroke-width="2.3"
+                        stroke-linecap="round" stroke-linejoin="round"
+                        aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg></button>
 
                 {{-- Sin botón para entrar al pedido: se llega procesando una
                      orden del chat, que es el único camino que tiene sentido.
