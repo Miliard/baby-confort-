@@ -2262,17 +2262,52 @@
         var ultimaConv = null;
         var ultimoAlto = 0;
 
+        /*
+         * Si estabas mirando el final, guardado APARTE del elemento.
+         *
+         * Acá estaba el problema de la orden de envío. Al mandarla, el panel
+         * vuelve de la pestaña del pedido a la del chat, y Livewire no
+         * remienda la conversación: la construye de nuevo. El elemento que
+         * aparece es otro, y uno recién nacido tiene scrollTop en 0.
+         *
+         * La cuenta de abajo entonces miraba ese 0 y concluía "está leyendo
+         * arriba, no lo muevas". Y ahí te dejaba: al principio de la
+         * conversación, con toda la historia por delante.
+         *
+         * Con el dato guardado afuera, da igual que el elemento se vaya: la
+         * intención tuya sobrevive al redibujado.
+         */
+        var estabaAbajo = true;
+
+        var CERCA = 140;   // px de tolerancia para considerarte "al final"
+
         function alFondo(forzar) {
             var chat = document.querySelector('.wa-chat');
             if (!chat) return;
 
             var conv = chat.getAttribute('data-conv');
 
+            // ¿Es el mismo elemento de antes o uno recién creado?
+            // La marca se pega al nodo: si Livewire lo reemplaza, el nuevo
+            // viene sin ella. Es la única forma de enterarse.
+            var nuevo = !chat.waVisto;
+            chat.waVisto = true;
+
             // Conversación recién abierta: siempre al último mensaje.
             if (conv !== ultimaConv) {
                 ultimaConv = conv;
                 ultimoAlto = chat.scrollHeight;
                 chat.scrollTop = chat.scrollHeight;
+                estabaAbajo = true;
+                return;
+            }
+
+            // Misma conversación, elemento nuevo. Su scrollTop es 0 y no
+            // quiere decir nada, así que no se le pregunta a él: se usa lo
+            // que se venía recordando.
+            if (nuevo) {
+                ultimoAlto = chat.scrollHeight;
+                if (estabaAbajo || forzar) chat.scrollTop = chat.scrollHeight;
                 return;
             }
 
@@ -2281,10 +2316,33 @@
 
             // 140 px de tolerancia: si estabas cerca del final, se considera
             // que querés seguir la conversación.
-            var cerca = (chat.scrollHeight - chat.scrollTop - chat.clientHeight) < 140;
+            var cerca = (chat.scrollHeight - chat.scrollTop - chat.clientHeight) < CERCA;
+            estabaAbajo = cerca;
 
             if (forzar || (crecio && cerca)) chat.scrollTop = chat.scrollHeight;
         }
+
+        /*
+         * Tomar nota cada vez que desplazás la conversación.
+         *
+         * Sin esto, "estabaAbajo" solo se actualizaría cada tres segundos, en
+         * el refresco. Si subís a leer algo viejo y justo entra un mensaje
+         * antes del siguiente refresco, el panel creería que seguís abajo y
+         * te arrastraría.
+         *
+         * Solo anota. No mueve nada ni toca el teclado — ese manejador ya se
+         * probó y se quitó: el chat también se desplaza por su cuenta al
+         * enfocar el cuadro, y no hay forma de distinguir eso de tu dedo.
+         * Anotar es inofensivo; actuar no lo era.
+         *
+         * En captura porque el evento "scroll" no burbujea.
+         */
+        document.addEventListener('scroll', function (e) {
+            var t = e.target;
+            if (!t || !t.classList || !t.classList.contains('wa-chat')) return;
+
+            estabaAbajo = (t.scrollHeight - t.scrollTop - t.clientHeight) < CERCA;
+        }, true);
 
         function engancharFondo() {
             if (!window.Livewire || !window.Livewire.hook) return false;
