@@ -59,7 +59,14 @@ class MejorarTexto
         }
 
         if (! static::disponible()) {
-            return ['ok' => false, 'error' => 'Falta cargar la clave de la inteligencia artificial en Railway.'];
+            return ['ok' => false, 'error' => 'Falta cargar ' . static::variable() . ' en Railway.'];
+        }
+
+        // Se revisa antes de salir a internet: si la clave es del otro
+        // proveedor, el viaje sobra y la respuesta sería un 401 que no explica
+        // nada.
+        if ($mal = static::claveDesalineada()) {
+            return ['ok' => false, 'error' => $mal];
         }
 
         $maximo = (int) config('ia.maximo', 1200);
@@ -342,19 +349,74 @@ class MejorarTexto
             : ['ok' => false, 'error' => 'Devolvió una respuesta vacía.'];
     }
 
+    /** En qué variable de Railway vive la clave del proveedor elegido. */
+    private static function variable(): string
+    {
+        return static::proveedor() === 'openai' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY';
+    }
+
+    /**
+     * ¿La clave cargada es del proveedor que está configurado?
+     *
+     * Esto se pregunta ANTES de salir a internet, y es la causa más común del
+     * "clave no válida": se carga una clave de un proveedor mientras el panel
+     * está apuntando al otro. Desde afuera se ve idéntico a una clave vencida
+     * —los dos casos contestan 401— pero se arreglan de maneras distintas, y
+     * el mensaje de antes no los sabía distinguir.
+     *
+     * Se mira la forma, no el contenido: las de Anthropic empiezan con
+     * "sk-ant-", las de OpenAI con "sk-" a secas. Acá no se imprime ni se
+     * registra la clave, solo si arranca de una manera o de la otra.
+     */
+    private static function claveDesalineada(): ?string
+    {
+        $c = trim((string) static::clave());
+        if ($c === '') return null;
+
+        $deAnthropic = str_starts_with($c, 'sk-ant-');
+        $p = static::proveedor();
+
+        if ($p === 'openai' && $deAnthropic) {
+            return 'La clave cargada es de Anthropic, pero el panel está configurado para OpenAI. '
+                 . 'En Railway: o poné IA_PROVEEDOR en "anthropic", o cargá una clave de OpenAI '
+                 . 'en OPENAI_API_KEY.';
+        }
+
+        if ($p === 'anthropic' && ! $deAnthropic) {
+            return 'El panel está configurado para Anthropic, pero la clave cargada no tiene esa '
+                 . 'forma (las de Anthropic empiezan con sk-ant-). En Railway: o poné '
+                 . 'IA_PROVEEDOR en "openai", o cargá la clave de Anthropic en ANTHROPIC_API_KEY.';
+        }
+
+        return null;
+    }
+
     /** El motivo real, sin adornos, para que se pueda arreglar. */
     private static function porQue($r): string
     {
-        $m = $r->json('error.message') ?: $r->body();
+        // Algunos proveedores devuelven la clave (enmascarada a medias) dentro
+        // del propio mensaje de error. Acá no sale nada que se le parezca:
+        // esto termina en una notificación en pantalla y en el registro.
+        $m = trim((string) ($r->json('error.message') ?: $r->body()));
+        $m = (string) preg_replace('/sk-[A-Za-z0-9_\-]{6,}/', 'sk-…', $m);
 
         if ($r->status() === 401) {
-            return 'La clave no es válida. Revisala en Railway.';
+            return static::proveedor() . ' rechazó la clave. Revisá ' . static::variable()
+                 . ' en Railway — casi siempre es que la borraron o la regeneraron del lado '
+                 . 'de ellos, y hay que pegar una nueva. Contestaron: '
+                 . mb_substr($m, 0, 120);
+        }
+
+        if ($r->status() === 404) {
+            return 'El modelo "' . static::modelo() . '" no existe o esa cuenta no lo tiene '
+                 . 'habilitado. Se cambia en Railway con '
+                 . (static::proveedor() === 'openai' ? 'OPENAI_MODELO' : 'ANTHROPIC_MODELO') . '.';
         }
 
         if ($r->status() === 429) {
             return 'Se pasó del límite del proveedor, o la cuenta no tiene saldo.';
         }
 
-        return mb_substr((string) $m, 0, 200);
+        return mb_substr($m, 0, 200);
     }
 }
