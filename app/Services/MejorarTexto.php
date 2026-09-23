@@ -307,10 +307,12 @@ class MejorarTexto
             ])
             ->timeout(25)
             ->post('https://api.anthropic.com/v1/messages', [
-                'model'      => static::modelo(),
-                'max_tokens' => 1500,
-                'system'     => static::instrucciones(),
-                'messages'   => [
+                'model'       => static::modelo(),
+                'max_tokens'  => 1500,
+                // Mismo motivo que del otro lado: corregir no es inventar.
+                'temperature' => static::temperatura(),
+                'system'      => static::instrucciones(),
+                'messages'    => [
                     ['role' => 'user', 'content' => $texto],
                 ],
             ]);
@@ -326,17 +328,61 @@ class MejorarTexto
             : ['ok' => false, 'error' => 'Devolvió una respuesta vacía.'];
     }
 
+    /**
+     * Qué tan suelto escribe.
+     *
+     * Acá estaba la razón de que el corrector se pusiera incoherente: este
+     * valor no se mandaba, y sin mandarlo OpenAI usa 1, que es el máximo
+     * razonable. Eso está bien para escribir algo creativo y está MAL para
+     * esto: el mismo mensaje, corregido dos veces, salía distinto las dos.
+     *
+     * Para corregir un mensaje a un cliente queremos lo contrario de
+     * creatividad. Queremos que si el mensaje ya estaba bien, lo devuelva
+     * igual; y que si hay que arreglarlo, lo arregle siempre de la misma
+     * manera. 0.2 deja apenas el juego necesario para elegir una palabra
+     * mejor, sin ponerse a inventar.
+     */
+    private static function temperatura(): float
+    {
+        return (float) config('ia.temperatura', 0.2);
+    }
+
+    /**
+     * ¿Este modelo acepta que le fijen la temperatura?
+     *
+     * Los modelos que razonan (la familia gpt-5 y los "o") no la aceptan: si
+     * se les manda, contestan un error y no corrigen nada. Así que se les
+     * manda la instrucción sin ese campo. No hace falta — esos ya son
+     * bastante estables por su cuenta.
+     */
+    private static function aceptaTemperatura(): bool
+    {
+        $m = strtolower(static::modelo());
+
+        foreach (['gpt-5', 'o1', 'o3', 'o4', 'o5'] as $familia) {
+            if (str_starts_with($m, $familia)) return false;
+        }
+
+        return true;
+    }
+
     private static function conOpenAI(string $texto): array
     {
+        $cuerpo = [
+            'model'    => static::modelo(),
+            'messages' => [
+                ['role' => 'system', 'content' => static::instrucciones()],
+                ['role' => 'user',   'content' => $texto],
+            ],
+        ];
+
+        if (static::aceptaTemperatura()) {
+            $cuerpo['temperature'] = static::temperatura();
+        }
+
         $r = Http::withToken(static::clave())
             ->timeout(25)
-            ->post('https://api.openai.com/v1/chat/completions', [
-                'model'    => static::modelo(),
-                'messages' => [
-                    ['role' => 'system', 'content' => static::instrucciones()],
-                    ['role' => 'user',   'content' => $texto],
-                ],
-            ]);
+            ->post('https://api.openai.com/v1/chat/completions', $cuerpo);
 
         if (! $r->successful()) {
             return ['ok' => false, 'error' => static::porQue($r)];
