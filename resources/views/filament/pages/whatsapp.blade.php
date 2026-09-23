@@ -1650,7 +1650,28 @@
                      responde con cada tecla. --}}
                 @php $opcionesMuni = $susMunicipios ?: $this->todosLosMunicipios(); @endphp
 
+                {{-- wire:key con el departamento adentro. NO es decorativo:
+                     era el motivo de que no se pudiera elegir San Salvador.
+
+                     La lista de municipios se le entrega a Alpine dentro del
+                     x-data, y Alpine lee el x-data UNA SOLA VEZ, cuando nace
+                     el elemento. Después Livewire puede redibujar el atributo
+                     todas las veces que quiera: Alpine ya no lo vuelve a
+                     mirar.
+
+                     Entonces pasaba esto: el formulario abría con el
+                     departamento del pedido ANTERIOR ya puesto, y la lista
+                     nacía con los municipios de ese departamento. Cambiabas a
+                     San Salvador, Livewire actualizaba todo lo de abajo... y
+                     la lista seguía siendo la vieja. San Salvador no estaba
+                     ahí, así que el buscador contestaba "no hay ninguno que se
+                     llame así" — y no había forma de elegirlo.
+
+                     Con la llave, al cambiar de departamento Livewire da el
+                     elemento por otro, Alpine lo arma de nuevo, y la lista
+                     nace con los municipios que corresponden. --}}
                 <div class="wa-campo wa-busca"
+                     wire:key="muni-{{ $pedDepartamento ?: 'todos' }}"
                      x-data="{
                          abierto: false,
                          buscar: @js($pedMunicipio),

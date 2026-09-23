@@ -1812,7 +1812,31 @@ class Whatsapp extends Page
         $datos = $this->leerOrden($m->texto);
 
         if (filled($datos['nombre'])) $this->pedNombre = $this->limpiarNombre($datos['nombre']);
-        if (filled($datos['direccion'])) $this->pedDireccion = $datos['direccion'];
+
+        /*
+         * LA ORDEN MANDA. Lo que la orden no diga, se vacía.
+         *
+         * Acá estaba el error de la dirección distinta. Al abrir el chat, el
+         * formulario se precarga con los datos del pedido ANTERIOR de ese
+         * cliente — cómodo para escribir una orden a mano. Pero al procesar
+         * una orden, si el intérprete no lograba leer el renglón de la
+         * dirección, este campo no se tocaba: se quedaba la dirección vieja.
+         *
+         * Y así se ve igual que si la hubiera leído bien. Una dirección de
+         * otro pedido, sentada en el formulario, con cara de dato correcto.
+         * Eso es una guía a la casa equivocada.
+         *
+         * Vacío se nota. Y abajo se avisa exactamente qué quedó sin leer.
+         */
+        $antes = [
+            'direccion'    => $this->pedDireccion,
+            'municipio'    => $this->pedMunicipio,
+            'departamento' => $this->pedDepartamento,
+        ];
+
+        $this->pedDireccion    = filled($datos['direccion'] ?? null) ? $datos['direccion'] : '';
+        $this->pedMunicipio    = '';
+        $this->pedDepartamento = '';
 
         // ── Los dos teléfonos ────────────────────────────────────────────────
         //
@@ -1851,6 +1875,28 @@ class Whatsapp extends Page
         $this->pestana = 'pedido';
 
         $leidos = count(array_filter($datos, fn ($v) => filled($v)));
+
+        // Qué se vació porque la orden no lo traía, y qué había antes ahí.
+        // Decirlo importa: el campo que quedó en blanco es justo el que hay
+        // que mirar, y si antes tenía algo, es dato de OTRO pedido.
+        $perdidos = [];
+
+        foreach (['direccion' => 'la dirección', 'municipio' => 'el municipio'] as $campo => $nombre) {
+            $ahora = $campo === 'direccion' ? $this->pedDireccion : $this->pedMunicipio;
+
+            if (trim((string) $ahora) === '' && trim((string) $antes[$campo]) !== '') {
+                $perdidos[] = $nombre;
+            }
+        }
+
+        if ($perdidos) {
+            Notification::make()
+                ->title('Ojo: ' . implode(' y ', $perdidos) . ' no venía en la orden')
+                ->body('Lo que había ahí era del pedido anterior de este cliente, así que lo '
+                     . 'borré. Escribilo mirando el texto de la orden, que quedó arriba.')
+                ->warning()->persistent()->send();
+            return;
+        }
 
         Notification::make()
             ->title($leidos > 0 ? "Se leyeron {$leidos} datos de la orden" : 'No se pudo leer la orden')
