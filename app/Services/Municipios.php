@@ -256,6 +256,36 @@ class Municipios
         return $lista;
     }
 
+    /**
+     * Todos los municipios, agrupados por departamento.
+     *
+     * Es la misma información que deDepartamento(), pero entregada de una sola
+     * vez. Sirve para que el buscador del formulario pueda cambiar de lista al
+     * cambiar de departamento sin volver a preguntarle al servidor — que es lo
+     * que no estaba pasando y por eso salían los 262 juntos.
+     *
+     * Un municipio cuyo nombre existe en dos departamentos aparece en los dos.
+     */
+    public static function porDepartamento(): array
+    {
+        $mapa = [];
+
+        foreach (static::tabla() as $fila) {
+            foreach ($fila['departamentos'] as $d) {
+                $mapa[$d][] = $fila['nombre'];
+            }
+        }
+
+        foreach ($mapa as &$lista) {
+            sort($lista, SORT_LOCALE_STRING);
+        }
+        unset($lista);
+
+        ksort($mapa);
+
+        return $mapa;
+    }
+
     /** Todos los municipios conocidos, en orden alfabético. */
     public static function todos(): array
     {

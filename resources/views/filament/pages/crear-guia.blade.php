@@ -148,6 +148,38 @@
                     </div>
                 @endif
 
+                {{-- El botón de bajar el lote va ARRIBA de la lista, no al final.
+
+                     Estaba abajo del todo, y eso tenía dos problemas. Uno: con
+                     veinte guías había que recorrerlas todas para llegar. Dos,
+                     y peor: justo debajo están los botones de volver a bajar un
+                     lote YA cerrado. Dos cosas que se parecen, pegadas, y la de
+                     abajo manda a Sistrack un archivo que ya subiste.
+
+                     Acá arriba queda separado de esos, y a la vista apenas
+                     entrás: la lista va de lo más nuevo a lo más viejo, así que
+                     lo que está esperando lote es lo primero que se ve, y el
+                     botón está justo encima de eso. --}}
+                @if($porSalir->count())
+                    <div class="mb-3 rounded-xl border border-primary-300 bg-primary-50/60 p-3 dark:border-primary-500/50 dark:bg-primary-500/10">
+                        <x-filament::button wire:click="descargar" size="lg" icon="heroicon-m-arrow-down-tray"
+                            class="w-full justify-center">
+                            Bajar lote {{ \App\Models\GuiaBorrador::proximoNumero() }} ({{ $porSalir->count() }})
+                        </x-filament::button>
+
+                        <p class="mt-2 text-center text-xs text-gray-600 dark:text-gray-400">
+                            Subí este archivo en Sistrack → <span class="font-semibold">Importación masiva</span>.
+                            Al bajarlo, {{ $porSalir->count() === 1 ? 'esta queda marcada' : 'estas quedan marcadas' }}
+                            y lo que agregues después arranca el lote siguiente.
+                        </p>
+                    </div>
+                @elseif(count($lista))
+                    <p class="mb-3 rounded-xl border border-dashed border-gray-300 p-4 text-center text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">
+                        Todo lo de la lista ya se bajó. Lo que agregues ahora va a formar el
+                        <span class="font-semibold">lote {{ \App\Models\GuiaBorrador::proximoNumero() }}</span>.
+                    </p>
+                @endif
+
                 <div class="space-y-2">
                     @php $corteDibujado = false; @endphp
 
@@ -300,23 +332,10 @@
                     @endforelse
                 </div>
 
-                @if($porSalir->count())
-                    <x-filament::button wire:click="descargar" size="lg" icon="heroicon-m-arrow-down-tray"
-                        class="mt-4 w-full justify-center">
-                        Bajar lote {{ \App\Models\GuiaBorrador::proximoNumero() }} ({{ $porSalir->count() }})
-                    </x-filament::button>
-
-                    <p class="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
-                        Subí este archivo en Sistrack → <span class="font-semibold">Importación masiva</span>.
-                        Al bajarlo, estas {{ $porSalir->count() === 1 ? 'queda marcada' : 'quedan marcadas' }}
-                        y lo que agregues después arranca el lote siguiente.
-                    </p>
-                @elseif(count($lista))
-                    <p class="mt-4 rounded-xl border border-dashed border-gray-300 p-4 text-center text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">
-                        Todo lo de la lista ya se bajó. Lo que agregues ahora va a formar el
-                        <span class="font-semibold">lote {{ \App\Models\GuiaBorrador::proximoNumero() }}</span>.
-                    </p>
-                @endif
+                {{-- Acá abajo YA NO va el botón de bajar el lote: se subió
+                     arriba de la lista. Quedaba pegado a los de volver a bajar
+                     un lote cerrado, y equivocarse de botón significa mandarle
+                     a Sistrack un archivo que ya subiste. --}}
 
                 {{-- Volver a bajar un lote ya cerrado: pasa que se pierde el
                      archivo o que Sistrack rechaza la carga. No reabre nada. --}}

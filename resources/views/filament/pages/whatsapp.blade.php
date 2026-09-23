@@ -1648,7 +1648,6 @@
 
                      El filtrado es en el navegador, sin ir al servidor: por eso
                      responde con cada tecla. --}}
-                @php $opcionesMuni = $susMunicipios ?: $this->todosLosMunicipios(); @endphp
 
                 {{-- wire:key con el departamento adentro. NO es decorativo:
                      era el motivo de que no se pudiera elegir San Salvador.
@@ -1675,7 +1674,20 @@
                      x-data="{
                          abierto: false,
                          buscar: @js($pedMunicipio),
-                         opciones: @js($opcionesMuni),
+
+                         /* El mapa entero, una sola vez. La lista que toca NO
+                            se calcula en el servidor y se congela acá dentro
+                            —eso era el error— sino que se elige del mapa
+                            leyendo el departamento de Livewire. Como $wire es
+                            reactivo, al cambiarlo esta lista cambia sola. */
+                         porDepto: @js($this->municipiosPorDepartamento()),
+                         todos: @js($this->todosLosMunicipios()),
+
+                         get opciones() {
+                             const d = $wire.pedDepartamento;
+                             return (d && this.porDepto[d]) ? this.porDepto[d] : this.todos;
+                         },
+
                          limpio(s) {
                              return (s || '').toString().toLowerCase()
                                  .normalize('NFD').replace(/[̀-ͯ]/g, '');

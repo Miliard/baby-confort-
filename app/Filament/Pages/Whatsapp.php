@@ -1208,6 +1208,18 @@ class Whatsapp extends Page
     }
 
     /**
+     * El mapa completo departamento → municipios, para el buscador.
+     *
+     * Va entero al navegador una sola vez. El buscador elige de ahí la lista
+     * que toca según el departamento, sin volver a preguntar acá. Son unos
+     * pocos kilobytes y ahorra un viaje al servidor por cada cambio.
+     */
+    public function municipiosPorDepartamento(): array
+    {
+        return \App\Services\Municipios::porDepartamento();
+    }
+
+    /**
      * Al cambiar de departamento, el municipio anterior ya no vale.
      *
      * Es lo que impide de raíz el error que originó todo esto: una guía que
