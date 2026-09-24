@@ -17,6 +17,8 @@ use Filament\Pages\Page;
  */
 class Whatsapp extends Page
 {
+    use \Livewire\WithFileUploads;
+
     protected static ?string $navigationIcon = 'heroicon-o-chat-bubble-left-right';
     protected static ?string $navigationLabel = 'WhatsApp';
     protected static ?string $title = 'WhatsApp';
@@ -1641,6 +1643,100 @@ class Whatsapp extends Page
     public function quitarFotoPendiente(): void
     {
         $this->rapidaFoto = null;
+    }
+
+    // ═══ Mandar una foto de la computadora o del teléfono ════════════════════
+
+    /**
+     * La foto que se está subiendo desde el aparato.
+     *
+     * Hasta ahora solo se podían mandar fotos que YA estuvieran cargadas en el
+     * admin: las del catálogo y las de las respuestas rápidas. Eso sirve para
+     * lo que se repite, y no sirve para lo que pasa una vez — mandarle la foto
+     * de cómo quedó su paquete, o la del producto que preguntó y no está
+     * cargado.
+     */
+    public $fotoSuelta = null;
+
+    /**
+     * Apenas se elige el archivo, se manda.
+     *
+     * Sin paso intermedio de confirmar a propósito: elegir una foto para
+     * mandársela a alguien YA es la confirmación. Un botón más solo agrega un
+     * toque en un teléfono, que es donde más cuesta.
+     *
+     * El pie es lo que haya escrito en el cuadro, si escribió algo. Así se
+     * puede mandar la foto con su explicación de una sola vez, como en
+     * WhatsApp.
+     */
+    public function updatedFotoSuelta(): void
+    {
+        $conv = $this->conversacion();
+
+        if (! $conv) { $this->fotoSuelta = null; return; }
+
+        // 5 MB. WhatsApp aguanta bastante más, pero una foto de teléfono sin
+        // achicar son 8 o 10 MB y tarda una eternidad en subir por datos
+        // móviles, que es como trabajás vos.
+        try {
+            $this->validate([
+                'fotoSuelta' => ['image', 'max:5120'],
+            ], [
+                'fotoSuelta.image' => 'Eso no es una imagen.',
+                'fotoSuelta.max'   => 'La foto pasa de 5 MB. Sacale una más chica o achicala.',
+            ]);
+        } catch (\Throwable $e) {
+            $this->fotoSuelta = null;
+
+            Notification::make()
+                ->title('No se pudo mandar')
+                ->body($e instanceof \Illuminate\Validation\ValidationException
+                    ? implode(' ', \Illuminate\Support\Arr::flatten($e->errors()))
+                    : 'Revisá el archivo.')
+                ->warning()->send();
+            return;
+        }
+
+        if (! $conv->ventanaAbierta()) {
+            $this->fotoSuelta = null;
+
+            Notification::make()
+                ->title('La ventana de 24 horas está cerrada')
+                ->body('Hay que esperar a que el cliente escriba de nuevo.')
+                ->warning()->send();
+            return;
+        }
+
+        try {
+            // Al disco público, que es de donde Meta la va a descargar. Se
+            // guarda con las de WhatsApp para que la limpieza automática de
+            // fotos viejas también las alcance y no llenen el volumen.
+            $ruta = $this->fotoSuelta->store('whatsapp/sueltas', 'public');
+
+            if (! $ruta) throw new \RuntimeException('No se pudo guardar la foto.');
+
+            $pie = trim($this->texto) !== '' ? trim($this->texto) : null;
+
+            $m = WhatsappApi::enviarImagen($conv, url('/storage/' . $ruta), $pie, auth()->id());
+
+            if ($m->estado === 'fallido') {
+                Notification::make()
+                    ->title('La foto no salió')
+                    ->body((string) ($m->error ?: 'WhatsApp la rechazó.'))
+                    ->danger()->persistent()->send();
+            } else {
+                // El cuadro se limpia solo si el texto se fue como pie: si no,
+                // se perdería lo que estaba escrito para mandar aparte.
+                if ($pie !== null) $this->texto = '';
+            }
+        } catch (\Throwable $e) {
+            Notification::make()
+                ->title('No se pudo mandar la foto')
+                ->body($e->getMessage())
+                ->danger()->persistent()->send();
+        }
+
+        $this->fotoSuelta = null;
     }
 
     // ═══ Pestaña "Tomar pedido" ═════════════════════════════════════════════

@@ -231,10 +231,39 @@ class MejorarTexto
           Mal (era una confirmación y quedó como si esperara respuesta):
           "Hoy se los mando para que le llegue mañana, quedo atento."
 
-        - NO agregás emojis nuevos.
         - NO rellenás. Si con dos renglones alcanza, dos renglones. Un mensaje
           corto y claro está terminado: no lo estires para que parezca más
           trabajado.
+
+        LOS EMOJIS
+
+        Podés poner emojis. Bien puestos, un mensaje de WhatsApp se lee más
+        cálido y menos a formulario.
+
+        Las reglas:
+
+        - UNO O DOS en todo el mensaje. Nunca más. Un mensaje salpicado de
+          emojis se lee como publicidad, y a la publicidad no se le contesta.
+        - Los del negocio, que son estos: 💙 📦 🚚 😊 ✅
+          El 💙 es el que cierra. 📦 para el paquete, 🚚 para la entrega,
+          ✅ para lo que ya está hecho, 😊 para saludar.
+        - Nada de 🎉 🔥 ⭐ ni parientes: eso es tono de promoción y acá se
+          está atendiendo a alguien.
+        - Van al principio de un renglón o al final del mensaje, no metidos en
+          medio de una frase partiéndola.
+        - Los que ya trae el original se quedan donde están. Si ya tiene dos,
+          no le agregues más.
+        - En un mensaje de mala noticia —algo agotado, un retraso, un
+          problema— no va ninguno. Ahí un emoji suena a que no te importa.
+
+        Original:
+        "ya salio su pedido"
+
+        Bien:
+        "Su pedido ya salió 📦"
+
+        Mal (tres emojis y uno partiendo la frase):
+        "🎉 Su pedido ✅ ya salió 🚚💙"
 
         EL LARGO
 
@@ -317,7 +346,9 @@ class MejorarTexto
 
           Mal:  "puedo enviarte el pedido el lunes, ten en cuenta que..."
           Bien: "le puedo enviar el pedido el lunes, tenga en cuenta que..."
-        - Mantené los emojis, enlaces, números y montos EXACTAMENTE como están.
+        - Mantené los enlaces, los números y los montos EXACTAMENTE como están.
+          (Los emojis del original también se respetan, pero de esos se habla
+          arriba: ahí sí podés agregar, con las reglas que están dichas.)
         - Si el mensaje ya está bien escrito, devolvelo igual.
 
         Respondé ÚNICAMENTE con el mensaje listo para mandar. Sin comillas, sin

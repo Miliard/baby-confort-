@@ -603,6 +603,19 @@
        el número ya lo tenés a la vista, no hace falta tanto aire. */
     html.wa--teclado .wa-cab{padding:5px 9px}
 
+    /* El de mandar una foto del aparato. Es un <label>, no un <button>, así
+       que hay que darle a mano lo que un botón trae solo: el cursor de mano y
+       el no partirse en dos renglones dentro del carrusel. */
+    .wa-foto-btn{cursor:pointer;white-space:nowrap;display:inline-flex;
+                 align-items:center;user-select:none}
+    .wa-foto-btn:hover{border-color:#4aa3df;color:#2b7fb8}
+    html.dark .wa-foto-btn:hover{color:#8ecbf0}
+    .wa-foto-btn:active{transform:scale(.97);filter:brightness(.92)}
+    /* Mientras sube, apagado y sin manito: que se note que ya está trabajando
+       y que tocarlo de nuevo no sirve. Sin esto se toca tres veces y se
+       mandan tres fotos. */
+    .wa-foto-btn--yendo{opacity:.55;cursor:wait;pointer-events:none}
+
     /* Los botones de respuesta al lado de Enviar. Se crean desde el admin. */
     .wa-chip{border:1px solid #d1d5db;background:#fff;border-radius:999px;
              padding:6px 13px;font-size:12.5px;font-weight:600;cursor:pointer;
@@ -1556,6 +1569,32 @@
                         <x-filament::button size="sm" wire:click="enviar" icon="heroicon-m-paper-airplane">
                             Enviar
                         </x-filament::button>
+
+                        {{-- Mandar una foto de la computadora o del teléfono.
+
+                             Hasta ahora solo salían fotos YA cargadas en el
+                             admin: las del catálogo y las de las respuestas
+                             rápidas. Eso sirve para lo que se repite, y no
+                             sirve para lo que pasa una vez.
+
+                             Es un <label> con el input escondido adentro, no un
+                             botón: así el toque abre el selector de archivos
+                             directo, sin JavaScript de por medio. En el
+                             teléfono eso además ofrece la cámara.
+
+                             accept="image/*" y capture ausente a propósito: con
+                             capture forzaría la cámara y no dejaría elegir una
+                             foto de la galería, que es lo que más vas a hacer. --}}
+                        <label class="wa-chip wa-foto-btn"
+                               wire:loading.class="wa-foto-btn--yendo" wire:target="fotoSuelta"
+                               title="Mandar una foto desde este aparato">
+                            <span wire:loading.remove wire:target="fotoSuelta">📎 Foto</span>
+                            <span wire:loading wire:target="fotoSuelta">Subiendo…</span>
+
+                            <input type="file" accept="image/*" wire:model="fotoSuelta"
+                                   style="display:none"
+                                   aria-label="Elegir una foto para mandar al cliente">
+                        </label>
 
                         @if($this->puedeMejorar())
                             <button type="button" class="wa-chip wa-chip-ia" wire:click="mejorar"
