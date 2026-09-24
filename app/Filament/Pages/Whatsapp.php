@@ -1844,6 +1844,38 @@ class Whatsapp extends Page
         $this->pedOrigen = $m->texto;
         $datos = $this->leerOrden($m->texto);
 
+        /*
+         * Si el lector de reglas dejó huecos, la IA lee la conversación.
+         *
+         * En este orden y no al revés. Las reglas son gratis, instantáneas y
+         * cuando el cliente usó la plantilla no se equivocan nunca: llamar a
+         * la IA ahí sería pagar y esperar para llegar al mismo resultado.
+         *
+         * Y hay una diferencia de fondo entre las dos, que es lo que hace que
+         * valga la pena: las reglas miran ESTE mensaje, la IA mira la
+         * conversación. El nombre que dio al principio y la dirección que
+         * mandó tres mensajes después terminan en la misma orden.
+         *
+         * Lo que trae la IA solo RELLENA lo que quedó vacío. Nunca pisa lo que
+         * las reglas ya leyeron: eso salió del texto literal y es más seguro.
+         */
+        $conIA = false;
+
+        if (static::faltanDatos($datos) && \App\Services\LeerOrdenIA::disponible()) {
+            $conv = $this->conversacion();
+
+            if ($conv) {
+                $delaIA = \App\Services\LeerOrdenIA::de($conv);
+
+                foreach ($delaIA as $campo => $valor) {
+                    if (blank($datos[$campo] ?? null) && filled($valor)) {
+                        $datos[$campo] = $valor;
+                        $conIA = true;
+                    }
+                }
+            }
+        }
+
         if (filled($datos['nombre'])) $this->pedNombre = $this->limpiarNombre($datos['nombre']);
 
         /*
@@ -1928,6 +1960,19 @@ class Whatsapp extends Page
                 ->body('Lo que había ahí era del pedido anterior de este cliente, así que lo '
                      . 'borré. Escribilo mirando el texto de la orden, que quedó arriba.')
                 ->warning()->persistent()->send();
+            return;
+        }
+
+        // Que la IA haya participado se avisa, y no es un detalle: lo que sacó
+        // el lector de reglas salió del texto literal, y lo que sacó la IA
+        // salió de entender la conversación. Lo segundo se revisa con más
+        // cuidado, y para eso hay que saber cuándo pasó.
+        if ($conIA) {
+            Notification::make()
+                ->title("Se completó con IA leyendo el chat ({$leidos} datos)")
+                ->body('Los campos que la plantilla no traía se sacaron de la conversación. '
+                     . 'Revisá con cuidado la dirección y el municipio contra lo que dijo el cliente.')
+                ->warning()->send();
             return;
         }
 
@@ -2020,6 +2065,26 @@ class Whatsapp extends Page
      * Busca por el nombre del campo y no por la posición del renglón, así que
      * aguanta que cambien los emojis, el orden o que se agregue una línea.
      */
+    /**
+     * ¿Al lector de reglas le faltó algo de lo que impide guardar?
+     *
+     * Solo estos tres. Los productos y el monto se escriben abajo con el
+     * catálogo, que es más confiable que cualquier lectura — ahí los precios
+     * salen de la base. Y el teléfono ya lo da la conversación.
+     *
+     * Acotarlo importa: si se llamara a la IA por cualquier campo vacío, se
+     * llamaría casi siempre, y la gracia era justamente no llamarla cuando la
+     * plantilla vino bien.
+     */
+    private static function faltanDatos(array $datos): bool
+    {
+        foreach (['nombre', 'direccion', 'municipio'] as $c) {
+            if (blank($datos[$c] ?? null)) return true;
+        }
+
+        return false;
+    }
+
     private function leerOrden(string $texto): array
     {
         $campos = [
