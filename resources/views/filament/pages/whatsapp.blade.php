@@ -414,6 +414,19 @@
     .wa-pie{font-size:10.5px;margin-top:3px;text-align:right;color:rgba(0,0,0,.45)}
     html.dark .wa-pie{color:rgba(255,255,255,.5)}
 
+    /* ── La separación entre días ───────────────────────────────────────────
+       Va centrada y en su propia pastilla, no alineada con los globos: no es
+       un mensaje de nadie, es una marca en el tiempo, y tiene que leerse como
+       otra cosa.
+
+       align-self:center porque el chat es un flex en columna y, sin eso,
+       la pastilla se estiraría de lado a lado. */
+    .wa-dia{align-self:center;margin:6px 0 2px}
+    .wa-dia span{display:inline-block;padding:3px 12px;border-radius:999px;
+                 font-size:11.5px;font-weight:700;letter-spacing:.02em;
+                 background:rgba(120,140,170,.16);color:var(--wa-suave)}
+    html.dark .wa-dia span{background:rgba(255,255,255,.08)}
+
     /* La luz del semáforo: gris salió, amarillo le llegó al teléfono, verde lo
        leyó, rojo falló. Un punto, no palomitas — una palomita y dos palomitas
        son el mismo dibujo y en el teléfono hay que fijarse para distinguirlas;
@@ -1304,7 +1317,22 @@
 
             @if($pestana === 'chat')
             <div class="wa-chat" data-conv="{{ $abierta }}">
+                @php $diaAnterior = null; @endphp
+
                 @forelse($this->mensajes() as $m)
+                    {{-- La fecha va en una separación entre días, no pegada a
+                         cada globo. Repetirla en los veinte mensajes de un
+                         mismo día es ruido: lo que uno necesita saber es dónde
+                         empieza cada día, y eso se ve una sola vez.
+
+                         Es como lo hace WhatsApp, y no por copiarlo: en una
+                         conversación larga la fecha solo importa cuando
+                         cambia. --}}
+                    @if($m->diaClave() !== $diaAnterior)
+                        @php $diaAnterior = $m->diaClave(); @endphp
+                        <div class="wa-dia"><span>{{ $m->diaLegible() }}</span></div>
+                    @endif
+
                     @php
                         $clase = $m->esDelCliente() ? 'wa-suyo'
                                : ($m->estado === 'fallido' ? 'wa-mal'
@@ -1372,7 +1400,11 @@
                                         title="Traerlo abajo para corregirlo y mandarlo de nuevo"><span aria-hidden="true">✏️</span></button>
                             @endif
 
-                            {{ $m->hora() }}
+                            {{-- La fecha completa en el title: la separación de
+                                 arriba dice de qué día es, pero si estás a
+                                 mitad de una conversación larga ya la pasaste.
+                                 Con esto se consulta sin subir. --}}
+                            <span title="{{ $m->fechaYHora() }}">{{ $m->hora() }}</span>
                             @if(! $m->esDelCliente())
                                 · <b style="color:{{ $m->colorFirma() }}">{{ $m->firma() }}</b>
                                 <span class="wa-check" style="color:{{ $m->colorEstado() }}"

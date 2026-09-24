@@ -128,6 +128,54 @@ class WaMensaje extends Model
         );
     }
 
+    /**
+     * La fecha sola, en hora de acá. Sirve para saber cuándo cambia el día.
+     *
+     * Se compara por este valor y no por created_at directo: created_at está
+     * en UTC, así que un mensaje de las 8 de la noche ya cae en el día
+     * siguiente y la separación quedaría corrida seis horas.
+     */
+    public function diaClave(): string
+    {
+        if (! $this->created_at) return '';
+
+        return $this->created_at->timezone(config('app.zona_local'))->format('Y-m-d');
+    }
+
+    /**
+     * Cómo se escribe ese día en la separación del chat.
+     *
+     * "Hoy" y "Ayer" primero, porque es lo que uno piensa. Después el nombre
+     * del día, que para esta semana dice más que un número. Y de ahí para
+     * atrás, la fecha completa.
+     */
+    public function diaLegible(): string
+    {
+        if (! $this->created_at) return '';
+
+        $zona  = config('app.zona_local');
+        $fecha = $this->created_at->copy()->timezone($zona);
+        $hoy   = now()->timezone($zona);
+
+        if ($fecha->isSameDay($hoy))                   return 'Hoy';
+        if ($fecha->isSameDay($hoy->copy()->subDay())) return 'Ayer';
+
+        $dias  = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+        $meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+                  'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+        $texto = $dias[(int) $fecha->format('w')] . ' ' . $fecha->format('j')
+               . ' de ' . $meses[(int) $fecha->format('n') - 1];
+
+        // De otro año, el año también: si no, un mensaje de septiembre pasado
+        // se lee como si fuera de este.
+        if ($fecha->format('Y') !== $hoy->format('Y')) {
+            $texto .= ' de ' . $fecha->format('Y');
+        }
+
+        return $texto;
+    }
+
     /** Con el día, para cuando la conversación es de otra fecha. */
     public function fechaYHora(): string
     {
