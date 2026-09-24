@@ -988,9 +988,27 @@
                 $sinLeer = $this->cuantasSinLeer();
             @endphp
 
-            {{-- El contador que vigila el JavaScript para avisar. Va acá
-                 adentro porque esta parte se refresca sola cada 3 segundos. --}}
-            <span id="wa-sinleer" data-n="{{ $sinLeer }}" style="display:none"></span>
+            {{-- Lo que vigila el JavaScript. Va acá adentro porque esta parte
+                 se refresca sola cada 3 segundos.
+
+                 data-n es el número que va en la pestaña del navegador.
+                 data-ult es el que DISPARA el sonido: el id del último mensaje
+                 que entró. Ver ultimoEntranteId() para por qué el contador no
+                 servía de disparador. --}}
+            <span id="wa-sinleer"
+                  data-n="{{ $sinLeer }}"
+                  data-ult="{{ $this->ultimoEntranteId() }}"
+                  style="display:none"></span>
+
+            {{-- Probar el sonido, siempre a la vista y no solo cuando falta dar
+                 permiso. Sin esto no hay cómo saber si el problema es que el
+                 sonido no funciona o que el aviso no se está disparando: son
+                 dos fallas distintas y se arreglan distinto. --}}
+            <button type="button" onclick="waProbarSonido()" class="wa-fil"
+                    style="--c:#94a3b8;margin-top:8px"
+                    aria-label="Probar el sonido del aviso">
+                🔊 Probar sonido
+            </button>
 
             <div class="wa-filtros">
                 {{-- aria-pressed en los filtros: sin eso, un lector de pantalla
@@ -2079,49 +2097,115 @@
     // Todo esto funciona con el panel abierto. Con el panel cerrado, el aviso
     // te lo sigue dando tu WhatsApp Business del teléfono.
     var waPedirPermiso;
+    var waProbarSonido;
 
     (function () {
-        var ultimo = null;          // cuántos sin leer había la vez anterior
+        var ultimoN   = null;   // cuántos sin leer había la vez anterior
+        var ultimoId  = null;   // el id del último mensaje entrante
         var tituloBase = document.title;
         var audio = null;
 
         // El navegador no deja sonar nada hasta que la persona toca algo.
-        // Se prepara en el primer toque, sea cual sea.
+        //
+        // Antes esto se enganchaba con {once:true}: se preparaba en el primer
+        // toque y listo. El problema es que un contexto de audio se puede
+        // SUSPENDER solo más adelante —cuando la pestaña pasa a segundo plano
+        // un rato largo, que es exactamente lo que hacés vos— y ahí quedaba
+        // suspendido para siempre, porque el enganche ya se había gastado.
+        //
+        // Ahora escucha siempre y lo despierta en cada toque. Cuesta nada.
         function prepararAudio() {
-            if (audio) return;
             try {
-                var AC = window.AudioContext || window.webkitAudioContext;
-                if (AC) audio = new AC();
+                if (!audio) {
+                    var AC = window.AudioContext || window.webkitAudioContext;
+                    if (AC) audio = new AC();
+                }
+                if (audio && audio.state === 'suspended') audio.resume();
             } catch (e) {}
         }
 
-        document.addEventListener('click', prepararAudio, { once: true });
-        document.addEventListener('touchstart', prepararAudio, { once: true });
+        document.addEventListener('click', prepararAudio);
+        document.addEventListener('touchstart', prepararAudio, { passive: true });
+        document.addEventListener('keydown', prepararAudio);
 
+        // Al volver a la pestaña, despertarlo sin esperar a que toques algo.
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) prepararAudio();
+        });
+
+        /**
+         * El timbre.
+         *
+         * Cambió por completo. El de antes eran dos notas de onda senoidal a
+         * volumen 0.25: la senoidal es la onda más limpia y más blanda que
+         * existe, y en un cuarto con ruido, o con el teléfono en la mesa, se
+         * pierde. Sonaba, pero no llamaba.
+         *
+         * Este son tres notas que SUBEN, repetidas dos veces, con onda
+         * triangular —que tiene armónicos y por eso se abre paso— y al doble
+         * de volumen. Subir es lo que hace que se oiga como un llamado y no
+         * como un clic del sistema.
+         *
+         * Y lo importante: antes se hacía "resume()" y se programaban las
+         * notas en el mismo renglón. resume() tarda, así que las notas
+         * quedaban programadas contra un reloj todavía detenido y muchas veces
+         * no sonaba nada. Ahora se espera a que despierte y recién ahí se
+         * programan.
+         */
         function sonar() {
+            if (!audio) { prepararAudio(); }
             if (!audio) return;
 
+            var tocar = function () {
+                try {
+                    var t0 = audio.currentTime + 0.02;
+
+                    // Sol - Do - Mi, y otra vez. Un arpegio que sube.
+                    var notas = [
+                        [784,  0.00], [1046, 0.11], [1318, 0.22],
+                        [784,  0.42], [1046, 0.53], [1318, 0.64],
+                    ];
+
+                    notas.forEach(function (n) {
+                        var osc = audio.createOscillator();
+                        var vol = audio.createGain();
+
+                        osc.type = 'triangle';
+                        osc.frequency.value = n[0];
+
+                        var t = t0 + n[1];
+
+                        vol.gain.setValueAtTime(0.0001, t);
+                        vol.gain.exponentialRampToValueAtTime(0.5, t + 0.015);
+                        vol.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+
+                        osc.connect(vol);
+                        vol.connect(audio.destination);
+
+                        osc.start(t);
+                        osc.stop(t + 0.18);
+                    });
+                } catch (e) {}
+            };
+
             try {
-                if (audio.state === 'suspended') audio.resume();
-
-                // Dos notas cortas, como un timbre discreto.
-                [0, 0.16].forEach(function (retraso, i) {
-                    var osc = audio.createOscillator();
-                    var vol = audio.createGain();
-
-                    osc.type = 'sine';
-                    osc.frequency.value = i === 0 ? 880 : 1180;
-
-                    vol.gain.setValueAtTime(0.0001, audio.currentTime + retraso);
-                    vol.gain.exponentialRampToValueAtTime(0.25, audio.currentTime + retraso + 0.02);
-                    vol.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + retraso + 0.14);
-
-                    osc.connect(vol); vol.connect(audio.destination);
-                    osc.start(audio.currentTime + retraso);
-                    osc.stop(audio.currentTime + retraso + 0.16);
-                });
+                if (audio.state === 'suspended') {
+                    // resume() devuelve una promesa: hay que esperarla. En
+                    // navegadores viejos no la devuelve, y ahí se toca igual.
+                    var p = audio.resume();
+                    p && p.then ? p.then(tocar).catch(function () {}) : tocar();
+                } else {
+                    tocar();
+                }
             } catch (e) {}
         }
+
+        // Para el botón de probar: suena y además vibra, si el teléfono deja.
+        waProbarSonido = function () {
+            prepararAudio();
+            sonar();
+            try { if (navigator.vibrate) navigator.vibrate([90, 60, 90]); } catch (e) {}
+        };
 
         function avisar(cuantos) {
             sonar();
@@ -2130,9 +2214,14 @@
 
             try {
                 var n = new Notification('Baby-Confort · mensajes', {
-                    body: cuantos === 1
-                        ? 'Tenés 1 conversación sin leer'
-                        : 'Tenés ' + cuantos + ' conversaciones sin leer',
+                    // Puede ser 0: pasa cuando el mensaje entra en el chat que
+                    // tenés abierto, que se marca como leído en el acto. Ahí
+                    // "Tenés 0 sin leer" sería absurdo.
+                    body: cuantos === 0
+                        ? 'Entró un mensaje nuevo'
+                        : (cuantos === 1
+                            ? 'Tenés 1 conversación sin leer'
+                            : 'Tenés ' + cuantos + ' conversaciones sin leer'),
                     icon: '/favicon-192.png',
                     tag: 'baby-confort-wa',   // no apila veinte avisos
                     renotify: true
@@ -2146,17 +2235,31 @@
             var marca = document.getElementById('wa-sinleer');
             if (!marca) return;
 
-            var ahora = parseInt(marca.getAttribute('data-n') || '0', 10);
+            var ahora = parseInt(marca.getAttribute('data-n')   || '0', 10);
+            var id    = parseInt(marca.getAttribute('data-ult') || '0', 10);
 
             // El título de la pestaña, para verlo sin cambiar de ventana.
             document.title = ahora > 0 ? '(' + ahora + ') ' + tituloBase : tituloBase;
 
             // La primera vuelta solo toma nota: no suena al abrir el panel.
-            if (ultimo === null) { ultimo = ahora; return; }
+            if (ultimoId === null) { ultimoId = id; ultimoN = ahora; return; }
 
-            if (ahora > ultimo) avisar(ahora);
+            /*
+             * El disparador es el ID, no el contador.
+             *
+             * Contar conversaciones sin leer fallaba justo cuando más falta
+             * hace. Si tenés el chat abierto, ese chat se marca como leído y
+             * el número NO sube: entraba el mensaje y no sonaba nada. Lo mismo
+             * si el mismo cliente manda tres seguidos — es una sola
+             * conversación, el contador no se mueve.
+             *
+             * Un id siempre crece. Si es mayor que el de la vuelta anterior,
+             * entró algo, y punto.
+             */
+            if (id > ultimoId) avisar(ahora);
 
-            ultimo = ahora;
+            ultimoId = id;
+            ultimoN  = ahora;
         }
 
         function verBotonPermiso() {

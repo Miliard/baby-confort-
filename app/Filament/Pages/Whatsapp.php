@@ -108,6 +108,27 @@ class Whatsapp extends Page
         }
     }
 
+    /**
+     * El id del último mensaje que entró, sea de quien sea.
+     *
+     * Es el disparador del aviso sonoro, y reemplaza a contar los sin leer.
+     *
+     * Contar no servía: si tenés el chat abierto, ese mismo chat se marca como
+     * leído, así que el número no sube y no sonaba nada. Y si venían dos
+     * mensajes del mismo cliente, el contador de conversaciones tampoco se
+     * movía. O sea que justo cuando estás trabajando es cuando menos avisaba.
+     *
+     * Un id siempre crece. Si cambió, entró algo. Sin vueltas.
+     */
+    public function ultimoEntranteId(): int
+    {
+        try {
+            return (int) WaMensaje::where('direccion', 'entrante')->max('id');
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
     /** Cuántas conversaciones tienen mensajes sin leer. */
     public function cuantasSinLeer(): int
     {
