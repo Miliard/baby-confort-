@@ -59,11 +59,12 @@
 
     <div class="mt-5 rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
 
-        <div class="mb-3 flex items-baseline justify-between gap-2">
-            <span class="text-sm font-bold text-gray-950 dark:text-white">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;
+                    gap:8px;margin-bottom:12px">
+            <span class="font-bold text-gray-950 dark:text-white" style="font-size:14px">
                 📤 Mandarles la foto por el chat
             </span>
-            <span class="text-xs text-gray-500 dark:text-gray-400">
+            <span class="text-gray-500 dark:text-gray-400" style="font-size:12px;flex:none">
                 {{ count($paraChat) }} sin mandar
             </span>
         </div>
@@ -83,7 +84,7 @@
             </p>
         @endif
 
-        <div class="mt-3 space-y-2">
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
             @foreach($paraChat as $f)
                 @php
                     $foto   = $f['foto'];
@@ -97,40 +98,58 @@
                     };
                 @endphp
 
+                {{-- Las medidas van en style y no en clases de Tailwind.
+                     Este proyecto no compila Tailwind: usa el CSS que Filament
+                     ya trae hecho, así que solo existen las clases que Filament
+                     usa por dentro. "h-14 w-14" no está entre ellas — por eso
+                     la miniatura salió a tamaño real y dejó al texto en una
+                     columna de una palabra por renglón.
+
+                     Los colores y la tipografía sí funcionan porque Filament
+                     las usa. Lo que decide el ancho, mejor escrito acá. --}}
                 <div wire:key="fchat-{{ $foto->id }}"
-                     class="flex items-start gap-3 rounded-xl border border-gray-200 p-2.5 dark:border-white/10">
+                     class="rounded-xl border border-gray-200 dark:border-white/10"
+                     style="display:flex;align-items:flex-start;gap:10px;padding:10px">
 
                     {{-- La miniatura no es decoración: es como se ve de un
                          vistazo que la foto y el cliente van juntos. --}}
                     @if($foto->url())
-                        <a href="{{ $foto->url() }}" target="_blank" rel="noopener" class="flex-none">
+                        <a href="{{ $foto->url() }}" target="_blank" rel="noopener"
+                           style="flex:none" title="Abrir la foto en grande">
                             <img src="{{ $foto->url() }}" alt=""
-                                 class="h-14 w-14 rounded-lg object-cover">
+                                 style="width:60px;height:60px;object-fit:cover;
+                                        border-radius:9px;display:block">
                         </a>
                     @endif
 
-                    <div class="min-w-0 flex-1">
-                        <div class="flex flex-wrap items-center gap-1.5">
-                            <span class="font-mono text-sm font-bold text-primary-600 dark:text-primary-400">
+                    <div style="flex:1 1 auto;min-width:0">
+                        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+                            <span class="font-mono font-bold text-primary-600 dark:text-primary-400"
+                                  style="font-size:14px">
                                 {{ $foto->telefono ?: 'sin número' }}
                             </span>
                             <x-filament::badge :color="$color" size="xs">{{ $etiqueta }}</x-filament::badge>
                         </div>
 
-                        <div class="truncate text-sm font-semibold text-gray-950 dark:text-white">
+                        <div class="font-semibold text-gray-950 dark:text-white"
+                             style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
                             {{ $foto->nombre ?: '—' }}
                         </div>
 
                         @if(filled($foto->guia))
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Guía {{ $foto->guia }}</p>
+                            <p class="text-gray-500 dark:text-gray-400" style="font-size:12px">
+                                Guía {{ $foto->guia }}
+                            </p>
                         @endif
 
-                        <p class="mt-1 text-xs leading-snug text-gray-500 dark:text-gray-400">
+                        <p class="text-gray-500 dark:text-gray-400"
+                           style="font-size:12px;line-height:1.4;margin-top:4px">
                             {{ $f['porque'] }}
                         </p>
 
                         @if(filled($foto->chat_error))
-                            <p class="mt-1 text-xs font-semibold text-danger-600 dark:text-danger-400">
+                            <p class="font-semibold text-danger-600 dark:text-danger-400"
+                               style="font-size:12px;line-height:1.4;margin-top:4px">
                                 No salió: {{ $foto->chat_error }}
                             </p>
                         @endif
