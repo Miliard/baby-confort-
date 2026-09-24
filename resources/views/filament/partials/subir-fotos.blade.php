@@ -66,6 +66,30 @@
             </span>
         </div>
 
+        {{-- El desglose, antes del botón.
+
+             El botón solo puede decir un número —"mandar las 8"— y ese número
+             deja la pregunta abierta: ¿y las otras dos? Acá está la respuesta
+             antes de que la pregunta aparezca, sin tener que ir renglón por
+             renglón buscando cuáles son. --}}
+        @php
+            $c = $tanda['cuenta'];
+
+            $partes = [];
+            if ($c[\App\Services\FotosAlChat::LISTA])      $partes[] = ['success', $c[\App\Services\FotosAlChat::LISTA] . ' listas'];
+            if ($c[\App\Services\FotosAlChat::ESPERA])     $partes[] = ['warning', $c[\App\Services\FotosAlChat::ESPERA] . ' esperando que escriban'];
+            if ($c[\App\Services\FotosAlChat::SIN_CHAT])   $partes[] = ['gray',    $c[\App\Services\FotosAlChat::SIN_CHAT] . ' sin chat'];
+            if ($c[\App\Services\FotosAlChat::SIN_NUMERO]) $partes[] = ['danger',  $c[\App\Services\FotosAlChat::SIN_NUMERO] . ' sin teléfono'];
+        @endphp
+
+        @if(count($partes) > 1)
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+                @foreach($partes as [$col, $txt])
+                    <x-filament::badge :color="$col" size="xs">{{ $txt }}</x-filament::badge>
+                @endforeach
+            </div>
+        @endif
+
         {{-- El botón va ARRIBA de su lista, igual que el de bajar el lote:
              al final habría que recorrer veinte renglones para llegar. --}}
         @if($tanda['listas'] > 0)
@@ -152,6 +176,39 @@
                                style="font-size:12px;line-height:1.4;margin-top:4px">
                                 No salió: {{ $foto->chat_error }}
                             </p>
+                        @endif
+
+                        {{-- Escribir el teléfono a mano.
+
+                             Lo que decide si la foto se puede mandar es el
+                             TELÉFONO, no el número de guía. La guía sirve para
+                             el rastreo; el teléfono dice a quién mandársela.
+
+                             Cuando el lector de la etiqueta no logra sacarlo
+                             —foto movida, brillo, texto chico— esa foto queda
+                             trabada y no había forma de destrabarla desde acá:
+                             la única salida era volver a subir la foto.
+
+                             También aparece en las que SÍ tienen número, para
+                             corregir uno leído mal. El lector confunde un 6 con
+                             un 5 y la foto le llega a otra persona. --}}
+                        @if(in_array($estado, [\App\Services\FotosAlChat::SIN_NUMERO,
+                                               \App\Services\FotosAlChat::SIN_CHAT], true))
+                            <div style="display:flex;gap:6px;align-items:center;margin-top:7px">
+                                <input type="text" inputmode="numeric" maxlength="12"
+                                       wire:model.defer="telManual.{{ $foto->id }}"
+                                       wire:keydown.enter="guardarTelefono({{ $foto->id }})"
+                                       placeholder="7055 1234"
+                                       aria-label="Escribir el teléfono de esta foto"
+                                       class="rounded-lg border border-gray-300 dark:border-white/20"
+                                       style="flex:1 1 auto;min-width:0;padding:7px 10px;
+                                              font-size:14px;background:transparent;color:inherit">
+
+                                <x-filament::button size="xs" color="gray"
+                                    wire:click="guardarTelefono({{ $foto->id }})">
+                                    Guardar
+                                </x-filament::button>
+                            </div>
                         @endif
                     </div>
 

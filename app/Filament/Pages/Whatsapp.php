@@ -1711,9 +1711,14 @@ class Whatsapp extends Page
             // Al disco público, que es de donde Meta la va a descargar. Se
             // guarda con las de WhatsApp para que la limpieza automática de
             // fotos viejas también las alcance y no llenen el volumen.
-            $ruta = $this->fotoSuelta->store('whatsapp/sueltas', 'public');
+            $ruta = $this->guardarComoAcepta($this->fotoSuelta);
 
-            if (! $ruta) throw new \RuntimeException('No se pudo guardar la foto.');
+            if (! $ruta) {
+                throw new \RuntimeException(
+                    'Esa imagen está en un formato que WhatsApp no acepta, y el servidor '
+                    . 'no pudo convertirla. Abrila y guardala como JPG o PNG.'
+                );
+            }
 
             $pie = trim($this->texto) !== '' ? trim($this->texto) : null;
 
@@ -1737,6 +1742,70 @@ class Whatsapp extends Page
         }
 
         $this->fotoSuelta = null;
+    }
+
+    /**
+     * Guarda la foto en un formato que WhatsApp acepte y devuelve su ruta.
+     *
+     * ACÁ ESTABA EL "Media upload error". WhatsApp solo acepta JPG y PNG para
+     * imágenes. Ni WEBP, ni HEIC, ni AVIF, ni JFIF. Y son justo los formatos
+     * en los que caen las fotos hoy: WEBP es lo que se baja de cualquier
+     * página web, HEIC es lo que saca un iPhone de fábrica.
+     *
+     * Desde el panel se ven bien —el navegador los muestra sin problema— así
+     * que no hay ninguna señal de que algo esté mal hasta que Meta lo rechaza.
+     *
+     * Rechazarlos y pedirte que los conviertas sería pasarte el trabajo. Se
+     * convierten acá, a JPG, si el servidor tiene con qué. Los que ya vienen
+     * bien no se tocan: recomprimir un JPG solo le baja calidad.
+     *
+     * Devuelve null si no hay forma, y ahí sí se avisa.
+     */
+    private function guardarComoAcepta($archivo): ?string
+    {
+        $mime = (string) $archivo->getMimeType();
+
+        // Ya viene bien: se guarda tal cual.
+        if (in_array($mime, ['image/jpeg', 'image/png'], true)) {
+            return $archivo->store('whatsapp/sueltas', 'public') ?: null;
+        }
+
+        // GD es lo que convierte. Suele estar, pero no se da por sentado.
+        if (! function_exists('imagecreatefromstring') || ! function_exists('imagejpeg')) {
+            return null;
+        }
+
+        try {
+            $imagen = @imagecreatefromstring(file_get_contents($archivo->getRealPath()));
+            if (! $imagen) return null;
+
+            // Fondo blanco antes de aplanar: un PNG o un WEBP con transparencia
+            // pasado a JPG sin esto queda con el fondo negro.
+            $ancho = imagesx($imagen);
+            $alto  = imagesy($imagen);
+
+            $plano = imagecreatetruecolor($ancho, $alto);
+            imagefill($plano, 0, 0, imagecolorallocate($plano, 255, 255, 255));
+            imagecopy($plano, $imagen, 0, 0, 0, 0, $ancho, $alto);
+
+            ob_start();
+            imagejpeg($plano, null, 88);
+            $bytes = ob_get_clean();
+
+            imagedestroy($imagen);
+            imagedestroy($plano);
+
+            if (! $bytes) return null;
+
+            $ruta = 'whatsapp/sueltas/' . \Illuminate\Support\Str::random(40) . '.jpg';
+
+            \Illuminate\Support\Facades\Storage::disk('public')->put($ruta, $bytes);
+
+            return $ruta;
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Convirtiendo foto suelta: ' . $e->getMessage());
+            return null;
+        }
     }
 
     // ═══ Pestaña "Tomar pedido" ═════════════════════════════════════════════

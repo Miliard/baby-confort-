@@ -146,18 +146,30 @@ class GuiaFotoController extends Controller
     /** Guarda una foto de paquete y la asocia al número de guía leído del QR. */
     public function subir(Request $request)
     {
+        /*
+         * La guía dejó de ser obligatoria.
+         *
+         * Antes, si el QR no se leía, la foto NO se subía: se quedaba en la
+         * pantalla esperando que alguien escribiera el número a mano, y si esa
+         * persona cerraba la página, la foto se perdía y había que volver a
+         * sacarla.
+         *
+         * Pero la guía no es lo que hace falta para mandarle la foto al
+         * cliente — para eso hace falta el TELÉFONO. La guía sirve para el
+         * rastreo, y eso se puede completar después o no completarse nunca.
+         *
+         * Entonces: la foto entra igual. Lo que falte se ve y se escribe en la
+         * lista de abajo, con la foto ya guardada y a la vista.
+         */
         $data = $request->validate([
-            'guia'   => ['required', 'string', 'max:40'],
-            'foto'   => ['required', 'image', 'max:8192'], // hasta 8 MB
+            'guia'     => ['nullable', 'string', 'max:40'],
+            'foto'     => ['required', 'image', 'max:8192'], // hasta 8 MB
             'nombre'   => ['nullable', 'string', 'max:80'],  // leído de la etiqueta
             'telefono' => ['nullable', 'string', 'max:30'],
             'lote'     => ['nullable', 'string', 'max:40'],  // agrupa las subidas juntas
         ]);
 
-        $guia = preg_replace('/\D/', '', $data['guia']);
-        if ($guia === '') {
-            return response()->json(['ok' => false, 'error' => 'Guía no válida'], 422);
-        }
+        $guia = preg_replace('/\D/', '', (string) ($data['guia'] ?? ''));
 
         $ruta = static::guardarArchivo($request->file('foto'), $error);
         if (! $ruta) {
@@ -171,7 +183,11 @@ class GuiaFotoController extends Controller
 
         // Si la guía ya existe (por ejemplo, vino del PDF), la foto se PEGA a ese
         // registro. Así no se pierde el nombre ni el contenido del pedido.
-        $foto = GuiaFoto::where('guia', $guia)->first();
+        //
+        // Sin guía no se pega a nada: cada foto sin número es una fila nueva.
+        // Buscar por teléfono acá sería tentador y estaría mal — dos paquetes
+        // del mismo cliente terminarían compartiendo una sola foto.
+        $foto = $guia !== '' ? GuiaFoto::where('guia', $guia)->first() : null;
 
         if ($foto) {
             // Reemplaza la imagen anterior, si tenía.
@@ -186,7 +202,7 @@ class GuiaFotoController extends Controller
             $foto->save();
         } else {
             $foto = GuiaFoto::create([
-                'guia'     => $guia,
+                'guia'     => $guia !== '' ? $guia : null,
                 'ruta'     => $ruta,
                 'nombre'   => $nombreOcr,
                 'telefono' => $telefonoOcr,

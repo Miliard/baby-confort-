@@ -744,13 +744,40 @@
                 const texto = await leerQR(file, img);
                 const guia = sacarGuia(texto);
 
+                /*
+                 * Sin QR la foto SE SUBE IGUAL, sin número de guía.
+                 *
+                 * Antes acá se frenaba: aparecía un campo pidiendo el número
+                 * escrito a mano y la foto no entraba hasta que alguien lo
+                 * tecleaba. Si cerrabas la página, la foto se perdía.
+                 *
+                 * Pero para mandarle la foto al cliente la guía no sirve —
+                 * sirve el TELÉFONO. La guía es para el rastreo, y eso se
+                 * completa después o no se completa.
+                 *
+                 * Así que entra igual y lo que falte se escribe abajo, en la
+                 * lista, con la foto ya guardada y a la vista. Se sigue
+                 * contando como "sin leer" para que sepas cuáles mirar.
+                 */
                 if (!guia) {
-                    // Solo las que fallan se muestran, para escribir la guía a mano.
                     fallo++;
+
+                    progreso(i - 1, files.length, 'Sin QR · leyendo el teléfono…');
+                    const datos = await conLimite(leerDatosCliente(img), 15000, {});
+
                     const card = tarjeta(file.name, url);
                     const est = card.querySelector('.estado');
                     const acc = card.querySelector('.acciones');
-                    est.innerHTML = '<span style="color:#dc2626">✕ No se pudo leer el QR</span>';
+
+                    const r = await subir(file, '', est, acc, datos, img);
+
+                    if (r && r.ok) {
+                        est.innerHTML = datos && datos.telefono
+                            ? '<span style="color:#b45309">⚠ Sin QR — se guardó con el teléfono '
+                              + datos.telefono + '. Revisalo en la lista de abajo.</span>'
+                            : '<span style="color:#b45309">⚠ Sin QR y sin teléfono — se guardó igual. '
+                              + 'Escribile el teléfono en la lista de abajo.</span>';
+                    }
 
                     const ver = document.createElement('a');
                     ver.href = url; ver.target = '_blank'; ver.rel = 'noopener';
@@ -758,30 +785,8 @@
                     ver.style.cssText = 'background:#f1f5f9;border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;color:#334155;text-decoration:none';
                     acc.appendChild(ver);
 
-                    const fila = document.createElement('div');
-                    fila.style.cssText = 'display:flex;gap:6px;width:100%;margin-top:6px';
-                    const inp = document.createElement('input');
-                    inp.placeholder = 'Escribí la guía que ves en la foto';
-                    inp.inputMode = 'numeric';
-                    inp.style.cssText = 'flex:1;min-width:0;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:15px';
-                    const btn = document.createElement('button');
-                    btn.type = 'button'; btn.textContent = 'Subir';
-                    btn.style.cssText = 'background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-weight:700;font-size:13.5px;cursor:pointer';
-                    const mandar = async () => {
-                        const v = inp.value.trim();
-                        if (!v) return;
-                        inp.disabled = true; btn.disabled = true; fila.remove();
-                        const datos = await leerDatosCliente(img);
-                        await subir(file, v, est, acc, datos, img);
-                        try { if (window.Livewire) Livewire.dispatch('$refresh'); } catch (e) {}
-                    };
-                    btn.addEventListener('click', mandar);
-                    inp.addEventListener('keydown', e => { if (e.key === 'Enter') mandar(); });
-                    fila.append(inp, btn);
-                    acc.after(fila);
-
                     progreso(i, files.length, 'Procesando fotos…',
-                        '✅ ' + ok + ' guardadas · <b style="color:#dc2626">✕ ' + fallo + ' sin leer</b>');
+                        '✅ ' + ok + ' guardadas · <b style="color:#b45309">⚠ ' + fallo + ' sin QR</b>');
                     continue;
                 }
 
@@ -826,8 +831,8 @@
             } catch (e) {}
 
             progreso(files.length, files.length,
-                fallo ? 'Listo (faltan ' + fallo + ' por escribir a mano)' : '¡Listo! Todas guardadas ✅',
-                '✅ ' + ok + ' guardadas' + (fallo ? ' · <b style="color:#dc2626">✕ ' + fallo + ' sin leer</b>' : '') +
+                fallo ? '¡Listo! (' + fallo + ' sin QR, revisalas abajo)' : '¡Listo! Todas guardadas ✅',
+                '✅ ' + ok + ' guardadas' + (fallo ? ' · <b style="color:#b45309">⚠ ' + fallo + ' sin QR</b>' : '') +
                 @js($this->enlaceGuias()
                     ? ' &nbsp;·&nbsp; <a href="' . $this->enlaceGuias() . '" style="color:#2563eb;font-weight:700">Ver las guías →</a>'
                     : ''));

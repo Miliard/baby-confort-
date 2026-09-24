@@ -1425,8 +1425,15 @@
                             @endif
                         </div>
 
+                        {{-- Alineado a la IZQUIERDA y con quiebre de palabra.
+                             El pie normal va a la derecha porque ahí solo hay
+                             una hora y tres íconos; un motivo de error es una
+                             frase, y a la derecha se lee mal y se corta contra
+                             el borde del globo. --}}
                         @if($m->estado === 'fallido' && $m->error)
-                            <div class="wa-pie" style="opacity:1">⚠ {{ $m->error }}</div>
+                            <div class="wa-pie" style="opacity:1;text-align:left;
+                                        line-height:1.4;margin-top:5px;
+                                        white-space:normal;overflow-wrap:anywhere">⚠ {{ $m->error }}</div>
                         @endif
 
                         {{-- Si el mensaje parece una orden de envío, se puede

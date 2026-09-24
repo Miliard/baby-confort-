@@ -105,6 +105,69 @@ class CrearGuia extends Page implements HasForms
             ->send();
     }
 
+    /**
+     * El teléfono que se está escribiendo a mano, por foto.
+     *
+     * Uno por fila: ['12' => '70551234']. Si fuera uno solo para toda la
+     * pantalla, escribir en una borraría lo tecleado en otra.
+     */
+    public array $telManual = [];
+
+    /**
+     * Ponerle el teléfono a mano a una foto que quedó sin él.
+     *
+     * Lo que decide si la foto se puede mandar es el TELÉFONO, no el número de
+     * guía. La guía sirve para el rastreo; el teléfono es lo que dice a quién
+     * mandársela. Cuando el lector de la etiqueta no logra sacarlo —sale
+     * movido, con brillo, o el texto quedó chico— esa foto se queda trabada sin
+     * que haya forma de destrabarla desde acá. Con esto, se escribe y sale.
+     *
+     * Sirve igual para corregir uno leído mal, que pasa: el lector confunde
+     * un 6 con un 5 y la foto le llegaría a otra persona.
+     */
+    public function guardarTelefono(int $id): void
+    {
+        $crudo = (string) ($this->telManual[$id] ?? '');
+        $solo  = preg_replace('/\D/', '', $crudo);
+
+        // Con el código de país adelante, se lo saca: en la base viven los
+        // últimos ocho, que es como se identifica a la gente acá.
+        if (strlen($solo) === 11 && str_starts_with($solo, '503')) {
+            $solo = substr($solo, 3);
+        }
+
+        if (strlen($solo) !== 8) {
+            Notification::make()
+                ->title('Ese número no sirve')
+                ->body('Tienen que ser 8 dígitos, como 7055 1234.')
+                ->warning()->send();
+            return;
+        }
+
+        $f = \App\Models\GuiaFoto::find($id);
+        if (! $f) return;
+
+        $f->telefono = $solo;
+        $f->save();
+
+        unset($this->telManual[$id]);
+
+        // Se dice adónde va a ir, no solo que se guardó. Es la última
+        // oportunidad de ver que el número es de otra persona antes de que la
+        // foto salga.
+        $conv = \App\Services\FotosAlChat::conversacionDe($solo);
+
+        Notification::make()
+            ->title('Teléfono guardado: ' . substr($solo, 0, 4) . ' ' . substr($solo, 4))
+            ->body($conv
+                ? ($conv->ventanaAbierta()
+                    ? 'Ya quedó lista para mandar.'
+                    : 'Hay chat, pero escribió hace más de 24 horas: queda esperando.')
+                : 'Ese número nunca escribió a este WhatsApp, así que no hay chat adonde mandarla.')
+            ->{$conv && $conv->ventanaAbierta() ? 'success' : 'warning'}()
+            ->send();
+    }
+
     /** Sacar una de la lista sin mandarla: ya se la pasaste por otro lado. */
     public function omitirFotoChat(int $id): void
     {

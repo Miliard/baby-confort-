@@ -119,10 +119,21 @@ class FotosAlChat
                         : 'Tanda del ' . $fila['foto']->loteBonito(),
                     'filas'  => [],
                     'listas' => 0,
+                    // Cuántas hay de cada estado. El botón solo puede decir un
+                    // número —"mandar las 8"— y ese número deja la pregunta
+                    // abierta: ¿y las otras dos? Con el desglose al lado, la
+                    // respuesta está antes de que la pregunta aparezca.
+                    'cuenta' => [
+                        static::LISTA      => 0,
+                        static::ESPERA     => 0,
+                        static::SIN_CHAT   => 0,
+                        static::SIN_NUMERO => 0,
+                    ],
                 ];
             }
 
             $grupos[$clave]['filas'][] = $fila;
+            $grupos[$clave]['cuenta'][$fila['estado']]++;
 
             if ($fila['estado'] === static::LISTA) {
                 $grupos[$clave]['listas']++;

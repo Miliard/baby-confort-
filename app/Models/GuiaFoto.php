@@ -166,12 +166,26 @@ class GuiaFoto extends Model
         $this->attributes['enviado_at'] = $valor ? now() : null;
     }
 
-    /** Nombre legible del lote: "04/08 7:15 a. m." */
+    /**
+     * Nombre legible del lote: "04/08 3:29 p. m."
+     *
+     * El lote lo arma el navegador con toISOString(), que SIEMPRE devuelve
+     * UTC. El Salvador va seis horas atrás, así que una tanda subida a las
+     * 3:29 de la tarde se guarda como 21:29 — y acá se leía tal cual, sin
+     * convertir: en pantalla decía "9:29 PM" de algo que acababas de subir.
+     *
+     * Se le dice a Carbon que lo que está guardado es UTC y se lo pasa a la
+     * hora de acá. Así queda bien lo nuevo Y lo que ya estaba guardado, sin
+     * tener que tocar nada en la base.
+     */
     public function loteBonito(): string
     {
         if (! $this->lote) return 'Sin lote';
+
         try {
-            return \Illuminate\Support\Carbon::parse($this->lote)->format('d/m h:i A');
+            return \Illuminate\Support\Carbon::parse($this->lote, 'UTC')
+                ->timezone(config('app.zona_local'))
+                ->format('d/m g:i a');
         } catch (\Throwable $e) {
             return $this->lote;
         }
