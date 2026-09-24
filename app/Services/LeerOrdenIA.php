@@ -117,9 +117,45 @@ class LeerOrdenIA
         return $cabecera . implode("\n", $lineas);
     }
 
+    /**
+     * El catálogo con los nombres tal como están cargados.
+     *
+     * Va SIN precios a propósito. Si viera los precios, sumaría — y esa suma
+     * es justo lo que no queremos que haga: los precios cambian, los combos
+     * tienen su regla, y un total mal calculado se cobra mal al entregar.
+     *
+     * Lo que sí necesita es escribir los nombres y las tallas exactamente como
+     * están cargados, porque después otro los busca en la base para ponerles
+     * precio. Un nombre aproximado no se encuentra.
+     */
+    private static function catalogo(): string
+    {
+        try {
+            $filas = \App\Models\ProductSize::with('product')
+                ->where('price', '>', 0)
+                ->whereHas('product', fn ($q) => $q->where('active', true))
+                ->get()
+                ->groupBy(fn ($s) => trim((string) $s->product->name));
+
+            $lineas = [];
+
+            foreach ($filas as $nombre => $tallas) {
+                if (trim((string) $nombre) === '') continue;
+
+                $lineas[] = '- ' . $nombre . ' — tallas: '
+                    . $tallas->pluck('size')->filter()->unique()->implode(', ');
+            }
+
+            return implode("\n", $lineas);
+        } catch (\Throwable $e) {
+            return '';
+        }
+    }
+
     private static function instrucciones(): string
     {
         $municipios = implode(', ', array_slice(Municipios::todos(), 0, 400));
+        $catalogo   = static::catalogo();
 
         return <<<TXT
         Sos un lector de pedidos de una tienda de pañales en El Salvador. Te
@@ -169,13 +205,51 @@ class LeerOrdenIA
           departamento al final. Referencias incluidas ("frente a la cancha",
           "casa blanca de portón negro"): es lo que usa el repartidor.
 
-        - productos: qué lleva, con las cantidades, tal como quedó acordado.
+        - productos: lo más importante de todo, y tiene un formato obligatorio.
+
+          UN RENGLÓN POR PRODUCTO, escrito exactamente así:
+
+          CANTIDAD x NOMBRE DEL CATÁLOGO talla TALLA
+
+          Por ejemplo:
+
+          2 x Calzoncito Magic talla M
+          1 x Pañales para recién nacidos talla RN
+
+          El NOMBRE tiene que ser uno de esta lista, escrito igual — con las
+          mismas palabras y las mismas tildes. No lo abrevies, no lo cambies,
+          no inventes uno que no esté. Después estos renglones se buscan en la
+          base de datos para ponerles precio, y un nombre aproximado no se
+          encuentra.
+
+          {$catalogo}
+
+          Si el cliente pidió algo que no está en esa lista, escribí ese
+          renglón tal como lo dijo él. Va a quedar sin precio y alguien lo va a
+          ver — que es lo correcto; peor sería hacerlo desaparecer.
+
           Si en la conversación cambió de opinión, vale lo ÚLTIMO que se
           acordó, no lo primero que preguntó.
 
-        - total: cuánto se cobra al entregar. Solo el número, sin el signo de
-          pesos. Si no se habló de un monto cerrado, vacío. No lo calcules vos
-          sumando precios: si nadie lo dijo, no está acordado.
+        - total: el monto que quedó ACORDADO en la conversación, tal como se
+          dijo. Solo el número, sin el signo de pesos.
+
+          Este campo es importante: es lo que el cliente espera pagar cuando
+          le entreguen, así que tiene que salir de lo que se habló y de nada
+          más.
+
+          Buscalo en lo que escribió NOSOTROS — ahí es donde se cierra el
+          precio— y quedate con el ÚLTIMO monto acordado, no con el primero
+          que se mencionó al cotizar. Si el cliente agregó algo después y se
+          rehízo la cuenta, vale la nueva.
+
+          NO lo calcules vos. No sumes, no multipliques, no apliques
+          promociones ni combos. Si el monto no está dicho en algún mensaje,
+          va vacío — aunque puedas deducirlo. Un total deducido se ve igual
+          que uno acordado, y se le cobra al cliente algo que nadie le dijo.
+
+          Si nadie cerró un monto, vacío. Eso no es un dato faltante: es que
+          todavía no se acordó.
 
         CÓMO LEER LA CONVERSACIÓN
 

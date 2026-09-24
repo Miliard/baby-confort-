@@ -1937,9 +1937,93 @@ class Whatsapp extends Page
         if (filled($datos['productos'])) $this->pedProductosTexto = $datos['productos'];
         if (filled($datos['total']))     $this->pedCobrarManual   = $datos['total'];
 
+        /*
+         * MANDA LO QUE SE HABLÓ EN EL CHAT. El catálogo revisa.
+         *
+         * Lo tenía al revés y estaba mal. El precio que le dijiste al cliente
+         * es un compromiso con él: si le cotizaste $17 y el admin tiene $18,
+         * cobrarle $18 al entregar es un problema con el cliente. Que el
+         * catálogo esté desactualizado es asunto del negocio, no suyo.
+         *
+         * Entonces: si en la conversación se cerró un monto, ese va a la guía.
+         *
+         * Pero las líneas se cargan igual, aunque no decidan el total. Sirven
+         * para dos cosas: arman la descripción con los nombres bien escritos,
+         * y ponen el precio del catálogo al lado del hablado. Si no coinciden,
+         * se avisa — ahí es donde aparece el precio viejo cargado en el admin,
+         * o la cotización que salió de menos.
+         *
+         * Lo que no se reconoce no se borra: queda escrito en el texto de
+         * abajo, sin precio y a la vista. Desaparecer de la suma sería peor
+         * que aparecer sin precio.
+         */
+        $reconocido = ['items' => [], 'dudosos' => []];
+
+        if (filled($datos['productos'] ?? null)) {
+            $reconocido = \App\Services\ReconocerProductos::enTexto($datos['productos']);
+
+            if ($reconocido['items']) {
+                $this->pedLineas = array_map(
+                    fn ($i) => ['size_id' => (string) $i['size_id'], 'cantidad' => (int) $i['cantidad']],
+                    $reconocido['items'],
+                );
+
+                // El total hablado se queda puesto y manda sobre el cálculo.
+                // Solo cuando NO se habló ninguno toma el mando el catálogo:
+                // ahí no hay compromiso con nadie y el precio cargado es lo
+                // mejor que tenemos.
+            }
+        }
+
         $this->pestana = 'pedido';
 
         $leidos = count(array_filter($datos, fn ($v) => filled($v)));
+
+        /*
+         * El monto que se habló contra el que sale del catálogo.
+         *
+         * Va el del chat, que es el que el cliente espera pagar. Pero la
+         * diferencia se avisa igual, porque significa algo y nunca es buena:
+         * si el catálogo dice más, cotizaste de menos y esa plata la ponés
+         * vos; si dice menos, hay un precio viejo cargado en el admin y el
+         * próximo que cotice mirando ahí se va a equivocar.
+         *
+         * Cobrarle lo del chat resuelve el pedido de hoy. El aviso es para que
+         * mañana no se repita.
+         */
+        $dicho = (float) preg_replace('/[^\d.]/', '', (string) ($datos['total'] ?? ''));
+
+        if ($dicho > 0 && $reconocido['items']) {
+            $porCatalogo = round(
+                (float) ($reconocido['total'] ?? 0) + $this->envioPedido(),
+                2
+            );
+
+            // Medio dólar de tolerancia: menos que eso es redondeo, no un
+            // precio distinto, y un aviso que salta por nada se deja de leer.
+            if ($porCatalogo > 0 && abs($porCatalogo - $dicho) >= 0.5) {
+                $mas = $porCatalogo > $dicho;
+
+                Notification::make()
+                    ->title('Se cobra lo del chat: $' . number_format($dicho, 2))
+                    ->body('Con los precios del admin daría $' . number_format($porCatalogo, 2) . '. '
+                         . ($mas
+                            ? 'O sea que cotizaste de menos y esa diferencia la ponés vos.'
+                            : 'Puede ser un precio viejo cargado en el admin: conviene revisarlo.'))
+                    ->warning()->persistent()->send();
+            }
+        }
+
+        // Lo que se nombró pero no está en el catálogo. Queda escrito abajo
+        // sin precio; avisar es lo que impide que se cuele en la suma como si
+        // valiera cero.
+        if (! empty($reconocido['dudosos'])) {
+            Notification::make()
+                ->title('Hay algo que no reconocí del catálogo')
+                ->body('Quedó sin precio: ' . implode(' · ', array_slice($reconocido['dudosos'], 0, 4))
+                     . '. Agregalo a mano abajo o corregí el nombre.')
+                ->warning()->persistent()->send();
+        }
 
         // Qué se vació porque la orden no lo traía, y qué había antes ahí.
         // Decirlo importa: el campo que quedó en blanco es justo el que hay
