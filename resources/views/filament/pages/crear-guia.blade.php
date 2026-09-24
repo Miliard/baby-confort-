@@ -816,6 +816,15 @@
             }
 
             input.value = '';
+
+            // Las fotos suben por fuera de Livewire —el QR se lee acá, en el
+            // navegador— así que el panel no se entera de que hay fotos nuevas.
+            // Este aviso es el que hace aparecer la lista de "mandarles la foto
+            // por el chat" sin tener que recargar la página a mano.
+            try {
+                if (ok > 0 && window.Livewire) window.Livewire.dispatch('fotos-subidas');
+            } catch (e) {}
+
             progreso(files.length, files.length,
                 fallo ? 'Listo (faltan ' + fallo + ' por escribir a mano)' : '¡Listo! Todas guardadas ✅',
                 '✅ ' + ok + ' guardadas' + (fallo ? ' · <b style="color:#dc2626">✕ ' + fallo + ' sin leer</b>' : '') +

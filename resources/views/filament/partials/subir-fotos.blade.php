@@ -42,6 +42,121 @@
 {{-- Solo se listan las que NO se pudieron leer, para escribir la guía a mano --}}
 <div id="resultados" class="mt-3 flex flex-col gap-2"></div>
 
+{{-- ─────────── MANDARLE LA FOTO AL CLIENTE ───────────
+     La foto de la etiqueta es el comprobante de que el paquete existe y va en
+     camino. Hoy el cliente la ve solo si entra a su enlace de rastreo, y la
+     mayoría no entra.
+
+     Acá se emparejan solas —la guía sale del QR, y con la guía viene el
+     teléfono— pero NO se mandan solas. Primero se miran. Una foto pegada a la
+     guía equivocada le llega a un cliente real y no hay cómo sacarla. --}}
+@php $paraChat = $this->fotosParaChat(); @endphp
+
+@if(count($paraChat))
+    @php
+        $listas = collect($paraChat)->where('estado', \App\Services\FotosAlChat::LISTA);
+    @endphp
+
+    <div class="mt-5 rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
+
+        <div class="mb-3 flex items-baseline justify-between gap-2">
+            <span class="text-sm font-bold text-gray-950 dark:text-white">
+                📤 Mandarles la foto por el chat
+            </span>
+            <span class="text-xs text-gray-500 dark:text-gray-400">
+                {{ count($paraChat) }} sin mandar
+            </span>
+        </div>
+
+        {{-- El botón va ARRIBA de la lista, igual que el de bajar el lote:
+             al final habría que recorrer veinte renglones para llegar. --}}
+        @if($listas->count())
+            <x-filament::button wire:click="mandarFotosAlChat" size="lg"
+                icon="heroicon-m-paper-airplane"
+                wire:confirm="Se le va a mandar la foto de su paquete a {{ $listas->count() }} {{ $listas->count() === 1 ? 'cliente' : 'clientes' }}. Esto no se puede deshacer. ¿Seguimos?"
+                class="w-full justify-center">
+                Mandar las {{ $listas->count() }} que se pueden
+            </x-filament::button>
+        @else
+            <p class="rounded-xl border border-dashed border-gray-300 p-3 text-center text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
+                Ninguna se puede mandar ahora. Abajo dice por qué en cada una.
+            </p>
+        @endif
+
+        <div class="mt-3 space-y-2">
+            @foreach($paraChat as $f)
+                @php
+                    $foto   = $f['foto'];
+                    $estado = $f['estado'];
+
+                    [$color, $etiqueta] = match ($estado) {
+                        \App\Services\FotosAlChat::LISTA    => ['success', 'lista'],
+                        \App\Services\FotosAlChat::ESPERA   => ['warning', 'esperando que escriba'],
+                        \App\Services\FotosAlChat::SIN_CHAT => ['gray',    'sin chat'],
+                        default                             => ['danger',  'sin teléfono'],
+                    };
+                @endphp
+
+                <div wire:key="fchat-{{ $foto->id }}"
+                     class="flex items-start gap-3 rounded-xl border border-gray-200 p-2.5 dark:border-white/10">
+
+                    {{-- La miniatura no es decoración: es como se ve de un
+                         vistazo que la foto y el cliente van juntos. --}}
+                    @if($foto->url())
+                        <a href="{{ $foto->url() }}" target="_blank" rel="noopener" class="flex-none">
+                            <img src="{{ $foto->url() }}" alt=""
+                                 class="h-14 w-14 rounded-lg object-cover">
+                        </a>
+                    @endif
+
+                    <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <span class="font-mono text-sm font-bold text-primary-600 dark:text-primary-400">
+                                {{ $foto->telefono ?: 'sin número' }}
+                            </span>
+                            <x-filament::badge :color="$color" size="xs">{{ $etiqueta }}</x-filament::badge>
+                        </div>
+
+                        <div class="truncate text-sm font-semibold text-gray-950 dark:text-white">
+                            {{ $foto->nombre ?: '—' }}
+                        </div>
+
+                        @if(filled($foto->guia))
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Guía {{ $foto->guia }}</p>
+                        @endif
+
+                        <p class="mt-1 text-xs leading-snug text-gray-500 dark:text-gray-400">
+                            {{ $f['porque'] }}
+                        </p>
+
+                        @if(filled($foto->chat_error))
+                            <p class="mt-1 text-xs font-semibold text-danger-600 dark:text-danger-400">
+                                No salió: {{ $foto->chat_error }}
+                            </p>
+                        @endif
+                    </div>
+
+                    {{-- Sacarla de la lista sin mandarla. Hace falta sobre todo
+                         para las que no tienen chat: si no hay cómo quitarlas,
+                         se quedan ahí para siempre y la lista deja de servir
+                         para saber qué falta. --}}
+                    <x-filament::icon-button
+                        icon="heroicon-m-x-mark" color="gray" size="sm"
+                        wire:click="omitirFotoChat({{ $foto->id }})"
+                        wire:confirm="Quitarla de la lista sin mandarla. ¿Seguro?"
+                        label="Quitar de la lista sin mandar" />
+                </div>
+            @endforeach
+        </div>
+
+        <p class="mt-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+            Las que dicen <b>esperando que escriba</b> no se pierden: WhatsApp solo deja
+            mandar mensajes dentro de las 24 horas siguientes al último del cliente.
+            En cuanto vuelva a escribir, aparece acá como lista.
+        </p>
+    </div>
+@endif
+
 {{-- Cuánto ocupan las fotos y hasta cuándo se guardan --}}
 @php $espacio = \App\Http\Controllers\GuiaFotoController::espacioUsado(); @endphp
 <div class="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm dark:border-white/10 dark:bg-white/5">

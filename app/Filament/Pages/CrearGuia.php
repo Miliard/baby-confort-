@@ -61,6 +61,82 @@ class CrearGuia extends Page implements HasForms
         }
     }
 
+    // ═══ Mandarle al cliente la foto de su paquete ═══════════════════════════
+
+    /**
+     * Las fotos subidas que todavía no se le mandaron a nadie, emparejadas.
+     *
+     * Se recalcula en cada dibujado a propósito: la ventana de 24 horas se
+     * mueve sola con el reloj, así que una lista guardada envejece mal — diría
+     * "lista para mandar" de algo que ya no se puede mandar.
+     */
+    public function fotosParaChat(): array
+    {
+        return \App\Services\FotosAlChat::pendientes();
+    }
+
+    /** Cuántas de esas se pueden mandar ahora mismo. */
+    public function fotosListas(): int
+    {
+        return count(array_filter(
+            $this->fotosParaChat(),
+            fn ($f) => $f['estado'] === \App\Services\FotosAlChat::LISTA,
+        ));
+    }
+
+    /**
+     * El botón: sale todo de una.
+     *
+     * Las que no se pueden mandar ni se tocan. Vuelven a aparecer en la lista
+     * la próxima vez, que es justo lo que se quiere: nada se pierde por no
+     * haber podido salir hoy.
+     */
+    public function mandarFotosAlChat(): void
+    {
+        $r = \App\Services\FotosAlChat::mandarTodo(auth()->id());
+
+        if ($r['mandadas'] === 0 && $r['fallaron'] === 0) {
+            Notification::make()
+                ->title('No había ninguna lista para mandar')
+                ->body('Las que quedan están esperando que el cliente escriba, o no tienen chat.')
+                ->warning()->send();
+            return;
+        }
+
+        $cuerpo = $r['fallaron'] > 0
+            ? "{$r['fallaron']} no salieron. El motivo queda escrito en cada una."
+            : 'Les llegó la foto de su etiqueta con el enlace de rastreo.';
+
+        Notification::make()
+            ->title($r['mandadas'] === 1 ? 'Se mandó 1 foto' : "Se mandaron {$r['mandadas']} fotos")
+            ->body($cuerpo)
+            ->{$r['fallaron'] > 0 ? 'warning' : 'success'}()
+            ->send();
+    }
+
+    /** Sacar una de la lista sin mandarla: ya se la pasaste por otro lado. */
+    public function omitirFotoChat(int $id): void
+    {
+        $f = \App\Models\GuiaFoto::find($id);
+        if (! $f) return;
+
+        \App\Services\FotosAlChat::omitir($f);
+
+        Notification::make()->title('Quitada de la lista')->success()->send();
+    }
+
+    /**
+     * Las fotos se suben por fuera de Livewire (con JavaScript, para poder leer
+     * el QR en el navegador), así que el panel no se entera solo. El propio
+     * subidor avisa al terminar y acá se vuelve a dibujar la lista.
+     */
+    #[\Livewire\Attributes\On('fotos-subidas')]
+    public function refrescarFotosChat(): void
+    {
+        // El solo hecho de atender el evento redibuja el componente, y
+        // fotosParaChat() se vuelve a calcular. No hay nada más que hacer.
+    }
+
     public function mount(): void
     {
         // Se puede llegar directo a una pestaña: /admin/crear-guia?seccion=fotos

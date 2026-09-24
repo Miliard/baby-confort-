@@ -17,10 +17,14 @@ class GuiaFoto extends Model
     protected $fillable = [
         'guia', 'ruta', 'nombre', 'telefono', 'contenido', 'cobrar',
         'lote', 'enviado_at', 'enviado', 'foto_borrada_at',
+        // Ojo: "enviado_at" es el ENLACE de rastreo; "chat_enviada_at" es la
+        // FOTO mandada por el chat. Son dos cosas y pasan por separado.
+        'chat_enviada_at', 'chat_error',
     ];
 
     protected $casts = [
         'enviado_at'      => 'datetime',
+        'chat_enviada_at' => 'datetime',
         'foto_borrada_at' => 'datetime',
         'cobrar'          => 'decimal:2',
     ];
