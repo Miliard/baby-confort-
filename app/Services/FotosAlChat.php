@@ -52,12 +52,18 @@ class FotosAlChat
      *
      * @return array<int,array> cada una con ['foto', 'conv', 'estado', 'porque']
      */
-    public static function pendientes(int $dias = 7, int $tope = 60): array
+    public static function pendientes(int $dias = 7, int $tope = 120, ?string $lote = null): array
     {
         if (! static::disponible()) return [];
 
         try {
             $fotos = GuiaFoto::whereNotNull('ruta')
+                // Un lote a la vez cuando se pide uno. El '' es el grupo de
+                // las que subieron sin lote — pasa con las que ya existían por
+                // el PDF y se les pegó la foto después.
+                ->when($lote !== null, fn ($q) => $lote === ''
+                    ? $q->whereNull('lote')
+                    : $q->where('lote', $lote))
                 ->whereNull('chat_enviada_at')
                 // Las fotos se borran solas del disco a los tantos días. Una
                 // cuya imagen ya no está no se puede mandar: Meta la va a
@@ -80,6 +86,60 @@ class FotosAlChat
         }
 
         return $lista;
+    }
+
+    /**
+     * Lo mismo, pero repartido en lotes: una tanda por subida.
+     *
+     * Por qué por lotes y no todo junto, que es como estaba: las fotos entran
+     * de a montones —subís las quince del día de una vez— y ese montón es una
+     * unidad de trabajo real. Un botón solo para todo mezcla la tanda de hoy
+     * con lo que quedó colgando de anteayer, y ahí ya no sabés qué mandaste.
+     *
+     * Es el mismo criterio del Excel: se cierra por tandas, y lo que entra
+     * después arranca la siguiente.
+     *
+     * Del más nuevo al más viejo, porque lo que acabás de subir es lo que vas
+     * a mandar ahora.
+     *
+     * @return array<int,array> ['clave', 'titulo', 'filas', 'listas']
+     */
+    public static function porLotes(int $dias = 7, int $tope = 120): array
+    {
+        $grupos = [];
+
+        foreach (static::pendientes($dias, $tope) as $fila) {
+            $clave = (string) ($fila['foto']->lote ?? '');
+
+            if (! isset($grupos[$clave])) {
+                $grupos[$clave] = [
+                    'clave'  => $clave,
+                    'titulo' => $clave === ''
+                        ? 'Sin tanda'
+                        : 'Tanda del ' . $fila['foto']->loteBonito(),
+                    'filas'  => [],
+                    'listas' => 0,
+                ];
+            }
+
+            $grupos[$clave]['filas'][] = $fila;
+
+            if ($fila['estado'] === static::LISTA) {
+                $grupos[$clave]['listas']++;
+            }
+        }
+
+        // Las claves son la fecha y hora de la subida, así que ordenarlas al
+        // revés como texto ya deja arriba la más nueva. El grupo sin lote, al
+        // final: son casos sueltos, no la tanda del día.
+        uasort($grupos, function ($a, $b) {
+            if ($a['clave'] === '') return 1;
+            if ($b['clave'] === '') return -1;
+
+            return strcmp($b['clave'], $a['clave']);
+        });
+
+        return array_values($grupos);
     }
 
     /**
@@ -181,22 +241,28 @@ class FotosAlChat
     }
 
     /**
-     * Manda de una sola vez todas las que se pueden mandar.
+     * Manda de una sola vez las de UNA tanda.
      *
      * Las que no se pueden ni se tocan: quedan como estaban y vuelven a salir
      * en la lista la próxima vez. Lo que falla se anota en la propia fila con
      * el motivo, no solo en el registro del servidor: el registro no lo lee
      * nadie, y la fila sí.
      *
+     * La tanda se vuelve a leer de la base acá dentro, no se recibe hecha
+     * desde la pantalla. Entre que se dibujó la lista y que se apretó el
+     * botón pueden haber pasado minutos, y la ventana de 24 horas se mueve
+     * sola con el reloj: lo que decía "lista" hace rato puede ya no estarlo.
+     *
+     * @param  string  $lote  '' es el grupo de las que no tienen tanda
      * @return array ['mandadas' => int, 'fallaron' => int, 'saltadas' => int]
      */
-    public static function mandarTodo(?int $userId = null): array
+    public static function mandarLote(string $lote, ?int $userId = null): array
     {
         $mandadas = 0;
         $fallaron = 0;
         $saltadas = 0;
 
-        foreach (static::pendientes() as $fila) {
+        foreach (static::pendientes(7, 120, $lote) as $fila) {
             if ($fila['estado'] !== static::LISTA) {
                 $saltadas++;
                 continue;

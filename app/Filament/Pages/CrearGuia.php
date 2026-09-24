@@ -70,34 +70,25 @@ class CrearGuia extends Page implements HasForms
      * mueve sola con el reloj, así que una lista guardada envejece mal — diría
      * "lista para mandar" de algo que ya no se puede mandar.
      */
-    public function fotosParaChat(): array
+    public function fotosPorLote(): array
     {
-        return \App\Services\FotosAlChat::pendientes();
-    }
-
-    /** Cuántas de esas se pueden mandar ahora mismo. */
-    public function fotosListas(): int
-    {
-        return count(array_filter(
-            $this->fotosParaChat(),
-            fn ($f) => $f['estado'] === \App\Services\FotosAlChat::LISTA,
-        ));
+        return \App\Services\FotosAlChat::porLotes();
     }
 
     /**
-     * El botón: sale todo de una.
+     * El botón de una tanda: sale de golpe lo que se pueda de ESA subida.
      *
      * Las que no se pueden mandar ni se tocan. Vuelven a aparecer en la lista
      * la próxima vez, que es justo lo que se quiere: nada se pierde por no
      * haber podido salir hoy.
      */
-    public function mandarFotosAlChat(): void
+    public function mandarLoteAlChat(string $lote = ''): void
     {
-        $r = \App\Services\FotosAlChat::mandarTodo(auth()->id());
+        $r = \App\Services\FotosAlChat::mandarLote($lote, auth()->id());
 
         if ($r['mandadas'] === 0 && $r['fallaron'] === 0) {
             Notification::make()
-                ->title('No había ninguna lista para mandar')
+                ->title('No había ninguna lista en esa tanda')
                 ->body('Las que quedan están esperando que el cliente escriba, o no tienen chat.')
                 ->warning()->send();
             return;

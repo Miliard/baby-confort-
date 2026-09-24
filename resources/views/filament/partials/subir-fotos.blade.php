@@ -50,42 +50,42 @@
      Acá se emparejan solas —la guía sale del QR, y con la guía viene el
      teléfono— pero NO se mandan solas. Primero se miran. Una foto pegada a la
      guía equivocada le llega a un cliente real y no hay cómo sacarla. --}}
-@php $paraChat = $this->fotosParaChat(); @endphp
+@php $lotes = $this->fotosPorLote(); @endphp
 
-@if(count($paraChat))
-    @php
-        $listas = collect($paraChat)->where('estado', \App\Services\FotosAlChat::LISTA);
-    @endphp
-
-    <div class="mt-5 rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
+@foreach($lotes as $tanda)
+    <div class="mt-5 rounded-xl border border-gray-200 bg-white dark:border-white/10 dark:bg-gray-900"
+         style="padding:14px" wire:key="tanda-{{ $tanda['clave'] ?: 'sueltas' }}">
 
         <div style="display:flex;align-items:baseline;justify-content:space-between;
                     gap:8px;margin-bottom:12px">
             <span class="font-bold text-gray-950 dark:text-white" style="font-size:14px">
-                📤 Mandarles la foto por el chat
+                📤 {{ $tanda['titulo'] }}
             </span>
             <span class="text-gray-500 dark:text-gray-400" style="font-size:12px;flex:none">
-                {{ count($paraChat) }} sin mandar
+                {{ count($tanda['filas']) }} sin mandar
             </span>
         </div>
 
-        {{-- El botón va ARRIBA de la lista, igual que el de bajar el lote:
+        {{-- El botón va ARRIBA de su lista, igual que el de bajar el lote:
              al final habría que recorrer veinte renglones para llegar. --}}
-        @if($listas->count())
-            <x-filament::button wire:click="mandarFotosAlChat" size="lg"
+        @if($tanda['listas'] > 0)
+            {{-- La clave va entre comillas simples porque el atributo ya usa
+                 dobles. Es la fecha y hora de la subida: no trae comillas. --}}
+            <x-filament::button wire:click="mandarLoteAlChat('{{ $tanda['clave'] }}')" size="lg"
                 icon="heroicon-m-paper-airplane"
-                wire:confirm="Se le va a mandar la foto de su paquete a {{ $listas->count() }} {{ $listas->count() === 1 ? 'cliente' : 'clientes' }}. Esto no se puede deshacer. ¿Seguimos?"
+                wire:confirm="Se le va a mandar la foto de su paquete a {{ $tanda['listas'] }} {{ $tanda['listas'] === 1 ? 'cliente' : 'clientes' }} de esta tanda. Esto no se puede deshacer. ¿Seguimos?"
                 class="w-full justify-center">
-                Mandar las {{ $listas->count() }} que se pueden
+                Mandar las {{ $tanda['listas'] }} que se pueden
             </x-filament::button>
         @else
-            <p class="rounded-xl border border-dashed border-gray-300 p-3 text-center text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-                Ninguna se puede mandar ahora. Abajo dice por qué en cada una.
+            <p class="rounded-xl border border-dashed border-gray-300 text-center text-gray-500 dark:border-white/10 dark:text-gray-400"
+               style="padding:12px;font-size:12px">
+                Ninguna de esta tanda se puede mandar ahora. Abajo dice por qué en cada una.
             </p>
         @endif
 
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
-            @foreach($paraChat as $f)
+            @foreach($tanda['filas'] as $f)
                 @php
                     $foto   = $f['foto'];
                     $estado = $f['estado'];
@@ -168,13 +168,14 @@
             @endforeach
         </div>
 
-        <p class="mt-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+        <p class="text-gray-500 dark:text-gray-400"
+           style="font-size:12px;line-height:1.55;margin-top:12px">
             Las que dicen <b>esperando que escriba</b> no se pierden: WhatsApp solo deja
             mandar mensajes dentro de las 24 horas siguientes al último del cliente.
             En cuanto vuelva a escribir, aparece acá como lista.
         </p>
     </div>
-@endif
+@endforeach
 
 {{-- Cuánto ocupan las fotos y hasta cuándo se guardan --}}
 @php $espacio = \App\Http\Controllers\GuiaFotoController::espacioUsado(); @endphp
