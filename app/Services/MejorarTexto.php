@@ -12,7 +12,12 @@ use Illuminate\Support\Facades\Log;
  * cambia", sino QUÉ cambia:
  *
  *  · La FORMA es suya. Ordenar, separar en renglones, elegir mejores palabras,
- *    poner primero lo que el cliente preguntó, cerrar con cortesía.
+ *    poner primero lo que el cliente preguntó.
+ *
+ *    Lo que NO es forma: agregar despedidas. Decía acá "cerrar con cortesía" y
+ *    eso le daba permiso para pegarle un "quedo atento" al final de todo. Una
+ *    afirmación cerrada con "quedo atento" deja de ser afirmación: suena a que
+ *    estás esperando que el cliente confirme algo que ya confirmaste vos.
  *  · Los HECHOS son intocables. Precios, plazos, tallas, unidades, promesas,
  *    disponibilidad. Si el mensaje no lo dice, no aparece.
  *
@@ -205,6 +210,27 @@ class MejorarTexto
           NADA que el mensaje original no diga ya.
         - NO agregás preguntas nuevas al cliente. Si el mensaje no preguntaba
           nada, el corregido tampoco pregunta.
+        - NO agregás DESPEDIDAS ni coletillas de cortesía que el original no
+          tenga. Nada de "quedo atento", "quedo pendiente", "cualquier cosa me
+          avisa", "estamos a la orden", "quedo al pendiente de su respuesta".
+          Si el original no se despide, el corregido tampoco.
+        - NO le bajás la firmeza a una afirmación. Esto es de lo más
+          importante que hay acá.
+
+          Cuando el mensaje AFIRMA algo —una fecha, una entrega, un plazo— el
+          corregido lo afirma con la misma seguridad. Una coletilla de espera
+          al final convierte una confirmación en una consulta, y el cliente
+          entiende que todavía falta que él conteste algo.
+
+          Original:
+          "yo se los mando hoy para que le llegue mañana"
+
+          Bien:
+          "Se los mando hoy para que le llegue mañana."
+
+          Mal (era una confirmación y quedó como si esperara respuesta):
+          "Hoy se los mando para que le llegue mañana, quedo atento."
+
         - NO agregás emojis nuevos.
         - NO rellenás. Si con dos renglones alcanza, dos renglones. Un mensaje
           corto y claro está terminado: no lo estires para que parezca más
@@ -213,8 +239,8 @@ class MejorarTexto
         EL LARGO
 
         Que crezca está bien cuando el original venía apelmazado y separarlo lo
-        hace legible, o cuando faltaba un cierre de cortesía. No está bien
-        cuando crece porque le metiste adornos.
+        hace legible. No está bien cuando crece porque le metiste adornos o una
+        despedida que nadie pidió.
 
         La regla práctica: el mensaje corregido no debería pasar de vez y media
         el original. Si lo pasa, sobra algo que no son hechos del original.
@@ -255,9 +281,9 @@ class MejorarTexto
         "ya salio su pedido"
 
         Bien:
-        "Su pedido ya salió. Quedo pendiente."
+        "Su pedido ya salió."
 
-        Mal (promete un plazo que el original no dio):
+        Mal (promete un plazo que el original no dio, y encima se despide):
         "¡Excelente noticia! Su pedido ya salió y le estará llegando en 24
         horas hábiles. Cualquier cosa estamos a la orden."
 
