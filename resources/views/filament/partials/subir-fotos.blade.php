@@ -61,8 +61,19 @@
             <span class="font-bold text-gray-950 dark:text-white" style="font-size:14px">
                 📤 {{ $tanda['titulo'] }}
             </span>
-            <span class="text-gray-500 dark:text-gray-400" style="font-size:12px;flex:none">
-                {{ count($tanda['filas']) }} sin mandar
+            {{-- Limpiar la tanda entera. Va en la cabecera, junto al título de
+                 SU tanda: así no hay forma de limpiar una creyendo que es
+                 otra, que es el error del que estamos escapando. --}}
+            <span style="display:flex;align-items:center;gap:8px;flex:none">
+                <span class="text-gray-500 dark:text-gray-400" style="font-size:12px">
+                    {{ count($tanda['filas']) }} sin mandar
+                </span>
+
+                <x-filament::icon-button
+                    icon="heroicon-m-trash" color="gray" size="sm"
+                    wire:click="limpiarLoteAlChat('{{ $tanda['clave'] }}')"
+                    wire:confirm="Quitar de la lista las {{ count($tanda['filas']) }} fotos de {{ $tanda['titulo'] }}, sin mandarlas. Las fotos NO se borran: siguen en el rastreo del cliente. ¿Seguimos?"
+                    label="Limpiar esta tanda de la lista, sin mandar" />
             </span>
         </div>
 

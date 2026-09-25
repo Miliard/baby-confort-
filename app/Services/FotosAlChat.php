@@ -338,6 +338,32 @@ class FotosAlChat
         }
     }
 
+    /**
+     * Saca una tanda entera de la lista, sin mandar nada.
+     *
+     * Hace falta para no equivocarse de tanda. Cuando quedan tres tandas
+     * viejas arriba de la de hoy —porque tenían la ventana cerrada y nunca
+     * salieron— hay que leer el título de cada una antes de apretar, y ahí es
+     * donde uno manda la de anteayer creyendo que es la de hoy.
+     *
+     * NO borra las fotos. Siguen en el rastreo del cliente y siguen contando
+     * para el ranking de productos. Lo único que se dice es "de estas ya me
+     * ocupé, no me las muestres más".
+     *
+     * @return int cuántas se quitaron
+     */
+    public static function omitirLote(string $lote): int
+    {
+        $n = 0;
+
+        foreach (static::pendientes(7, 120, $lote) as $fila) {
+            static::omitir($fila['foto']);
+            $n++;
+        }
+
+        return $n;
+    }
+
     private static function anotarError(GuiaFoto $foto, string $motivo): void
     {
         try {

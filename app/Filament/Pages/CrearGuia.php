@@ -168,6 +168,27 @@ class CrearGuia extends Page implements HasForms
             ->send();
     }
 
+    /**
+     * Limpiar una tanda entera de la lista, sin mandar nada.
+     *
+     * Es lo que evita equivocarse de tanda. Cuando quedan tres tandas viejas
+     * arriba de la de hoy —porque tenían la ventana cerrada y nunca salieron—
+     * hay que leer el título de cada una antes de apretar, y ahí es donde uno
+     * manda la de anteayer creyendo que es la de hoy.
+     *
+     * Las fotos NO se borran: siguen en el rastreo del cliente. Lo único que
+     * se dice es "de estas ya me ocupé".
+     */
+    public function limpiarLoteAlChat(string $lote = ''): void
+    {
+        $n = \App\Services\FotosAlChat::omitirLote($lote);
+
+        Notification::make()
+            ->title($n === 1 ? 'Se quitó 1 foto de la lista' : "Se quitaron {$n} fotos de la lista")
+            ->body('Las fotos no se borraron: siguen en el rastreo del cliente.')
+            ->success()->send();
+    }
+
     /** Sacar una de la lista sin mandarla: ya se la pasaste por otro lado. */
     public function omitirFotoChat(int $id): void
     {
