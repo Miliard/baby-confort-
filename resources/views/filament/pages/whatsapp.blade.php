@@ -1724,14 +1724,29 @@
                     </div>
                 @endif
 
+                {{-- wire:model.live.debounce en los tres campos de texto.
+
+                     Con "wire:model" a secas, lo que escribís se queda en el
+                     navegador hasta que algo más provoque un viaje al
+                     servidor. Y el recuadro "Como va en la guía" lo dibuja el
+                     servidor — así que mostraba el valor viejo, o un guión,
+                     mientras vos veías tu texto en el campo de abajo.
+
+                     Eso rompe lo único que ese recuadro tiene que hacer:
+                     mostrar lo que va a salir en la guía. Un recuadro de
+                     verificación que muestra algo distinto de la verdad es
+                     peor que no tenerlo, porque se confía en él.
+
+                     Los 500 ms son para no mandar un viaje por cada tecla. Es
+                     una pausa corta al dejar de escribir; no se siente. --}}
                 <div class="wa-campo">
                     <label class="wa-lab">Nombre de quien recibe</label>
-                    <input type="text" class="wa-in" wire:model="pedNombre">
+                    <input type="text" class="wa-in" wire:model.live.debounce.500ms="pedNombre">
                 </div>
 
                 <div class="wa-campo">
                     <label class="wa-lab">Teléfono</label>
-                    <input type="text" class="wa-in" wire:model="pedTelefono">
+                    <input type="text" class="wa-in" wire:model.live.debounce.500ms="pedTelefono">
                 </div>
 
                 {{-- Departamento primero y municipio después, los dos de lista.
@@ -1866,7 +1881,8 @@
 
                 <div class="wa-campo">
                     <label class="wa-lab">Dirección exacta</label>
-                    <textarea class="wa-in" rows="2" wire:model="pedDireccion"></textarea>
+                    <textarea class="wa-in" rows="2"
+                              wire:model.live.debounce.500ms="pedDireccion"></textarea>
                 </div>
 
                 {{-- El departamento ya se eligió arriba, antes del municipio. --}}
