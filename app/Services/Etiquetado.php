@@ -55,20 +55,21 @@ class Etiquetado
     /**
      * Se llama con cada mensaje nuevo, venga de donde venga.
      *
-     * El orden importa: primero se pregunta por el rastreo. Un mensaje que
-     * lleva el enlace es el final del recorrido, aunque de casualidad también
-     * mencionara un total.
+     * ACÁ SOLO SE MARCA "pedido". El paso a "procesada" ya no lo dispara el
+     * enlace de rastreo: lo dispara mandarle al cliente la FOTO de su
+     * etiqueta (ver FotosAlChat::mandarUna).
+     *
+     * El enlace no servía como señal. Es el mismo para todos los pedidos de
+     * ese teléfono, así que se puede mandar antes de que la guía exista — y un
+     * pedido sin armar quedaba marcado como preparado. La foto de la etiqueta
+     * solo existe si el paquete está armado, pesado y etiquetado: esa sí es
+     * prueba de que salió.
      */
     public static function alGuardarMensaje(?WaConversacion $conv, ?string $texto): void
     {
         if (! $conv) return;
 
         try {
-            if (static::llevaRastreo($texto)) {
-                static::marcarProcesada($conv);
-                return;
-            }
-
             if (static::pareceOrden($texto)) {
                 static::marcarPedido($conv);
             }

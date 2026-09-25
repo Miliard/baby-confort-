@@ -118,24 +118,32 @@ class WhatsappWebhookController extends Controller
         } elseif (in_array($tipo, ['image', 'video', 'document', 'audio', 'voice'], true)) {
             $mediaId = $m[$tipo]['id'] ?? null;
             $texto   = $m[$tipo]['caption'] ?? null;
-
-            // Las imágenes son los comprobantes de pago; los audios hay que
-            // bajarlos para poder pasarlos a texto.
-            if ($mediaId && in_array($tipo, ['image', 'audio', 'voice'], true)) {
-                $ruta = WhatsappApi::bajarMedia($mediaId);
-            }
-
-            // Nota de voz: se pasa a texto ahí mismo. Si no se puede (sin clave,
-            // audio cortado, lo que sea), queda el reproductor igual.
-            if (in_array($tipo, ['audio', 'voice'], true) && $ruta) {
-                $dicho = \App\Services\Transcribir::deArchivo($ruta);
-                if ($dicho) $texto = $dicho;
-            }
         } else {
             $texto = '[' . $tipo . ']';
         }
 
-        WaMensaje::create([
+        /*
+         * PRIMERO SE GUARDA EL MENSAJE. DESPUÉS SE BAJA LA FOTO.
+         *
+         * Acá estaba el mensaje perdido. Antes se bajaba la imagen —y se
+         * transcribía el audio— ANTES de guardar nada. Las dos cosas son
+         * lentas: bajar una foto de Meta son dos viajes, y transcribir un
+         * audio puede tardar varios segundos.
+         *
+         * Y Meta no espera. Su webhook tiene un límite de paciencia corto: si
+         * no le contestamos rápido, corta la conexión y da el aviso por
+         * fallido. Con la conexión cortada a media descarga, el mensaje NUNCA
+         * llegaba a guardarse — y como el aviso ya se dio por entregado en
+         * algún reintento, tampoco volvía.
+         *
+         * Por eso pasaba solo con las fotos y los audios: un mensaje de texto
+         * se guarda en milisegundos y nunca alcanzó a chocar con el límite.
+         *
+         * Guardando primero, aunque la descarga falle o tarde, el mensaje ya
+         * está en el chat. La foto se puede traer después con el botón "Ver la
+         * imagen", que ya existe y funciona con el media_id.
+         */
+        $mensaje = WaMensaje::create([
             'conversacion_id' => $conv->id,
             'wa_message_id'   => $idMeta,
             // Si el cliente citó un mensaje nuestro, Meta lo dice acá. Guardarlo
@@ -145,9 +153,35 @@ class WhatsappWebhookController extends Controller
             'tipo'       => $tipo,
             'texto'      => $texto,
             'media_id'   => $mediaId,
-            'media_ruta' => $ruta,
+            'media_ruta' => null,
             'estado'     => 'entregado',
         ]);
+
+        // Ahora sí, con el mensaje a salvo. Si algo de esto falla o se corta,
+        // lo único que se pierde es la comodidad, no el mensaje.
+        try {
+            if ($mediaId && in_array($tipo, ['image', 'audio', 'voice'], true)) {
+                $ruta = WhatsappApi::bajarMedia($mediaId);
+
+                if ($ruta) {
+                    $mensaje->media_ruta = $ruta;
+
+                    // Nota de voz: se pasa a texto. Si no se puede (sin clave,
+                    // audio cortado, lo que sea), queda el reproductor igual.
+                    if (in_array($tipo, ['audio', 'voice'], true)) {
+                        $dicho = \App\Services\Transcribir::deArchivo($ruta);
+                        if ($dicho) {
+                            $mensaje->texto = $dicho;
+                            $texto = $dicho;
+                        }
+                    }
+
+                    $mensaje->save();
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('WhatsApp: media del mensaje ' . $mensaje->id . ': ' . $e->getMessage());
+        }
 
         // Se reabre la ventana de 24 horas y sube en la lista del inbox.
         $conv->ultimo_del_cliente_at = now();
@@ -201,26 +235,38 @@ class WhatsappWebhookController extends Controller
         } elseif (in_array($tipo, ['image', 'video', 'document', 'audio'], true)) {
             $mediaId = $e[$tipo]['id'] ?? null;
             $texto   = $e[$tipo]['caption'] ?? null;
-
-            if ($tipo === 'image' && $mediaId) {
-                $ruta = WhatsappApi::bajarMedia($mediaId);
-            }
         } else {
             $texto = '[' . $tipo . ']';
         }
 
-        WaMensaje::create([
+        // Igual que con los entrantes: primero se guarda, después se baja.
+        // Meta corta el webhook si tardamos, y con la conexión cortada a media
+        // descarga el mensaje se perdía entero.
+        $mensaje = WaMensaje::create([
             'conversacion_id' => $conv->id,
             'wa_message_id'   => $idMeta,
             'direccion'  => 'saliente',
             'tipo'       => $tipo,
             'texto'      => $texto,
             'media_id'   => $mediaId,
-            'media_ruta' => $ruta,
+            'media_ruta' => null,
             'estado'     => 'entregado',
             'user_id'    => null,      // salió del teléfono, no de una cuenta
             'automatico' => false,
         ]);
+
+        try {
+            if ($tipo === 'image' && $mediaId) {
+                $ruta = WhatsappApi::bajarMedia($mediaId);
+
+                if ($ruta) {
+                    $mensaje->media_ruta = $ruta;
+                    $mensaje->save();
+                }
+            }
+        } catch (\Throwable $ex) {
+            Log::warning('WhatsApp: media saliente ' . $mensaje->id . ': ' . $ex->getMessage());
+        }
 
         // Salió del teléfono: cuenta como respondido.
         $conv->anotarUltimo((string) ($texto ?: '[' . $tipo . ']'), true, 'entregado');

@@ -312,6 +312,30 @@ class FotosAlChat
                 'chat_error'      => null,
             ])->save();
 
+            /*
+             * Y recién ACÁ la conversación pasa a Preparados.
+             *
+             * Antes la movía el enlace de rastreo. El problema es que ese
+             * enlace se puede mandar antes de que exista la guía —es el mismo
+             * para todos los pedidos de ese teléfono— así que un pedido que
+             * todavía no estaba armado ya figuraba como preparado.
+             *
+             * La foto de la etiqueta es otra cosa: solo existe si el paquete
+             * está armado, pesado y etiquetado. Es la primera prueba física de
+             * que el pedido salió de verdad, y por eso es la que vale.
+             *
+             * Efecto que conviene tener presente: lo que no tenga foto mandada
+             * se queda en Pedidos. Eso es a propósito — si sigue ahí, es que
+             * algo de ese pedido quedó a medias.
+             */
+            try {
+                Etiquetado::marcarProcesada($conv);
+            } catch (\Throwable $e) {
+                // Etiquetar es comodidad; que falle no puede desmentir que la
+                // foto ya salió.
+                Log::warning('Etiquetando tras mandar la foto: ' . $e->getMessage());
+            }
+
             return true;
         } catch (\Throwable $e) {
             static::anotarError($foto, $e->getMessage());
