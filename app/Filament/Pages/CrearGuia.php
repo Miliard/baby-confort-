@@ -76,6 +76,36 @@ class CrearGuia extends Page implements HasForms
     }
 
     /**
+     * Cuántas fotos entraron hoy y cuántas de esas están en la lista de arriba.
+     *
+     * Es una red de seguridad, no un dato bonito. Si subís diez y arriba hay
+     * ocho, faltan dos — y ahora eso se VE, en vez de tener que acordarse de
+     * cuántas eran. Una foto que desaparece sin dejar rastro es lo peor que
+     * puede pasar acá: el cliente se queda sin su comprobante y nadie se
+     * entera.
+     *
+     * @return array{subidas:int, en_lista:int}
+     */
+    public function fotosDeHoy(): array
+    {
+        try {
+            $subidas = \App\Models\GuiaFoto::whereNotNull('ruta')
+                ->whereDate('created_at', '>=', now()->startOfDay())
+                ->count();
+        } catch (\Throwable $e) {
+            return ['subidas' => 0, 'en_lista' => 0];
+        }
+
+        $enLista = 0;
+
+        foreach ($this->fotosPorLote() as $t) {
+            $enLista += count($t['filas']);
+        }
+
+        return ['subidas' => $subidas, 'en_lista' => $enLista];
+    }
+
+    /**
      * El botón de una tanda: sale de golpe lo que se pueda de ESA subida.
      *
      * Las que no se pueden mandar ni se tocan. Vuelven a aparecer en la lista

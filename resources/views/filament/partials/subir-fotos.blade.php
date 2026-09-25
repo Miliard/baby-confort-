@@ -50,7 +50,31 @@
      Acá se emparejan solas —la guía sale del QR, y con la guía viene el
      teléfono— pero NO se mandan solas. Primero se miran. Una foto pegada a la
      guía equivocada le llega a un cliente real y no hay cómo sacarla. --}}
-@php $lotes = $this->fotosPorLote(); @endphp
+@php
+    $lotes = $this->fotosPorLote();
+    $hoy   = $this->fotosDeHoy();
+@endphp
+
+{{-- El contador de control. No es adorno: si subiste diez y arriba hay ocho,
+     faltan dos — y así se VE, en vez de tener que acordarse de cuántas eran.
+     Una foto que desaparece sin dejar rastro es lo peor que puede pasar acá:
+     el cliente se queda sin su comprobante y nadie se entera. --}}
+@if($hoy['subidas'] > 0)
+    <div class="mt-5 rounded-xl border border-gray-200 dark:border-white/10"
+         style="display:flex;align-items:center;justify-content:space-between;
+                gap:10px;padding:10px 14px">
+        <span class="text-gray-500 dark:text-gray-400" style="font-size:12.5px">
+            Hoy entraron <b class="text-gray-950 dark:text-white">{{ $hoy['subidas'] }}</b> fotos ·
+            en la lista de abajo hay <b class="text-gray-950 dark:text-white">{{ $hoy['en_lista'] }}</b>
+        </span>
+
+        @if($hoy['en_lista'] < $hoy['subidas'])
+            <x-filament::badge color="gray" size="xs">
+                el resto ya se mandó o se quitó
+            </x-filament::badge>
+        @endif
+    </div>
+@endif
 
 @foreach($lotes as $tanda)
     <div class="mt-5 rounded-xl border border-gray-200 bg-white dark:border-white/10 dark:bg-gray-900"
@@ -203,24 +227,35 @@
                              También aparece en las que SÍ tienen número, para
                              corregir uno leído mal. El lector confunde un 6 con
                              un 5 y la foto le llega a otra persona. --}}
-                        @if(in_array($estado, [\App\Services\FotosAlChat::SIN_NUMERO,
-                                               \App\Services\FotosAlChat::SIN_CHAT], true))
-                            <div style="display:flex;gap:6px;align-items:center;margin-top:7px">
-                                <input type="text" inputmode="numeric" maxlength="12"
-                                       wire:model.defer="telManual.{{ $foto->id }}"
-                                       wire:keydown.enter="guardarTelefono({{ $foto->id }})"
-                                       placeholder="7055 1234"
-                                       aria-label="Escribir el teléfono de esta foto"
-                                       class="rounded-lg border border-gray-300 dark:border-white/20"
-                                       style="flex:1 1 auto;min-width:0;padding:7px 10px;
-                                              font-size:14px;background:transparent;color:inherit">
+                        {{-- El campo va en TODOS los renglones, no solo en los
+                             que quedaron sin teléfono.
 
-                                <x-filament::button size="xs" color="gray"
-                                    wire:click="guardarTelefono({{ $foto->id }})">
-                                    Guardar
-                                </x-filament::button>
-                            </div>
-                        @endif
+                             El motivo es el caso peor: el lector confunde un 6
+                             con un 5, ese número por casualidad tiene chat, y
+                             el renglón aparece verde y "listo para mandar".
+                             Ahí no hay ninguna señal de que algo esté mal, y
+                             la foto de un paquete se le va a un desconocido.
+
+                             Mostrándolo siempre, corregir cuesta lo mismo que
+                             mirar. Y para las guías hechas a mano, que no
+                             pasan por la cola del sistema, este campo es todo
+                             lo que hace falta: con el teléfono puesto, la foto
+                             sale igual que cualquier otra. --}}
+                        <div style="display:flex;gap:6px;align-items:center;margin-top:7px">
+                            <input type="text" inputmode="numeric" maxlength="12"
+                                   wire:model.defer="telManual.{{ $foto->id }}"
+                                   wire:keydown.enter="guardarTelefono({{ $foto->id }})"
+                                   placeholder="{{ $foto->telefono ? 'Corregir: ' . $foto->telefono : '7055 1234' }}"
+                                   aria-label="Escribir o corregir el teléfono de esta foto"
+                                   class="rounded-lg border border-gray-300 dark:border-white/20"
+                                   style="flex:1 1 auto;min-width:0;padding:7px 10px;
+                                          font-size:14px;background:transparent;color:inherit">
+
+                            <x-filament::button size="xs" color="gray"
+                                wire:click="guardarTelefono({{ $foto->id }})">
+                                Guardar
+                            </x-filament::button>
+                        </div>
                     </div>
 
                     {{-- Sacarla de la lista sin mandarla. Hace falta sobre todo

@@ -198,7 +198,37 @@ class GuiaFotoController extends Controller
             // Lo leído por OCR solo rellena lo que falte: nunca pisa los datos del PDF.
             $foto->nombre   = $foto->nombre   ?: $nombreOcr;
             $foto->telefono = $foto->telefono ?: $telefonoOcr;
-            $foto->lote     = $foto->lote     ?: $loteFoto;
+
+            /*
+             * ACÁ ESTABA LA FOTO QUE DESAPARECÍA.
+             *
+             * Cuando la guía ya existía —porque entró antes por el PDF, o
+             * porque ya le habías subido una foto— esta rama actualizaba la
+             * imagen pero dejaba dos cosas viejas:
+             *
+             *  · el LOTE. Con "?:" se quedaba el de la subida anterior, así
+             *    que la foto que acabás de subir aparecía en una tanda de otro
+             *    día — abajo del todo, o en una que ya limpiaste. Desde
+             *    arriba, desaparecida.
+             *
+             *  · la marca de MANDADA. Si esa guía ya había salido por el chat
+             *    alguna vez, chat_enviada_at seguía puesto, y la lista de
+             *    "por mandar" solo muestra las que lo tienen vacío. La foto
+             *    nueva no aparecía en ningún lado y nada lo explicaba.
+             *
+             * Subir una foto es decir "esta es la buena, y todavía no salió".
+             * Las dos marcas se rehacen.
+             */
+            $foto->lote            = $loteFoto ?: $foto->lote;
+            $foto->chat_enviada_at = null;
+            $foto->chat_error      = null;
+
+            // Y la marca de "la imagen ya se borró del disco", que queda
+            // puesta cuando la limpieza automática pasó por esta guía. Con esa
+            // marca vieja, la foto NUEVA tampoco aparecía: la lista saltea las
+            // que la tienen, porque Meta no podría descargarlas.
+            $foto->foto_borrada_at = null;
+
             $foto->save();
         } else {
             $foto = GuiaFoto::create([
