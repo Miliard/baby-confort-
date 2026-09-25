@@ -2027,20 +2027,89 @@ class Whatsapp extends Page
         $conv = $this->conversacion();
         if (! $conv) return;
 
+        // Base: lo que ya sabemos de la libreta, de entregas anteriores.
         $cliente = $conv->cliente();
 
         $nombre    = $cliente['nombre'] ?? ($conv->comoSeLlama() ?: '');
+        $telefono  = $conv->telefono;
         $municipio = $cliente['municipio'] ?? '';
         $direccion = $cliente['direccion'] ?? '';
+        $productos = '';
+        $envio     = '';
+        $total     = '';
+
+        /*
+         * ACÁ SÍ ENTRA LA IA, y es el lugar donde sirve de verdad.
+         *
+         * La diferencia con el otro botón es exacta: allá la orden YA está
+         * escrita y solo hay que transcribirla, así que leer con reglas es
+         * mejor. Acá la orden NO existe todavía — la estás por escribir vos, y
+         * los datos están repartidos en la conversación: el nombre en un
+         * mensaje, la dirección cuatro después, el precio que le cotizaste en
+         * el medio.
+         *
+         * Eso es justo lo que las reglas no pueden hacer y la IA sí.
+         *
+         * La libreta se respeta cuando la IA no encuentra nada: los datos de
+         * la última entrega son reales y ya se usaron. Pero si en ESTA
+         * conversación dio una dirección nueva, esa manda — la gente se muda,
+         * o manda el paquete a otro lado.
+         */
+        $leyo = false;
+
+        if (\App\Services\LeerOrdenIA::disponible()) {
+            try {
+                $ia = \App\Services\LeerOrdenIA::de($conv);
+
+                foreach (['nombre', 'municipio', 'direccion', 'productos', 'total'] as $c) {
+                    if (filled($ia[$c] ?? null)) $leyo = true;
+                }
+
+                $nombre    = filled($ia['nombre'])    ? $ia['nombre']    : $nombre;
+                $municipio = filled($ia['municipio']) ? $ia['municipio'] : $municipio;
+                $direccion = filled($ia['direccion']) ? $ia['direccion'] : $direccion;
+                // Con dos decimales, como se escribe la plata. montoDe()
+                // devuelve 0 cuando lo leído no es un monto creíble, y ahí el
+                // campo queda vacío en vez de salir un "$0" que se manda.
+                $m = static::montoDe($ia['total'] ?? '');
+                $total = $m > 0 ? number_format($m, 2) : '';
+
+                // Los productos, uno por renglón y con su precio, como los
+                // escribís vos. Si la IA no trajo precio para alguno, va sin
+                // precio: en blanco se ve y se completa, inventado no.
+                $renglones = [];
+
+                foreach (($ia['lineas'] ?? []) as $l) {
+                    $r = $l['cantidad'] . ' ' . $l['producto']
+                       . ($l['talla'] !== '' ? ' talla ' . $l['talla'] : '');
+
+                    if (($l['precio'] ?? 0) > 0) {
+                        $r .= ' $' . number_format($l['precio'], 2);
+
+                        if ($l['cantidad'] > 1) {
+                            $r .= ' ($' . number_format($l['precio'] * $l['cantidad'], 2) . ')';
+                        }
+                    }
+
+                    $renglones[] = $r;
+                }
+
+                $productos = $renglones
+                    ? "\n" . implode("\n", $renglones)
+                    : $ia['productos'];
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Plantilla con IA: ' . $e->getMessage());
+            }
+        }
 
         $this->texto = "\u{1F4E6} Orden de Env\u{ED}o: \u{1F69A}\n"
             . "\u{2705} Nombre completo: {$nombre}\n"
-            . "\u{2705} Tel\u{E9}fono: {$conv->telefono}\n"
+            . "\u{2705} Tel\u{E9}fono: {$telefono}\n"
             . "\u{2705} Municipio: {$municipio}\n"
             . "\u{2705} Direcci\u{F3}n exacta: {$direccion}\n"
-            . "\u{2705} Producto(s): \n"
-            . "\u{2705} Costo de env\u{ED}o: $\n"
-            . "\u{1F4B0} Total a pagar: $\n\n"
+            . "\u{2705} Producto(s): {$productos}\n"
+            . "\u{2705} Costo de env\u{ED}o: \${$envio}\n"
+            . "\u{1F4B0} Total a pagar: \${$total}\n\n"
             // Sin enlace de rastreo a propósito: ese sale solo al guardar la
             // guía en la cola. Así, mirando el chat, se sabe de un vistazo
             // cuáles órdenes ya se procesaron y cuáles quedaron a medias.
@@ -2048,12 +2117,25 @@ class Whatsapp extends Page
 
         $this->pestana = 'chat';
 
-        if ($cliente) {
+        // El cuadro se abre: una orden son ocho renglones y en tres no se lee.
+        $this->cajaGrande = true;
+
+        if ($leyo) {
             Notification::make()
-                ->title('Orden armada con los datos que ya teníamos')
-                ->body('Completá los productos y los montos antes de mandarla.')
-                ->success()->send();
+                ->title('Orden armada leyendo la conversación')
+                ->body('Revisala ANTES de mandarla: la dirección y los montos salieron de '
+                     . 'entender el chat, no de copiarlo. Lo que quedó en blanco es porque '
+                     . 'no se dijo — completalo vos.')
+                ->warning()->send();
+            return;
         }
+
+        Notification::make()
+            ->title($cliente
+                ? 'Orden armada con los datos que ya teníamos'
+                : 'Orden en blanco')
+            ->body('Completá los productos y los montos antes de mandarla.')
+            ->success()->send();
     }
 
     // ── Procesar una orden de envío escrita en el chat ───────────────────────
