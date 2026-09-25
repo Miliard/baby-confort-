@@ -2697,6 +2697,47 @@ class Whatsapp extends Page
         // orden se procesó: si en el chat no está, es que quedó a medias.
         $conv = $this->conversacion();
         $aviso = '';
+        $avisoCobro = '';
+
+        /*
+         * Guía sin cobro al entregar → a la lista de "Sin cobro".
+         *
+         * Una guía que sale en cero significa que ese dinero no llega con el
+         * paquete. Puede estar bien —el cliente ya pagó por transferencia— o
+         * puede ser que quedó pendiente y nadie se acordó. Las dos se ven
+         * IGUAL en la guía, y esa es toda la razón de que exista esta lista:
+         * hasta que alguien mire, no hay forma de distinguirlas.
+         *
+         * La etiqueta se pone sola y NO se quita sola. Sacarla es decir "este
+         * ya me pagó", y eso solo lo sabés vos. Es lo que la convierte en una
+         * lista de cobro en vez de un adorno.
+         */
+        if ($conv && (float) $fila['cobrar'] <= 0) {
+            try {
+                $sinCobro = \App\Models\WaEtiqueta::porRol('sin_cobro');
+
+                if ($sinCobro) {
+                    $conv->etiquetas()->syncWithoutDetaching([$sinCobro->id]);
+
+                    // Aparte de $aviso: ese lo pisan los avisos del rastreo de
+                    // más abajo, y este no se puede perder — es el que dice
+                    // que esa plata todavía no entró.
+                    $avisoCobro = ' Se marcó como SIN COBRO: la guía sale en cero. '
+                                . 'Quitale la etiqueta cuando te pague.';
+                } else {
+                    // Sin etiqueta asignada esto no se puede marcar, y quedarse
+                    // callado sería peor: la guía igual sale sin cobrar.
+                    Notification::make()
+                        ->title('Esta guía sale SIN cobro')
+                        ->body('No hay ninguna etiqueta con el papel "sin_cobro" asignada, '
+                             . 'así que no se pudo marcar. Creala en el admin, en Etiquetas, '
+                             . 'para llevar el control de quién pagó.')
+                        ->warning()->persistent()->send();
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Marcando sin cobro: ' . $e->getMessage());
+            }
+        }
 
         if ($conv && $conv->ventanaAbierta()) {
             $m = WhatsappApi::enviarTexto(
@@ -2731,10 +2772,12 @@ class Whatsapp extends Page
 
         $n = Notification::make()->title('Guardado en la cola');
 
-        if ($aviso === '') {
+        if ($aviso === '' && $avisoCobro === '') {
             $n->body($cuerpo . ' Al cliente ya le salió el enlace de rastreo.')->success();
         } else {
-            $n->body($cuerpo . $aviso)->warning()->persistent();
+            // El de sin cobro va primero: es plata, y lo del rastreo se puede
+            // resolver después.
+            $n->body($cuerpo . $avisoCobro . $aviso)->warning()->persistent();
         }
 
         $n->send();

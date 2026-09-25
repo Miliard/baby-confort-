@@ -27,8 +27,13 @@ class WaEtiqueta extends Model
      */
     public const ROLES = [
         'pedido'    => 'Se pone sola cuando llega una orden de envío',
-        'procesada' => 'Se pone sola cuando ya se mandó el enlace de rastreo',
+        'procesada' => 'Se pone sola cuando se le manda al cliente la foto de su etiqueta',
         'entregada' => 'Se pone sola cuando el courier confirma la entrega',
+        // Esta NO se quita sola. Es la única del recorrido que se saca a mano,
+        // y a propósito: solo vos sabés si ese cliente ya te pagó. Sacarla es
+        // lo que la vuelve una lista de cobro y no un adorno.
+        'sin_cobro' => 'Se pone sola cuando la guía sale SIN cobro al entregar. '
+                     . 'Quitala a mano cuando el cliente pague.',
     ];
 
     /** La etiqueta que juega ese papel, si alguna lo tiene asignado. */
