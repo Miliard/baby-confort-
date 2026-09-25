@@ -42,9 +42,52 @@ class LeerOrdenIA
      * Siempre devuelve las claves de CAMPOS, con cadena vacía las que no. Así
      * quien llama no tiene que preguntar si existen.
      */
+    /**
+     * Deja los renglones en una forma de la que se pueda confiar.
+     *
+     * Lo que llega es JSON armado por un modelo: puede venir con claves de
+     * más, con el precio escrito "$17.00" o "diecisiete", con cantidades en
+     * texto. Acá se recorta a lo que se va a usar y se convierte a números.
+     *
+     * El precio en 0 NO es lo mismo que el precio 0: quiere decir que en la
+     * conversación no se habló de precio para ese renglón, y más adelante se
+     * completa con el del catálogo.
+     */
+    private static function limpiarLineas($crudo): array
+    {
+        if (! is_array($crudo)) return [];
+
+        $lineas = [];
+
+        foreach ($crudo as $l) {
+            if (! is_array($l)) continue;
+
+            $producto = trim((string) ($l['producto'] ?? ''));
+            if ($producto === '') continue;
+
+            $cantidad = (int) ($l['cantidad'] ?? 1);
+
+            // Un precio con signo de pesos, coma de miles o espacios sigue
+            // siendo un número: se le saca todo lo que no sea dígito o punto.
+            $precio = (float) preg_replace('/[^\d.]/', '', (string) ($l['precio'] ?? ''));
+
+            $lineas[] = [
+                'producto' => $producto,
+                'talla'    => trim((string) ($l['talla'] ?? '')),
+                'cantidad' => max(1, $cantidad),
+                'precio'   => $precio > 0 ? round($precio, 2) : 0.0,
+            ];
+        }
+
+        // Tope de seguridad: un pedido real no tiene veinte renglones, y si el
+        // modelo se desbocó no conviene llenar el formulario con basura.
+        return array_slice($lineas, 0, 20);
+    }
+
     public static function de(WaConversacion $conv, int $cuantos = 25): array
     {
         $vacio = array_fill_keys(static::CAMPOS, '');
+        $vacio['lineas'] = [];
 
         if (! static::disponible()) return $vacio;
 
@@ -69,6 +112,9 @@ class LeerOrdenIA
                 $salida[$c] = trim((string) $v);
             }
         }
+
+        // Los renglones con su precio, que es lo que se revisa uno por uno.
+        $salida['lineas'] = static::limpiarLineas($datos['lineas'] ?? null);
 
         // "null", "no dice", "N/A" y parientes son formas de decir vacío que a
         // veces se escapan igual. Si pasaran, quedarían escritas en la guía.
@@ -171,7 +217,10 @@ class LeerOrdenIA
           "municipio": "",
           "direccion": "",
           "productos": "",
-          "total": ""
+          "total": "",
+          "lineas": [
+            { "producto": "", "talla": "", "cantidad": 1, "precio": 0 }
+          ]
         }
 
         LA REGLA QUE MANDA SOBRE TODAS
@@ -230,6 +279,33 @@ class LeerOrdenIA
 
           Si en la conversación cambió de opinión, vale lo ÚLTIMO que se
           acordó, no lo primero que preguntó.
+
+        - lineas: lo MISMO que "productos", pero partido en pedazos y con el
+          precio de cada uno. Es lo que se revisa renglón por renglón, así que
+          es el campo donde más cuidado hay que tener.
+
+          Un objeto por renglón:
+
+            producto — el nombre del catálogo, igual que arriba
+            talla    — la talla, o "" si no aplica
+            cantidad — cuántos, en número
+            precio   — el precio UNITARIO acordado EN LA CONVERSACIÓN
+
+          Sobre el precio, que es lo delicado:
+
+          · Es el precio de UNO, no el del renglón. Si dijimos "el paquete
+            \$17" y el cliente lleva 2, va 17 y cantidad 2. No pongas 34.
+          · Sale de lo que se HABLÓ. Buscalo en lo que escribió NOSOTROS: ahí
+            es donde se cotiza.
+          · Si por ese producto no se dijo ningún precio, poné 0. El 0 quiere
+            decir "no se habló de precio", y más adelante se completa con el
+            del catálogo. NO es un producto regalado.
+          · NO lo deduzcas dividiendo el total entre las cantidades. Eso da un
+            número creíble y falso, y se le termina cobrando al cliente algo
+            que nadie le dijo.
+          · Si hubo promoción —"3 por \$25"— poné el precio unitario que sale
+            de ella (25 ÷ 3 = 8.33) solo si el cliente se lleva justo esa
+            cantidad. Si no, poné 0 y que lo resuelva el catálogo.
 
         - total: el monto que quedó ACORDADO en la conversación, tal como se
           dijo. Solo el número, sin el signo de pesos.

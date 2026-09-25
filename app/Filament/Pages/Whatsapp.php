@@ -178,7 +178,14 @@ class Whatsapp extends Page
     /** El texto de la orden, para tenerlo a la vista mientras se compara. */
     public string $pedOrigen = '';
 
-    /** Cada renglón: ['size_id' => '', 'cantidad' => 1]. */
+    /**
+     * Cada renglón: ['size_id' => '', 'cantidad' => 1, 'precio' => ''].
+     *
+     * El precio es el UNITARIO y manda sobre el del catálogo cuando está
+     * escrito. Existe porque lo que se le cotizó al cliente en el chat es un
+     * compromiso con él: si le dijiste \$17 y el admin tiene \$18, se le cobra
+     * \$17. Vacío significa "usá el del catálogo", no significa gratis.
+     */
     public array $pedLineas = [];
 
     public function mount(): void
@@ -1862,7 +1869,29 @@ class Whatsapp extends Page
 
     public function agregarLinea(): void
     {
-        $this->pedLineas[] = ['size_id' => '', 'cantidad' => 1];
+        $this->pedLineas[] = ['size_id' => '', 'cantidad' => 1, 'precio' => ''];
+    }
+
+    /** El precio unitario de un renglón: el escrito, o el del catálogo. */
+    public function precioLinea(array $l): float
+    {
+        // Techo más bajo que el del total: un renglón suelto de pañales no
+        // pasa de unas decenas. Si sale más, se leyó mal.
+        $escrito = static::montoDe($l['precio'] ?? '', 500.0);
+
+        if ($escrito > 0) return $escrito;
+
+        $s = $this->presentacion($l['size_id'] ?? null);
+
+        return $s ? round((float) $s->price, 2) : 0.0;
+    }
+
+    /** El del catálogo, para poder mostrarlo al lado cuando difiere. */
+    public function precioCatalogo(array $l): float
+    {
+        $s = $this->presentacion($l['size_id'] ?? null);
+
+        return $s ? round((float) $s->price, 2) : 0.0;
     }
 
     public function quitarLinea(int $i): void
@@ -1877,10 +1906,11 @@ class Whatsapp extends Page
         $total = 0.0;
 
         foreach ($this->pedLineas as $l) {
-            $s = $this->presentacion($l['size_id'] ?? null);
-            if (! $s) continue;
+            // Sin producto elegido no hay renglón que sumar, aunque tenga
+            // precio escrito: no se sabría qué se está cobrando.
+            if (! $this->presentacion($l['size_id'] ?? null)) continue;
 
-            $total += (float) $s->price * max(1, (int) ($l['cantidad'] ?? 1));
+            $total += $this->precioLinea($l) * max(1, (int) ($l['cantidad'] ?? 1));
         }
 
         return round($total, 2);
@@ -1901,7 +1931,10 @@ class Whatsapp extends Page
     public function totalPedido(): float
     {
         if (trim($this->pedCobrarManual) !== '') {
-            return round((float) $this->pedCobrarManual, 2);
+            // Por montoDe() y no por (float) a secas: "$34.00" casteado
+            // directo da 0, y "34 y pico" da 34 por casualidad. Acá se lee el
+            // número de verdad, y lo absurdo se descarta.
+            return static::montoDe($this->pedCobrarManual);
         }
 
         // Sin total escrito y sin productos del catálogo no hay nada que
@@ -1909,6 +1942,37 @@ class Whatsapp extends Page
         if (empty($this->pedLineas)) return 0.0;
 
         return round($this->subtotalPedido() + $this->envioPedido(), 2);
+    }
+
+    /**
+     * El primer monto que hay en un texto, como número.
+     *
+     * ACÁ ESTABA EL TOTAL DE TRES MIL MILLONES, y el error era mío.
+     *
+     * Yo venía sacando el número así:
+     *
+     *     preg_replace('/[^\d.]/', '', $texto)
+     *
+     * Eso no extrae un número: borra todo lo que no sea dígito y PEGA lo que
+     * queda. Con "34 y el tel 72837585" devuelve "3472837585". Con "$17($34)"
+     * devuelve "1734". Nunca falla ruidosamente — siempre devuelve algo que
+     * parece un número, y por eso pasó hasta la pantalla.
+     *
+     * Lo correcto es buscar el PRIMER monto y quedarse con ese.
+     *
+     * Y un techo, porque un error así no puede volver a llegar a una guía: un
+     * pedido de pañales no pasa de unos cientos de dólares. Lo que pase de
+     * $2000 es basura de lectura, no una venta.
+     */
+    public static function montoDe($texto, float $techo = 2000.0): float
+    {
+        $t = (string) $texto;
+
+        if (! preg_match('/\d+(?:[.,]\d{1,2})?/', $t, $m)) return 0.0;
+
+        $n = (float) str_replace(',', '.', $m[0]);
+
+        return ($n > 0 && $n <= $techo) ? round($n, 2) : 0.0;
     }
 
     public function totalEsManual(): bool
@@ -2010,36 +2074,24 @@ class Whatsapp extends Page
         $datos = $this->leerOrden($m->texto);
 
         /*
-         * Si el lector de reglas dejó huecos, la IA lee la conversación.
+         * ACÁ NO ENTRA LA IA. Y no es por miedo: es que sobra.
          *
-         * En este orden y no al revés. Las reglas son gratis, instantáneas y
-         * cuando el cliente usó la plantilla no se equivocan nunca: llamar a
-         * la IA ahí sería pagar y esperar para llegar al mismo resultado.
+         * Este botón solo aparece sobre un mensaje que YA es una orden de
+         * envío escrita con la plantilla. Ahí el lector de reglas es lo
+         * correcto: el texto tiene las etiquetas, lee literal, es gratis, es
+         * instantáneo y no puede alucinar.
          *
-         * Y hay una diferencia de fondo entre las dos, que es lo que hace que
-         * valga la pena: las reglas miran ESTE mensaje, la IA mira la
-         * conversación. El nombre que dio al principio y la dirección que
-         * mandó tres mensajes después terminan en la misma orden.
+         * Lo tuve llamando a la IA cuando quedaba algún campo vacío, y estuvo
+         * mal. Sobre una orden ya escrita, la IA no tiene nada que aportar y
+         * sí mucho que romper: en la primera prueba puso un total de tres mil
+         * millones. Meter una lectura que interpreta encima de una que solo
+         * transcribe es cambiar certeza por conveniencia.
          *
-         * Lo que trae la IA solo RELLENA lo que quedó vacío. Nunca pisa lo que
-         * las reglas ya leyeron: eso salió del texto literal y es más seguro.
+         * La IA sigue existiendo (LeerOrdenIA) para el caso que sí la
+         * necesita: una conversación suelta, sin orden escrita. Ese es otro
+         * camino y va aparte.
          */
         $conIA = false;
-
-        if (static::faltanDatos($datos) && \App\Services\LeerOrdenIA::disponible()) {
-            $conv = $this->conversacion();
-
-            if ($conv) {
-                $delaIA = \App\Services\LeerOrdenIA::de($conv);
-
-                foreach ($delaIA as $campo => $valor) {
-                    if (blank($datos[$campo] ?? null) && filled($valor)) {
-                        $datos[$campo] = $valor;
-                        $conIA = true;
-                    }
-                }
-            }
-        }
 
         if (filled($datos['nombre'])) $this->pedNombre = $this->limpiarNombre($datos['nombre']);
 
@@ -2128,10 +2180,36 @@ class Whatsapp extends Page
             $reconocido = \App\Services\ReconocerProductos::enTexto($datos['productos']);
 
             if ($reconocido['items']) {
-                $this->pedLineas = array_map(
-                    fn ($i) => ['size_id' => (string) $i['size_id'], 'cantidad' => (int) $i['cantidad']],
-                    $reconocido['items'],
-                );
+                // Los precios que la IA sacó del chat, indexados por producto
+                // y talla para poder pegarlos al renglón que corresponde.
+                $precios = [];
+
+                foreach (($datos['lineas'] ?? []) as $l) {
+                    if (($l['precio'] ?? 0) <= 0) continue;
+
+                    $clave = \App\Services\ReconocerProductos::normalizar(
+                        ($l['producto'] ?? '') . ' ' . ($l['talla'] ?? '')
+                    );
+
+                    if ($clave !== '') $precios[$clave] = (float) $l['precio'];
+                }
+
+                $this->pedLineas = array_map(function ($i) use ($precios) {
+                    $clave = \App\Services\ReconocerProductos::normalizar(
+                        $i['producto'] . ' ' . $i['talla']
+                    );
+
+                    return [
+                        'size_id'  => (string) $i['size_id'],
+                        'cantidad' => (int) $i['cantidad'],
+                        // Vacío si en el chat no se habló de precio para este:
+                        // ahí manda el del catálogo. Poner el del catálogo acá
+                        // sería mentir sobre de dónde salió el número.
+                        'precio'   => isset($precios[$clave])
+                            ? number_format($precios[$clave], 2, '.', '')
+                            : '',
+                    ];
+                }, $reconocido['items']);
 
                 // El total hablado se queda puesto y manda sobre el cálculo.
                 // Solo cuando NO se habló ninguno toma el mando el catálogo:
@@ -2156,7 +2234,7 @@ class Whatsapp extends Page
          * Cobrarle lo del chat resuelve el pedido de hoy. El aviso es para que
          * mañana no se repita.
          */
-        $dicho = (float) preg_replace('/[^\d.]/', '', (string) ($datos['total'] ?? ''));
+        $dicho = static::montoDe($datos['total'] ?? '');
 
         if ($dicho > 0 && $reconocido['items']) {
             $porCatalogo = round(

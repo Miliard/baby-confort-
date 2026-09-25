@@ -706,6 +706,25 @@
     .wa-fila2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .wa-linea{display:grid;grid-template-columns:1fr 78px 34px;gap:8px;align-items:center;
               margin-bottom:8px}
+
+    /* Cuatro columnas: producto, cantidad, precio y la ✕.
+       El producto se lleva lo que sobra; los otros tres son fijos y angostos,
+       porque un precio y una cantidad no necesitan más. */
+    .wa-linea-4{display:grid;grid-template-columns:1fr 62px 84px 34px;gap:7px;
+                align-items:center}
+    @media(max-width:900px){
+        /* En el teléfono no entran cuatro. El producto se lleva un renglón
+           entero para arriba y abajo van los números, que son cortos. */
+        .wa-linea-4{grid-template-columns:1fr 84px 34px}
+        .wa-linea-4 > :first-child{grid-column:1 / -1}
+    }
+
+    /* El renglón chico de abajo: de dónde salió el precio y cuánto suma.
+       Sin esto, un número suelto en el campo no dice si lo cotizaste vos en el
+       chat o si lo puso el sistema desde el catálogo — y esa diferencia es la
+       que decide si hay que corregirlo. */
+    .wa-linea-pie{font-size:11.5px;color:var(--wa-suave);margin-top:3px;
+                  padding-left:2px;line-height:1.4}
     .wa-x{border:none;background:rgba(229,105,95,.14);color:#b91c1c;border-radius:8px;
           cursor:pointer;font-size:15px;font-weight:700;height:36px;font-family:inherit}
     .wa-x:hover{background:rgba(229,105,95,.26)}
@@ -1871,10 +1890,91 @@
                     </div>
                 @endif
 
+                {{-- ── Los renglones del pedido, uno por uno ──────────────────
+                     Acá estaba el agujero: las líneas se llenaban al procesar
+                     la orden pero NO se mostraban en ninguna parte. Solo se
+                     veía el texto y el total, así que no había forma de mirar
+                     renglón por renglón si el precio era el que se cotizó.
+
+                     El precio que se muestra es el del CHAT cuando se habló
+                     uno, porque eso es lo que el cliente espera pagar. Cuando
+                     no se habló, sale el del catálogo y se dice que viene de
+                     ahí. Si los dos existen y no coinciden, se ven los dos. --}}
+                <div class="wa-campo">
+                    <label class="wa-lab">Lo que lleva, renglón por renglón</label>
+
+                    @forelse($pedLineas as $i => $l)
+                        @php
+                            $precioUsa = $this->precioLinea($l);
+                            $precioCat = $this->precioCatalogo($l);
+                            $delChat   = trim((string) ($l['precio'] ?? '')) !== '';
+                            $difiere   = $delChat && $precioCat > 0 && abs($precioUsa - $precioCat) >= 0.01;
+                        @endphp
+
+                        <div wire:key="linea-{{ $i }}" style="margin-bottom:10px">
+                            <div class="wa-linea-4">
+                                <div class="wa-sel">
+                                    <select class="wa-in" wire:model.live="pedLineas.{{ $i }}.size_id">
+                                        <option value="">Elegí el producto…</option>
+                                        @foreach($this->opcionesProductos() as $id => $et)
+                                            <option value="{{ $id }}">{{ $et }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+
+                                <input type="text" inputmode="numeric" class="wa-in"
+                                       wire:model.live="pedLineas.{{ $i }}.cantidad"
+                                       aria-label="Cantidad">
+
+                                <input type="text" inputmode="decimal" class="wa-in"
+                                       wire:model.live="pedLineas.{{ $i }}.precio"
+                                       placeholder="{{ $precioCat > 0 ? number_format($precioCat, 2) : 'c/u' }}"
+                                       aria-label="Precio de cada uno">
+
+                                <button type="button" class="wa-x" wire:click="quitarLinea({{ $i }})"
+                                        aria-label="Quitar este renglón">✕</button>
+                            </div>
+
+                            {{-- De dónde salió el precio y cuánto suma. Sin esto
+                                 un número suelto no dice si lo cotizaste vos o
+                                 lo puso el sistema. --}}
+                            @if($precioUsa > 0)
+                                <div class="wa-linea-pie">
+                                    @if($difiere)
+                                        <span style="color:#d4a017;font-weight:700">
+                                            ⚠ ${{ number_format($precioUsa, 2) }} del chat
+                                        </span>
+                                        · el catálogo dice ${{ number_format($precioCat, 2) }}
+                                    @elseif($delChat)
+                                        ${{ number_format($precioUsa, 2) }} c/u, del chat
+                                    @else
+                                        ${{ number_format($precioUsa, 2) }} c/u, del catálogo
+                                    @endif
+                                    · suma
+                                    <b>${{ number_format($precioUsa * max(1, (int) ($l['cantidad'] ?? 1)), 2) }}</b>
+                                </div>
+                            @endif
+                        </div>
+                    @empty
+                        <div class="wa-ayuda" style="margin-bottom:8px">
+                            Todavía no hay renglones. Se llenan solos al procesar una orden
+                            del chat, o los agregás acá abajo.
+                        </div>
+                    @endforelse
+
+                    <button type="button" class="wa-mini" wire:click="agregarLinea">
+                        + Agregar renglón
+                    </button>
+                </div>
+
                 <div class="wa-campo">
                     <label class="wa-lab">Productos, tal como van en la guía</label>
                     <textarea class="wa-in" rows="3" wire:model.live="pedProductosTexto"
                               placeholder="Se llena solo al procesar una orden"></textarea>
+                    <div class="wa-ayuda">
+                        Este es el texto que ve el repartidor. Los renglones de arriba son
+                        para la cuenta.
+                    </div>
                 </div>
 
                 <div class="wa-sep"></div>
