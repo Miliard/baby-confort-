@@ -210,6 +210,31 @@
                             {{ $foto->nombre ?: '—' }}
                         </div>
 
+                        {{-- A qué chat va, con el nombre de ESE chat. Es lo que
+                             se compara de un vistazo: el nombre de la etiqueta
+                             arriba, el del chat acá. Si coinciden, está bien;
+                             si no, se ve antes de mandar. --}}
+                        @if(! empty($f['conv']))
+                            <div class="text-gray-500 dark:text-gray-400" style="font-size:12px;line-height:1.4">
+                                → chat de <b class="text-gray-950 dark:text-white">{{ $f['conv']->titulo() }}</b>
+                            </div>
+                        @endif
+
+                        {{-- Si el número se corrigió emparejándolo con
+                             Preparados, lo que decía la etiqueta. Las dos
+                             cosas a la vista: vos decidís si tiene sentido. --}}
+                        @php
+                            $leidoTel = preg_replace('/\D/', '', (string) $foto->tel_leido);
+                            $ahoraTel = preg_replace('/\D/', '', (string) $foto->telefono);
+                        @endphp
+                        @if($foto->tel_leido && $leidoTel !== $ahoraTel)
+                            <div style="font-size:12px;line-height:1.4;color:#2563eb">
+                                🔎 La etiqueta decía
+                                <b>{{ $foto->tel_leido === '—' ? 'sin número' : $foto->tel_leido }}</b>
+                                · se emparejó con Preparados
+                            </div>
+                        @endif
+
                         @if(filled($foto->guia))
                             <p class="text-gray-500 dark:text-gray-400" style="font-size:12px">
                                 Guía {{ $foto->guia }}
@@ -262,21 +287,53 @@
                         {{-- Solo en las que faltan. En una ya enviada, corregir el
                              teléfono no cambia nada: la foto ya le llegó a
                              quien le llegó. --}}
-                        @unless($yaSalio)
-                            <div style="display:flex;gap:6px;align-items:center;margin-top:7px">
-                                <input type="text" inputmode="numeric" maxlength="12"
-                                       wire:model.defer="telManual.{{ $foto->id }}"
-                                       wire:keydown.enter="guardarTelefono({{ $foto->id }})"
-                                       placeholder="{{ $foto->telefono ? 'Corregir: ' . $foto->telefono : '7055 1234' }}"
-                                       aria-label="Escribir o corregir el teléfono de esta foto"
-                                       class="rounded-lg border border-gray-300 dark:border-white/20"
-                                       style="flex:1 1 auto;min-width:0;padding:7px 10px;
-                                              font-size:14px;background:transparent;color:inherit">
+                        {{-- El campo del teléfono: abierto SOLO si falta el número.
 
-                                <x-filament::button size="xs" color="gray"
-                                    wire:click="guardarTelefono({{ $foto->id }})">
-                                    Guardar
-                                </x-filament::button>
+                             Antes estaba abierto en todos los renglones, para
+                             poder corregir. Pero después de escribir el número
+                             y guardarlo, el campo seguía ahí vacío — y parecía
+                             que lo seguía pidiendo. Un campo abierto se lee
+                             como "falta algo".
+
+                             Ahora: sin número → abierto. Con número → cerrado,
+                             y queda un enlace chico por si hay que corregir uno
+                             mal leído.
+
+                             El wire:key lleva el teléfono adentro: al guardar,
+                             el número cambia, el bloque se arma de nuevo y
+                             nace cerrado. Sin eso, Alpine recordaba que estaba
+                             abierto y lo dejaba así. --}}
+                        @unless($yaSalio)
+                            @php $faltaTel = $estado === \App\Services\FotosAlChat::SIN_NUMERO; @endphp
+
+                            <div wire:key="tel-{{ $foto->id }}-{{ $foto->telefono }}"
+                                 x-data="{ editar: {{ $faltaTel ? 'true' : 'false' }} }"
+                                 style="margin-top:7px">
+
+                                <button type="button" x-show="!editar" x-on:click="editar = true"
+                                        class="text-gray-500 dark:text-gray-400"
+                                        style="border:none;background:none;padding:0;cursor:pointer;
+                                               font-size:12px;text-decoration:underline;
+                                               text-underline-offset:2px;font-family:inherit">
+                                    ✏️ Corregir el número
+                                </button>
+
+                                <div x-show="editar" x-cloak
+                                     style="display:flex;gap:6px;align-items:center">
+                                    <input type="text" inputmode="numeric" maxlength="12"
+                                           wire:model="telManual.{{ $foto->id }}"
+                                           wire:keydown.enter="guardarTelefono({{ $foto->id }})"
+                                           placeholder="{{ $foto->telefono ? 'Ahora: ' . $foto->telefono : 'Escribí el teléfono: 7055 1234' }}"
+                                           aria-label="Escribir el teléfono de esta foto"
+                                           class="rounded-lg border border-gray-300 dark:border-white/20"
+                                           style="flex:1 1 auto;min-width:0;padding:7px 10px;
+                                                  font-size:14px;background:transparent;color:inherit">
+
+                                    <x-filament::button size="xs" color="gray"
+                                        wire:click="guardarTelefono({{ $foto->id }})">
+                                        Guardar
+                                    </x-filament::button>
+                                </div>
                             </div>
                         @endunless
                     </div>

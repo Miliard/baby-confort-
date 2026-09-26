@@ -254,6 +254,177 @@ class FotosAlChat
         return null;
     }
 
+    /** Las conversaciones contra las que se empareja, cargadas una vez. */
+    private static ?array $candidatos = null;
+
+    /** Los teléfonos que ya tiene asignados alguna foto a la vista. */
+    private static ?array $usados = null;
+
+    /**
+     * A quiénes les puede corresponder una foto: los de Preparados, y
+     * después los de Pedidos.
+     *
+     * La foto de una etiqueta es de alguien a quien ya le salió el enlace de
+     * rastreo, y por eso está en Preparados. Esa lista es corta —quince,
+     * veinte conversaciones— y eso es lo que hace que emparejar funcione:
+     * entre veinte números de ocho dígitos, uno que se parece a lo leído en
+     * seis o siete dígitos no se confunde con otro.
+     *
+     * Pedidos va después, por si a ese cliente todavía no se le mandó el
+     * enlace. Con menos prioridad: si un número se parece a uno de cada
+     * lista, gana el de Preparados.
+     */
+    private static function candidatos(): array
+    {
+        if (static::$candidatos !== null) return static::$candidatos;
+
+        $lista = [];
+
+        foreach (['procesada' => 0, 'pedido' => 1] as $rol => $prioridad) {
+            try {
+                $etq = \App\Models\WaEtiqueta::porRol($rol);
+                if (! $etq) continue;
+
+                foreach ($etq->conversaciones()->get() as $c) {
+                    $tel = WaConversacion::telefonoCorto($c->telefono);
+                    if (strlen($tel) !== 8 || isset($lista[$tel])) continue;
+
+                    // Todos los nombres que se le conocen: el que le pusiste
+                    // vos, el del perfil y el de la libreta de clientes.
+                    $nombres = array_filter([
+                        $c->alias ?? null,
+                        $c->nombre ?? null,
+                        $c->cliente()['nombre'] ?? null,
+                    ]);
+
+                    $lista[$tel] = [
+                        'conv'      => $c,
+                        'tel'       => $tel,
+                        'nombres'   => array_map([static::class, 'aplanar'], $nombres),
+                        'prioridad' => $prioridad,
+                    ];
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Fotos al chat, leyendo candidatos: ' . $e->getMessage());
+            }
+        }
+
+        return static::$candidatos = $lista;
+    }
+
+    /**
+     * Un nombre sin tildes, sin mayúsculas y SIN ESPACIOS.
+     *
+     * Sin espacios a propósito: el lector de etiquetas parte los nombres por
+     * la mitad — "Maria hern á ndez" —, y comparado palabra por palabra eso no
+     * se parece a nada. Pegado, "mariahernandez" es igual a "mariahernandez".
+     */
+    public static function aplanar(?string $t): string
+    {
+        $t = mb_strtolower(trim((string) $t));
+        $t = strtr($t, ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n']);
+
+        return preg_replace('/[^a-z]/', '', $t);
+    }
+
+    /** Qué tanto se parecen dos nombres aplanados, de 0 a 1. */
+    private static function parecido(string $a, string $b): float
+    {
+        if ($a === '' || $b === '') return 0.0;
+
+        similar_text($a, $b, $pct);
+
+        return $pct / 100;
+    }
+
+    /**
+     * Empareja una foto con una conversación de Preparados (o de Pedidos).
+     *
+     * Primero por el TELÉFONO leído, aunque tenga dígitos mal: se busca el
+     * candidato con menos dígitos distintos, y se acepta si difiere en dos o
+     * menos. El lector confunde un 6 con un 5, un 1 con un 7 — errores de a
+     * un dígito. Dos es el margen seguro: con tres ya podría ser otra persona.
+     *
+     * Si no se leyó ningún número, por el NOMBRE, pero solo si se parece
+     * mucho y a uno solo.
+     *
+     * Si hay empate —dos candidatos igual de parecidos— no se elige ninguno.
+     * Adivinar entre dos es mandarle la foto a la persona equivocada la mitad
+     * de las veces. Ahí queda el campo para que lo escribas vos.
+     *
+     * @return array{tel:string, conv:WaConversacion}|null
+     */
+    public static function emparejar(GuiaFoto $foto): ?array
+    {
+        $candidatos = static::candidatos();
+        if (! $candidatos) return null;
+
+        $leido = preg_replace('/\D/', '', (string) ($foto->tel_leido ?: $foto->telefono));
+        if (strlen($leido) > 8) $leido = substr($leido, -8);
+
+        $nombre = static::aplanar($foto->nombre);
+        $usados = static::usados();
+
+        $mejor = null;
+        $mejorClave = null;
+        $empate = false;
+
+        foreach ($candidatos as $tel => $c) {
+            // Un número que ya tiene otra foto asignada no se reparte dos
+            // veces: si no, dos fotos parecidas terminan en el mismo chat.
+            if (isset($usados[$tel]) && $usados[$tel] !== $foto->id) continue;
+
+            $difiere = strlen($leido) >= 6 ? levenshtein($leido, $tel) : 99;
+
+            $nom = 0.0;
+            foreach ($c['nombres'] as $n) $nom = max($nom, static::parecido($nombre, $n));
+
+            // Orden de preferencia: menos dígitos distintos, después mejor
+            // nombre, después Preparados antes que Pedidos.
+            $clave = [$difiere, -$nom, $c['prioridad']];
+
+            if ($mejorClave === null || $clave < $mejorClave) {
+                $mejor = $c + ['difiere' => $difiere, 'nom' => $nom];
+                $mejorClave = $clave;
+                $empate = false;
+            } elseif ($clave == $mejorClave) {
+                $empate = true;
+            }
+        }
+
+        if (! $mejor || $empate) return null;
+
+        $porTelefono = $mejor['difiere'] <= 2;
+        $porNombre   = $mejor['difiere'] === 99 && $mejor['nom'] >= 0.8;
+
+        return ($porTelefono || $porNombre)
+            ? ['tel' => $mejor['tel'], 'conv' => $mejor['conv']]
+            : null;
+    }
+
+    /** Teléfono → id de la foto que ya lo tiene, entre las que están a la vista. */
+    private static function usados(): array
+    {
+        if (static::$usados !== null) return static::$usados;
+
+        $mapa = [];
+
+        try {
+            GuiaFoto::whereNotNull('ruta')
+                ->whereNull('chat_oculta_at')
+                ->whereNotNull('telefono')
+                ->where('lote', '>=', now()->subDays(7)->utc()->format('Y-m-d H:i:s'))
+                ->get(['id', 'telefono'])
+                ->each(function ($f) use (&$mapa) {
+                    $t = (string) GuiaFoto::telefonoCorto($f->telefono);
+                    if (strlen($t) === 8 && ! isset($mapa[$t])) $mapa[$t] = $f->id;
+                });
+        } catch (\Throwable $e) {
+        }
+
+        return static::$usados = $mapa;
+    }
+
     public static function revisar(GuiaFoto $foto): array
     {
         if ($foto->chat_enviada_at) {
@@ -289,27 +460,98 @@ class FotosAlChat
             }
         }
 
-        $corto = GuiaFoto::telefonoCorto($foto->telefono);
+        /*
+         * EMPAREJAR CON PREPARADOS, antes de pedirte nada.
+         *
+         * El cliente de esta foto ya recibió su enlace de rastreo, así que su
+         * conversación está en Preparados. No hace falta leer el número
+         * perfecto: alcanza con encontrar cuál de esos se parece.
+         *
+         * Se intenta en tres casos:
+         *  · no se leyó número, o salió incompleto;
+         *  · el número leído no tiene chat — casi seguro un dígito mal;
+         *  · el número leído SÍ tiene chat, pero no está en Preparados ni en
+         *    Pedidos. Este es el peligroso: el lector cambió un 6 por un 5 y
+         *    dio justo con otro cliente real. Si hay uno de Preparados a uno
+         *    o dos dígitos, ese es el bueno.
+         *
+         * Si empareja, el número se corrige y se guarda lo que había leído la
+         * etiqueta, para que en pantalla veas las dos cosas y decidas. No se
+         * te pide escribir nada.
+         */
+        $corto = (string) GuiaFoto::telefonoCorto($foto->telefono);
+        $conv  = strlen($corto) === 8 ? static::conversacionDe($corto) : null;
 
-        if (! $corto || strlen($corto) !== 8) {
+        $enLista = strlen($corto) === 8 && isset(static::candidatos()[$corto]);
+
+        // Un número escrito a mano no se toca: lo escribiste vos, y vos sabés
+        // más que el emparejador. Se reconoce porque al guardarlo a mano
+        // "lo leído" queda igual al número puesto.
+        $aMano = $foto->tel_leido
+            && preg_replace('/\D/', '', (string) $foto->tel_leido) === preg_replace('/\D/', '', (string) $foto->telefono);
+
+        if (! $enLista && ! $aMano) {
+            $par = static::emparejar($foto);
+
+            /*
+             * Si el número leído YA tiene chat, cambiarlo solo porque se
+             * parece a otro sería peligroso: puede venir del PDF de Sistrack y
+             * ser el correcto, de un cliente que simplemente no está
+             * etiquetado. Ahí se pide que el NOMBRE también lo confirme — que
+             * la etiqueta se parezca al candidato y no al dueño del número
+             * leído. Sin nombre que desempate, se respeta el número leído.
+             */
+            if ($par && $conv) {
+                $nombreFoto = static::aplanar($foto->nombre);
+
+                $conCandidato = 0.0;
+                foreach ([$par['conv']->alias ?? null, $par['conv']->nombre ?? null] as $n) {
+                    $conCandidato = max($conCandidato, static::parecido($nombreFoto, static::aplanar($n)));
+                }
+
+                $conLeido = 0.0;
+                foreach ([$conv->alias ?? null, $conv->nombre ?? null] as $n) {
+                    $conLeido = max($conLeido, static::parecido($nombreFoto, static::aplanar($n)));
+                }
+
+                if (! ($conCandidato >= 0.7 && $conLeido < 0.5)) $par = null;
+            }
+
+            if ($par && $par['tel'] !== $corto) {
+                try {
+                    $foto->forceFill([
+                        // Lo que leyó la etiqueta se guarda una sola vez, la
+                        // primera: si se empareja de nuevo más adelante, no
+                        // se pisa con un número que ya era corregido.
+                        'tel_leido' => $foto->tel_leido ?: ($foto->telefono ?: '—'),
+                        'telefono'  => $par['tel'],
+                    ])->save();
+                } catch (\Throwable $e) {
+                    Log::warning('Fotos al chat, emparejando: ' . $e->getMessage());
+                }
+
+                $corto = $par['tel'];
+                $conv  = $par['conv'];
+            }
+        }
+
+        if (strlen($corto) !== 8) {
             return [
                 'foto'   => $foto,
                 'conv'   => null,
                 'estado' => static::SIN_NUMERO,
-                'porque' => 'La etiqueta no dejó un teléfono de 8 dígitos. '
-                          . 'Escribilo en la guía y vuelve a aparecer acá.',
+                'porque' => 'No se leyó el teléfono y no se parece a nadie de Preparados. '
+                          . 'Escribilo abajo.',
             ];
         }
-
-        $conv = static::conversacionDe($corto);
 
         if (! $conv) {
             return [
                 'foto'   => $foto,
                 'conv'   => null,
                 'estado' => static::SIN_CHAT,
-                'porque' => 'Ese número nunca escribió a este WhatsApp, así que no hay '
-                          . 'conversación adonde mandarla.',
+                'porque' => 'Ese número no tiene chat, y no se parece a nadie de Preparados. '
+                          . 'Revisá el número.',
             ];
         }
 

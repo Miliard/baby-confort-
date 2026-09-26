@@ -149,6 +149,16 @@ class CrearGuia extends Page implements HasForms
         if (! $f) return;
 
         $f->telefono = $solo;
+
+        // Marca de "puesto a mano": lo leído igual al número. Con esto el
+        // emparejador con Preparados sabe que no tiene que corregirlo.
+        $f->tel_leido = $solo;
+
+        // El aviso rojo que tuviera era del número anterior. Con el número
+        // corregido ya no dice nada cierto, y dejarlo haría parecer que la
+        // foto sigue con problemas.
+        $f->chat_error = null;
+
         $f->save();
 
         unset($this->telManual[$id]);
