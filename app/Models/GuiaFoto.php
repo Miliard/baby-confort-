@@ -31,10 +31,22 @@ class GuiaFoto extends Model
      */
     public function mensajeChat(): ?\App\Models\WaMensaje
     {
-        if (! $this->chat_mensaje_id) return null;
-
         try {
-            return \App\Models\WaMensaje::find($this->chat_mensaje_id);
+            if ($this->chat_mensaje_id) {
+                return \App\Models\WaMensaje::find($this->chat_mensaje_id);
+            }
+
+            // Las fotos que salieron ANTES de guardar el vínculo no lo tienen.
+            // Pero el mensaje sí guardó la dirección de la imagen que mandó,
+            // así que se lo encuentra por ahí. Es la forma de saber si las
+            // fotos viejas llegaron o no.
+            if (! $this->url()) return null;
+
+            return \App\Models\WaMensaje::where('direccion', 'saliente')
+                ->where('tipo', 'image')
+                ->where('media_ruta', url($this->url()))
+                ->orderByDesc('id')
+                ->first();
         } catch (\Throwable $e) {
             return null;
         }

@@ -422,15 +422,65 @@ class FotosAlChat
         if (! static::disponible()) return [];
 
         try {
-            return GuiaFoto::whereNotNull('ruta')
+            $deHoy = GuiaFoto::whereNotNull('ruta')
                 ->whereNotNull('chat_enviada_at')
                 ->where('lote', '>=', static::inicioDeHoy())
                 ->orderByDesc('chat_enviada_at')
                 ->limit(60)
-                ->get()
-                ->all();
+                ->get();
         } catch (\Throwable $e) {
-            return [];
+            $deHoy = collect();
+        }
+
+        // Y además, de cualquier día de la última semana, las que WhatsApp NO
+        // entregó. Esas son las que más importan de toda la página: el panel
+        // las daba por mandadas y el cliente nunca recibió nada. Limitarlas a
+        // "hoy" dejaría afuera justo las que llevan días sin llegar.
+        $fallidas = static::fallidasRecientes();
+
+        return $deHoy->merge($fallidas)
+            ->unique('id')
+            ->sortByDesc('chat_enviada_at')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Fotos marcadas como mandadas cuyo mensaje WhatsApp terminó rechazando.
+     *
+     * Para las nuevas alcanza con el vínculo al mensaje. Las viejas no lo
+     * tienen, pero el mensaje guardó la dirección completa de la imagen que
+     * mandó — y la foto guarda su ruta. Se cruzan por ahí.
+     */
+    public static function fallidasRecientes(int $dias = 7)
+    {
+        try {
+            $direcciones = \App\Models\WaMensaje::where('direccion', 'saliente')
+                ->where('tipo', 'image')
+                ->where('estado', 'fallido')
+                ->where('created_at', '>=', now()->subDays($dias))
+                ->pluck('media_ruta')
+                ->filter()
+                ->all();
+
+            if (! $direcciones) return collect();
+
+            // "https://sitio/storage/paquetes/abc.jpg" → "paquetes/abc.jpg",
+            // que es como la guarda la foto.
+            $base  = rtrim(url('/storage'), '/') . '/';
+            $rutas = [];
+
+            foreach ($direcciones as $d) {
+                if (str_starts_with($d, $base)) $rutas[] = substr($d, strlen($base));
+            }
+
+            if (! $rutas) return collect();
+
+            return GuiaFoto::whereIn('ruta', $rutas)
+                ->whereNotNull('chat_enviada_at')
+                ->get();
+        } catch (\Throwable $e) {
+            return collect();
         }
     }
 

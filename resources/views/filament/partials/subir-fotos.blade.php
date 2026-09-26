@@ -296,16 +296,29 @@
 @php $fuera = $this->fotosFueraDeLista(); @endphp
 
 @if(count($fuera))
-    <details class="mt-5 rounded-xl border border-gray-200 bg-white dark:border-white/10 dark:bg-gray-900"
-             style="padding:12px 14px">
+    @php
+        $noLlegaron = collect($fuera)->filter(
+            fn ($f) => $f->mensajeChat()?->estado === 'fallido'
+        )->count();
+    @endphp
+
+    {{-- Abierto solo si hay fotos que NO llegaron: esas no pueden depender de
+         que te acuerdes de tocar para mirar. El resto puede quedar plegado. --}}
+    <details class="mt-5 rounded-xl border bg-white dark:bg-gray-900
+                    {{ $noLlegaron ? 'border-danger-300 dark:border-danger-500/50' : 'border-gray-200 dark:border-white/10' }}"
+             style="padding:12px 14px" @if($noLlegaron) open @endif>
+
         <summary class="font-bold text-gray-950 dark:text-white"
                  style="font-size:13.5px;cursor:pointer">
-            Subidas hoy que no están en la lista ({{ count($fuera) }})
+            Fuera de la lista ({{ count($fuera) }})
+            @if($noLlegaron)
+                · <span style="color:#ef4444">{{ $noLlegaron }} no le llegaron al cliente</span>
+            @endif
         </summary>
 
         <p class="text-gray-500 dark:text-gray-400" style="font-size:12px;line-height:1.5;margin:8px 0 10px">
-            Estas guías ya estaban marcadas antes de subir la foto de hoy. Si alguna
-            tiene que salir, devolvela a la lista.
+            Las que subiste hoy a guías que ya estaban marcadas, y las de esta semana que
+            WhatsApp aceptó pero después no entregó. Las rojas son las que hay que volver a mandar.
         </p>
 
         <div style="display:flex;flex-direction:column;gap:8px">
@@ -315,6 +328,27 @@
                     $cuando = $foto->chat_enviada_at
                         ? $foto->chat_enviada_at->timezone(config('app.zona_local'))->format('d/m g:i a')
                         : '';
+
+                    /*
+                     * Lo que de verdad le pasó al mensaje, según WhatsApp.
+                     *
+                     * "Ya se mandó" no alcanza: WhatsApp contesta en dos
+                     * tiempos, y el primero —"recibido"— no quiere decir que
+                     * haya llegado. El estado del mensaje sí lo dice, y es lo
+                     * mismo que los puntitos del chat.
+                     */
+                    $msj    = $aMano ? null : $foto->mensajeChat();
+                    $estMsj = $msj?->estado;
+                    $fallo  = $estMsj === 'fallido';
+
+                    [$colMsj, $txtMsj] = match ($estMsj) {
+                        'leido'     => ['#22c55e', 'la vio'],
+                        'entregado' => ['#eab308', 'le llegó'],
+                        'enviado'   => ['#94a3b8', 'salió, todavía no le llega'],
+                        'enviando'  => ['#94a3b8', 'saliendo…'],
+                        'fallido'   => ['#ef4444', 'NO LE LLEGÓ'],
+                        default     => [null, null],
+                    };
                 @endphp
 
                 <div wire:key="fuera-{{ $foto->id }}"
@@ -337,15 +371,31 @@
                             @if(filled($foto->guia)) · guía {{ $foto->guia }} @endif
                         </div>
                         <div class="text-gray-500 dark:text-gray-400" style="font-size:12px;line-height:1.4">
-                            {{ $aMano ? 'La quitaste de la lista' : 'Ya se mandó' }}
+                            {{ $aMano ? 'La quitaste de la lista' : 'Se mandó' }}
                             @if($cuando) el {{ $cuando }} @endif
+
+                            @if($txtMsj)
+                                · <b style="color:{{ $colMsj }}">{{ $txtMsj }}</b>
+                            @endif
                         </div>
+
+                        @if($fallo && filled($msj?->error))
+                            <div style="font-size:11.5px;line-height:1.4;color:#ef4444;margin-top:2px">
+                                {{ $msj->error }}
+                            </div>
+                        @endif
                     </div>
 
-                    <x-filament::button size="xs" color="gray"
+                    {{-- La confirmación cambia según lo que pasó. Si NO le llegó,
+                         devolverla es lo correcto y no hay nada que advertir. Si
+                         le llegó, se avisa fuerte: el cliente la recibiría dos
+                         veces. --}}
+                    <x-filament::button size="xs" :color="$fallo ? 'danger' : 'gray'"
                         wire:click="devolverFotoALista({{ $foto->id }})"
-                        wire:confirm="{{ $aMano ? 'Devolverla a la lista de por mandar. ¿Seguimos?' : 'Esta foto YA SE MANDÓ. Si la devolvés a la lista, el cliente la va a recibir otra vez. ¿Seguro?' }}">
-                        Volver a la lista
+                        wire:confirm="{{ $fallo || $aMano
+                            ? 'Devolverla a la lista de por mandar. ¿Seguimos?'
+                            : 'Esta foto YA LE LLEGÓ al cliente. Si la devolvés a la lista, la va a recibir otra vez. ¿Seguro?' }}">
+                        {{ $fallo ? 'Volver a mandar' : 'Volver a la lista' }}
                     </x-filament::button>
                 </div>
             @endforeach
