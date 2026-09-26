@@ -317,6 +317,9 @@ class WhatsappWebhookController extends Controller
                 \App\Models\GuiaFoto::where('chat_mensaje_id', $mensaje->id)
                     ->update([
                         'chat_enviada_at' => null,
+                        // Y si su tanda ya se había limpiado, vuelve a verse:
+                        // una foto que no llegó no puede quedar escondida.
+                        'chat_oculta_at'  => null,
                         'chat_error'      => mb_substr('WhatsApp no la entregó: ' . ($datos['error'] ?? ''), 0, 190),
                     ]);
             } catch (\Throwable $e) {

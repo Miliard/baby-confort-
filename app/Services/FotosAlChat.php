@@ -31,13 +31,14 @@ class FotosAlChat
     public const ESPERA     = 'espera';       // la ventana de 24 h está cerrada
     public const SIN_CHAT   = 'sin_chat';     // ese número nunca escribió acá
     public const SIN_NUMERO = 'sin_numero';   // la etiqueta no dejó teléfono
+    public const ENVIADA    = 'enviada';      // ya le salió al cliente
 
     /** ¿La base ya tiene lo que hace falta? */
     public static function disponible(): bool
     {
         try {
             return Schema::hasTable('guia_fotos')
-                && Schema::hasColumn('guia_fotos', 'chat_enviada_at')
+                && Schema::hasColumn('guia_fotos', 'chat_oculta_at')
                 && WaConversacion::hayTabla();
         } catch (\Throwable $e) {
             return false;
@@ -45,10 +46,18 @@ class FotosAlChat
     }
 
     /**
-     * Las fotos que todavía no se mandaron, ya emparejadas.
+     * Las fotos que se ven en pantalla, ya emparejadas: mandadas y por mandar.
+     *
+     * LAS MANDADAS SE QUEDAN. Antes, en cuanto una foto salía, desaparecía de
+     * su tanda — igual que una que se quitaba con el tacho, porque era la
+     * misma marca. Mirando una tanda no había forma de saber qué ya se fue y
+     * qué no, y ese fue el origen de todo el "se me desaparecen".
+     *
+     * Ahora una foto solo se va de la pantalla cuando se limpia su tanda.
+     * Mandada, se queda con su marca de enviada.
      *
      * Solo las de los últimos días: una etiqueta de hace tres semanas no se
-     * manda más, y tenerla ahí solo ensucia la lista de lo que sí importa.
+     * manda más, y tenerla ahí solo ensucia.
      *
      * @return array<int,array> cada una con ['foto', 'conv', 'estado', 'porque']
      */
@@ -64,7 +73,8 @@ class FotosAlChat
                 ->when($lote !== null, fn ($q) => $lote === ''
                     ? $q->whereNull('lote')
                     : $q->where('lote', $lote))
-                ->whereNull('chat_enviada_at')
+                // Lo único que saca una foto de la pantalla es limpiarla.
+                ->whereNull('chat_oculta_at')
                 // Las fotos se borran solas del disco a los tantos días. Una
                 // cuya imagen ya no está no se puede mandar: Meta la va a
                 // buscar a nuestro sitio y no la va a encontrar. El registro
@@ -124,6 +134,7 @@ class FotosAlChat
                     // abierta: ¿y las otras dos? Con el desglose al lado, la
                     // respuesta está antes de que la pregunta aparezca.
                     'cuenta' => [
+                        static::ENVIADA    => 0,
                         static::LISTA      => 0,
                         static::ESPERA     => 0,
                         static::SIN_CHAT   => 0,
@@ -160,6 +171,22 @@ class FotosAlChat
      */
     public static function revisar(GuiaFoto $foto): array
     {
+        // Ya salió: se queda en su tanda con la marca, y no se vuelve a
+        // mandar. Qué le pasó después (le llegó, la vio, falló) lo dice el
+        // mensaje, y se muestra en el renglón.
+        if ($foto->chat_enviada_at) {
+            $conv = static::conversacionDe((string) GuiaFoto::telefonoCorto($foto->telefono));
+
+            return [
+                'foto'   => $foto,
+                'conv'   => $conv,
+                'estado' => static::ENVIADA,
+                'porque' => 'Enviada el '
+                          . $foto->chat_enviada_at->timezone(config('app.zona_local'))->format('d/m g:i a')
+                          . '.',
+            ];
+        }
+
         $corto = GuiaFoto::telefonoCorto($foto->telefono);
 
         if (! $corto || strlen($corto) !== 8) {
@@ -385,138 +412,6 @@ class FotosAlChat
         }
     }
 
-    /**
-     * Desde qué momento cuenta "hoy", en el formato en que se guarda el lote.
-     *
-     * El lote lo arma el navegador en UTC ("2026-09-25 21:29:03"). El "hoy"
-     * de acá empieza a medianoche de El Salvador, que en UTC son las 6 de la
-     * mañana. Se convierte una vez y se compara como texto: con este formato,
-     * comparar texto da el mismo orden que comparar fechas.
-     */
-    public static function inicioDeHoy(): string
-    {
-        return now()->timezone(config('app.zona_local'))
-            ->startOfDay()
-            ->utc()
-            ->format('Y-m-d H:i:s');
-    }
-
-    /**
-     * Las fotos que se subieron hoy pero NO están en la lista de por mandar.
-     *
-     * ACÁ ESTABAN LAS FOTOS QUE "DESAPARECÍAN". No se perdían: se guardaban
-     * bien, pero en una guía que ya estaba marcada como mandada — porque
-     * salió antes, o porque la quitaste de la lista con la ✕ o el tacho. La
-     * lista solo muestra las pendientes, así que esas no aparecían en ningún
-     * lado.
-     *
-     * Y el contador tampoco las contaba: contaba por fecha de creación de la
-     * fila, y una foto subida hoy a una guía de ayer tiene fecha de ayer.
-     *
-     * Ahora se cuenta por el LOTE, que se rehace en cada subida, y las que
-     * quedaron fuera se muestran aparte con el motivo y un botón para
-     * devolverlas a la lista.
-     */
-    public static function subidasHoyFueraDeLista(): array
-    {
-        if (! static::disponible()) return [];
-
-        try {
-            $deHoy = GuiaFoto::whereNotNull('ruta')
-                ->whereNotNull('chat_enviada_at')
-                ->where('lote', '>=', static::inicioDeHoy())
-                ->orderByDesc('chat_enviada_at')
-                ->limit(60)
-                ->get();
-        } catch (\Throwable $e) {
-            $deHoy = collect();
-        }
-
-        // Y además, de cualquier día de la última semana, las que WhatsApp NO
-        // entregó. Esas son las que más importan de toda la página: el panel
-        // las daba por mandadas y el cliente nunca recibió nada. Limitarlas a
-        // "hoy" dejaría afuera justo las que llevan días sin llegar.
-        $fallidas = static::fallidasRecientes();
-
-        return $deHoy->merge($fallidas)
-            ->unique('id')
-            ->sortByDesc('chat_enviada_at')
-            ->values()
-            ->all();
-    }
-
-    /**
-     * Fotos marcadas como mandadas cuyo mensaje WhatsApp terminó rechazando.
-     *
-     * Para las nuevas alcanza con el vínculo al mensaje. Las viejas no lo
-     * tienen, pero el mensaje guardó la dirección completa de la imagen que
-     * mandó — y la foto guarda su ruta. Se cruzan por ahí.
-     */
-    public static function fallidasRecientes(int $dias = 7)
-    {
-        try {
-            $direcciones = \App\Models\WaMensaje::where('direccion', 'saliente')
-                ->where('tipo', 'image')
-                ->where('estado', 'fallido')
-                ->where('created_at', '>=', now()->subDays($dias))
-                ->pluck('media_ruta')
-                ->filter()
-                ->all();
-
-            if (! $direcciones) return collect();
-
-            // "https://sitio/storage/paquetes/abc.jpg" → "paquetes/abc.jpg",
-            // que es como la guarda la foto.
-            $base  = rtrim(url('/storage'), '/') . '/';
-            $rutas = [];
-
-            foreach ($direcciones as $d) {
-                if (str_starts_with($d, $base)) $rutas[] = substr($d, strlen($base));
-            }
-
-            if (! $rutas) return collect();
-
-            return GuiaFoto::whereIn('ruta', $rutas)
-                ->whereNotNull('chat_enviada_at')
-                ->get();
-        } catch (\Throwable $e) {
-            return collect();
-        }
-    }
-
-    /** Cuántas fotos se subieron hoy, contando también las resubidas. */
-    public static function subidasHoy(): int
-    {
-        if (! static::disponible()) return 0;
-
-        try {
-            return GuiaFoto::whereNotNull('ruta')
-                ->where('lote', '>=', static::inicioDeHoy())
-                ->count();
-        } catch (\Throwable $e) {
-            return 0;
-        }
-    }
-
-    /**
-     * Devolver una foto a la lista de por mandar.
-     *
-     * Para el caso en que se quitó por error, o para mandarla otra vez a
-     * propósito. Es una decisión tuya y explícita: la foto no vuelve sola,
-     * porque volver sola es justamente lo que causó los repetidos.
-     */
-    public static function devolverALista(GuiaFoto $foto): void
-    {
-        try {
-            $foto->forceFill([
-                'chat_enviada_at' => null,
-                'chat_error'      => null,
-            ])->save();
-        } catch (\Throwable $e) {
-            Log::warning('Fotos al chat, devolviendo a la lista: ' . $e->getMessage());
-        }
-    }
-
     /** Devuelve a la lista una foto que se había reservado y no salió. */
     private static function soltar(GuiaFoto $foto): void
     {
@@ -536,13 +431,12 @@ class FotosAlChat
      */
     public static function omitir(GuiaFoto $foto): void
     {
+        // Solo la saca de la pantalla. NO la marca como enviada: antes sí lo
+        // hacía, y así "la quité" y "la mandé" quedaban iguales en la base.
         try {
-            $foto->forceFill([
-                'chat_enviada_at' => now(),
-                'chat_error'      => 'Marcada a mano, sin mandar por el chat.',
-            ])->save();
+            $foto->forceFill(['chat_oculta_at' => now()])->save();
         } catch (\Throwable $e) {
-            Log::warning('Fotos al chat, omitiendo: ' . $e->getMessage());
+            Log::warning('Fotos al chat, limpiando: ' . $e->getMessage());
         }
     }
 

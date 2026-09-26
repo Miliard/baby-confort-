@@ -50,31 +50,10 @@
      Acá se emparejan solas —la guía sale del QR, y con la guía viene el
      teléfono— pero NO se mandan solas. Primero se miran. Una foto pegada a la
      guía equivocada le llega a un cliente real y no hay cómo sacarla. --}}
-@php
-    $lotes = $this->fotosPorLote();
-    $hoy   = $this->fotosDeHoy();
-@endphp
-
-{{-- El contador de control. No es adorno: si subiste diez y arriba hay ocho,
-     faltan dos — y así se VE, en vez de tener que acordarse de cuántas eran.
-     Una foto que desaparece sin dejar rastro es lo peor que puede pasar acá:
-     el cliente se queda sin su comprobante y nadie se entera. --}}
-@if($hoy['subidas'] > 0)
-    <div class="mt-5 rounded-xl border border-gray-200 dark:border-white/10"
-         style="display:flex;align-items:center;justify-content:space-between;
-                gap:10px;padding:10px 14px">
-        <span class="text-gray-500 dark:text-gray-400" style="font-size:12.5px">
-            Hoy entraron <b class="text-gray-950 dark:text-white">{{ $hoy['subidas'] }}</b> fotos ·
-            en la lista de abajo hay <b class="text-gray-950 dark:text-white">{{ $hoy['en_lista'] }}</b>
-        </span>
-
-        @if($hoy['en_lista'] < $hoy['subidas'])
-            <x-filament::badge color="gray" size="xs">
-                el resto, al final de la página ↓
-            </x-filament::badge>
-        @endif
-    </div>
-@endif
+{{-- Cada tanda muestra TODAS sus fotos: las que ya salieron, con su marca de
+     enviada, y las que faltan. Nada se va de la pantalla hasta que se limpia
+     la tanda con el tacho. --}}
+@php $lotes = $this->fotosPorLote(); @endphp
 
 @foreach($lotes as $tanda)
     <div class="mt-5 rounded-xl border border-gray-200 bg-white dark:border-white/10 dark:bg-gray-900"
@@ -88,16 +67,25 @@
             {{-- Limpiar la tanda entera. Va en la cabecera, junto al título de
                  SU tanda: así no hay forma de limpiar una creyendo que es
                  otra, que es el error del que estamos escapando. --}}
+            @php
+                $enviadas = $tanda['cuenta'][\App\Services\FotosAlChat::ENVIADA];
+                $faltan   = count($tanda['filas']) - $enviadas;
+            @endphp
+
             <span style="display:flex;align-items:center;gap:8px;flex:none">
                 <span class="text-gray-500 dark:text-gray-400" style="font-size:12px">
-                    {{ count($tanda['filas']) }} sin mandar
+                    {{ $enviadas }} de {{ count($tanda['filas']) }} enviadas
                 </span>
 
+                {{-- La confirmación cambia si todavía quedan sin mandar: ahí
+                     limpiar es tirar trabajo pendiente, y conviene que lo diga. --}}
                 <x-filament::icon-button
                     icon="heroicon-m-trash" color="gray" size="sm"
                     wire:click="limpiarLoteAlChat('{{ $tanda['clave'] }}')"
-                    wire:confirm="Quitar de la lista las {{ count($tanda['filas']) }} fotos de {{ $tanda['titulo'] }}, sin mandarlas. Las fotos NO se borran: siguen en el rastreo del cliente. ¿Seguimos?"
-                    label="Limpiar esta tanda de la lista, sin mandar" />
+                    wire:confirm="{{ $faltan > 0
+                        ? 'Limpiar ' . $tanda['titulo'] . '. OJO: ' . $faltan . ($faltan === 1 ? ' foto todavía no se mandó.' : ' fotos todavía no se mandaron.') . ' Las fotos no se borran, siguen en el rastreo. ¿Seguimos?'
+                        : 'Limpiar ' . $tanda['titulo'] . '. Ya se mandaron todas. ¿Seguimos?' }}"
+                    label="Limpiar esta tanda" />
             </span>
         </div>
 
@@ -111,6 +99,7 @@
             $c = $tanda['cuenta'];
 
             $partes = [];
+            if ($c[\App\Services\FotosAlChat::ENVIADA])    $partes[] = ['primary', $c[\App\Services\FotosAlChat::ENVIADA] . ' enviadas'];
             if ($c[\App\Services\FotosAlChat::LISTA])      $partes[] = ['success', $c[\App\Services\FotosAlChat::LISTA] . ' listas'];
             if ($c[\App\Services\FotosAlChat::ESPERA])     $partes[] = ['warning', $c[\App\Services\FotosAlChat::ESPERA] . ' esperando que escriban'];
             if ($c[\App\Services\FotosAlChat::SIN_CHAT])   $partes[] = ['gray',    $c[\App\Services\FotosAlChat::SIN_CHAT] . ' sin chat'];
@@ -138,12 +127,19 @@
                 icon="heroicon-m-paper-airplane"
                 wire:confirm="Se le va a mandar la foto de su paquete a {{ $tanda['listas'] }} {{ $tanda['listas'] === 1 ? 'cliente' : 'clientes' }} de esta tanda. Esto no se puede deshacer. ¿Seguimos?"
                 class="w-full justify-center">
-                Mandar las {{ $tanda['listas'] }} que se pueden
+                Mandar {{ $tanda['listas'] === 1 ? 'la 1 que falta' : 'las ' . $tanda['listas'] . ' que faltan' }}
             </x-filament::button>
+        @elseif($enviadas === count($tanda['filas']))
+            {{-- Todo enviado: la tanda se queda a la vista como constancia
+                 hasta que la limpies. Es lo que querías poder ver. --}}
+            <p class="rounded-xl text-center font-semibold text-success-700 dark:text-success-400"
+               style="padding:12px;font-size:13px;background:rgba(46,158,107,.10)">
+                ✅ Se mandaron todas. Limpiala con el tacho cuando quieras.
+            </p>
         @else
             <p class="rounded-xl border border-dashed border-gray-300 text-center text-gray-500 dark:border-white/10 dark:text-gray-400"
                style="padding:12px;font-size:12px">
-                Ninguna de esta tanda se puede mandar ahora. Abajo dice por qué en cada una.
+                Las que faltan no se pueden mandar ahora. Abajo dice por qué en cada una.
             </p>
         @endif
 
@@ -154,10 +150,25 @@
                     $estado = $f['estado'];
 
                     [$color, $etiqueta] = match ($estado) {
+                        \App\Services\FotosAlChat::ENVIADA  => ['primary', '✓ enviada'],
                         \App\Services\FotosAlChat::LISTA    => ['success', 'lista'],
                         \App\Services\FotosAlChat::ESPERA   => ['warning', 'esperando que escriba'],
                         \App\Services\FotosAlChat::SIN_CHAT => ['gray',    'sin chat'],
                         default                             => ['danger',  'sin teléfono'],
+                    };
+
+                    $yaSalio = $estado === \App\Services\FotosAlChat::ENVIADA;
+
+                    // Qué le pasó después de salir, con los mismos colores que
+                    // los puntitos del chat. "Enviada" solo dice que salió de
+                    // acá; esto dice si le llegó.
+                    $msj = $yaSalio ? $foto->mensajeChat() : null;
+
+                    [$colMsj, $txtMsj] = match ($msj?->estado) {
+                        'leido'     => ['#22c55e', 'la vio'],
+                        'entregado' => ['#eab308', 'le llegó'],
+                        'enviado'   => ['#94a3b8', 'todavía no le llega'],
+                        default     => [null, null],
                     };
                 @endphp
 
@@ -208,6 +219,9 @@
                         <p class="text-gray-500 dark:text-gray-400"
                            style="font-size:12px;line-height:1.4;margin-top:4px">
                             {{ $f['porque'] }}
+                            @if($txtMsj)
+                                · <b style="color:{{ $colMsj }}">{{ $txtMsj }}</b>
+                            @endif
                         </p>
 
                         @if(filled($foto->chat_error))
@@ -245,32 +259,38 @@
                              pasan por la cola del sistema, este campo es todo
                              lo que hace falta: con el teléfono puesto, la foto
                              sale igual que cualquier otra. --}}
-                        <div style="display:flex;gap:6px;align-items:center;margin-top:7px">
-                            <input type="text" inputmode="numeric" maxlength="12"
-                                   wire:model.defer="telManual.{{ $foto->id }}"
-                                   wire:keydown.enter="guardarTelefono({{ $foto->id }})"
-                                   placeholder="{{ $foto->telefono ? 'Corregir: ' . $foto->telefono : '7055 1234' }}"
-                                   aria-label="Escribir o corregir el teléfono de esta foto"
-                                   class="rounded-lg border border-gray-300 dark:border-white/20"
-                                   style="flex:1 1 auto;min-width:0;padding:7px 10px;
-                                          font-size:14px;background:transparent;color:inherit">
+                        {{-- Solo en las que faltan. En una ya enviada, corregir el
+                             teléfono no cambia nada: la foto ya le llegó a
+                             quien le llegó. --}}
+                        @unless($yaSalio)
+                            <div style="display:flex;gap:6px;align-items:center;margin-top:7px">
+                                <input type="text" inputmode="numeric" maxlength="12"
+                                       wire:model.defer="telManual.{{ $foto->id }}"
+                                       wire:keydown.enter="guardarTelefono({{ $foto->id }})"
+                                       placeholder="{{ $foto->telefono ? 'Corregir: ' . $foto->telefono : '7055 1234' }}"
+                                       aria-label="Escribir o corregir el teléfono de esta foto"
+                                       class="rounded-lg border border-gray-300 dark:border-white/20"
+                                       style="flex:1 1 auto;min-width:0;padding:7px 10px;
+                                              font-size:14px;background:transparent;color:inherit">
 
-                            <x-filament::button size="xs" color="gray"
-                                wire:click="guardarTelefono({{ $foto->id }})">
-                                Guardar
-                            </x-filament::button>
-                        </div>
+                                <x-filament::button size="xs" color="gray"
+                                    wire:click="guardarTelefono({{ $foto->id }})">
+                                    Guardar
+                                </x-filament::button>
+                            </div>
+                        @endunless
                     </div>
 
-                    {{-- Sacarla de la lista sin mandarla. Hace falta sobre todo
-                         para las que no tienen chat: si no hay cómo quitarlas,
-                         se quedan ahí para siempre y la lista deja de servir
-                         para saber qué falta. --}}
-                    <x-filament::icon-button
-                        icon="heroicon-m-x-mark" color="gray" size="sm"
-                        wire:click="omitirFotoChat({{ $foto->id }})"
-                        wire:confirm="Quitarla de la lista sin mandarla. ¿Seguro?"
-                        label="Quitar de la lista sin mandar" />
+                    {{-- Sacar una sola de la pantalla. Para la que no tiene chat
+                         y se la pasaste por otro lado. En las enviadas no va:
+                         esas se quedan como constancia hasta limpiar la tanda. --}}
+                    @unless($yaSalio)
+                        <x-filament::icon-button
+                            icon="heroicon-m-x-mark" color="gray" size="sm"
+                            wire:click="omitirFotoChat({{ $foto->id }})"
+                            wire:confirm="Quitarla de la pantalla sin mandarla. ¿Seguro?"
+                            label="Quitar de la pantalla sin mandar" />
+                    @endunless
                 </div>
             @endforeach
         </div>
@@ -283,125 +303,6 @@
         </p>
     </div>
 @endforeach
-
-{{-- ─────────── LAS DE HOY QUE NO ESTÁN EN LA LISTA ───────────
-     Acá van las fotos que "desaparecían". No se perdían: se guardaban bien,
-     pero en una guía que ya estaba marcada como mandada — porque salió
-     antes, o porque la quitaste con la ✕ o el tacho. La lista de arriba solo
-     muestra las pendientes, y estas no aparecían en ningún lado.
-
-     Cada una dice por qué está acá, y tiene un botón para devolverla a la
-     lista. Que no vuelvan SOLAS es a propósito: volver sola es lo que
-     causaba los repetidos. --}}
-@php $fuera = $this->fotosFueraDeLista(); @endphp
-
-@if(count($fuera))
-    @php
-        $noLlegaron = collect($fuera)->filter(
-            fn ($f) => $f->mensajeChat()?->estado === 'fallido'
-        )->count();
-    @endphp
-
-    {{-- Abierto solo si hay fotos que NO llegaron: esas no pueden depender de
-         que te acuerdes de tocar para mirar. El resto puede quedar plegado. --}}
-    <details class="mt-5 rounded-xl border bg-white dark:bg-gray-900
-                    {{ $noLlegaron ? 'border-danger-300 dark:border-danger-500/50' : 'border-gray-200 dark:border-white/10' }}"
-             style="padding:12px 14px" @if($noLlegaron) open @endif>
-
-        <summary class="font-bold text-gray-950 dark:text-white"
-                 style="font-size:13.5px;cursor:pointer">
-            Fuera de la lista ({{ count($fuera) }})
-            @if($noLlegaron)
-                · <span style="color:#ef4444">{{ $noLlegaron }} no le llegaron al cliente</span>
-            @endif
-        </summary>
-
-        <p class="text-gray-500 dark:text-gray-400" style="font-size:12px;line-height:1.5;margin:8px 0 10px">
-            Las que subiste hoy a guías que ya estaban marcadas, y las de esta semana que
-            WhatsApp aceptó pero después no entregó. Las rojas son las que hay que volver a mandar.
-        </p>
-
-        <div style="display:flex;flex-direction:column;gap:8px">
-            @foreach($fuera as $foto)
-                @php
-                    $aMano = str_starts_with((string) $foto->chat_error, 'Marcada a mano');
-                    $cuando = $foto->chat_enviada_at
-                        ? $foto->chat_enviada_at->timezone(config('app.zona_local'))->format('d/m g:i a')
-                        : '';
-
-                    /*
-                     * Lo que de verdad le pasó al mensaje, según WhatsApp.
-                     *
-                     * "Ya se mandó" no alcanza: WhatsApp contesta en dos
-                     * tiempos, y el primero —"recibido"— no quiere decir que
-                     * haya llegado. El estado del mensaje sí lo dice, y es lo
-                     * mismo que los puntitos del chat.
-                     */
-                    $msj    = $aMano ? null : $foto->mensajeChat();
-                    $estMsj = $msj?->estado;
-                    $fallo  = $estMsj === 'fallido';
-
-                    [$colMsj, $txtMsj] = match ($estMsj) {
-                        'leido'     => ['#22c55e', 'la vio'],
-                        'entregado' => ['#eab308', 'le llegó'],
-                        'enviado'   => ['#94a3b8', 'salió, todavía no le llega'],
-                        'enviando'  => ['#94a3b8', 'saliendo…'],
-                        'fallido'   => ['#ef4444', 'NO LE LLEGÓ'],
-                        default     => [null, null],
-                    };
-                @endphp
-
-                <div wire:key="fuera-{{ $foto->id }}"
-                     class="rounded-xl border border-gray-200 dark:border-white/10"
-                     style="display:flex;align-items:center;gap:10px;padding:9px">
-
-                    @if($foto->url())
-                        <a href="{{ $foto->url() }}" target="_blank" rel="noopener" style="flex:none">
-                            <img src="{{ $foto->url() }}" alt=""
-                                 style="width:48px;height:48px;object-fit:cover;border-radius:8px;display:block">
-                        </a>
-                    @endif
-
-                    <div style="flex:1 1 auto;min-width:0">
-                        <div class="font-mono font-bold text-primary-600 dark:text-primary-400" style="font-size:13.5px">
-                            {{ $foto->telefono ?: 'sin número' }}
-                        </div>
-                        <div class="text-gray-500 dark:text-gray-400" style="font-size:12px;line-height:1.4">
-                            {{ $foto->nombre ?: '—' }}
-                            @if(filled($foto->guia)) · guía {{ $foto->guia }} @endif
-                        </div>
-                        <div class="text-gray-500 dark:text-gray-400" style="font-size:12px;line-height:1.4">
-                            {{ $aMano ? 'La quitaste de la lista' : 'Se mandó' }}
-                            @if($cuando) el {{ $cuando }} @endif
-
-                            @if($txtMsj)
-                                · <b style="color:{{ $colMsj }}">{{ $txtMsj }}</b>
-                            @endif
-                        </div>
-
-                        @if($fallo && filled($msj?->error))
-                            <div style="font-size:11.5px;line-height:1.4;color:#ef4444;margin-top:2px">
-                                {{ $msj->error }}
-                            </div>
-                        @endif
-                    </div>
-
-                    {{-- La confirmación cambia según lo que pasó. Si NO le llegó,
-                         devolverla es lo correcto y no hay nada que advertir. Si
-                         le llegó, se avisa fuerte: el cliente la recibiría dos
-                         veces. --}}
-                    <x-filament::button size="xs" :color="$fallo ? 'danger' : 'gray'"
-                        wire:click="devolverFotoALista({{ $foto->id }})"
-                        wire:confirm="{{ $fallo || $aMano
-                            ? 'Devolverla a la lista de por mandar. ¿Seguimos?'
-                            : 'Esta foto YA LE LLEGÓ al cliente. Si la devolvés a la lista, la va a recibir otra vez. ¿Seguro?' }}">
-                        {{ $fallo ? 'Volver a mandar' : 'Volver a la lista' }}
-                    </x-filament::button>
-                </div>
-            @endforeach
-        </div>
-    </details>
-@endif
 
 {{-- Cuánto ocupan las fotos y hasta cuándo se guardan --}}
 @php $espacio = \App\Http\Controllers\GuiaFotoController::espacioUsado(); @endphp

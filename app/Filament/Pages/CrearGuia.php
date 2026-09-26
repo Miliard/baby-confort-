@@ -75,57 +75,6 @@ class CrearGuia extends Page implements HasForms
         return \App\Services\FotosAlChat::porLotes();
     }
 
-    /**
-     * Cuántas fotos entraron hoy y cuántas de esas están en la lista de arriba.
-     *
-     * Es una red de seguridad, no un dato bonito. Si subís diez y arriba hay
-     * ocho, faltan dos — y ahora eso se VE, en vez de tener que acordarse de
-     * cuántas eran. Una foto que desaparece sin dejar rastro es lo peor que
-     * puede pasar acá: el cliente se queda sin su comprobante y nadie se
-     * entera.
-     *
-     * @return array{subidas:int, en_lista:int}
-     */
-    public function fotosDeHoy(): array
-    {
-        // Por el lote, no por la fecha de la fila. La fecha de la fila es la
-        // de cuando entró la guía; una foto subida hoy a una guía de ayer
-        // tiene fecha de ayer y no se contaba. Ese era el agujero de la red.
-        $subidas = \App\Services\FotosAlChat::subidasHoy();
-
-        // Solo las de hoy que están pendientes, para que la resta tenga
-        // sentido: hoy entraron N, M están por mandar, el resto está abajo.
-        $inicio  = \App\Services\FotosAlChat::inicioDeHoy();
-        $enLista = 0;
-
-        foreach ($this->fotosPorLote() as $t) {
-            foreach ($t['filas'] as $f) {
-                if ((string) $f['foto']->lote >= $inicio) $enLista++;
-            }
-        }
-
-        return ['subidas' => $subidas, 'en_lista' => $enLista];
-    }
-
-    /** Las subidas hoy que quedaron fuera de la lista, con su motivo. */
-    public function fotosFueraDeLista(): array
-    {
-        return \App\Services\FotosAlChat::subidasHoyFueraDeLista();
-    }
-
-    /** Volver a poner una foto en la lista de por mandar. */
-    public function devolverFotoALista(int $id): void
-    {
-        $f = \App\Models\GuiaFoto::find($id);
-        if (! $f) return;
-
-        \App\Services\FotosAlChat::devolverALista($f);
-
-        Notification::make()
-            ->title('Volvió a la lista')
-            ->body('Ahora aparece arriba, en su tanda, lista para mandar.')
-            ->success()->send();
-    }
 
     /**
      * El botón de una tanda: sale de golpe lo que se pueda de ESA subida.
@@ -236,7 +185,7 @@ class CrearGuia extends Page implements HasForms
         $n = \App\Services\FotosAlChat::omitirLote($lote);
 
         Notification::make()
-            ->title($n === 1 ? 'Se quitó 1 foto de la lista' : "Se quitaron {$n} fotos de la lista")
+            ->title('Tanda limpia')
             ->body('Las fotos no se borraron: siguen en el rastreo del cliente.')
             ->success()->send();
     }

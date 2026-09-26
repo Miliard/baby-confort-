@@ -221,6 +221,11 @@ class GuiaFotoController extends Controller
             $foto->lote       = $loteFoto ?: $foto->lote;
             $foto->chat_error = null;
 
+            // Vuelve a verse en su tanda aunque la anterior se haya limpiado:
+            // si la subiste, es porque la querés ver. Si ya se había mandado,
+            // aparece con la marca de enviada y NO se manda otra vez.
+            $foto->chat_oculta_at = null;
+
             // Y la marca de "la imagen ya se borró del disco", que queda
             // puesta cuando la limpieza automática pasó por esta guía. Con esa
             // marca vieja, la foto NUEVA tampoco aparecía: la lista saltea las
