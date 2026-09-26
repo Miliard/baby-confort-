@@ -587,7 +587,8 @@
         // "17 sin QR" cuando en realidad las 17 tenían QR y lo que había
         // fallado era la subida. Un cartel que miente sobre la causa manda a
         // buscar el problema en el lugar equivocado.
-        let ok = 0, fallo = 0, sinQr = 0;
+        let ok = 0, fallo = 0, sinQr = 0, repetidas = 0;
+        let guiasTanda = new Set();
 
         /**
          * Pide un token nuevo al servidor. true si lo consiguió.
@@ -773,7 +774,8 @@
         input.addEventListener('change', async () => {
             const files = [...input.files];
             if (!files.length) return;
-            ok = 0; fallo = 0; sinQr = 0;
+            ok = 0; fallo = 0; sinQr = 0; repetidas = 0;
+            guiasTanda = new Set();
             cont.innerHTML = '';
             // Todas las fotos de esta tanda comparten el mismo lote.
             loteActual = new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -852,6 +854,13 @@
                     progreso(i, files.length, 'Procesando fotos…', resumen());
                     continue;
                 }
+
+                // Dos fotos de la misma guía en la misma tanda se guardan como
+                // UNA: la segunda reemplaza a la primera. Es lo correcto —es
+                // el mismo paquete— pero baja la cuenta, y sin decirlo parecía
+                // que se habían perdido fotos: subías 17 y veías 12.
+                if (guiasTanda.has(guia)) repetidas++;
+                guiasTanda.add(guia);
 
                 progreso(i - 1, files.length, 'Guía ' + guia + ' · leyendo datos…');
                 const datos = await conLimite(leerDatosCliente(img), 15000, {});
@@ -1060,6 +1069,9 @@
             let t = '✅ ' + ok + ' guardadas';
             if (sinQr) t += ' · <b style="color:#b45309">⚠ ' + sinQr + ' sin QR</b>';
             if (fallo) t += ' · <b style="color:#dc2626">✕ ' + fallo + ' no se subieron</b>';
+            if (repetidas) t += ' · <b style="color:#2563eb">' + repetidas
+                + (repetidas === 1 ? ' era de una guía repetida' : ' eran de guías repetidas')
+                + ' (quedan como una sola)</b>';
             return t;
         }
 

@@ -80,7 +80,27 @@ class FotosAlChat
                 // buscar a nuestro sitio y no la va a encontrar. El registro
                 // del pedido se queda; la que se fue es la imagen.
                 ->whereNull('foto_borrada_at')
-                ->where('created_at', '>=', now()->subDays($dias))
+                /*
+                 * La ventana de días se cuenta desde que SUBISTE la foto, no
+                 * desde que entró la guía.
+                 *
+                 * Antes era por created_at, que es la fecha de la guía. Una
+                 * foto subida hoy a una guía de hace ocho días —porque entró
+                 * por un PDF viejo, o porque es un cliente que se atrasó—
+                 * quedaba fuera de la pantalla sin ningún aviso. Subías 17 y
+                 * veías 12.
+                 *
+                 * El lote es la hora de la subida y se rehace cada vez que se
+                 * sube, así que es el reloj correcto. Las que no tienen lote
+                 * caen de vuelta a la fecha de la fila.
+                 */
+                ->where(function ($q) use ($dias) {
+                    $desde = now()->subDays($dias)->utc()->format('Y-m-d H:i:s');
+
+                    $q->where('lote', '>=', $desde)
+                      ->orWhere(fn ($q2) => $q2->whereNull('lote')
+                          ->where('created_at', '>=', now()->subDays($dias)));
+                })
                 ->orderByDesc('id')
                 ->limit($tope)
                 ->get();
@@ -169,22 +189,104 @@ class FotosAlChat
      *
      * Devuelve también la conversación, para no volver a buscarla al mandar.
      */
-    public static function revisar(GuiaFoto $foto): array
+    /**
+     * ¿Esta foto le llegó al cliente DE VERDAD? Se busca en el chat.
+     *
+     * Hasta acá "enviada" era una marca que ponía el panel al mandar, y la
+     * marca podía mentir: WhatsApp puede aceptar el envío y después fallar, y
+     * las fotos que se volvían a subir arrastraban la marca de un envío
+     * anterior que nunca había llegado. Decía "enviada" y no se había ido.
+     *
+     * Ahora la respuesta sale de los mensajes del chat, que es lo mismo que
+     * ves vos en la conversación. Se busca de tres maneras, de la más segura
+     * a la menos:
+     *
+     *  1. El mensaje con el que salió, si quedó vinculado a la foto.
+     *  2. Una imagen mandada a esa conversación cuyo pie diga el número de
+     *     guía. Todas las fotos salen con "Guía: 5869736" en el pie, y ese
+     *     número no cambia aunque la foto se vuelva a subir.
+     *  3. Una imagen mandada con esa misma dirección de archivo.
+     *
+     * Devuelve el mensaje si lo encuentra en buen estado, o null si en el chat
+     * no hay nada que diga que llegó.
+     */
+    public static function mensajeQueLlego(GuiaFoto $foto): ?\App\Models\WaMensaje
     {
-        // Ya salió: se queda en su tanda con la marca, y no se vuelve a
-        // mandar. Qué le pasó después (le llegó, la vio, falló) lo dice el
-        // mensaje, y se muestra en el renglón.
-        if ($foto->chat_enviada_at) {
+        $buenos = ['enviado', 'entregado', 'leido'];
+
+        try {
+            // 1. El vinculado. "enviando" cuenta: es un envío de hace segundos
+            //    que todavía no tuvo respuesta, y reintentarlo sería repetirlo.
+            if ($foto->chat_mensaje_id) {
+                $m = \App\Models\WaMensaje::find($foto->chat_mensaje_id);
+
+                if ($m && in_array($m->estado, [...$buenos, 'enviando'], true)) return $m;
+            }
+
             $conv = static::conversacionDe((string) GuiaFoto::telefonoCorto($foto->telefono));
 
-            return [
-                'foto'   => $foto,
-                'conv'   => $conv,
-                'estado' => static::ENVIADA,
-                'porque' => 'Enviada el '
-                          . $foto->chat_enviada_at->timezone(config('app.zona_local'))->format('d/m g:i a')
-                          . '.',
-            ];
+            // 2. Por el número de guía en el pie.
+            if (filled($foto->guia) && $conv) {
+                $m = \App\Models\WaMensaje::where('conversacion_id', $conv->id)
+                    ->where('direccion', 'saliente')
+                    ->where('tipo', 'image')
+                    ->whereIn('estado', $buenos)
+                    ->where('texto', 'like', '%' . $foto->guia . '%')
+                    ->orderByDesc('id')
+                    ->first();
+
+                if ($m) return $m;
+            }
+
+            // 3. Por la dirección del archivo.
+            if ($foto->url()) {
+                return \App\Models\WaMensaje::where('direccion', 'saliente')
+                    ->where('tipo', 'image')
+                    ->whereIn('estado', $buenos)
+                    ->where('media_ruta', url($foto->url()))
+                    ->orderByDesc('id')
+                    ->first();
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Fotos al chat, buscando en el chat: ' . $e->getMessage());
+        }
+
+        return null;
+    }
+
+    public static function revisar(GuiaFoto $foto): array
+    {
+        if ($foto->chat_enviada_at) {
+            $llego = static::mensajeQueLlego($foto);
+
+            if ($llego) {
+                return [
+                    'foto'   => $foto,
+                    'conv'   => static::conversacionDe((string) GuiaFoto::telefonoCorto($foto->telefono)),
+                    'estado' => static::ENVIADA,
+                    'msj'    => $llego,
+                    'porque' => 'Enviada el '
+                              . $foto->chat_enviada_at->timezone(config('app.zona_local'))->format('d/m g:i a')
+                              . '.',
+                ];
+            }
+
+            /*
+             * Marcada como enviada, pero en el chat no está. NO SALIÓ.
+             *
+             * Se corrige sola, acá mismo: se le saca la marca y sigue abajo
+             * como cualquier foto por mandar. Así queda incluida en el botón
+             * de la tanda, sin que tengas que ir a buscarla una por una.
+             */
+            try {
+                $foto->forceFill([
+                    'chat_enviada_at' => null,
+                    'chat_mensaje_id' => null,
+                    'chat_error'      => 'Figuraba como enviada, pero en el chat no aparece. Va de nuevo.',
+                ])->save();
+            } catch (\Throwable $e) {
+                Log::warning('Fotos al chat, corrigiendo marca: ' . $e->getMessage());
+            }
         }
 
         $corto = GuiaFoto::telefonoCorto($foto->telefono);
@@ -464,6 +566,38 @@ class FotosAlChat
         }
 
         return $n;
+    }
+
+    /**
+     * Volver a mandar una foto que ya salió. A mano y a propósito.
+     *
+     * Para cuando el chat dice que llegó pero vos sabés que no —el cliente no
+     * la ve, la borró, cambió de teléfono—. Nunca pasa solo: solo con el
+     * botón de ese renglón.
+     *
+     * @return string|null null si salió, o el motivo por el que no pudo.
+     */
+    public static function reenviar(GuiaFoto $foto, ?int $userId = null): ?string
+    {
+        try {
+            $foto->forceFill([
+                'chat_enviada_at' => null,
+                'chat_mensaje_id' => null,
+                'chat_error'      => null,
+            ])->save();
+        } catch (\Throwable $e) {
+            return 'No se pudo preparar el reenvío.';
+        }
+
+        $fila = static::revisar($foto->fresh());
+
+        if ($fila['estado'] !== static::LISTA) {
+            return $fila['porque'];
+        }
+
+        return static::mandarUna($fila['foto'], $fila['conv'], $userId) === true
+            ? null
+            : (string) ($fila['foto']->fresh()->chat_error ?: 'WhatsApp no la aceptó.');
     }
 
     private static function anotarError(GuiaFoto $foto, string $motivo): void

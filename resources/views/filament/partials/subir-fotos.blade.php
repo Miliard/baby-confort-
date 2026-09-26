@@ -160,9 +160,9 @@
                     $yaSalio = $estado === \App\Services\FotosAlChat::ENVIADA;
 
                     // Qué le pasó después de salir, con los mismos colores que
-                    // los puntitos del chat. "Enviada" solo dice que salió de
-                    // acá; esto dice si le llegó.
-                    $msj = $yaSalio ? $foto->mensajeChat() : null;
+                    // los puntitos del chat. Es el mensaje que se ENCONTRÓ en
+                    // el chat al verificar, no la marca del panel.
+                    $msj = $yaSalio ? ($f['msj'] ?? null) : null;
 
                     [$colMsj, $txtMsj] = match ($msj?->estado) {
                         'leido'     => ['#22c55e', 'la vio'],
@@ -290,6 +290,18 @@
                             wire:click="omitirFotoChat({{ $foto->id }})"
                             wire:confirm="Quitarla de la pantalla sin mandarla. ¿Seguro?"
                             label="Quitar de la pantalla sin mandar" />
+                    @else
+                        {{-- Reenviar a mano. El chat dice que llegó, pero vos
+                             podés saber algo que el chat no: que el cliente
+                             no la ve, que la borró, que cambió de teléfono.
+                             Nunca se reenvía solo — solo con este botón. --}}
+                        <x-filament::button size="xs" color="gray"
+                            icon="heroicon-m-arrow-path"
+                            wire:click="reenviarFoto({{ $foto->id }})"
+                            wire:loading.attr="disabled" wire:target="reenviarFoto({{ $foto->id }})"
+                            wire:confirm="El chat dice que esta foto ya le llegó. Si la reenviás, la va a recibir otra vez. ¿Seguro?">
+                            Reenviar
+                        </x-filament::button>
                     @endunless
                 </div>
             @endforeach

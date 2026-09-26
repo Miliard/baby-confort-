@@ -190,6 +190,19 @@ class CrearGuia extends Page implements HasForms
             ->success()->send();
     }
 
+    /** Volver a mandar una que ya salió: el botón de su renglón. */
+    public function reenviarFoto(int $id): void
+    {
+        $f = \App\Models\GuiaFoto::find($id);
+        if (! $f) return;
+
+        $motivo = \App\Services\FotosAlChat::reenviar($f, auth()->id());
+
+        $motivo === null
+            ? Notification::make()->title('Se volvió a mandar')->success()->send()
+            : Notification::make()->title('No se pudo reenviar')->body($motivo)->warning()->send();
+    }
+
     /** Sacar una de la lista sin mandarla: ya se la pasaste por otro lado. */
     public function omitirFotoChat(int $id): void
     {
