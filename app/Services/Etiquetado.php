@@ -55,21 +55,31 @@ class Etiquetado
     /**
      * Se llama con cada mensaje nuevo, venga de donde venga.
      *
-     * ACÁ SOLO SE MARCA "pedido". El paso a "procesada" ya no lo dispara el
-     * enlace de rastreo: lo dispara mandarle al cliente la FOTO de su
-     * etiqueta (ver FotosAlChat::mandarUna).
+     * EL RECORRIDO COMPLETO, en el orden en que pasa:
      *
-     * El enlace no servía como señal. Es el mismo para todos los pedidos de
-     * ese teléfono, así que se puede mandar antes de que la guía exista — y un
-     * pedido sin armar quedaba marcado como preparado. La foto de la etiqueta
-     * solo existe si el paquete está armado, pesado y etiquetado: esa sí es
-     * prueba de que salió.
+     *   orden de envío en el chat   → Pedidos
+     *   enlace de rastreo mandado   → Preparados      (acá)
+     *   foto de la etiqueta mandada → Entregados      (FotosAlChat::mandarUna)
+     *
+     * Cada paso tiene su propia señal, y eso es lo que hace útil la lista: una
+     * conversación que se quedó en Preparados es una a la que le salió el
+     * enlace pero NO la foto. Con los dos pasos pegados en uno, esa diferencia
+     * no se podía ver.
+     *
+     * El orden de las preguntas importa: primero el rastreo. Un mensaje que
+     * lleva el enlace es un paso más adelante, aunque de casualidad también
+     * mencione un total.
      */
     public static function alGuardarMensaje(?WaConversacion $conv, ?string $texto): void
     {
         if (! $conv) return;
 
         try {
+            if (static::llevaRastreo($texto)) {
+                static::marcarProcesada($conv);
+                return;
+            }
+
             if (static::pareceOrden($texto)) {
                 static::marcarPedido($conv);
             }

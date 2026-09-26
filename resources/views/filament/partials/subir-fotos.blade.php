@@ -130,7 +130,11 @@
         @if($tanda['listas'] > 0)
             {{-- La clave va entre comillas simples porque el atributo ya usa
                  dobles. Es la fecha y hora de la subida: no trae comillas. --}}
+            {{-- Se apaga mientras trabaja. Sin esto, un segundo toque mientras
+                 todavía está mandando arranca otra tanda encima. La reserva
+                 en la base ya lo frena, pero mejor que ni se pueda intentar. --}}
             <x-filament::button wire:click="mandarLoteAlChat('{{ $tanda['clave'] }}')" size="lg"
+                wire:loading.attr="disabled" wire:target="mandarLoteAlChat"
                 icon="heroicon-m-paper-airplane"
                 wire:confirm="Se le va a mandar la foto de su paquete a {{ $tanda['listas'] }} {{ $tanda['listas'] === 1 ? 'cliente' : 'clientes' }} de esta tanda. Esto no se puede deshacer. ¿Seguimos?"
                 class="w-full justify-center">

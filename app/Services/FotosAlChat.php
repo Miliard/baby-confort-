@@ -279,16 +279,26 @@ class FotosAlChat
                 continue;
             }
 
-            static::mandarUna($fila['foto'], $fila['conv'], $userId)
-                ? $mandadas++
-                : $fallaron++;
+            $r = static::mandarUna($fila['foto'], $fila['conv'], $userId);
+
+            // null = ya había salido y el freno lo paró. No es una falla.
+            if ($r === true)      $mandadas++;
+            elseif ($r === false) $fallaron++;
+            else                  $saltadas++;
         }
 
         return compact('mandadas', 'fallaron', 'saltadas');
     }
 
-    /** Una sola, con su conversación ya encontrada. */
-    public static function mandarUna(GuiaFoto $foto, WaConversacion $conv, ?int $userId = null): bool
+    /**
+     * Una sola, con su conversación ya encontrada.
+     *
+     * Devuelve true si salió, false si falló, y null si NO se mandó porque ya
+     * había salido antes. Son tres cosas distintas y se cuentan distinto: un
+     * repetido frenado no es un error, y contarlo como "no salió" haría creer
+     * que algo anda mal cuando en realidad funcionó el freno.
+     */
+    public static function mandarUna(GuiaFoto $foto, WaConversacion $conv, ?int $userId = null): ?bool
     {
         $url = $foto->url();
 
@@ -297,39 +307,62 @@ class FotosAlChat
             return false;
         }
 
+        /*
+         * LA VALIDACIÓN CONTRA REPETIDOS. Va acá, en el último paso, y no en
+         * la lista: la lista puede estar vieja, esto no.
+         *
+         * Se "reserva" la foto antes de mandarla, marcándola como mandada en
+         * la base, y SOLO si todavía no lo estaba. Es una sola operación: si
+         * dos pedidos llegan a la vez —un doble toque, dos personas con la
+         * pantalla abierta, una tanda subida dos veces— uno solo gana la
+         * reserva. El otro ve que la fila ya no está libre y no manda nada.
+         *
+         * Preguntar primero "¿ya se mandó?" y después mandar NO alcanza: entre
+         * la pregunta y el envío hay un instante, y en ese instante el otro
+         * pedido también pregunta, también ve que no, y también manda. Por
+         * eso se pregunta y se marca en el mismo movimiento.
+         */
+        $reservada = GuiaFoto::where('id', $foto->id)
+            ->whereNull('chat_enviada_at')
+            ->update(['chat_enviada_at' => now()]);
+
+        if ($reservada === 0) {
+            // Ya había salido, o la está mandando otro en este momento.
+            // Ninguna de las dos cosas es un error: simplemente no se repite.
+            return null;
+        }
+
         try {
             // Absoluta: Meta va a buscar la foto a nuestro sitio desde afuera,
             // así que una ruta relativa no llegaría a ninguna parte.
             $m = WhatsappApi::enviarImagen($conv, url($url), static::pie($foto), $userId);
 
             if ($m->estado === 'fallido') {
+                // Se suelta la reserva. Si no, una foto que Meta rechazó
+                // quedaría marcada como mandada para siempre y nunca más
+                // volvería a la lista para reintentarla.
+                static::soltar($foto);
                 static::anotarError($foto, (string) ($m->error ?: 'WhatsApp la rechazó.'));
                 return false;
             }
 
-            $foto->forceFill([
-                'chat_enviada_at' => now(),
-                'chat_error'      => null,
-            ])->save();
+            // Salió: la reserva queda como marca definitiva. Se limpia el
+            // error por si venía de un intento anterior que había fallado.
+            $foto->forceFill(['chat_error' => null])->save();
 
             /*
-             * Y recién ACÁ la conversación pasa a Preparados.
+             * La foto salió: la conversación pasa a Entregados.
              *
-             * Antes la movía el enlace de rastreo. El problema es que ese
-             * enlace se puede mandar antes de que exista la guía —es el mismo
-             * para todos los pedidos de ese teléfono— así que un pedido que
-             * todavía no estaba armado ya figuraba como preparado.
+             * Es el último paso del recorrido:
              *
-             * La foto de la etiqueta es otra cosa: solo existe si el paquete
-             * está armado, pesado y etiquetado. Es la primera prueba física de
-             * que el pedido salió de verdad, y por eso es la que vale.
+             *   orden → Pedidos · enlace → Preparados · foto → Entregados
              *
-             * Efecto que conviene tener presente: lo que no tenga foto mandada
-             * se queda en Pedidos. Eso es a propósito — si sigue ahí, es que
-             * algo de ese pedido quedó a medias.
+             * Así, lo que se quede en Preparados es exactamente lo que tiene el
+             * enlace mandado y la foto NO. Esa lista es la que dice qué fotos
+             * faltan, sin tener que ir a buscarlas a otra pantalla.
              */
             try {
-                Etiquetado::marcarProcesada($conv);
+                Etiquetado::marcarEntregada($conv);
             } catch (\Throwable $e) {
                 // Etiquetar es comodidad; que falle no puede desmentir que la
                 // foto ya salió.
@@ -338,8 +371,19 @@ class FotosAlChat
 
             return true;
         } catch (\Throwable $e) {
+            static::soltar($foto);
             static::anotarError($foto, $e->getMessage());
             return false;
+        }
+    }
+
+    /** Devuelve a la lista una foto que se había reservado y no salió. */
+    private static function soltar(GuiaFoto $foto): void
+    {
+        try {
+            GuiaFoto::where('id', $foto->id)->update(['chat_enviada_at' => null]);
+        } catch (\Throwable $e) {
+            Log::warning('Fotos al chat, soltando reserva: ' . $e->getMessage());
         }
     }
 

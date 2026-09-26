@@ -200,28 +200,26 @@ class GuiaFotoController extends Controller
             $foto->telefono = $foto->telefono ?: $telefonoOcr;
 
             /*
-             * ACÁ ESTABA LA FOTO QUE DESAPARECÍA.
-             *
              * Cuando la guía ya existía —porque entró antes por el PDF, o
-             * porque ya le habías subido una foto— esta rama actualizaba la
-             * imagen pero dejaba dos cosas viejas:
+             * porque ya le habías subido una foto— esta rama actualiza la
+             * imagen en la fila que ya estaba.
              *
-             *  · el LOTE. Con "?:" se quedaba el de la subida anterior, así
-             *    que la foto que acabás de subir aparecía en una tanda de otro
-             *    día — abajo del todo, o en una que ya limpiaste. Desde
-             *    arriba, desaparecida.
+             * El LOTE se rehace: con "?:" se quedaba el de la subida anterior,
+             * y la foto que acabás de subir aparecía en una tanda de otro día.
              *
-             *  · la marca de MANDADA. Si esa guía ya había salido por el chat
-             *    alguna vez, chat_enviada_at seguía puesto, y la lista de
-             *    "por mandar" solo muestra las que lo tienen vacío. La foto
-             *    nueva no aparecía en ningún lado y nada lo explicaba.
+             * La marca de MANDADA, en cambio, NO se toca. Y esto lo tuve mal un
+             * día: la borraba acá, pensando que subir una foto era decir
+             * "todavía no salió". Pero volver a subir una tanda —por error, o
+             * porque se trabó a la mitad y la subiste entera de nuevo— hacía
+             * que todas las que ya habían salido volvieran a la lista como
+             * nuevas. Y le llegaban dos veces al cliente.
              *
-             * Subir una foto es decir "esta es la buena, y todavía no salió".
-             * Las dos marcas se rehacen.
+             * Si ya salió, ya salió. El contador de arriba de la lista dice
+             * cuántas entraron y cuántas están pendientes, así que una foto
+             * que no aparece porque ya se mandó no desaparece en silencio.
              */
-            $foto->lote            = $loteFoto ?: $foto->lote;
-            $foto->chat_enviada_at = null;
-            $foto->chat_error      = null;
+            $foto->lote       = $loteFoto ?: $foto->lote;
+            $foto->chat_error = null;
 
             // Y la marca de "la imagen ya se borró del disco", que queda
             // puesta cuando la limpieza automática pasó por esta guía. Con esa
