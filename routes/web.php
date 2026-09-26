@@ -98,6 +98,21 @@ Route::middleware('auth')->group(function () {
     Route::post('/liberar-espacio', [\App\Http\Controllers\GuiaFotoController::class, 'liberar'])->name('fotos.liberar');
     Route::post('/dias-fotos', [\App\Http\Controllers\GuiaFotoController::class, 'cambiarDias'])->name('fotos.dias');
 
+    /*
+     * Un token de formulario nuevo, para la página que sube fotos.
+     *
+     * Esa página lee el token UNA vez, al abrirse. Si queda abierta en el
+     * teléfono de la mañana a la tarde, el token envejece y el servidor
+     * rechaza todas las fotos con "CSRF token mismatch" — las diecisiete, de
+     * una, sin guardar ninguna.
+     *
+     * Con esto la página pide uno nuevo antes de cada tanda y cada pocos
+     * minutos mientras está abierta, y de paso eso mantiene viva la sesión.
+     * Va por GET para no necesitar el token que justamente está pidiendo.
+     */
+    Route::get('/token-fresco', fn () => response()->json(['token' => csrf_token()]))
+        ->name('token.fresco');
+
     Route::post('/fotos-paquete', [\App\Http\Controllers\GuiaFotoController::class, 'subir'])->name('fotos.subir');
     Route::post('/guias-pdf', [\App\Http\Controllers\GuiaFotoController::class, 'importarPdf'])->name('guias.pdf');
     Route::delete('/fotos-paquete/{foto}', [\App\Http\Controllers\GuiaFotoController::class, 'eliminar'])->name('fotos.eliminar');

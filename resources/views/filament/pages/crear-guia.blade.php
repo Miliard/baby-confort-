@@ -577,8 +577,55 @@
     (() => {
         const input = document.getElementById('fotos-input');
         const cont  = document.getElementById('resultados');
-        const token = document.querySelector('meta[name="csrf-token"]')?.content;
-        let ok = 0, fallo = 0;
+        // "let" y no "const": el token se renueva mientras la página está
+        // abierta. Con "const" quedaba fijo el de la hora en que se abrió, y
+        // a las dos horas el servidor lo rechazaba con "CSRF token mismatch".
+        let token = document.querySelector('meta[name="csrf-token"]')?.content;
+
+        // Tres cuentas separadas, no dos. Antes "fallo" mezclaba las que no
+        // tenían QR con las que no se pudieron subir, y el cartel final decía
+        // "17 sin QR" cuando en realidad las 17 tenían QR y lo que había
+        // fallado era la subida. Un cartel que miente sobre la causa manda a
+        // buscar el problema en el lugar equivocado.
+        let ok = 0, fallo = 0, sinQr = 0;
+
+        /**
+         * Pide un token nuevo al servidor. true si lo consiguió.
+         *
+         * false quiere decir que la sesión se cerró del todo: ahí no hay token
+         * que valga, hay que volver a entrar.
+         */
+        async function refrescarToken() {
+            try {
+                const r = await fetch('{{ route('token.fresco') }}', {
+                    headers: { 'Accept': 'application/json' },
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                });
+                if (!r.ok) return false;
+
+                const d = await r.json();
+                if (!d || !d.token) return false;
+
+                token = d.token;
+                const meta = document.querySelector('meta[name="csrf-token"]');
+                if (meta) meta.setAttribute('content', d.token);
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        // Mientras la página esté abierta, cada 10 minutos. Así la sesión no
+        // vence nunca con la página a la vista, que es justo el caso del
+        // teléfono abierto en Guías toda la mañana.
+        setInterval(refrescarToken, 10 * 60 * 1000);
+
+        // Y al volver a la pestaña después de un rato en otra app: el
+        // intervalo se frena cuando el teléfono duerme la página.
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) refrescarToken();
+        });
 
         // Carga la imagen a un canvas (reducida) para leer el QR.
         const aCanvas = (img, maxLado) => {
@@ -726,10 +773,25 @@
         input.addEventListener('change', async () => {
             const files = [...input.files];
             if (!files.length) return;
-            ok = 0; fallo = 0;
+            ok = 0; fallo = 0; sinQr = 0;
             cont.innerHTML = '';
             // Todas las fotos de esta tanda comparten el mismo lote.
             loteActual = new Date().toISOString().slice(0, 19).replace('T', ' ');
+            progreso(0, files.length, 'Revisando la sesión…', '');
+
+            // Token nuevo ANTES de empezar. Si la página estuvo abierta horas,
+            // el que tiene ya no sirve — y sin esto se descubría recién con la
+            // primera foto rechazada, y después con las otras dieciséis.
+            const sesionViva = await refrescarToken();
+
+            if (!sesionViva) {
+                progreso(0, files.length, 'Se cerró la sesión',
+                    '<b style="color:#dc2626">Entrá de nuevo al panel en otra pestaña y después '
+                    + 'volvé a elegir las fotos acá.</b> No se subió ninguna todavía.');
+                input.value = '';
+                return;
+            }
+
             progreso(0, files.length, 'Procesando fotos…', '');
 
             let i = 0;
@@ -760,7 +822,9 @@
                  * contando como "sin leer" para que sepas cuáles mirar.
                  */
                 if (!guia) {
-                    fallo++;
+                    // Solo "sin QR", no "fallo": la foto se va a subir igual.
+                    // Si además falla la subida, eso lo cuenta subir() aparte.
+                    sinQr++;
 
                     progreso(i - 1, files.length, 'Sin QR · leyendo el teléfono…');
                     const datos = await conLimite(leerDatosCliente(img), 15000, {});
@@ -785,8 +849,7 @@
                     ver.style.cssText = 'background:#f1f5f9;border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;color:#334155;text-decoration:none';
                     acc.appendChild(ver);
 
-                    progreso(i, files.length, 'Procesando fotos…',
-                        '✅ ' + ok + ' guardadas · <b style="color:#b45309">⚠ ' + fallo + ' sin QR</b>');
+                    progreso(i, files.length, 'Procesando fotos…', resumen());
                     continue;
                 }
 
@@ -816,8 +879,7 @@
                     acc2.appendChild(rb);
                 }
 
-                progreso(i, files.length, 'Procesando fotos…',
-                    '✅ ' + ok + ' guardadas' + (fallo ? ' · <b style="color:#dc2626">✕ ' + fallo + ' sin subir</b>' : ''));
+                progreso(i, files.length, 'Procesando fotos…', resumen());
             }
 
             input.value = '';
@@ -830,9 +892,15 @@
                 if (ok > 0 && window.Livewire) window.Livewire.dispatch('fotos-subidas');
             } catch (e) {}
 
-            progreso(files.length, files.length,
-                fallo ? '¡Listo! (' + fallo + ' sin QR, revisalas abajo)' : '¡Listo! Todas guardadas ✅',
-                '✅ ' + ok + ' guardadas' + (fallo ? ' · <b style="color:#b45309">⚠ ' + fallo + ' sin QR</b>' : '') +
+            // El título dice lo más grave que pasó, no lo primero que se contó.
+            // Una subida fallida pesa más que un QR ilegible: la foto sin QR
+            // igual quedó guardada, la que falló no está en ningún lado.
+            const titulo = fallo
+                ? 'Terminó con ' + fallo + (fallo === 1 ? ' foto que NO se subió' : ' fotos que NO se subieron')
+                : (sinQr ? '¡Listo! (' + sinQr + ' sin QR, revisalas abajo)' : '¡Listo! Todas guardadas ✅');
+
+            progreso(files.length, files.length, titulo,
+                resumen() +
                 @js($this->enlaceGuias()
                     ? ' &nbsp;·&nbsp; <a href="' . $this->enlaceGuias() . '" style="color:#2563eb;font-weight:700">Ver las guías →</a>'
                     : ''));
@@ -987,6 +1055,14 @@
             });
         }
 
+        /** La línea de cuentas: guardadas, sin QR y las que no se subieron. */
+        function resumen() {
+            let t = '✅ ' + ok + ' guardadas';
+            if (sinQr) t += ' · <b style="color:#b45309">⚠ ' + sinQr + ' sin QR</b>';
+            if (fallo) t += ' · <b style="color:#dc2626">✕ ' + fallo + ' no se subieron</b>';
+            return t;
+        }
+
         async function subir(file, guia, est, acc, datos, img) {
             if (est) est.textContent = 'Subiendo guía ' + guia + '…';
 
@@ -1005,13 +1081,28 @@
             const corte = new AbortController();
             const reloj = setTimeout(() => corte.abort(), 60000);
 
+            const mandar = () => fetch('{{ route('fotos.subir') }}', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+                body: fd,
+                signal: corte.signal,
+            });
+
             try {
-                const res = await fetch('{{ route('fotos.subir') }}', {
-                    method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
-                    body: fd,
-                    signal: corte.signal,
-                });
+                let res = await mandar();
+
+                /*
+                 * 419 = el token venció a mitad de tanda. Se pide uno nuevo y
+                 * se reintenta UNA vez, sin que se note.
+                 *
+                 * Antes el primer 419 era el principio del desastre: fallaba
+                 * esa y las dieciséis siguientes, todas por lo mismo, y había
+                 * que reintentarlas una por una.
+                 */
+                if (res.status === 419 && await refrescarToken()) {
+                    res = await mandar();
+                }
+
                 clearTimeout(reloj);
 
                 // El servidor no siempre responde JSON: si la foto se pasa del
@@ -1021,10 +1112,20 @@
                 let data = null;
                 try { data = JSON.parse(crudo); } catch (e) {}
 
+                // Si después del reintento sigue en 419, la sesión se cerró del
+                // todo. Recargar la página perdería las fotos elegidas; entrar
+                // en otra pestaña no: la sesión nueva se comparte, y el botón
+                // Reintentar de cada tarjeta ya la va a usar.
+                if (res.status === 419) {
+                    fallo++;
+                    const motivo = 'Se cerró la sesión. Entrá al panel en otra pestaña y tocá Reintentar acá — no hace falta volver a elegir la foto.';
+                    if (est) est.innerHTML = '<span style="color:#dc2626">✕ ' + motivo + '</span>';
+                    return { ok: false, error: motivo };
+                }
+
                 if (!data) {
                     fallo++;
                     const motivo = res.status === 413 ? 'La foto pesa demasiado para el servidor'
-                                 : res.status === 419 ? 'La sesión venció: recargá la página'
                                  : 'El servidor respondió mal (' + res.status + ')';
                     if (est) est.innerHTML = '<span style="color:#dc2626">✕ ' + motivo + '</span>';
                     return { ok: false, error: motivo };
