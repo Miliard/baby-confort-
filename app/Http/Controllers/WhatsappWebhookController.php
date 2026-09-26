@@ -301,6 +301,29 @@ class WhatsappWebhookController extends Controller
 
         $mensaje->update($datos);
 
+        /*
+         * Si el mensaje que falló era la foto de un paquete, la foto vuelve a
+         * la lista de por mandar.
+         *
+         * Estas eran las fotos que "no se habían ido" y el panel daba por
+         * mandadas. WhatsApp contesta en dos tiempos: primero "recibido" —y
+         * ahí se marcaba la foto— y después, cuando va a buscar la imagen a
+         * nuestro sitio, recién ahí puede fallar. Ese fallo llegaba acá, se
+         * anotaba en el globo del chat... y la foto seguía marcada como
+         * mandada. Nunca le llegó al cliente, y nada lo decía.
+         */
+        if ($estado === 'fallido') {
+            try {
+                \App\Models\GuiaFoto::where('chat_mensaje_id', $mensaje->id)
+                    ->update([
+                        'chat_enviada_at' => null,
+                        'chat_error'      => mb_substr('WhatsApp no la entregó: ' . ($datos['error'] ?? ''), 0, 190),
+                    ]);
+            } catch (\Throwable $e) {
+                // Si la columna todavía no existe, no hay nada que devolver.
+            }
+        }
+
         // Si era el último de la conversación, la lista también tiene que
         // enterarse: es donde se ven las palomitas de un vistazo.
         try {

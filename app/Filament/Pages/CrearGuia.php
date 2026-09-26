@@ -88,21 +88,43 @@ class CrearGuia extends Page implements HasForms
      */
     public function fotosDeHoy(): array
     {
-        try {
-            $subidas = \App\Models\GuiaFoto::whereNotNull('ruta')
-                ->whereDate('created_at', '>=', now()->startOfDay())
-                ->count();
-        } catch (\Throwable $e) {
-            return ['subidas' => 0, 'en_lista' => 0];
-        }
+        // Por el lote, no por la fecha de la fila. La fecha de la fila es la
+        // de cuando entró la guía; una foto subida hoy a una guía de ayer
+        // tiene fecha de ayer y no se contaba. Ese era el agujero de la red.
+        $subidas = \App\Services\FotosAlChat::subidasHoy();
 
+        // Solo las de hoy que están pendientes, para que la resta tenga
+        // sentido: hoy entraron N, M están por mandar, el resto está abajo.
+        $inicio  = \App\Services\FotosAlChat::inicioDeHoy();
         $enLista = 0;
 
         foreach ($this->fotosPorLote() as $t) {
-            $enLista += count($t['filas']);
+            foreach ($t['filas'] as $f) {
+                if ((string) $f['foto']->lote >= $inicio) $enLista++;
+            }
         }
 
         return ['subidas' => $subidas, 'en_lista' => $enLista];
+    }
+
+    /** Las subidas hoy que quedaron fuera de la lista, con su motivo. */
+    public function fotosFueraDeLista(): array
+    {
+        return \App\Services\FotosAlChat::subidasHoyFueraDeLista();
+    }
+
+    /** Volver a poner una foto en la lista de por mandar. */
+    public function devolverFotoALista(int $id): void
+    {
+        $f = \App\Models\GuiaFoto::find($id);
+        if (! $f) return;
+
+        \App\Services\FotosAlChat::devolverALista($f);
+
+        Notification::make()
+            ->title('Volvió a la lista')
+            ->body('Ahora aparece arriba, en su tanda, lista para mandar.')
+            ->success()->send();
     }
 
     /**

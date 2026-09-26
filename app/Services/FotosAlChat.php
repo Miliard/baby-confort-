@@ -348,7 +348,15 @@ class FotosAlChat
 
             // Salió: la reserva queda como marca definitiva. Se limpia el
             // error por si venía de un intento anterior que había fallado.
-            $foto->forceFill(['chat_error' => null])->save();
+            //
+            // Y se guarda con QUÉ mensaje salió. WhatsApp contesta en dos
+            // tiempos: ahora dijo "recibido", pero todavía tiene que ir a
+            // buscar la imagen, y eso puede fallar después. Cuando falle, el
+            // aviso va a decir qué mensaje fue — y con esto se sabe qué foto.
+            $foto->forceFill([
+                'chat_error'      => null,
+                'chat_mensaje_id' => $m->id,
+            ])->save();
 
             /*
              * La foto salió: la conversación pasa a Entregados.
@@ -374,6 +382,88 @@ class FotosAlChat
             static::soltar($foto);
             static::anotarError($foto, $e->getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Desde qué momento cuenta "hoy", en el formato en que se guarda el lote.
+     *
+     * El lote lo arma el navegador en UTC ("2026-09-25 21:29:03"). El "hoy"
+     * de acá empieza a medianoche de El Salvador, que en UTC son las 6 de la
+     * mañana. Se convierte una vez y se compara como texto: con este formato,
+     * comparar texto da el mismo orden que comparar fechas.
+     */
+    public static function inicioDeHoy(): string
+    {
+        return now()->timezone(config('app.zona_local'))
+            ->startOfDay()
+            ->utc()
+            ->format('Y-m-d H:i:s');
+    }
+
+    /**
+     * Las fotos que se subieron hoy pero NO están en la lista de por mandar.
+     *
+     * ACÁ ESTABAN LAS FOTOS QUE "DESAPARECÍAN". No se perdían: se guardaban
+     * bien, pero en una guía que ya estaba marcada como mandada — porque
+     * salió antes, o porque la quitaste de la lista con la ✕ o el tacho. La
+     * lista solo muestra las pendientes, así que esas no aparecían en ningún
+     * lado.
+     *
+     * Y el contador tampoco las contaba: contaba por fecha de creación de la
+     * fila, y una foto subida hoy a una guía de ayer tiene fecha de ayer.
+     *
+     * Ahora se cuenta por el LOTE, que se rehace en cada subida, y las que
+     * quedaron fuera se muestran aparte con el motivo y un botón para
+     * devolverlas a la lista.
+     */
+    public static function subidasHoyFueraDeLista(): array
+    {
+        if (! static::disponible()) return [];
+
+        try {
+            return GuiaFoto::whereNotNull('ruta')
+                ->whereNotNull('chat_enviada_at')
+                ->where('lote', '>=', static::inicioDeHoy())
+                ->orderByDesc('chat_enviada_at')
+                ->limit(60)
+                ->get()
+                ->all();
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    /** Cuántas fotos se subieron hoy, contando también las resubidas. */
+    public static function subidasHoy(): int
+    {
+        if (! static::disponible()) return 0;
+
+        try {
+            return GuiaFoto::whereNotNull('ruta')
+                ->where('lote', '>=', static::inicioDeHoy())
+                ->count();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Devolver una foto a la lista de por mandar.
+     *
+     * Para el caso en que se quitó por error, o para mandarla otra vez a
+     * propósito. Es una decisión tuya y explícita: la foto no vuelve sola,
+     * porque volver sola es justamente lo que causó los repetidos.
+     */
+    public static function devolverALista(GuiaFoto $foto): void
+    {
+        try {
+            $foto->forceFill([
+                'chat_enviada_at' => null,
+                'chat_error'      => null,
+            ])->save();
+        } catch (\Throwable $e) {
+            Log::warning('Fotos al chat, devolviendo a la lista: ' . $e->getMessage());
         }
     }
 

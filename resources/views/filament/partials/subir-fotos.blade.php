@@ -70,7 +70,7 @@
 
         @if($hoy['en_lista'] < $hoy['subidas'])
             <x-filament::badge color="gray" size="xs">
-                el resto ya se mandó o se quitó
+                el resto, al final de la página ↓
             </x-filament::badge>
         @endif
     </div>
@@ -283,6 +283,75 @@
         </p>
     </div>
 @endforeach
+
+{{-- ─────────── LAS DE HOY QUE NO ESTÁN EN LA LISTA ───────────
+     Acá van las fotos que "desaparecían". No se perdían: se guardaban bien,
+     pero en una guía que ya estaba marcada como mandada — porque salió
+     antes, o porque la quitaste con la ✕ o el tacho. La lista de arriba solo
+     muestra las pendientes, y estas no aparecían en ningún lado.
+
+     Cada una dice por qué está acá, y tiene un botón para devolverla a la
+     lista. Que no vuelvan SOLAS es a propósito: volver sola es lo que
+     causaba los repetidos. --}}
+@php $fuera = $this->fotosFueraDeLista(); @endphp
+
+@if(count($fuera))
+    <details class="mt-5 rounded-xl border border-gray-200 bg-white dark:border-white/10 dark:bg-gray-900"
+             style="padding:12px 14px">
+        <summary class="font-bold text-gray-950 dark:text-white"
+                 style="font-size:13.5px;cursor:pointer">
+            Subidas hoy que no están en la lista ({{ count($fuera) }})
+        </summary>
+
+        <p class="text-gray-500 dark:text-gray-400" style="font-size:12px;line-height:1.5;margin:8px 0 10px">
+            Estas guías ya estaban marcadas antes de subir la foto de hoy. Si alguna
+            tiene que salir, devolvela a la lista.
+        </p>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+            @foreach($fuera as $foto)
+                @php
+                    $aMano = str_starts_with((string) $foto->chat_error, 'Marcada a mano');
+                    $cuando = $foto->chat_enviada_at
+                        ? $foto->chat_enviada_at->timezone(config('app.zona_local'))->format('d/m g:i a')
+                        : '';
+                @endphp
+
+                <div wire:key="fuera-{{ $foto->id }}"
+                     class="rounded-xl border border-gray-200 dark:border-white/10"
+                     style="display:flex;align-items:center;gap:10px;padding:9px">
+
+                    @if($foto->url())
+                        <a href="{{ $foto->url() }}" target="_blank" rel="noopener" style="flex:none">
+                            <img src="{{ $foto->url() }}" alt=""
+                                 style="width:48px;height:48px;object-fit:cover;border-radius:8px;display:block">
+                        </a>
+                    @endif
+
+                    <div style="flex:1 1 auto;min-width:0">
+                        <div class="font-mono font-bold text-primary-600 dark:text-primary-400" style="font-size:13.5px">
+                            {{ $foto->telefono ?: 'sin número' }}
+                        </div>
+                        <div class="text-gray-500 dark:text-gray-400" style="font-size:12px;line-height:1.4">
+                            {{ $foto->nombre ?: '—' }}
+                            @if(filled($foto->guia)) · guía {{ $foto->guia }} @endif
+                        </div>
+                        <div class="text-gray-500 dark:text-gray-400" style="font-size:12px;line-height:1.4">
+                            {{ $aMano ? 'La quitaste de la lista' : 'Ya se mandó' }}
+                            @if($cuando) el {{ $cuando }} @endif
+                        </div>
+                    </div>
+
+                    <x-filament::button size="xs" color="gray"
+                        wire:click="devolverFotoALista({{ $foto->id }})"
+                        wire:confirm="{{ $aMano ? 'Devolverla a la lista de por mandar. ¿Seguimos?' : 'Esta foto YA SE MANDÓ. Si la devolvés a la lista, el cliente la va a recibir otra vez. ¿Seguro?' }}">
+                        Volver a la lista
+                    </x-filament::button>
+                </div>
+            @endforeach
+        </div>
+    </details>
+@endif
 
 {{-- Cuánto ocupan las fotos y hasta cuándo se guardan --}}
 @php $espacio = \App\Http\Controllers\GuiaFotoController::espacioUsado(); @endphp

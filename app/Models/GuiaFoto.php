@@ -19,8 +19,26 @@ class GuiaFoto extends Model
         'lote', 'enviado_at', 'enviado', 'foto_borrada_at',
         // Ojo: "enviado_at" es el ENLACE de rastreo; "chat_enviada_at" es la
         // FOTO mandada por el chat. Son dos cosas y pasan por separado.
-        'chat_enviada_at', 'chat_error',
+        'chat_enviada_at', 'chat_error', 'chat_mensaje_id',
     ];
+
+    /**
+     * El mensaje de WhatsApp con el que salió esta foto, si salió.
+     *
+     * Es lo que permite saber si la foto LLEGÓ, no solo si se mandó. El
+     * mensaje tiene el estado que va informando WhatsApp: enviado, entregado,
+     * leído o fallido.
+     */
+    public function mensajeChat(): ?\App\Models\WaMensaje
+    {
+        if (! $this->chat_mensaje_id) return null;
+
+        try {
+            return \App\Models\WaMensaje::find($this->chat_mensaje_id);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
 
     protected $casts = [
         'enviado_at'      => 'datetime',
