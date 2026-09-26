@@ -130,6 +130,91 @@ class IA
     }
 
     /**
+     * Una pregunta con una imagen adjunta. Para leer etiquetas.
+     *
+     * La imagen va DENTRO del pedido, en base64, y no como una dirección para
+     * que la vayan a buscar. Así no depende de que nuestro sitio le conteste
+     * a OpenAI a tiempo, ni de que la foto ya esté publicada — que es
+     * justamente lo que hizo fallar tantas fotos por el lado de WhatsApp.
+     */
+    public static function leerImagen(string $instrucciones, string $rutaAbsoluta, float $temperatura = 0.0): ?string
+    {
+        if (! static::disponible())     return null;
+        if (! is_file($rutaAbsoluta))   return null;
+
+        try {
+            $bytes = file_get_contents($rutaAbsoluta);
+            if ($bytes === false || $bytes === '') return null;
+
+            $mime = mime_content_type($rutaAbsoluta) ?: 'image/jpeg';
+            $b64  = base64_encode($bytes);
+
+            return static::proveedor() === 'openai'
+                ? static::imagenOpenAI($instrucciones, $mime, $b64, $temperatura)
+                : static::imagenAnthropic($instrucciones, $mime, $b64, $temperatura);
+        } catch (\Throwable $e) {
+            Log::warning('IA (imagen): ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    private static function imagenOpenAI(string $sistema, string $mime, string $b64, float $temp): ?string
+    {
+        $cuerpo = [
+            'model'    => static::modelo(),
+            'messages' => [
+                ['role' => 'system', 'content' => $sistema],
+                ['role' => 'user', 'content' => [
+                    ['type' => 'text', 'text' => 'Leé esta etiqueta de envío.'],
+                    ['type' => 'image_url', 'image_url' => ['url' => "data:{$mime};base64,{$b64}"]],
+                ]],
+            ],
+        ];
+
+        if (static::aceptaTemperatura()) $cuerpo['temperature'] = $temp;
+
+        $r = Http::withToken(static::clave())->timeout(20)
+            ->post('https://api.openai.com/v1/chat/completions', $cuerpo);
+
+        if (! $r->successful()) {
+            Log::warning('IA imagen (openai ' . $r->status() . '): '
+                . mb_substr((string) $r->json('error.message', ''), 0, 160));
+            return null;
+        }
+
+        $t = trim((string) $r->json('choices.0.message.content'));
+
+        return $t !== '' ? $t : null;
+    }
+
+    private static function imagenAnthropic(string $sistema, string $mime, string $b64, float $temp): ?string
+    {
+        $r = Http::withHeaders([
+                'x-api-key'         => static::clave(),
+                'anthropic-version' => '2023-06-01',
+            ])->timeout(20)
+            ->post('https://api.anthropic.com/v1/messages', [
+                'model'       => static::modelo(),
+                'max_tokens'  => 800,
+                'temperature' => $temp,
+                'system'      => $sistema,
+                'messages'    => [['role' => 'user', 'content' => [
+                    ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => $mime, 'data' => $b64]],
+                    ['type' => 'text', 'text' => 'Leé esta etiqueta de envío.'],
+                ]]],
+            ]);
+
+        if (! $r->successful()) {
+            Log::warning('IA imagen (anthropic ' . $r->status() . ')');
+            return null;
+        }
+
+        $t = trim((string) $r->json('content.0.text'));
+
+        return $t !== '' ? $t : null;
+    }
+
+    /**
      * Saca el JSON de una respuesta, aguantando que venga adornado.
      *
      * Aunque se le pida JSON pelado, a veces lo envuelve en ```json ... ``` o

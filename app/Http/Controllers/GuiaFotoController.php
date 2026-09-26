@@ -161,6 +161,12 @@ class GuiaFotoController extends Controller
          * Entonces: la foto entra igual. Lo que falte se ve y se escribe en la
          * lista de abajo, con la foto ya guardada y a la vista.
          */
+        // Más tiempo que el de fábrica (30 s). La lectura con IA se suma a la
+        // subida, y si el servidor cortara a mitad de camino la foto quedaría
+        // en el disco pero sin su fila: no aparecería en ningún lado. La IA
+        // tiene su propio tope de 20 s, así que esto es solo margen.
+        @set_time_limit(90);
+
         $data = $request->validate([
             'guia'     => ['nullable', 'string', 'max:40'],
             'foto'     => ['required', 'image', 'max:8192'], // hasta 8 MB
@@ -181,6 +187,37 @@ class GuiaFotoController extends Controller
         $telefonoOcr = trim((string) ($data['telefono'] ?? '')) ?: null;
         $loteFoto    = trim((string) ($data['lote'] ?? '')) ?: null;
 
+        /*
+         * La IA lee la etiqueta entera, con la foto ya guardada.
+         *
+         * El lector del teléfono solo manda nombre y teléfono, y los lee
+         * regular. La IA lee todo lo impreso: con eso se empareja aunque un
+         * dígito haya salido mal. Si falla —sin saldo, sin red, lo que sea—
+         * se sigue con lo que mandó el teléfono, como antes: la foto se guarda
+         * igual.
+         */
+        $lectura = null;
+
+        try {
+            $lectura = \App\Services\LeerEtiqueta::de(
+                \Illuminate\Support\Facades\Storage::disk('public')->path($ruta)
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Leyendo etiqueta con IA: ' . $e->getMessage());
+        }
+
+        // Sin QR, pero la IA leyó el "Orden #": con ese número se encuentra la
+        // guía que vino en el PDF, y de ahí sale el teléfono exacto. El QR y
+        // ese número son el mismo dato, impreso de dos maneras.
+        if ($guia === '' && ! empty($lectura['orden'])) {
+            $guia = $lectura['orden'];
+        }
+
+        // Lo que dice la etiqueta: primero lo de la IA, que lee mejor; si no
+        // leyó, lo del lector del teléfono.
+        $telLeido    = ($lectura['telefono'] ?? '') ?: (preg_replace('/\D/', '', (string) $telefonoOcr) ?: null);
+        $nombreLeido = ($lectura['nombre'] ?? '') ?: $nombreOcr;
+
         // Si la guía ya existe (por ejemplo, vino del PDF), la foto se PEGA a ese
         // registro. Así no se pierde el nombre ni el contenido del pedido.
         //
@@ -195,9 +232,15 @@ class GuiaFotoController extends Controller
                 try { \Illuminate\Support\Facades\Storage::disk('public')->delete($foto->ruta); } catch (\Throwable $e) {}
             }
             $foto->ruta = $ruta;
-            // Lo leído por OCR solo rellena lo que falte: nunca pisa los datos del PDF.
-            $foto->nombre   = $foto->nombre   ?: $nombreOcr;
-            $foto->telefono = $foto->telefono ?: $telefonoOcr;
+            // Lo leído solo rellena lo que falte: nunca pisa los datos del
+            // PDF, que salen de Sistrack y son exactos.
+            $foto->nombre   = $foto->nombre   ?: $nombreLeido;
+            $foto->telefono = $foto->telefono ?: $telLeido;
+
+            // Lo que dice la etiqueta se guarda siempre, aparte, para poder
+            // compararlo y mostrarlo. Es la lectura de ESTA foto.
+            $foto->tel_leido = $telLeido ?: $foto->tel_leido;
+            $foto->lectura   = $lectura ?: $foto->lectura;
 
             /*
              * Cuando la guía ya existía —porque entró antes por el PDF, o
@@ -235,11 +278,13 @@ class GuiaFotoController extends Controller
             $foto->save();
         } else {
             $foto = GuiaFoto::create([
-                'guia'     => $guia !== '' ? $guia : null,
-                'ruta'     => $ruta,
-                'nombre'   => $nombreOcr,
-                'telefono' => $telefonoOcr,
-                'lote'     => $loteFoto,
+                'guia'      => $guia !== '' ? $guia : null,
+                'ruta'      => $ruta,
+                'nombre'    => $nombreLeido,
+                'telefono'  => $telLeido,
+                'tel_leido' => $telLeido,
+                'lectura'   => $lectura,
+                'lote'      => $loteFoto,
             ]);
         }
 

@@ -20,7 +20,7 @@ class GuiaFoto extends Model
         // Ojo: "enviado_at" es el ENLACE de rastreo; "chat_enviada_at" es la
         // FOTO mandada por el chat. Son dos cosas y pasan por separado.
         'chat_enviada_at', 'chat_oculta_at', 'chat_error', 'chat_mensaje_id',
-        'tel_leido',
+        'tel_leido', 'lectura', 'tel_manual',
     ];
 
     /**
@@ -57,6 +57,8 @@ class GuiaFoto extends Model
         'enviado_at'      => 'datetime',
         'chat_enviada_at' => 'datetime',
         'chat_oculta_at'  => 'datetime',
+        'lectura'         => 'array',
+        'tel_manual'      => 'boolean',
         'foto_borrada_at' => 'datetime',
         'cobrar'          => 'decimal:2',
     ];

@@ -226,12 +226,38 @@
                         @php
                             $leidoTel = preg_replace('/\D/', '', (string) $foto->tel_leido);
                             $ahoraTel = preg_replace('/\D/', '', (string) $foto->telefono);
+                            $lec      = is_array($foto->lectura) ? $foto->lectura : [];
                         @endphp
-                        @if($foto->tel_leido && $leidoTel !== $ahoraTel)
+
+                        {{-- Lo que dice la etiqueta, leído por la IA: municipio y
+                             monto. Es lo que se compara con el chat de al lado,
+                             y conviene tenerlo a la vista para comprobarlo. --}}
+                        @if(! empty($lec['municipio']) || isset($lec['cobrar']))
+                            <div class="text-gray-500 dark:text-gray-400" style="font-size:12px;line-height:1.4">
+                                Etiqueta:
+                                {{ $lec['municipio'] ?? '' }}
+                                @if(! empty($lec['pagado']))
+                                    · pagado
+                                @elseif(isset($lec['cobrar']) && $lec['cobrar'] !== null)
+                                    · cobrar ${{ number_format((float) $lec['cobrar'], 2) }}
+                                @endif
+                            </div>
+                        @endif
+
+                        {{-- Si el número se corrigió, qué decía la etiqueta y POR
+                             QUÉ se eligió este chat. No hay que creerle al
+                             sistema: se ve qué coincidió y se decide. --}}
+                        @if($foto->tel_manual)
+                            <div class="text-gray-500 dark:text-gray-400" style="font-size:12px;line-height:1.4">
+                                ✍️ Número puesto a mano
+                            </div>
+                        @elseif($foto->tel_leido && $leidoTel !== $ahoraTel)
                             <div style="font-size:12px;line-height:1.4;color:#2563eb">
                                 🔎 La etiqueta decía
                                 <b>{{ $foto->tel_leido === '—' ? 'sin número' : $foto->tel_leido }}</b>
-                                · se emparejó con Preparados
+                                @if(! empty($lec['emparejo']))
+                                    · coinciden {{ implode(', ', $lec['emparejo']) }}
+                                @endif
                             </div>
                         @endif
 

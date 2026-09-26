@@ -150,9 +150,10 @@ class CrearGuia extends Page implements HasForms
 
         $f->telefono = $solo;
 
-        // Marca de "puesto a mano": lo leído igual al número. Con esto el
-        // emparejador con Preparados sabe que no tiene que corregirlo.
-        $f->tel_leido = $solo;
+        // Puesto a mano: el emparejador con Preparados no lo va a corregir.
+        // Lo que había leído la etiqueta se queda en tel_leido, para que
+        // se vea qué decía antes de que lo corrigieras.
+        $f->tel_manual = true;
 
         // El aviso rojo que tuviera era del número anterior. Con el número
         // corregido ya no dice nada cierto, y dejarlo haría parecer que la

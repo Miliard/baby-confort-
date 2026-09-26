@@ -297,10 +297,17 @@ class FotosAlChat
                         $c->cliente()['nombre'] ?? null,
                     ]);
 
+                    $pedido = static::datosDelPedido($c, $tel);
+
+                    if (filled($pedido['nombre'] ?? null)) $nombres[] = $pedido['nombre'];
+
                     $lista[$tel] = [
                         'conv'      => $c,
                         'tel'       => $tel,
                         'nombres'   => array_map([static::class, 'aplanar'], $nombres),
+                        'municipio' => Municipios::normalizar($pedido['municipio'] ?? ''),
+                        'total'     => $pedido['total'] ?? null,
+                        'contenido' => static::aplanar($pedido['contenido'] ?? ''),
                         'prioridad' => $prioridad,
                     ];
                 }
@@ -310,6 +317,79 @@ class FotosAlChat
         }
 
         return static::$candidatos = $lista;
+    }
+
+    /** Las guías de la cola de los últimos días, por teléfono. Se leen una vez. */
+    private static ?array $borradores = null;
+
+    /**
+     * Qué se le mandó a este cliente: municipio, monto, producto y nombre.
+     *
+     * De dos lugares, en este orden:
+     *
+     *  1. La cola de guías: lo que se procesó en el panel. Es lo más seguro,
+     *     porque ya pasó por el formulario y se revisó.
+     *  2. La última orden de envío escrita en el chat. Para las guías hechas
+     *     a mano de último momento, que nunca pasaron por la cola: la orden
+     *     igual está en la conversación, con la dirección y el total.
+     */
+    private static function datosDelPedido(WaConversacion $conv, string $tel): array
+    {
+        if (static::$borradores === null) {
+            static::$borradores = [];
+
+            try {
+                \App\Models\GuiaBorrador::where('created_at', '>=', now()->subDays(14))
+                    ->orderByDesc('id')
+                    ->get()
+                    ->each(function ($g) {
+                        $t = WaConversacion::telefonoCorto($g->telefono);
+                        if (strlen($t) === 8 && ! isset(static::$borradores[$t])) {
+                            static::$borradores[$t] = $g;
+                        }
+                    });
+            } catch (\Throwable $e) {
+            }
+        }
+
+        if (isset(static::$borradores[$tel])) {
+            $g = static::$borradores[$tel];
+
+            return [
+                'nombre'    => $g->nombre,
+                'municipio' => $g->municipio,
+                'total'     => $g->cobrar !== null ? round((float) $g->cobrar, 2) : null,
+                'contenido' => $g->descripcion,
+            ];
+        }
+
+        try {
+            $orden = \App\Models\WaMensaje::where('conversacion_id', $conv->id)
+                ->whereNotNull('texto')
+                ->orderByDesc('id')
+                ->limit(40)
+                ->get()
+                ->first(fn ($m) => Etiquetado::pareceOrden($m->texto));
+
+            if ($orden) {
+                $o = OrdenWhatsappParser::parsear((string) $orden->texto);
+
+                $total = \App\Filament\Pages\Whatsapp::montoDe($o['total'] ?? '');
+
+                return [
+                    'nombre'    => $o['nombre'] ?? null,
+                    'municipio' => $o['municipio'] ?? ($o['municipio_texto'] ?? null),
+                    'total'     => $total > 0 ? $total : null,
+                    'contenido' => implode(' ', array_map(
+                        fn ($i) => is_array($i) ? implode(' ', array_filter($i, 'is_scalar')) : (string) $i,
+                        (array) ($o['items'] ?? [])
+                    )),
+                ];
+            }
+        } catch (\Throwable $e) {
+        }
+
+        return [];
     }
 
     /**
@@ -338,68 +418,120 @@ class FotosAlChat
     }
 
     /**
-     * Empareja una foto con una conversación de Preparados (o de Pedidos).
+     * Cuánto se parece una foto a un chat, sumando cada dato que coincide.
      *
-     * Primero por el TELÉFONO leído, aunque tenga dígitos mal: se busca el
-     * candidato con menos dígitos distintos, y se acepta si difiere en dos o
-     * menos. El lector confunde un 6 con un 5, un 1 con un 7 — errores de a
-     * un dígito. Dos es el margen seguro: con tres ya podría ser otra persona.
+     * Ningún dato solo decide, salvo el teléfono exacto. Cada coincidencia
+     * suma puntos, y lo que pesa cada una sale de qué tan difícil es que
+     * coincida por casualidad:
      *
-     * Si no se leyó ningún número, por el NOMBRE, pero solo si se parece
-     * mucho y a uno solo.
+     *   teléfono exacto          100   (8 dígitos: no coincide por azar)
+     *   teléfono a 1 dígito       60   (el error típico del lector)
+     *   teléfono a 2 dígitos      35   (probable, pero necesita ayuda)
+     *   nombre                    30   (o 15 si solo se parece)
+     *   municipio                 25   (hay 262: filtra mucho)
+     *   monto a cobrar            25   (y "pagado" contra un total en cero)
+     *   producto                  10   (se repite entre clientes)
      *
-     * Si hay empate —dos candidatos igual de parecidos— no se elige ninguno.
-     * Adivinar entre dos es mandarle la foto a la persona equivocada la mitad
-     * de las veces. Ahí queda el campo para que lo escribas vos.
+     * @return array{0:int, 1:array<string>} puntos y la lista de qué coincidió
+     */
+    private static function puntaje(GuiaFoto $foto, array $c): array
+    {
+        $lec = is_array($foto->lectura) ? $foto->lectura : [];
+        $puntos = 0;
+        $por = [];
+
+        // Teléfono: lo que dice la etiqueta, no el que se le haya puesto.
+        $leido = preg_replace('/\D/', '', (string) ($foto->tel_leido ?: $foto->telefono));
+        if (strlen($leido) > 8) $leido = substr($leido, -8);
+
+        if (strlen($leido) >= 6) {
+            $d = levenshtein($leido, $c['tel']);
+
+            if ($d === 0)      { $puntos += 100; $por[] = 'teléfono'; }
+            elseif ($d === 1)  { $puntos += 60;  $por[] = 'teléfono (1 dígito distinto)'; }
+            elseif ($d === 2)  { $puntos += 35;  $por[] = 'teléfono (2 dígitos distintos)'; }
+        }
+
+        // Nombre
+        // "?:" y no "??": si la IA devolvió el nombre vacío, igual hay que
+        // caer al que leyó el teléfono.
+        $nombre = static::aplanar(($lec['nombre'] ?? '') ?: $foto->nombre);
+        $nom = 0.0;
+        foreach ($c['nombres'] as $n) $nom = max($nom, static::parecido($nombre, $n));
+
+        if ($nom >= 0.8)      { $puntos += 30; $por[] = 'nombre'; }
+        elseif ($nom >= 0.6)  { $puntos += 15; $por[] = 'nombre parecido'; }
+
+        // Municipio
+        $mun = Municipios::normalizar($lec['municipio'] ?? '');
+        if ($mun !== '' && $c['municipio'] !== '' && $mun === $c['municipio']) {
+            $puntos += 25; $por[] = 'municipio';
+        }
+
+        // Monto
+        if (isset($lec['cobrar']) && $lec['cobrar'] !== null && $c['total'] !== null) {
+            if (abs((float) $lec['cobrar'] - (float) $c['total']) < 0.5) {
+                $puntos += 25; $por[] = 'monto';
+            }
+        }
+
+        // Producto
+        $prod = static::aplanar($lec['contenido'] ?? '');
+        if ($prod !== '' && $c['contenido'] !== '' && static::parecido($prod, $c['contenido']) >= 0.6) {
+            $puntos += 10; $por[] = 'producto';
+        }
+
+        return [$puntos, $por];
+    }
+
+    /**
+     * Empareja una foto con un chat de Preparados (o de Pedidos).
      *
-     * @return array{tel:string, conv:WaConversacion}|null
+     * Se calcula el puntaje contra cada uno y se elige el de más puntos, pero
+     * solo si se cumplen las DOS cosas:
+     *
+     *  · llega a 60 puntos. Un teléfono a un dígito solo alcanza; uno a dos
+     *    dígitos necesita que algo más lo confirme — el municipio, el monto o
+     *    el nombre.
+     *  · le saca 30 puntos al segundo. Si dos chats se parecen casi igual, no
+     *    se elige ninguno: adivinar entre dos es mandarle la foto a la persona
+     *    equivocada la mitad de las veces. Ahí queda el campo para vos.
+     *
+     * @return array{tel:string, conv:WaConversacion, por:array<string>}|null
      */
     public static function emparejar(GuiaFoto $foto): ?array
     {
         $candidatos = static::candidatos();
         if (! $candidatos) return null;
 
-        $leido = preg_replace('/\D/', '', (string) ($foto->tel_leido ?: $foto->telefono));
-        if (strlen($leido) > 8) $leido = substr($leido, -8);
-
-        $nombre = static::aplanar($foto->nombre);
         $usados = static::usados();
 
         $mejor = null;
-        $mejorClave = null;
-        $empate = false;
+        $segundo = 0;
 
         foreach ($candidatos as $tel => $c) {
             // Un número que ya tiene otra foto asignada no se reparte dos
             // veces: si no, dos fotos parecidas terminan en el mismo chat.
             if (isset($usados[$tel]) && $usados[$tel] !== $foto->id) continue;
 
-            $difiere = strlen($leido) >= 6 ? levenshtein($leido, $tel) : 99;
+            [$puntos, $por] = static::puntaje($foto, $c);
 
-            $nom = 0.0;
-            foreach ($c['nombres'] as $n) $nom = max($nom, static::parecido($nombre, $n));
+            // A igual puntaje, Preparados antes que Pedidos.
+            $puntos -= $c['prioridad'];
 
-            // Orden de preferencia: menos dígitos distintos, después mejor
-            // nombre, después Preparados antes que Pedidos.
-            $clave = [$difiere, -$nom, $c['prioridad']];
-
-            if ($mejorClave === null || $clave < $mejorClave) {
-                $mejor = $c + ['difiere' => $difiere, 'nom' => $nom];
-                $mejorClave = $clave;
-                $empate = false;
-            } elseif ($clave == $mejorClave) {
-                $empate = true;
+            if (! $mejor || $puntos > $mejor['puntos']) {
+                if ($mejor) $segundo = max($segundo, $mejor['puntos']);
+                $mejor = ['tel' => $tel, 'conv' => $c['conv'], 'por' => $por, 'puntos' => $puntos];
+            } else {
+                $segundo = max($segundo, $puntos);
             }
         }
 
-        if (! $mejor || $empate) return null;
+        if (! $mejor) return null;
+        if ($mejor['puntos'] < 60) return null;
+        if ($mejor['puntos'] - $segundo < 30) return null;
 
-        $porTelefono = $mejor['difiere'] <= 2;
-        $porNombre   = $mejor['difiere'] === 99 && $mejor['nom'] >= 0.8;
-
-        return ($porTelefono || $porNombre)
-            ? ['tel' => $mejor['tel'], 'conv' => $mejor['conv']]
-            : null;
+        return $mejor;
     }
 
     /** Teléfono → id de la foto que ya lo tiene, entre las que están a la vista. */
@@ -485,10 +617,8 @@ class FotosAlChat
         $enLista = strlen($corto) === 8 && isset(static::candidatos()[$corto]);
 
         // Un número escrito a mano no se toca: lo escribiste vos, y vos sabés
-        // más que el emparejador. Se reconoce porque al guardarlo a mano
-        // "lo leído" queda igual al número puesto.
-        $aMano = $foto->tel_leido
-            && preg_replace('/\D/', '', (string) $foto->tel_leido) === preg_replace('/\D/', '', (string) $foto->telefono);
+        // más que el emparejador.
+        $aMano = (bool) $foto->tel_manual;
 
         if (! $enLista && ! $aMano) {
             $par = static::emparejar($foto);
@@ -497,27 +627,30 @@ class FotosAlChat
              * Si el número leído YA tiene chat, cambiarlo solo porque se
              * parece a otro sería peligroso: puede venir del PDF de Sistrack y
              * ser el correcto, de un cliente que simplemente no está
-             * etiquetado. Ahí se pide que el NOMBRE también lo confirme — que
-             * la etiqueta se parezca al candidato y no al dueño del número
-             * leído. Sin nombre que desempate, se respeta el número leído.
+             * etiquetado.
+             *
+             * Ahí no alcanza con el teléfono parecido: tiene que coincidir
+             * también algo que el teléfono no dice — el nombre, el municipio
+             * o el monto. Si lo único a favor del candidato es un número
+             * parecido, se respeta el número leído.
              */
             if ($par && $conv) {
-                $nombreFoto = static::aplanar($foto->nombre);
+                $otraPrueba = array_filter(
+                    $par['por'],
+                    fn ($p) => ! str_starts_with($p, 'teléfono')
+                );
 
-                $conCandidato = 0.0;
-                foreach ([$par['conv']->alias ?? null, $par['conv']->nombre ?? null] as $n) {
-                    $conCandidato = max($conCandidato, static::parecido($nombreFoto, static::aplanar($n)));
-                }
-
-                $conLeido = 0.0;
-                foreach ([$conv->alias ?? null, $conv->nombre ?? null] as $n) {
-                    $conLeido = max($conLeido, static::parecido($nombreFoto, static::aplanar($n)));
-                }
-
-                if (! ($conCandidato >= 0.7 && $conLeido < 0.5)) $par = null;
+                if (! $otraPrueba) $par = null;
             }
 
             if ($par && $par['tel'] !== $corto) {
+                $lectura = is_array($foto->lectura) ? $foto->lectura : [];
+
+                // Por qué se emparejó, guardado con la foto. Así se muestra en
+                // el renglón aunque después el número ya sea el correcto y no
+                // se vuelva a emparejar: "coinciden teléfono, municipio, monto".
+                $lectura['emparejo'] = $par['por'];
+
                 try {
                     $foto->forceFill([
                         // Lo que leyó la etiqueta se guarda una sola vez, la
@@ -525,6 +658,7 @@ class FotosAlChat
                         // se pisa con un número que ya era corregido.
                         'tel_leido' => $foto->tel_leido ?: ($foto->telefono ?: '—'),
                         'telefono'  => $par['tel'],
+                        'lectura'   => $lectura,
                     ])->save();
                 } catch (\Throwable $e) {
                     Log::warning('Fotos al chat, emparejando: ' . $e->getMessage());
