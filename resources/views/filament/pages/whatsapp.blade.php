@@ -3129,6 +3129,98 @@
      * El botón contesta con un ✓ un segundo: sin eso uno no sabe si copió, y
      * termina tocándolo tres veces.
      */
+    /*
+     * El botón de ATRÁS del teléfono.
+     *
+     * Abrir un chat no cambia de página: es la misma pantalla, que muestra
+     * otra parte. Entonces el navegador no sabía que había un "paso" que
+     * deshacer, y el atrás del teléfono hacía lo único que conocía: salir del
+     * panel, a la pantalla anterior.
+     *
+     * Acá se le avisa al navegador que abrir un chat ES un paso: se anota una
+     * entrada en su historial. Cuando tocás atrás, el navegador la saca, nos
+     * avisa, y en vez de irse de la página se cierra lo que esté arriba:
+     *
+     *   1. la ventana del catálogo, si está abierta;
+     *   2. la pestaña de la orden de envío, volviendo al chat;
+     *   3. el chat, volviendo a la lista.
+     *
+     * Recién con la lista a la vista, atrás sale del panel como siempre.
+     * Solo en el teléfono: en la computadora la lista y el chat se ven juntos,
+     * no hay nada que cerrar.
+     */
+    (function () {
+        var empujado = false;   // si hay una entrada nuestra en el historial
+        var ignorar  = 0;       // "atrás" provocados por nosotros, no por vos
+
+        function esTelefono()  { return window.innerWidth <= 900; }
+        function chatAbierto() { return !! document.querySelector('.wa.wa--abierta'); }
+
+        function componente() {
+            var el = document.querySelector('.wa');
+            el = el && el.closest('[wire\\:id]');
+            if (! el || ! window.Livewire) return null;
+            return window.Livewire.find(el.getAttribute('wire:id'));
+        }
+
+        function empujar() {
+            if (empujado) return;
+            try { history.pushState({ waChat: true }, ''); empujado = true; } catch (e) {}
+        }
+
+        // Después de cada redibujado: si se abrió un chat, se anota el paso;
+        // si se cerró con la flecha de la pantalla, se saca el paso que había,
+        // para que el historial no quede con un "atrás" de más.
+        function revisar() {
+            if (! esTelefono()) return;
+
+            if (chatAbierto()) {
+                empujar();
+            } else if (empujado) {
+                empujado = false;
+                ignorar++;
+                history.back();
+            }
+        }
+
+        window.addEventListener('popstate', function () {
+            if (ignorar > 0) { ignorar--; return; }
+            if (! empujado) return;   // atrás normal, con la lista a la vista
+
+            empujado = false;
+
+            var c = componente();
+            if (! c) return;
+
+            // Lo de más arriba se cierra primero, y el chat sigue abierto:
+            // por eso se vuelve a anotar el paso, para el próximo atrás.
+            if (document.querySelector('.wa-modal-fondo')) {
+                c.catalogoAbierto ? c.cerrarCatalogo() : c.cerrarFotos();
+                empujar();
+                return;
+            }
+
+            if (c.pestana === 'pedido') {
+                c.verPestana('chat');
+                empujar();
+                return;
+            }
+
+            c.cerrarChat();
+        });
+
+        function enganchar() {
+            if (! window.Livewire || ! window.Livewire.hook) return false;
+            window.Livewire.hook('morph.updated', function () { setTimeout(revisar, 0); });
+            return true;
+        }
+
+        if (! enganchar()) document.addEventListener('livewire:init', enganchar);
+
+        // Por si se entró con un chat ya abierto (el enlace de un aviso).
+        setTimeout(revisar, 500);
+    })();
+
     function waCopiar(boton) {
         var texto = boton.getAttribute('data-copiar') || '';
         if (!texto) return;
