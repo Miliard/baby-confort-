@@ -596,6 +596,21 @@
                  scrollbar-width:none;-ms-overflow-style:none;padding-bottom:2px}
         .wa-btns::-webkit-scrollbar{display:none}
         .wa-btns > *{flex:none}
+
+        /* Enviar, clavado a la izquierda. El carrusel pasa por detrás.
+
+           Es el botón que más se toca, y al correr la fila para buscar una
+           talla se iba con ella: había que volver a deslizar para encontrarlo.
+           Mismo arreglo que la flecha de volver de la cabecera.
+
+           El botón de Filament ya tiene fondo sólido, así que no se ve el texto
+           de los otros pasando por debajo. La "sombra" de 8 px no es sombra: es
+           un bloque del color del panel que tapa el hueco entre botones. */
+        .wa-btns .wa-enviar-fijo{position:sticky;left:0;z-index:4;
+                                 box-shadow:8px 0 0 var(--wa-cab-bg),
+                                            15px 0 11px -8px rgba(10,16,26,.30)}
+        html.dark .wa-btns .wa-enviar-fijo{box-shadow:8px 0 0 var(--wa-cab-bg),
+                                                      15px 0 11px -8px rgba(0,0,0,.55)}
     }
     html.wa--teclado .wa-btns{margin-top:6px}
     html.wa--teclado .wa-chat{min-height:calc(var(--wa-alto, 100vh) * .26)}
@@ -1556,7 +1571,8 @@
                                  $wire.usarRespuesta(r.id);
                              }
                          }"
-                         x-on:click.outside="abierto = false">
+                         x-on:click.outside="abierto = false"
+                         x-on:wa-abrir-rapidas.window="abierto = ! abierto; termino = ''">
 
                         <div class="wa-slash" x-show="abierto" x-cloak>
                             <div class="wa-slash-t">Respuestas rápidas</div>
@@ -1571,6 +1587,14 @@
                             <div class="wa-slash-nada" x-show="filtradas.length === 0">
                                 Ninguna se llama así. Borrá la barra para seguir escribiendo.
                             </div>
+
+                            {{-- Cerrar a mano. Abierta con el botón ⚡, no hay una
+                                 barra que borrar para que se vaya. --}}
+                            <button type="button" class="wa-slash-op"
+                                    style="text-align:center;color:var(--wa-suave);font-size:12px"
+                                    x-on:click="abierto = false">
+                                Cerrar
+                            </button>
                         </div>
 
                         <textarea class="wa-escribir" rows="2" wire:model="texto"
@@ -1591,10 +1615,65 @@
                                   "></textarea>
                     </div>
 
+                    {{-- ── El renglón de botones, en orden de uso ──────────────────
+                         1. Enviar — clavado a la izquierda, nunca se va.
+                         2. Mejorar y Respuestas — lo que se hace con el texto.
+                         3. Las tallas — el catálogo de esa talla de un toque.
+                         4. Las fotos — de este aparato y las guardadas.
+
+                         Las respuestas rápidas dejaron de ser botones sueltos acá.
+                         Eran diez botones de texto empujando todo lo demás fuera
+                         de la pantalla. Ahora están detrás de "⚡ Respuestas" y
+                         de la barra "/", que abren la misma lista. --}}
                     <div class="wa-btns">
-                        <x-filament::button size="sm" wire:click="enviar" icon="heroicon-m-paper-airplane">
+                        {{-- Clavado: el carrusel se desliza por detrás y Enviar se
+                             queda en su lugar. Es el botón que más se toca, y se
+                             perdía de vista justo cuando corrías la fila para
+                             buscar una talla. Ver .wa-enviar-fijo en el CSS. --}}
+                        <x-filament::button size="sm" wire:click="enviar" icon="heroicon-m-paper-airplane"
+                            class="wa-enviar-fijo">
                             Enviar
                         </x-filament::button>
+
+                        @if($this->puedeMejorar())
+                            <button type="button" class="wa-chip wa-chip-ia" wire:click="mejorar"
+                                    wire:loading.attr="disabled" wire:target="mejorar"
+                                    title="Corrige ortografía, tildes y redacción sin inventar nada">
+                                <span wire:loading.remove wire:target="mejorar">✨ Mejorar</span>
+                                <span wire:loading wire:target="mejorar">Corrigiendo…</span>
+                            </button>
+                        @endif
+
+                        @if($textoAntes !== '')
+                            <button type="button" class="wa-chip" wire:click="deshacerMejora"
+                                    title="Volver a como lo escribiste vos">↶ Deshacer</button>
+                        @endif
+
+                        {{-- Abre la misma lista que la barra "/", arriba del cuadro
+                             de escribir. Sin ir al servidor: es solo mostrarla.
+
+                             stopPropagation porque la lista se cierra sola al
+                             tocar afuera de ella, y este botón ESTÁ afuera: sin
+                             frenar el toque, se abría y se cerraba en el mismo
+                             instante. --}}
+                        @if($resp->count())
+                            <button type="button" class="wa-chip"
+                                    onclick="event.stopPropagation(); window.dispatchEvent(new CustomEvent('wa-abrir-rapidas'))"
+                                    title="Ver las respuestas rápidas (también con / en el cuadro)">
+                                ⚡ Respuestas
+                            </button>
+                        @endif
+
+                        {{-- Las tallas, cada una directo a su catálogo. El número
+                             chico es cuántas presentaciones hay en esa talla. --}}
+                        @foreach($this->tallasDisponibles() as $talla => $cuantas)
+                            <button type="button" class="wa-chip wa-chip-talla"
+                                    wire:key="talla-{{ $talla }}"
+                                    wire:click="catalogoDeTalla(@js((string) $talla))"
+                                    title="Mandar el catálogo de la talla {{ $talla }}">
+                                {{ $talla }} <span class="wa-chip-n">{{ $cuantas }}</span>
+                            </button>
+                        @endforeach
 
                         {{-- Mandar una foto de la computadora o del teléfono.
 
@@ -1617,49 +1696,18 @@
                             <span wire:loading.remove wire:target="fotoSuelta">📎 Foto</span>
                             <span wire:loading wire:target="fotoSuelta">Subiendo…</span>
 
-                            <input type="file" accept="image/*" wire:model="fotoSuelta"
+                            {{-- "multiple": se eligen varias de una vez en la galería
+                                 del teléfono. Salen en el orden en que se tocaron. --}}
+                            <input type="file" accept="image/*" multiple wire:model="fotoSuelta"
                                    style="display:none"
-                                   aria-label="Elegir una foto para mandar al cliente">
+                                   aria-label="Elegir una o varias fotos para mandar al cliente">
                         </label>
 
-                        @if($this->puedeMejorar())
-                            <button type="button" class="wa-chip wa-chip-ia" wire:click="mejorar"
-                                    wire:loading.attr="disabled" wire:target="mejorar"
-                                    title="Corrige ortografía, tildes y redacción sin inventar nada">
-                                <span wire:loading.remove wire:target="mejorar">✨ Mejorar</span>
-                                <span wire:loading wire:target="mejorar">Corrigiendo…</span>
-                            </button>
-                        @endif
-
-                        @if($textoAntes !== '')
-                            <button type="button" class="wa-chip" wire:click="deshacerMejora"
-                                    title="Volver a como lo escribiste vos">↶ Deshacer</button>
-                        @endif
-
-                        {{-- Acá iba "📏 Tabla de tallas". Se quitó del renglón de
-                             botones: el método mandarTallas() sigue vivo y la
-                             respuesta automática de tallas también, así que
-                             volver a ponerlo es agregar el botón otra vez. --}}
-
-                        <button type="button" class="wa-chip wa-chip-talla" wire:click="abrirCatalogo"
-                                title="Elegir talla y productos para mandarle">
-                            🛒 Catálogo
-                        </button>
-
-                        <button type="button" class="wa-chip" wire:click="abrirFotos"
-                                title="Mandar una foto guardada">
-                            📷 Fotos
-                        </button>
-
-                        {{-- Los botones que Wil crea solos, desde el admin.
-                             Van acá y no escondidos en la pestaña: la gracia es
-                             que estén a un toque mientras se escribe. --}}
-                        @foreach($resp as $r)
-                            <button type="button" class="wa-chip" wire:click="usarRespuesta({{ $r->id }})"
-                                    wire:key="chip-{{ $r->id }}" title="{{ \Illuminate\Support\Str::limit($r->texto, 120) }}">
-                                @if($r->tieneFoto())📷 @endif{{ $r->titulo }}
-                            </button>
-                        @endforeach
+                        {{-- Acá iba "📷 Guardadas". Se quitó: las fotos que se
+                             repiten van como respuestas rápidas con foto, que ya
+                             salen con su texto de pie y se eligen desde ⚡ o con
+                             la barra "/". Eran dos lugares para lo mismo.
+                             abrirFotos() sigue existiendo por si se vuelve. --}}
 
                         {{-- En el teléfono el Enter salta línea siempre, así que
                              esta ayuda solo aplica en la computadora. --}}

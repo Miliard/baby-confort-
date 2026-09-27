@@ -1016,6 +1016,19 @@ class Whatsapp extends Page
         $this->elegidas = $this->presentacionesDe($talla)->pluck('id')->map(fn ($i) => (string) $i)->all();
     }
 
+    /**
+     * El botón de una talla, en el renglón de abajo del chat.
+     *
+     * Abre el catálogo YA parado en esa talla, con sus presentaciones
+     * marcadas. Antes eran dos toques —"Catálogo" y después la talla en la
+     * grilla— para algo que se hace decenas de veces al día. Ahora es uno.
+     */
+    public function catalogoDeTalla(string $talla): void
+    {
+        $this->abrirCatalogo();
+        $this->elegirTalla($talla);
+    }
+
     public function volverATallas(): void
     {
         $this->tallaElegida = null;
@@ -1682,24 +1695,46 @@ class Whatsapp extends Page
 
         if (! $conv) { $this->fotoSuelta = null; return; }
 
-        // 5 MB. WhatsApp aguanta bastante más, pero una foto de teléfono sin
-        // achicar son 8 o 10 MB y tarda una eternidad en subir por datos
-        // móviles, que es como trabajás vos.
+        /*
+         * Una o varias, da igual.
+         *
+         * Antes el selector aceptaba UNA sola foto, y para mandar tres había
+         * que repetir el camino tres veces. Ahora se eligen todas juntas y
+         * salen en el orden en que se eligieron.
+         *
+         * Con "multiple" Livewire entrega una lista; sin él, un archivo
+         * suelto. Se trata todo como lista para no tener dos caminos.
+         */
+        $fotos = is_array($this->fotoSuelta) ? array_values($this->fotoSuelta) : [$this->fotoSuelta];
+        $fotos = array_values(array_filter($fotos));
+
+        if (! $fotos) { $this->fotoSuelta = null; return; }
+
+        // 5 MB cada una. WhatsApp aguanta bastante más, pero una foto de
+        // teléfono sin achicar son 8 o 10 MB y tarda una eternidad en subir
+        // por datos móviles, que es como trabajás vos. Y hasta 10 de una vez:
+        // más que eso ya es un álbum, y en el chat del cliente se vuelve una
+        // pared de fotos.
         try {
             $this->validate([
-                'fotoSuelta' => ['image', 'max:5120'],
+                'fotoSuelta'   => ['required'],
+                'fotoSuelta.*' => ['image', 'max:5120'],
             ], [
-                'fotoSuelta.image' => 'Eso no es una imagen.',
-                'fotoSuelta.max'   => 'La foto pasa de 5 MB. Sacale una más chica o achicala.',
+                'fotoSuelta.*.image' => 'Una de las fotos no es una imagen.',
+                'fotoSuelta.*.max'   => 'Una de las fotos pasa de 5 MB. Achicala y probá de nuevo.',
             ]);
+
+            if (count($fotos) > 10) {
+                throw new \RuntimeException('Son más de 10 fotos. Mandalas en dos tandas.');
+            }
         } catch (\Throwable $e) {
             $this->fotoSuelta = null;
 
             Notification::make()
                 ->title('No se pudo mandar')
                 ->body($e instanceof \Illuminate\Validation\ValidationException
-                    ? implode(' ', \Illuminate\Support\Arr::flatten($e->errors()))
-                    : 'Revisá el archivo.')
+                    ? implode(' ', array_unique(\Illuminate\Support\Arr::flatten($e->errors())))
+                    : ($e->getMessage() ?: 'Revisá el archivo.'))
                 ->warning()->send();
             return;
         }
@@ -1714,37 +1749,57 @@ class Whatsapp extends Page
             return;
         }
 
-        try {
-            // Al disco público, que es de donde Meta la va a descargar. Se
-            // guarda con las de WhatsApp para que la limpieza automática de
-            // fotos viejas también las alcance y no llenen el volumen.
-            $ruta = $this->guardarComoAcepta($this->fotoSuelta);
+        // El texto del cuadro va de pie SOLO en la primera. Repetido debajo de
+        // cada foto se leería tres veces lo mismo; así es como lo hace
+        // WhatsApp cuando mandás un grupo.
+        $pie = trim($this->texto) !== '' ? trim($this->texto) : null;
 
-            if (! $ruta) {
-                throw new \RuntimeException(
-                    'Esa imagen está en un formato que WhatsApp no acepta, y el servidor '
-                    . 'no pudo convertirla. Abrila y guardala como JPG o PNG.'
+        $salieron = 0;
+        $fallos   = [];
+
+        foreach ($fotos as $i => $archivo) {
+            try {
+                // Al disco público, que es de donde Meta la va a descargar. Se
+                // guarda con las de WhatsApp para que la limpieza automática de
+                // fotos viejas también las alcance y no llenen el volumen.
+                $ruta = $this->guardarComoAcepta($archivo);
+
+                if (! $ruta) {
+                    throw new \RuntimeException(
+                        'formato que WhatsApp no acepta y no se pudo convertir (guardala como JPG)'
+                    );
+                }
+
+                $m = WhatsappApi::enviarImagen(
+                    $conv,
+                    url('/storage/' . $ruta),
+                    $i === 0 ? $pie : null,
+                    auth()->id()
                 );
+
+                if ($m->estado === 'fallido') {
+                    $fallos[] = 'foto ' . ($i + 1) . ': ' . ($m->error ?: 'WhatsApp la rechazó');
+                } else {
+                    $salieron++;
+                }
+            } catch (\Throwable $e) {
+                // Una que falla no frena a las demás: se anota y se sigue.
+                $fallos[] = 'foto ' . ($i + 1) . ': ' . $e->getMessage();
             }
+        }
 
-            $pie = trim($this->texto) !== '' ? trim($this->texto) : null;
+        // El cuadro se limpia solo si el texto se fue como pie de la primera:
+        // si esa falló, el texto se queda para no perderlo.
+        if ($pie !== null && $salieron > 0 && ! str_starts_with($fallos[0] ?? '', 'foto 1:')) {
+            $this->texto = '';
+        }
 
-            $m = WhatsappApi::enviarImagen($conv, url('/storage/' . $ruta), $pie, auth()->id());
-
-            if ($m->estado === 'fallido') {
-                Notification::make()
-                    ->title('La foto no salió')
-                    ->body((string) ($m->error ?: 'WhatsApp la rechazó.'))
-                    ->danger()->persistent()->send();
-            } else {
-                // El cuadro se limpia solo si el texto se fue como pie: si no,
-                // se perdería lo que estaba escrito para mandar aparte.
-                if ($pie !== null) $this->texto = '';
-            }
-        } catch (\Throwable $e) {
+        if ($fallos) {
             Notification::make()
-                ->title('No se pudo mandar la foto')
-                ->body($e->getMessage())
+                ->title($salieron
+                    ? "Salieron {$salieron} de " . count($fotos)
+                    : (count($fotos) === 1 ? 'La foto no salió' : 'No salió ninguna'))
+                ->body(implode(' · ', $fallos))
                 ->danger()->persistent()->send();
         }
 
