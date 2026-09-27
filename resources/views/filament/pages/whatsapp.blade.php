@@ -1664,16 +1664,21 @@
                             </button>
                         @endif
 
-                        {{-- Las tallas, cada una directo a su catálogo. El número
-                             chico es cuántas presentaciones hay en esa talla. --}}
-                        @foreach($this->tallasDisponibles() as $talla => $cuantas)
-                            <button type="button" class="wa-chip wa-chip-talla"
-                                    wire:key="talla-{{ $talla }}"
-                                    wire:click="catalogoDeTalla(@js((string) $talla))"
-                                    title="Mandar el catálogo de la talla {{ $talla }}">
-                                {{ $talla }} <span class="wa-chip-n">{{ $cuantas }}</span>
-                            </button>
-                        @endforeach
+                        {{-- Las tallas, todas detrás de un solo botón.
+
+                             Estuvieron sueltas en el renglón, una por talla, para
+                             ahorrar un toque. Pero son muchas: el renglón se
+                             volvía una fila larguísima y lo demás quedaba fuera
+                             de la pantalla. Un botón que abre la grilla de tallas
+                             cuesta un toque más y deja el renglón corto.
+
+                             catalogoDeTalla() sigue existiendo, por si algún día
+                             conviene volver a poner alguna talla suelta —la que
+                             más se vende— al lado de este botón. --}}
+                        <button type="button" class="wa-chip wa-chip-talla" wire:click="abrirCatalogo"
+                                title="Elegir la talla y mandarle el catálogo">
+                            🛒 Catálogo
+                        </button>
 
                         {{-- Mandar una foto de la computadora o del teléfono.
 
