@@ -43,6 +43,77 @@ class Etiquetado
         return false;
     }
 
+    /**
+     * Las formas de decir "quiero comprar", como las escriben los clientes.
+     *
+     * Se comparan contra el mensaje ya en minúsculas y sin tildes, así que
+     * acá van escritas igual: "envieme" y no "envíeme".
+     *
+     * Para agregar una frase nueva, se suma un renglón. Cada una trata de ir
+     * pegada a algo que diga PRODUCTO o CANTIDAD — "me manda dos", "me manda
+     * la talla L" — y no suelta. "Me manda" solo también es "me manda el
+     * precio" o "me manda una foto", y esos son preguntas, no pedidos: la
+     * pestaña se llenaría de gente que solo estaba averiguando.
+     */
+    private const QUIERE_PEDIR = [
+        // "quiero otro paquete", "quiero 2", "quiero pedir", "quiero la talla L"
+        '/\bquiero\s+(otro|otra|un|una|dos|tres|cuatro|cinco|\d+|mas|pedir|encargar|comprar|llevar|hacer\s+(un|mi|el)?\s*pedido)\b(?!\s+(foto|fotos|imagen|imagenes|informacion|info|precio|precios|ubicacion|captura|video|audio|lista|catalogo|cotizacion|numero|cuenta|mensaje))/',
+        '/\bquiero\s+(el|la|los|las)\s+(de\s+)?(talla|paquete|paquetes|panales|calzoncito)/',
+        '/\b(quisiera|deseo|necesito|ocupo)\s+(otro|otra|un|una|dos|tres|\d+|pedir|encargar|comprar|llevar)\b(?!\s+(foto|fotos|imagen|imagenes|informacion|info|precio|precios|ubicacion|captura|video|audio|lista|catalogo|cotizacion|numero|cuenta|mensaje))/',
+
+        // "me manda dos", "mándeme la talla XL", "me puede enviar otro"
+        '/\bme\s+(manda|mandas|mandan|envia|envias|envian|trae|traes)\s+(otro|otra|un|una|dos|tres|cuatro|\d+|el\s+paquete|los\s+paquetes|la\s+talla|talla|panales|calzoncito)\b(?!\s+(foto|fotos|imagen|imagenes|informacion|info|precio|precios|ubicacion|captura|video|audio|lista|catalogo|cotizacion|numero|cuenta|mensaje))/',
+        '/\b(mandeme|mandame|enviame|envieme|traigame|traeme)\s+(otro|otra|un|una|dos|tres|cuatro|\d+|el\s+paquete|los\s+paquetes|la\s+talla|talla|panales|calzoncito)\b(?!\s+(foto|fotos|imagen|imagenes|informacion|info|precio|precios|ubicacion|captura|video|audio|lista|catalogo|cotizacion|numero|cuenta|mensaje))/',
+        '/\bme\s+(puede|podria|pueden|podrian|podes)\s+(mandar|enviar|traer)\s+(otro|otra|un|una|dos|tres|\d+|el\s+paquete|los\s+paquetes|la\s+talla|talla|panales)\b(?!\s+(foto|fotos|imagen|imagenes|informacion|info|precio|precios|ubicacion|captura|video|audio|lista|catalogo|cotizacion|numero|cuenta|mensaje))/',
+
+        // "quiero hacer un pedido", "cómo hago el pedido", "otro pedido"
+        '/\b(hacer|hago|realizar|poner)\s+(un|el|mi|otro|nuevo)?\s*pedido\b/',
+        '/\b(otro|nuevo)\s+(pedido|paquete)\b/',
+        '/\bcomo\s+(hago|puedo\s+hacer|hacemos|le\s+hago)\s+(el|un|mi)?\s*pedido\b/',
+
+        // "se los encargo", "lo quiero", "me llevo dos", "apártemelo"
+        '/\b(le|se\s+lo|se\s+los|se\s+las)\s+(encargo|pido)\b/',
+        '/\b(si\s+)?(lo|los|la|las)\s+quiero\b/',
+        '/\bme\s+(llevo|quedo\s+con)\b/',
+        '/\b(apartame|aparteme|apartemelo|apartemelos)\b/',
+    ];
+
+    /**
+     * ¿El cliente está diciendo que quiere comprar?
+     *
+     * Solo reglas, sin IA, y a propósito: esto se pregunta con CADA mensaje
+     * que entra, en el mismo instante en que llega. Una llamada a la IA acá
+     * tardaría segundos por mensaje — y el aviso de WhatsApp se corta si
+     * tardamos, que es lo que ya hizo perder mensajes una vez.
+     *
+     * Primero se descartan las negaciones: "ya no lo quiero", "no me mande
+     * otro". Ahí las frases de arriba también calzan, y significan lo
+     * contrario.
+     */
+    public static function quierePedir(?string $texto): bool
+    {
+        $t = mb_strtolower(trim((string) $texto));
+        if ($t === '' || mb_strlen($t) < 4) return false;
+
+        $t = strtr($t, ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n']);
+        $t = preg_replace('/\s+/u', ' ', $t);
+
+        // "no lo quiero", "ya no quiero", "todavía no me mande", "tampoco"
+        if (preg_match(
+            '/\b(no|ya\s+no|todavia\s+no|aun\s+no|tampoco|nunca)\s+(me\s+)?(lo\s+|los\s+|la\s+|las\s+)?'
+            . '(quiero|quisiera|deseo|necesito|ocupo|mande|mandes|envie|envies|traiga)\b/',
+            $t
+        )) {
+            return false;
+        }
+
+        foreach (static::QUIERE_PEDIR as $patron) {
+            if (preg_match($patron, $t)) return true;
+        }
+
+        return false;
+    }
+
     /** ¿Este texto lleva el enlace de rastreo? */
     public static function llevaRastreo(?string $texto): bool
     {
@@ -70,7 +141,7 @@ class Etiquetado
      * lleva el enlace es un paso más adelante, aunque de casualidad también
      * mencione un total.
      */
-    public static function alGuardarMensaje(?WaConversacion $conv, ?string $texto): void
+    public static function alGuardarMensaje(?WaConversacion $conv, ?string $texto, bool $delCliente = false): void
     {
         if (! $conv) return;
 
@@ -82,6 +153,14 @@ class Etiquetado
 
             if (static::pareceOrden($texto)) {
                 static::marcarPedido($conv);
+                return;
+            }
+
+            // El cliente dijo que quiere comprar, con cualquiera de las mil
+            // formas de decirlo. Va a Pedidos para que no se pierda; si al
+            // final no se concretó, lo sacás vos al depurar la pestaña.
+            if ($delCliente && static::quierePedir($texto)) {
+                static::marcarIntencion($conv);
             }
         } catch (\Throwable $e) {
             // Etiquetar es una comodidad. Que falle no puede costar un mensaje
@@ -131,6 +210,27 @@ class Etiquetado
             // Si las columnas todavía no existen, no pasa nada: el etiquetado
             // es lo que importa.
         }
+    }
+
+    /**
+     * El cliente dijo que quiere comprar. SOLO se le agrega "Pedidos".
+     *
+     * A diferencia de marcarPedido(), acá no se suelta nada ni se reinicia el
+     * recorrido. Y la diferencia importa: una intención no es una orden. El
+     * cliente que está en Preparados esperando su paquete y escribe "me manda
+     * otro para mi hermana" sigue teniendo un paquete en camino. Si esto le
+     * sacara la etiqueta de Preparados, su envío actual desaparecería de la
+     * lista donde se controla.
+     *
+     * Así queda en las dos pestañas a la vez, que es exactamente lo que pasa:
+     * tiene un pedido en curso Y quiere otro. Al depurar Pedidos, decidís.
+     */
+    public static function marcarIntencion(WaConversacion $conv): void
+    {
+        $pedido = WaEtiqueta::porRol('pedido');
+        if (! $pedido) return;
+
+        $conv->etiquetas()->syncWithoutDetaching([$pedido->id]);
     }
 
     /**

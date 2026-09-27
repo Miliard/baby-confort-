@@ -31,7 +31,7 @@ class WaMensaje extends Model
     {
         static::created(function (WaMensaje $m) {
             try {
-                \App\Services\Etiquetado::alGuardarMensaje($m->conversacion, $m->texto);
+                \App\Services\Etiquetado::alGuardarMensaje($m->conversacion, $m->texto, $m->esDelCliente());
             } catch (\Throwable $e) {
                 // Guardar el mensaje es lo que no puede fallar. Lo demás es
                 // comodidad.
