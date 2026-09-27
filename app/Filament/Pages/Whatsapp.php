@@ -703,16 +703,25 @@ class Whatsapp extends Page
         // suelta seguida de un párrafo.
         $conFoto = $this->fotoPendiente();
 
+        // Si la respuesta lleva varias fotos, salen todas seguidas y el texto
+        // va de pie de la primera. Se guarda si alguna falló para avisar.
+        $fallidas = [];
+
         if ($conFoto) {
             // Con foto se manda de corrido: Meta tiene que ir a buscar la
             // imagen a nuestro sitio, así que el globo no podría dibujarse
             // antes de saber si la aceptó.
-            $mensaje = WhatsappApi::enviarImagen(
-                $conv,
-                $conFoto->urlCompleta(),
-                $texto,
-                auth()->id()
-            );
+            foreach ($conFoto->urlsCompletas() as $i => $urlFoto) {
+                $m = WhatsappApi::enviarImagen(
+                    $conv,
+                    $urlFoto,
+                    $i === 0 ? $texto : null,
+                    auth()->id()
+                );
+
+                if ($i === 0) $mensaje = $m;
+                if ($m->estado === 'fallido') $fallidas[] = $m;
+            }
         } else {
             // En dos tiempos. Acá solo se anota, que es cosa de milisegundos,
             // y el globo aparece enseguida en gris. La llamada a Meta —lo que
@@ -740,10 +749,15 @@ class Whatsapp extends Page
         // no acá: en este punto todavía no se sabe cómo le fue.
         if (! $conFoto) return;
 
-        if ($mensaje->estado === 'fallido') {
+        if ($fallidas) {
+            $total = $conFoto->cuantasFotos();
+            $n     = count($fallidas);
+
             Notification::make()
-                ->title('No se pudo enviar')
-                ->body($mensaje->error ?: 'Meta rechazó el mensaje.')
+                ->title($total > 1
+                    ? "No se pudieron enviar {$n} de {$total} fotos"
+                    : 'No se pudo enviar')
+                ->body($fallidas[0]->error ?: 'Meta rechazó el mensaje.')
                 ->danger()->persistent()->send();
         }
     }

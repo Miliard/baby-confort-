@@ -52,12 +52,17 @@ class RespuestaRapidaResource extends Resource
                 ->required()
                 ->rows(8),
 
-            Forms\Components\FileUpload::make('imagen')
-                ->label('Foto (opcional)')
-                ->helperText('Si le ponés foto, el mensaje sale COMO FOTO y el texto de arriba '
-                           . 'va de pie. Hay respuestas que se explican mejor con una imagen '
-                           . 'que con tres párrafos. Hasta 5 MB.')
+            Forms\Components\FileUpload::make('imagenes')
+                ->label('Fotos (opcional)')
+                ->helperText('Podés poner varias, hasta 10. Al mandarla salen todas seguidas '
+                           . 'y el texto de arriba va de pie de la PRIMERA. Arrastralas para '
+                           . 'cambiar el orden. Hasta 5 MB cada una.')
                 ->image()
+                ->multiple()
+                ->reorderable()
+                ->appendFiles()
+                ->maxFiles(10)
+                ->panelLayout('grid')
                 ->disk('public')
                 ->directory('whatsapp/rapidas')
                 ->imageEditor()
@@ -86,11 +91,14 @@ class RespuestaRapidaResource extends Resource
                     ->sortable()
                     ->width('60px'),
 
-                Tables\Columns\ImageColumn::make('imagen')
-                    ->label('Foto')
+                Tables\Columns\ImageColumn::make('imagenes')
+                    ->label('Fotos')
                     ->disk('public')
                     ->height(38)
-                    ->width(38),
+                    ->width(38)
+                    ->stacked()
+                    ->limit(3)
+                    ->limitedRemainingText(),
 
                 Tables\Columns\TextColumn::make('titulo')
                     ->label('Botón')

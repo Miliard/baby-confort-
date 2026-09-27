@@ -1506,11 +1506,18 @@
                     @php $pendiente = $this->fotoPendiente(); @endphp
                     @if($pendiente)
                         <div class="wa-citando" style="border-left-color:#4aa3df">
-                            <img src="{{ $pendiente->url() }}" alt="" class="wa-pend-img">
+                            @php $nFotos = $pendiente->cuantasFotos(); @endphp
+                            @foreach(array_slice($pendiente->urls(), 0, 4) as $u)
+                                <img src="{{ $u }}" alt="" class="wa-pend-img">
+                            @endforeach
                             <div style="flex:1;min-width:0">
-                                <div class="wa-cita-q">📷 Va con esta foto</div>
+                                <div class="wa-cita-q">
+                                    📷 {{ $nFotos > 1 ? "Va con {$nFotos} fotos" : 'Va con esta foto' }}
+                                </div>
                                 <div class="wa-citando-x">
-                                    Lo que escribas abajo sale de pie de la imagen
+                                    {{ $nFotos > 1
+                                        ? 'Salen todas seguidas; lo que escribas abajo va de pie de la primera'
+                                        : 'Lo que escribas abajo sale de pie de la imagen' }}
                                 </div>
                             </div>
                             <button type="button" class="wa-mini" wire:click="quitarFotoPendiente"
