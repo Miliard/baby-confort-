@@ -1548,7 +1548,11 @@
                         $paraSlash = $resp->map(fn ($r) => [
                             'id'     => $r->id,
                             'titulo' => $r->titulo,
-                            'previa' => \Illuminate\Support\Str::limit(strip_tags($r->texto), 70),
+                            // Sin texto, la previa dice cuántas fotos lleva: si
+                            // quedara vacía, en la lista no se sabría qué es.
+                            'previa' => filled($r->texto)
+                                ? \Illuminate\Support\Str::limit(strip_tags((string) $r->texto), 70)
+                                : ($r->cuantasFotos() === 1 ? 'Solo 1 foto' : 'Solo ' . $r->cuantasFotos() . ' fotos'),
                             'foto'   => $r->tieneFoto(),
                         ])->values();
                     @endphp

@@ -45,11 +45,17 @@ class RespuestaRapidaResource extends Resource
                 ->required()
                 ->maxLength(60),
 
+            // Opcional: hay respuestas que son solo fotos. Pero no las dos cosas
+            // vacías — una respuesta sin texto ni fotos no mandaría nada.
             Forms\Components\Textarea::make('texto')
-                ->label('Mensaje que se manda')
+                ->label('Mensaje que se manda (opcional)')
                 ->helperText('Podés usar *negrita* como en WhatsApp. Se copia al cuadro de texto '
-                           . 'y se puede editar antes de mandarlo.')
-                ->required()
+                           . 'y se puede editar antes de mandarlo. Si la respuesta es solo '
+                           . 'fotos, dejalo vacío.')
+                ->requiredWithout('imagenes')
+                ->validationMessages([
+                    'required_without' => 'Poné un mensaje o al menos una foto: vacía no mandaría nada.',
+                ])
                 ->rows(8),
 
             Forms\Components\FileUpload::make('imagenes')
@@ -109,6 +115,9 @@ class RespuestaRapidaResource extends Resource
                     ->label('Mensaje')
                     ->limit(70)
                     ->tooltip(fn ($record) => $record->texto)
+                    // Las de solo fotos no tienen texto: sin esto la celda
+                    // quedaba en blanco y parecía un error.
+                    ->placeholder('— solo fotos —')
                     ->searchable(),
 
                 Tables\Columns\IconColumn::make('activa')

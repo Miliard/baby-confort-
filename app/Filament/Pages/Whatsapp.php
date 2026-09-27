@@ -679,7 +679,10 @@ class Whatsapp extends Page
         $conv  = $this->conversacion();
         $texto = trim($this->texto);
 
-        if (! $conv || $texto === '') return;
+        // Con el cuadro vacío no se manda nada... salvo que haya fotos de una
+        // respuesta rápida esperando: esas salen solas, sin texto de pie.
+        if (! $conv) return;
+        if ($texto === '' && ! $this->fotoPendiente()) return;
 
         if (! $conv->ventanaAbierta()) {
             Notification::make()
@@ -1609,9 +1612,11 @@ class Whatsapp extends Page
         $r = \App\Models\RespuestaRapida::find($id);
         if (! $r) return;
 
-        $this->texto = $r->texto;
+        // (string): una respuesta de solo fotos no tiene texto, y el cuadro de
+        // escribir no acepta "nada" — acepta un texto vacío.
+        $this->texto = (string) $r->texto;
         $this->pestana = 'chat';
-        $this->abrirCajaSiHaceFalta($r->texto);
+        $this->abrirCajaSiHaceFalta((string) $r->texto);
 
         // Si la respuesta lleva foto, la foto NO se manda todavía: queda
         // esperando pegada al cuadro de texto. Así seguís pudiendo corregir el
