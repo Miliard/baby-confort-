@@ -27,6 +27,16 @@ class WaFotoResource extends Resource
     protected static ?string $pluralModelLabel = 'fotos';
     protected static ?int $navigationSort = 4;
 
+    /*
+     * Fuera del menú. Las fotos que se mandan seguido ahora van como
+     * respuestas rápidas con foto: salen con su texto de pie y se eligen desde
+     * ⚡ o con la barra "/". Tener dos lugares para lo mismo confundía.
+     *
+     * Se esconde en vez de borrarse: las fotos cargadas acá no se pierden, y
+     * nada de lo que todavía apunta a esta sección se rompe.
+     */
+    protected static bool $shouldRegisterNavigation = false;
+
     public static function canAccess(): bool
     {
         return ! (bool) (auth()->user()?->solo_chat ?? false);
