@@ -737,6 +737,20 @@ class CrearGuia extends Page implements HasForms
             'user_id'         => auth()->id(),
         ]);
 
+        // A la cola → Preparados, igual que cuando se guarda desde el chat. Si
+        // ese teléfono tiene conversación, se mueve; si no tiene (un pedido
+        // que no entró por WhatsApp), no hay nada que mover.
+        try {
+            $tel  = \App\Models\WaConversacion::telefonoCorto($d['telefono'] ?? '');
+            $conv = strlen($tel) === 8
+                ? \App\Models\WaConversacion::where('telefono', $tel)->first()
+                : null;
+
+            if ($conv) \App\Services\Etiquetado::marcarProcesada($conv);
+        } catch (\Throwable $e) {
+            // Mover la pestaña es comodidad: que falle no frena la guía.
+        }
+
         // El cliente ya puede rastrear con su teléfono en este mismo momento:
         // verá "pedido confirmado". El número de guía se rellena solo cuando
         // se importe el PDF de etiquetas.

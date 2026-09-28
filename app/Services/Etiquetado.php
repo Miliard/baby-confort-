@@ -148,6 +148,11 @@ class Etiquetado
         try {
             if (static::llevaRastreo($texto)) {
                 static::marcarProcesada($conv);
+
+                // El enlace ya salió —desde el panel o desde el teléfono—:
+                // se da por mandado, para que no vuelva a salir solo cuando
+                // el cliente escriba.
+                EnlacesPendientes::darPorMandados($conv);
                 return;
             }
 

@@ -190,6 +190,10 @@ class WhatsappWebhookController extends Controller
         $conv->archivada = false;
         $conv->save();
 
+        // Acá se mandaba solo el enlace de rastreo que había quedado pendiente
+        // por la ventana cerrada. Se quitó: el enlace lo manda Wil a mano. La
+        // pieza sigue en EnlacesPendientes::mandar() por si se quiere volver.
+
         // Respuesta automática (por ahora, solo la tabla de tallas).
         if ($tipo === 'text' && filled($texto)) {
             AutoRespuestas::quizasResponder($conv, $texto);

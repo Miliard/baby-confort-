@@ -2229,6 +2229,11 @@ class Whatsapp extends Page
         $this->pedOrigen = $m->texto;
         $datos = $this->leerOrden($m->texto);
 
+        // Procesar solo llena el formulario: no mueve de pestaña. El paso a
+        // Preparados es al GUARDAR en la cola (ver guardarPedido), porque
+        // recién ahí la guía existe y va a salir en el Excel. Abrir una orden
+        // para mirarla y descartarla no tiene que mover nada.
+
         /*
          * ACÁ NO ENTRA LA IA. Y no es por miedo: es que sobra.
          *
@@ -2774,6 +2779,22 @@ class Whatsapp extends Page
         $avisoCobro = '';
 
         /*
+         * Guardada en la cola → Preparados. Siempre, en este momento.
+         *
+         * Es el punto exacto en que el pedido queda armado: la guía existe y va
+         * a salir en el próximo Excel. Antes el paso dependía de que saliera el
+         * enlace de rastreo, y con la ventana de 24 horas cerrada no salía — la
+         * conversación se quedaba en Pedidos con la guía ya en la cola.
+         */
+        if ($conv) {
+            try {
+                \App\Services\Etiquetado::marcarProcesada($conv);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Marcando preparada al guardar: ' . $e->getMessage());
+            }
+        }
+
+        /*
          * Guía sin cobro al entregar → a la lista de "Sin cobro".
          *
          * Una guía que sale en cero significa que ese dinero no llega con el
@@ -2830,10 +2851,17 @@ class Whatsapp extends Page
                 }
             }
         } elseif ($conv) {
-            // Fuera de las 24 horas no se puede escribir: se deja preparado.
+            /*
+             * Fuera de las 24 horas el enlace no puede salir ahora. Lo mandás
+             * vos a mano: queda escrito en el cuadro, listo para cuando el
+             * cliente vuelva a escribir. (El paso a Preparados ya se hizo
+             * arriba, al guardar.)
+             */
             $this->texto = \App\Models\GuiaBorrador::mensajeCliente($fila);
-            $aviso = ' La ventana de 24 horas está cerrada: el mensaje con el '
-                   . 'rastreo quedó escrito, mandalo cuando el cliente responda.';
+
+            $aviso = ' La ventana de 24 horas está cerrada: ya pasó a Preparados, y el '
+                   . 'mensaje con el rastreo quedó escrito en el cuadro. Mandalo cuando '
+                   . 'el cliente vuelva a escribir.';
         }
 
         $this->limpiarPedido();
