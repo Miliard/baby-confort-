@@ -689,7 +689,7 @@ class Whatsapp extends Page
                 ->title('La ventana de 24 horas está cerrada')
                 ->body('WhatsApp solo deja escribir libremente dentro de las 24 horas '
                      . 'desde el último mensaje del cliente. Fuera de eso, únicamente plantillas aprobadas.')
-                ->warning()->persistent()->send();
+                ->warning()->duration(8000)->send();
             return;
         }
 
@@ -983,7 +983,7 @@ class Whatsapp extends Page
             Notification::make()
                 ->title("Se mandaron {$mandadas}, fallaron {$fallaron}")
                 ->body('Mirá el chat: cada una que falló dice por qué.')
-                ->warning()->persistent()->send();
+                ->warning()->duration(8000)->send();
         } else {
             Notification::make()
                 ->title("Se {$this->conjugar($mandadas)} {$mandadas} " . ($mandadas === 1 ? 'foto' : 'fotos'))
@@ -1194,7 +1194,7 @@ class Whatsapp extends Page
             Notification::make()
                 ->title("Se mandaron {$mandados}, fallaron {$fallados}")
                 ->body('Mirá el chat: cada mensaje que falló dice por qué.')
-                ->warning()->persistent()->send();
+                ->warning()->duration(8000)->send();
         } else {
             $aviso = "Se mandaron {$mandados} " . ($mandados === 1 ? 'producto' : 'productos');
             if ($talla !== '') $aviso .= " en talla {$talla}";
@@ -1352,7 +1352,7 @@ class Whatsapp extends Page
                     ->body('Andá a Etiquetas → Entregados y en "¿Se pone sola?" elegí '
                          . '"Cuando el courier confirma la entrega". Sin eso el panel no '
                          . 'sabe adónde moverlas.')
-                    ->warning()->persistent()->send();
+                    ->warning()->duration(8000)->send();
                 return;
             }
 
@@ -1361,7 +1361,7 @@ class Whatsapp extends Page
             Notification::make()
                 ->title('Revisión terminada')
                 ->body(trim(\Illuminate\Support\Facades\Artisan::output()) ?: 'Sin novedades.')
-                ->success()->persistent()->send();
+                ->success()->duration(8000)->send();
         } catch (\Throwable $e) {
             Notification::make()
                 ->title('No se pudo revisar')
@@ -1586,7 +1586,7 @@ class Whatsapp extends Page
                 ->title('No se pudo recuperar')
                 ->body('Meta guarda los archivos unos 30 días. Si el mensaje es viejo, '
                      . 'lo más probable es que ya no esté. Pedile al cliente que la reenvíe.')
-                ->warning()->persistent()->send();
+                ->warning()->duration(8000)->send();
             return;
         }
 
@@ -2410,11 +2410,9 @@ class Whatsapp extends Page
 
                 Notification::make()
                     ->title('Se cobra lo del chat: $' . number_format($dicho, 2))
-                    ->body('Con los precios del admin daría $' . number_format($porCatalogo, 2) . '. '
-                         . ($mas
-                            ? 'O sea que cotizaste de menos y esa diferencia la ponés vos.'
-                            : 'Puede ser un precio viejo cargado en el admin: conviene revisarlo.'))
-                    ->warning()->persistent()->send();
+                    ->body('El admin daría $' . number_format($porCatalogo, 2) . '. '
+                         . ($mas ? 'Cotizaste de menos.' : 'Revisá el precio en el admin.'))
+                    ->warning()->duration(8000)->send();
             }
         }
 
@@ -2426,7 +2424,7 @@ class Whatsapp extends Page
                 ->title('Hay algo que no reconocí del catálogo')
                 ->body('Quedó sin precio: ' . implode(' · ', array_slice($reconocido['dudosos'], 0, 4))
                      . '. Agregalo a mano abajo o corregí el nombre.')
-                ->warning()->persistent()->send();
+                ->warning()->duration(8000)->send();
         }
 
         // Qué se vació porque la orden no lo traía, y qué había antes ahí.
@@ -2447,7 +2445,7 @@ class Whatsapp extends Page
                 ->title('Ojo: ' . implode(' y ', $perdidos) . ' no venía en la orden')
                 ->body('Lo que había ahí era del pedido anterior de este cliente, así que lo '
                      . 'borré. Escribilo mirando el texto de la orden, que quedó arriba.')
-                ->warning()->persistent()->send();
+                ->warning()->duration(8000)->send();
             return;
         }
 
@@ -2739,7 +2737,7 @@ class Whatsapp extends Page
             Notification::make()
                 ->title('Ese municipio no está en la lista')
                 ->body($zona['mensaje'] . ' Si estás seguro de que existe, decímelo y lo agrego.')
-                ->warning()->persistent()->send();
+                ->warning()->duration(8000)->send();
             return;
         }
 
@@ -2827,7 +2825,7 @@ class Whatsapp extends Page
                         ->body('No hay ninguna etiqueta con el papel "sin_cobro" asignada, '
                              . 'así que no se pudo marcar. Creala en el admin, en Etiquetas, '
                              . 'para llevar el control de quién pagó.')
-                        ->warning()->persistent()->send();
+                        ->warning()->duration(8000)->send();
                 }
             } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::warning('Marcando sin cobro: ' . $e->getMessage());
@@ -2859,9 +2857,7 @@ class Whatsapp extends Page
              */
             $this->texto = \App\Models\GuiaBorrador::mensajeCliente($fila);
 
-            $aviso = ' La ventana de 24 horas está cerrada: ya pasó a Preparados, y el '
-                   . 'mensaje con el rastreo quedó escrito en el cuadro. Mandalo cuando '
-                   . 'el cliente vuelva a escribir.';
+            $aviso = ' Ventana cerrada: el rastreo quedó en el cuadro, mandalo cuando escriba.';
         }
 
         $this->limpiarPedido();
@@ -2869,17 +2865,18 @@ class Whatsapp extends Page
 
         $cola = $this->enCola();
 
-        $cuerpo = "Ya hay {$cola} " . ($cola == 1 ? 'guía esperando' : 'guías esperando')
-                . '. Cuando quieras, entrá a Crear guías y bajá el Excel.';
+        // Corto: es una confirmación, se lee de pasada. Cómo bajar el Excel ya
+        // lo sabés; repetirlo en cada guía solo alargaba la tarjeta.
+        $cuerpo = "Ya hay {$cola} " . ($cola == 1 ? 'guía esperando.' : 'guías esperando.');
 
         $n = Notification::make()->title('Guardado en la cola');
 
         if ($aviso === '' && $avisoCobro === '') {
-            $n->body($cuerpo . ' Al cliente ya le salió el enlace de rastreo.')->success();
+            $n->body($cuerpo . ' El rastreo ya le salió.')->success();
         } else {
             // El de sin cobro va primero: es plata, y lo del rastreo se puede
             // resolver después.
-            $n->body($cuerpo . $avisoCobro . $aviso)->warning()->persistent();
+            $n->body($cuerpo . $avisoCobro . $aviso)->warning()->duration(8000);
         }
 
         $n->send();
