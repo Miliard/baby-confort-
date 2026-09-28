@@ -66,6 +66,15 @@ class Etiquetado
         '/\b(mandeme|mandame|enviame|envieme|traigame|traeme)\s+(otro|otra|un|una|dos|tres|cuatro|\d+|el\s+paquete|los\s+paquetes|la\s+talla|talla|panales|calzoncito)\b(?!\s+(foto|fotos|imagen|imagenes|informacion|info|precio|precios|ubicacion|captura|video|audio|lista|catalogo|cotizacion|numero|cuenta|mensaje))/',
         '/\bme\s+(puede|podria|pueden|podrian|podes)\s+(mandar|enviar|traer)\s+(otro|otra|un|una|dos|tres|\d+|el\s+paquete|los\s+paquetes|la\s+talla|talla|panales)\b(?!\s+(foto|fotos|imagen|imagenes|informacion|info|precio|precios|ubicacion|captura|video|audio|lista|catalogo|cotizacion|numero|cuenta|mensaje))/',
 
+        // "apues de ese mándeme", "mándemelo", "envíemelo", "tráigamelo".
+        // Solos, sin nada después: el producto ya se nombró ANTES ("de ese").
+        // Frenado igual si lo que sigue es información y no producto —
+        // "mándeme el catálogo", "mándeme su número"— con o sin artículo.
+        '/\b(mandeme|mandemelo|mandemelos|mandemela|mandemelas|mandenme|mandenmelo|mandenmelos|mandame|mandamelo|mandamelos|mandamela|mandamelas|enviame|enviamelo|enviamelos|envieme|enviemelo|enviemelos|envienme|traigame|traigamelo|traigamelos|traeme|traemelo|traemelos)\b(?!\s+(el\s+|la\s+|los\s+|las\s+|un\s+|una\s+|unos\s+|unas\s+|su\s+|sus\s+)?(foto|fotos|imagen|imagenes|informacion|info|precio|precios|ubicacion|captura|video|audio|lista|catalogo|cotizacion|numero|cuenta|mensaje|datos|direccion|link|enlace))/',
+
+        // "me lo manda", "me los manda a la casa"
+        '/\bme\s+(lo|los|la|las)\s+(manda|mandas|mandan|envia|envias|envian|trae|traes)\b/',
+
         // "quiero hacer un pedido", "cómo hago el pedido", "otro pedido"
         '/\b(hacer|hago|realizar|poner)\s+(un|el|mi|otro|nuevo)?\s*pedido\b/',
         '/\b(otro|nuevo)\s+(pedido|paquete)\b/',
