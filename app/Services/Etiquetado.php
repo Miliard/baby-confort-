@@ -123,6 +123,109 @@ class Etiquetado
         return false;
     }
 
+    /**
+     * Las formas de decirle a un cliente que algo no hay, como las escribís.
+     *
+     * Igual que con los pedidos: el mensaje se compara en minúsculas y sin
+     * tildes. Para sumar una frase, un renglón más.
+     *
+     * El cuidado principal es "no hay" y "no tenemos", que también son "no hay
+     * problema" o "no tenemos envío los domingos". Por eso esas dos solo
+     * cuentan si enseguida viene algo de producto: la talla, el paquete, "de
+     * esa", "en ese".
+     */
+    private const DICE_AGOTADO = [
+        // "se nos agotó", "está agotada", "se agotaron"
+        '/\bagot(o|ado|ada|ados|adas|aron|amos|adito|adita|e)\b/',
+
+        // "se nos acabó la XL", "se terminaron"
+        '/\bse\s+(nos\s+)?(acabo|acabaron|termino|terminaron)\b/',
+
+        // "no tenemos esa talla", "ya no hay de ese", "no nos queda talla M".
+        // Lo de producto tiene que venir enseguida (hasta 12 letras después).
+        '/\bno\s+(hay|tenemos|tengo|nos\s+quedan?|me\s+quedan?|contamos\s+con|disponemos\s+de|manejamos)\b'
+            . '(?=.{0,12}\b(talla|tallas|paquete|paquetes|existencia|existencias|stock|disponible|de\s+es[aeo]s?|en\s+es[aeo]s?)\b)/',
+
+        // "sin existencia", "fuera de stock", "no está disponible"
+        '/\b(sin|fuera\s+de)\s+(existencia|existencias|stock)\b/',
+        '/\bno\s+(esta|estan)\s+disponibles?\b/',
+
+        // "le aviso cuando nos llegue", "en cuanto entre le aviso"
+        '/\b(le|les|te)\s+aviso\s+cuando\s+(nos\s+)?(llegue|lleguen|entre|entren|vuelva|vuelvan|haya)\b/',
+        '/\b(cuando|en\s+cuanto|apenas)\s+(nos\s+)?(llegue|lleguen|entre|entren)\b.{0,15}\b(le|les|te)\s+aviso\b/',
+    ];
+
+    /** ¿Este mensaje le dice al cliente que algo está agotado? */
+    public static function diceAgotado(?string $texto): bool
+    {
+        $t = mb_strtolower(trim((string) $texto));
+        if ($t === '' || mb_strlen($t) < 5) return false;
+
+        $t = strtr($t, ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n']);
+        $t = preg_replace('/\s+/u', ' ', $t);
+
+        foreach (static::DICE_AGOTADO as $patron) {
+            if (preg_match($patron, $t)) return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Le dijiste que algo está agotado: va a la lista de "Agotados".
+     *
+     * Solo se agrega, no se saca nada. Es la lista de a quién volver a
+     * ofrecerle cuando entre la mercadería, y la depurás vos.
+     */
+    public static function marcarAgotado(WaConversacion $conv): void
+    {
+        $e = WaEtiqueta::porRol('agotado');
+        if ($e) $conv->etiquetas()->syncWithoutDetaching([$e->id]);
+    }
+
+    /**
+     * Recorre TODO el historial y marca como "Agotados" las conversaciones
+     * donde alguna vez se le dijo al cliente que algo no había.
+     *
+     * Para recuperar lo que pasó antes de que existiera la regla. Se corre
+     * una vez, al subir el cambio.
+     *
+     * Primero se filtra en la base con un LIKE grueso —rápido, trae de más—
+     * y después cada mensaje pasa por las reglas de verdad, que son las que
+     * descartan "no hay problema" y compañía.
+     *
+     * @return int cuántas conversaciones se marcaron
+     */
+    public static function marcarAgotadosDelHistorial(): int
+    {
+        $e = WaEtiqueta::porRol('agotado');
+        if (! $e) return 0;
+
+        $ids = [];
+
+        \App\Models\WaMensaje::where('direccion', 'saliente')
+            ->whereNotNull('texto')
+            ->where(function ($q) {
+                foreach (['%agot%', '%no hay%', '%no tenemos%', '%no tengo%', '%no nos queda%',
+                          '%se nos acab%', '%se acab%', '%se termin%', '%existencia%', '%stock%',
+                          '%disponible%', '%aviso cuando%', '%le aviso%'] as $pista) {
+                    $q->orWhere('texto', 'like', $pista);
+                }
+            })
+            ->select(['id', 'conversacion_id', 'texto'])
+            ->chunkById(500, function ($mensajes) use (&$ids) {
+                foreach ($mensajes as $m) {
+                    if (static::diceAgotado($m->texto)) $ids[$m->conversacion_id] = true;
+                }
+            });
+
+        if (! $ids) return 0;
+
+        $e->conversaciones()->syncWithoutDetaching(array_keys($ids));
+
+        return count($ids);
+    }
+
     /** ¿Este texto lleva el enlace de rastreo? */
     public static function llevaRastreo(?string $texto): bool
     {
@@ -175,6 +278,13 @@ class Etiquetado
             // final no se concretó, lo sacás vos al depurar la pestaña.
             if ($delCliente && static::quierePedir($texto)) {
                 static::marcarIntencion($conv);
+            }
+
+            // Le dijiste que algo no hay: a "Agotados", para volver a
+            // ofrecérselo cuando entre. Solo lo que escribís VOS — si el
+            // cliente dice "ya se le agotó la paciencia", no cuenta.
+            if (! $delCliente && static::diceAgotado($texto)) {
+                static::marcarAgotado($conv);
             }
         } catch (\Throwable $e) {
             // Etiquetar es una comodidad. Que falle no puede costar un mensaje

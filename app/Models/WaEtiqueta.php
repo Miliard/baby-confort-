@@ -34,6 +34,10 @@ class WaEtiqueta extends Model
         // lo que la vuelve una lista de cobro y no un adorno.
         'sin_cobro' => 'Se pone sola cuando la guía sale SIN cobro al entregar. '
                      . 'Quitala a mano cuando el cliente pague.',
+        // Tampoco se quita sola: es la lista de a quién volver a ofrecerle
+        // cuando entre la mercadería. Se saca a mano después de avisarle.
+        'agotado'   => 'Se pone sola cuando le decís a un cliente que algo está agotado. '
+                     . 'Quitala a mano cuando ya le ofreciste de nuevo.',
     ];
 
     /** La etiqueta que juega ese papel, si alguna lo tiene asignado. */
