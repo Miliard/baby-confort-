@@ -1165,10 +1165,25 @@ class Whatsapp extends Page
             $cierre = trim((string) config('whatsapp.pie_catalogo', ''));
             if ($cierre !== '') $pie .= "\n\n" . $cierre;
 
-            $relativa = $this->fotoDe($s, $p);
+            /*
+             * Cada producto sale como MENSAJE CON SU ENLACE, no como foto.
+             *
+             * Mandado como foto, el cliente tocaba la imagen y WhatsApp la
+             * abría en grande — y ahí se quedaba: una foto en WhatsApp nunca
+             * lleva a una página. Mandado como texto con el enlace, WhatsApp
+             * arma la tarjeta con la foto del producto (la de esa talla, por
+             * el ?t=) y tocarla abre la página, donde puede pedir.
+             *
+             * UN producto por mensaje, y eso no es casualidad: WhatsApp arma
+             * una sola tarjeta por mensaje, la del primer enlace. Con dos
+             * productos en el mismo mensaje, el segundo se quedaba sin foto.
+             *
+             * Para volver a mandarlo como foto: WHATSAPP_CATALOGO_COMO_FOTO=true
+             * en Railway.
+             */
+            $relativa = config('whatsapp.catalogo_como_foto', false) ? $this->fotoDe($s, $p) : null;
 
             if (! $relativa) {
-                $sinFoto[] = $p->name;
                 $m = WhatsappApi::enviarTexto($conv, $pie, auth()->id());
             } else {
                 $absoluta = str_starts_with($relativa, 'http') ? $relativa : url($relativa);

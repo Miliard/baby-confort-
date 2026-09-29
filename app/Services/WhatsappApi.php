@@ -184,7 +184,8 @@ class WhatsappApi
                 // enlace se sigue viendo y se sigue tocando: lo único que se
                 // pierde es la tarjeta.
                 'text' => [
-                    'preview_url' => (bool) config('whatsapp.vista_previa', false),
+                    'preview_url' => (bool) config('whatsapp.vista_previa', false)
+                                  || static::llevaProducto($texto),
                     'body'        => $texto,
                 ],
             ];
@@ -220,6 +221,26 @@ class WhatsappApi
         static::refrescarConversacion($conv, $texto, $mensaje->estado);
 
         return $mensaje;
+    }
+
+    /**
+     * ¿El mensaje lleva el enlace de un producto de la tienda?
+     *
+     * Para esos, la vista previa SÍ se enciende. La tarjeta que arma WhatsApp
+     * muestra la foto del producto, y tocarla abre la página — que es lo que
+     * se quiere: que el cliente toque la imagen y caiga en el producto.
+     *
+     * Una FOTO mandada como foto no hace eso: WhatsApp la abre en grande y
+     * ahí se queda. No hay forma de que una foto lleve a una página.
+     *
+     * La vista previa sigue apagada para lo demás (el rastreo, la portada),
+     * porque ahí la imagen es la general del sitio, ancha, y WhatsApp la
+     * recorta a un cuadradito ilegible. Las páginas de producto tienen su
+     * propia imagen, la del producto, y esa se ve bien.
+     */
+    public static function llevaProducto(?string $texto): bool
+    {
+        return (bool) preg_match('~/producto/\d+~', (string) $texto);
     }
 
     /**

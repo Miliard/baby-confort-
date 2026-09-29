@@ -62,4 +62,9 @@ return [
     // sitio, que es lo único que se ve bien en ese recorte.
     'vista_previa' => env('WHATSAPP_VISTA_PREVIA', false),
 
+    // El catálogo del chat manda cada producto como texto con su enlace, para
+    // que WhatsApp arme la tarjeta y tocar la foto lleve a la página. En true
+    // vuelve a mandarlos como foto suelta (tocarla la abre en grande).
+    'catalogo_como_foto' => env('WHATSAPP_CATALOGO_COMO_FOTO', false),
+
 ];
