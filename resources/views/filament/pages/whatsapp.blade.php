@@ -483,7 +483,7 @@
     .wa-citando-x{font-size:12.5px;color:var(--wa-suave);overflow:hidden;
                   text-overflow:ellipsis;white-space:nowrap}
     /* La miniatura de la foto que está esperando para salir. */
-    .wa-pend-img{width:38px;height:38px;object-fit:cover;border-radius:7px;flex:none}
+    .wa-pend-img{width:52px;height:52px;object-fit:cover;border-radius:7px;flex:none;display:block}
     /* Tamaño de miniatura, como WhatsApp. Antes ocupaban el 74% del ancho del
        chat y una sola foto te tapaba la conversación entera. Se toca y se abre
        grande en otra pestaña. */
@@ -558,6 +558,15 @@
     .wa-slash-op span{display:block;font-size:12px;color:var(--wa-suave);margin-top:2px;
                       overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .wa-slash-nada{padding:9px;font-size:12px;color:var(--wa-suave)}
+
+    /* Las miniaturas de las fotos de cada respuesta. Del tamaño justo para
+       reconocer cuál es cuál; más grandes, la lista mostraría dos respuestas
+       y habría que deslizar para todo. */
+    .wa-slash-fotos{display:flex;gap:5px;align-items:center;margin-top:6px}
+    .wa-slash-fotos img{width:44px;height:44px;object-fit:cover;border-radius:7px;
+                        flex:none;background:rgba(120,140,170,.15)}
+    .wa-slash-fotos em{font-style:normal;font-size:12px;font-weight:700;
+                       color:var(--wa-suave);padding-left:2px}
     @media(max-width:900px){
         .wa-slash{max-height:210px}
         .wa-slash-op{padding:10px 9px}
@@ -1510,7 +1519,9 @@
                         <div class="wa-citando" style="border-left-color:#4aa3df">
                             @php $nFotos = $pendiente->cuantasFotos(); @endphp
                             @foreach(array_slice($pendiente->urls(), 0, 4) as $u)
-                                <img src="{{ $u }}" alt="" class="wa-pend-img">
+                                <a href="{{ $u }}" target="_blank" rel="noopener" title="Ver grande">
+                                    <img src="{{ $u }}" alt="" class="wa-pend-img">
+                                </a>
                             @endforeach
                             <div style="flex:1;min-width:0">
                                 <div class="wa-cita-q">
@@ -1556,6 +1567,11 @@
                                 ? \Illuminate\Support\Str::limit(strip_tags((string) $r->texto), 70)
                                 : ($r->cuantasFotos() === 1 ? 'Solo 1 foto' : 'Solo ' . $r->cuantasFotos() . ' fotos'),
                             'foto'   => $r->tieneFoto(),
+                            // Las miniaturas, para ver QUÉ foto va antes de
+                            // elegirla. Hasta 4: más no entran en el renglón,
+                            // y el resto se cuenta con "+2".
+                            'fotos'  => array_slice($r->urls(), 0, 4),
+                            'mas'    => max(0, $r->cuantasFotos() - 4),
                         ])->values();
                     @endphp
 
@@ -1594,6 +1610,18 @@
                                 <button type="button" class="wa-slash-op" x-on:click="elegir(r)">
                                     <b><span x-show="r.foto">📷 </span><span x-text="r.titulo"></span></b>
                                     <span x-text="r.previa"></span>
+
+                                    {{-- Las fotos que se van a mandar, chiquitas.
+                                         loading="lazy": con veinte respuestas con
+                                         foto, se cargan solo las que se ven. --}}
+                                    <template x-if="r.fotos && r.fotos.length">
+                                        <div class="wa-slash-fotos">
+                                            <template x-for="u in r.fotos" :key="u">
+                                                <img :src="u" alt="" loading="lazy">
+                                            </template>
+                                            <em x-show="r.mas > 0" x-text="'+' + r.mas"></em>
+                                        </div>
+                                    </template>
                                 </button>
                             </template>
 

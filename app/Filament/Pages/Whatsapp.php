@@ -1909,7 +1909,10 @@ class Whatsapp extends Page
     /** Lo que ya sabemos de quien está escribiendo. */
     private function cargarDatosDelCliente(WaConversacion $conv): void
     {
-        $this->pedTelefono = $conv->telefono ?: '';
+        // Desde un número de afuera, vacío: los últimos 8 de un +1 no son un
+        // teléfono de acá, y la guía necesita el de quien recibe en El Salvador,
+        // que viene en la orden.
+        $this->pedTelefono = $conv->esExtranjero() ? '' : ($conv->telefono ?: '');
         $this->pedNombre   = $this->limpiarNombre($conv->comoSeLlama() ?: '');
 
         // Que el segundo teléfono de un pedido no se cuele en el siguiente.
@@ -2120,7 +2123,7 @@ class Whatsapp extends Page
         $cliente = $conv->cliente();
 
         $nombre    = $cliente['nombre'] ?? ($conv->comoSeLlama() ?: '');
-        $telefono  = $conv->telefono;
+        $telefono  = $conv->esExtranjero() ? '' : $conv->telefono;
         $municipio = $cliente['municipio'] ?? '';
         $direccion = $cliente['direccion'] ?? '';
         $productos = '';

@@ -169,7 +169,9 @@ class LeerOrdenIA
         // dato más confiable que hay —lo da WhatsApp, no lo escribió nadie—
         // pero no debe pisar a otro que el cliente haya dado para que reciba
         // una tercera persona.
-        $cabecera = "TELÉFONO DESDE EL QUE ESCRIBE: {$conv->telefono}\n\n";
+        $cabecera = $conv->esExtranjero()
+            ? "ESCRIBE DESDE UN NÚMERO DEL EXTRANJERO ({$conv->telefonoLegible()}): NO lo uses como teléfono de la orden; usá el de El Salvador que aparezca en el chat.\n\n"
+            : "TELÉFONO DESDE EL QUE ESCRIBE: {$conv->telefono}\n\n";
 
         return $cabecera . implode("\n", $lineas);
     }

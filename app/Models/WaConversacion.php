@@ -142,9 +142,33 @@ class WaConversacion extends Model
     }
 
     /** Nombre para mostrar: el del cliente, o el teléfono con formato. */
+    /**
+     * Escribe desde un número que no es de El Salvador (Estados Unidos, casi
+     * siempre: el familiar que le compra a alguien de acá).
+     */
+    public function esExtranjero(): bool
+    {
+        $w = preg_replace('/\D/', '', (string) $this->wa_id);
+        return strlen($w) > 8 && ! str_starts_with($w, '503');
+    }
+
+    /** "+1 (281) 707-6729" para Estados Unidos y Canadá; "+52 5512345678" para el resto. */
+    public static function internacional(string $numero): string
+    {
+        $w = preg_replace('/\D/', '', $numero);
+
+        if (strlen($w) === 11 && str_starts_with($w, '1')) {
+            return '+1 (' . substr($w, 1, 3) . ') ' . substr($w, 4, 3) . '-' . substr($w, 7);
+        }
+
+        return '+' . $w;
+    }
+
     public function comoSeLlama(): string
     {
         if (trim((string) $this->nombre) !== '') return $this->nombre;
+
+        if ($this->esExtranjero()) return $this->telefonoLegible();
 
         $d = $this->telefono;
         return strlen($d) === 8 ? substr($d, 0, 4) . ' ' . substr($d, 4) : $d;
@@ -159,6 +183,11 @@ class WaConversacion extends Model
      */
     public function telefonoLegible(): string
     {
+        // Los de afuera, completos. "telefono" guarda solo los últimos 8 (así
+        // se cruza con las guías), y a un +1 (281) 707-6729 eso lo deja en
+        // "1707 6729", que no es el número de nadie.
+        if ($this->esExtranjero()) return static::internacional((string) $this->wa_id);
+
         $d = preg_replace('/\D/', '', (string) $this->telefono);
 
         // Si viene con el 503 adelante, se muestra sin él.
