@@ -36,6 +36,9 @@ class LeerOrdenIA
         return IA::disponible();
     }
 
+    /** true si en la última lectura la IA no contestó (tardó, sin saldo, etc.). */
+    public static bool $fallo = false;
+
     /**
      * Lee la conversación y devuelve lo que encuentre.
      *
@@ -89,6 +92,8 @@ class LeerOrdenIA
         $vacio = array_fill_keys(static::CAMPOS, '');
         $vacio['lineas'] = [];
 
+        static::$fallo = false;
+
         if (! static::disponible()) return $vacio;
 
         $charla = static::transcripcion($conv, $cuantos);
@@ -98,6 +103,12 @@ class LeerOrdenIA
         // ni una pizca de variación — el mismo texto tiene que dar siempre el
         // mismo resultado, si no no hay forma de confiar ni de probarlo.
         $datos = IA::json(IA::pedir(static::instrucciones(), $charla, 0.0));
+
+        // Que no contestara no es lo mismo que "no encontró nada", y hay que
+        // poder distinguirlo: si la IA no respondió, quien llama lo avisa en
+        // pantalla. Antes caía en silencio a los datos viejos de la libreta, y
+        // parecía que el chat no se había leído.
+        static::$fallo = ! is_array($datos);
 
         if (! is_array($datos)) return $vacio;
 
@@ -200,8 +211,10 @@ class LeerOrdenIA
 
     private static function instrucciones(): string
     {
-        $municipios = implode(', ', array_slice(Municipios::todos(), 0, 400));
-        $catalogo   = static::catalogo();
+        // Sin la lista de municipios: eran 262 nombres que alargaban la
+        // instrucción y hacían más lenta cada lectura. El municipio lo valida
+        // igual la tabla del sistema después, al procesar la orden.
+        $catalogo = static::catalogo();
 
         return <<<TXT
         Sos un lector de pedidos de una tienda de pañales en El Salvador. Te
@@ -243,12 +256,10 @@ class LeerOrdenIA
           llamen al entregar —porque el paquete va para otra persona— poné ESE.
           Si no dio ninguno, poné el de "TELÉFONO DESDE EL QUE ESCRIBE".
 
-        - municipio: solo el municipio, sin el departamento. Tiene que ser uno
-          de esta lista; si lo que dijo el cliente no calza con ninguno, vacío.
+        - municipio: solo el municipio de El Salvador, sin el departamento, tal
+          como lo nombró el cliente. Si no lo dijo, vacío.
           NO pongas el departamento en ningún campo: ese lo resuelve el sistema
           a partir del municipio, y si lo adivinás mal el paquete cruza el país.
-
-          {$municipios}
 
         - direccion: la dirección tal como la dio, sin el municipio ni el
           departamento al final. Referencias incluidas ("frente a la cancha",

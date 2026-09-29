@@ -288,8 +288,10 @@
 
     /* Sin palomitas y con la barrita: el último mensaje es del cliente y está
        esperando respuesta. Es el estado que hay que poder ver de lejos. */
-    .wa-prev-debo{color:var(--wa-suyo-txt);font-weight:600;
-                  border-left:3px solid #e5695f;padding-left:7px;margin-left:-1px}
+    /* Solo el color y la negrita. Había además una barrita roja a la
+       izquierda, de cuando el texto no tenía color propio; con el texto ya en
+       rojo, la barrita decía dos veces lo mismo. */
+    .wa-prev-debo{color:var(--wa-suyo-txt);font-weight:600}
     /* El renglón chico de abajo: solo el teléfono, y solo cuando arriba va un
        nombre que vos pusiste. El nombre del perfil de WhatsApp no se muestra. */
     .wa-apodo{font-size:11.5px;color:var(--wa-suave);opacity:.8;margin-top:1px;overflow:hidden;

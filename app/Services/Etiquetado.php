@@ -150,9 +150,26 @@ class Etiquetado
         '/\b(sin|fuera\s+de)\s+(existencia|existencias|stock)\b/',
         '/\bno\s+(esta|estan)\s+disponibles?\b/',
 
-        // "le aviso cuando nos llegue", "en cuanto entre le aviso"
-        '/\b(le|les|te)\s+aviso\s+cuando\s+(nos\s+)?(llegue|lleguen|entre|entren|vuelva|vuelvan|haya)\b/',
-        '/\b(cuando|en\s+cuanto|apenas)\s+(nos\s+)?(llegue|lleguen|entre|entren)\b.{0,15}\b(le|les|te)\s+aviso\b/',
+        // "le avisamos cuando nos llegue", "le aviso apenas lo tengamos".
+        // Con cualquier forma de avisar: aviso, avisamos, avisaremos, le
+        // escribo, le informo.
+        //
+        // OJO con "su": "le avisamos cuando llegue SU pedido" es un aviso de
+        // ENVÍO, no de agotado. Si después de "llegue" viene "su", no cuenta.
+        '/\b(le|les|te)\s+(aviso|avisamos|avisare|avisaremos|informo|informamos|escribo|escribimos)\s+'
+            . '(cuando|apenas|en\s+cuanto|al)\s+(nos\s+)?'
+            . '(llegue|lleguen|entre|entren|vuelva|vuelvan|haya|tengamos|tenerlo|tenerla|tenerlos|tenerlas'
+            . '|este\s+disponible|esten\s+disponibles|(lo|la|los|las)\s+tengamos|(lo|la|los|las)\s+tenga)\b'
+            . '(?!\s+(su|sus|tu|tus)\b)/',
+
+        // Al revés: "en cuanto lo tengamos le avisamos", "apenas nos entre le escribo"
+        '/\b(cuando|apenas|en\s+cuanto|al)\s+(nos\s+)?'
+            . '(llegue|lleguen|entre|entren|vuelva|vuelvan|haya|tengamos|tenerlo|tenerla|tenerlos|tenerlas'
+            . '|(lo|la|los|las)\s+tengamos|(lo|la|los|las)\s+tenga)\b'
+            . '(?!\s+(su|sus|tu|tus)\b).{0,20}\b(le|les|te)\s+(aviso|avisamos|avisare|avisaremos|informo|informamos|escribo|escribimos)\b/',
+
+        // "tenerlo le avisamos", así, sin nada antes
+        '/\b(tenerlo|tenerla|tenerlos|tenerlas)\b.{0,10}\b(le|les|te)\s+(aviso|avisamos|avisare|avisaremos)\b/',
     ];
 
     /** ¿Este mensaje le dice al cliente que algo está agotado? */

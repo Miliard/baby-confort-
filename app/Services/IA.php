@@ -91,8 +91,31 @@ class IA
 
         if (static::aceptaTemperatura()) $cuerpo['temperature'] = $temp;
 
+        /*
+         * Cuánto "piensa" antes de contestar. Solo los modelos que razonan
+         * (gpt-5, o3…) tienen esto, y por defecto piensan bastante: con gpt-5,
+         * leer un chat tardaba más de 30 segundos, el panel cortaba la espera
+         * y se quedaba sin respuesta — en silencio.
+         *
+         * Para sacar datos de un chat o corregir un mensaje no hace falta
+         * pensar mucho: "low" contesta en segundos. Se cambia con la variable
+         * IA_ESFUERZO en Railway (low, medium, high).
+         */
+        if (! static::aceptaTemperatura()) {
+            $cuerpo['reasoning_effort'] = (string) config('ia.esfuerzo', 'low');
+        }
+
         $r = Http::withToken(static::clave())->timeout(30)
             ->post('https://api.openai.com/v1/chat/completions', $cuerpo);
+
+        // Si el modelo no reconoce el ajuste de esfuerzo, se reintenta sin él
+        // en vez de quedarse sin respuesta.
+        if ($r->status() === 400 && isset($cuerpo['reasoning_effort'])
+            && str_contains((string) $r->json('error.message', ''), 'reasoning')) {
+            unset($cuerpo['reasoning_effort']);
+            $r = Http::withToken(static::clave())->timeout(30)
+                ->post('https://api.openai.com/v1/chat/completions', $cuerpo);
+        }
 
         if (! $r->successful()) {
             Log::warning('IA (openai ' . $r->status() . '): '

@@ -435,6 +435,10 @@ class MejorarTexto
 
         if (static::aceptaTemperatura()) {
             $cuerpo['temperature'] = static::temperatura();
+        } else {
+            // Los que razonan, que piensen poco: corregir un mensaje no lo
+            // necesita, y con el esfuerzo de fábrica tardaba demasiado.
+            $cuerpo['reasoning_effort'] = (string) config('ia.esfuerzo', 'low');
         }
 
         $r = Http::withToken(static::clave())

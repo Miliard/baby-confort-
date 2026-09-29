@@ -2191,6 +2191,27 @@ class Whatsapp extends Page
             }
         }
 
+        /*
+         * Lo que el cliente escribió en el chat MANDA sobre todo lo demás.
+         *
+         * Se lee al instante, sin IA: los mensajes del cliente pasan por el
+         * mismo lector de reglas de "Procesar orden", uno por uno, del más
+         * nuevo al más viejo. Si escribió "Nombre: …", "Dirección: …",
+         * "Municipio: …", eso sale literal — más seguro que la IA, que
+         * interpreta, y que la libreta, que es de la entrega anterior.
+         *
+         * Y si no usó etiquetas, se busca el municipio en lo que escribió: el
+         * mensaje donde nombra un municipio casi siempre ES la dirección.
+         */
+        $delChat = $this->datosDelChat($conv);
+
+        foreach (['nombre', 'municipio', 'direccion'] as $c) {
+            if (filled($delChat[$c] ?? null)) {
+                $$c = $delChat[$c];
+                $leyo = true;
+            }
+        }
+
         $this->texto = "\u{1F4E6} Orden de Env\u{ED}o: \u{1F69A}\n"
             . "\u{2705} Nombre completo: {$nombre}\n"
             . "\u{2705} Tel\u{E9}fono: {$telefono}\n"
@@ -2209,6 +2230,18 @@ class Whatsapp extends Page
         // El cuadro se abre: una orden son ocho renglones y en tres no se lee.
         $this->cajaGrande = true;
 
+        // La IA no contestó a tiempo: se dice, en vez de dejar creer que el
+        // chat se leyó entero. Lo que haya salido de las reglas y de la
+        // libreta igual quedó puesto.
+        if (\App\Services\LeerOrdenIA::$fallo) {
+            Notification::make()
+                ->title('La IA no contestó a tiempo')
+                ->body('Se llenó con lo que el cliente escribió con etiquetas y con la libreta. '
+                     . 'Los productos y el total completalos vos.')
+                ->warning()->send();
+            return;
+        }
+
         if ($leyo) {
             Notification::make()
                 ->title('Orden armada leyendo la conversación')
@@ -2225,6 +2258,65 @@ class Whatsapp extends Page
                 : 'Orden en blanco')
             ->body('Completá los productos y los montos antes de mandarla.')
             ->success()->send();
+    }
+
+    /**
+     * Nombre, dirección y municipio sacados de lo que escribió el cliente.
+     *
+     * Sin IA, en el acto. Dos pasadas:
+     *
+     *  1. Con etiquetas: cada mensaje del cliente pasa por el lector de
+     *     órdenes. Del más nuevo al más viejo, y el primero que trae un dato
+     *     gana — si corrigió la dirección, vale la corrección.
+     *  2. Sin etiquetas: si todavía falta el municipio, se busca un nombre de
+     *     municipio en sus mensajes. El mensaje donde aparece, si es largo,
+     *     se toma como dirección: "col. Las Brisas pasaje 3 casa 12
+     *     Soyapango" es eso.
+     */
+    private function datosDelChat(WaConversacion $conv): array
+    {
+        $salida = ['nombre' => '', 'direccion' => '', 'municipio' => ''];
+
+        try {
+            $mensajes = WaMensaje::where('conversacion_id', $conv->id)
+                ->where('direccion', 'entrante')
+                ->whereNotNull('texto')
+                ->orderByDesc('id')
+                ->limit(20)
+                ->pluck('texto');
+        } catch (\Throwable $e) {
+            return $salida;
+        }
+
+        foreach ($mensajes as $texto) {
+            $d = $this->leerOrden((string) $texto);
+
+            foreach (array_keys($salida) as $c) {
+                if ($salida[$c] === '' && filled($d[$c] ?? null)) {
+                    $salida[$c] = trim((string) $d[$c]);
+                }
+            }
+        }
+
+        if ($salida['municipio'] === '') {
+            foreach ($mensajes as $texto) {
+                $mun = \App\Services\Municipios::buscarEn((string) $texto);
+                if (! $mun) continue;
+
+                $salida['municipio'] = $mun;
+
+                if ($salida['direccion'] === '' && mb_strlen(trim((string) $texto)) >= 15) {
+                    $salida['direccion'] = trim((string) $texto);
+                }
+                break;
+            }
+        }
+
+        // El nombre no puede quedar con el teléfono pegado, como a veces lo
+        // escriben: "Maria Lopez 7123 4567".
+        if ($salida['nombre'] !== '') $salida['nombre'] = $this->limpiarNombre($salida['nombre']);
+
+        return $salida;
     }
 
     // ── Procesar una orden de envío escrita en el chat ───────────────────────

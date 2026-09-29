@@ -55,6 +55,13 @@ return [
     */
     'temperatura' => (float) env('IA_TEMPERATURA', 0.2),
 
+    /*
+    | Cuánto piensan los modelos que razonan (gpt-5, o3) antes de contestar:
+    | low, medium o high. Más es más lento y más caro. Para leer un chat y
+    | corregir mensajes, low alcanza y contesta en segundos.
+    */
+    'esfuerzo' => env('IA_ESFUERZO', 'low'),
+
     // El que pasa a texto las notas de voz de los clientes.
     'modelo_audio' => env('OPENAI_MODELO_AUDIO', 'whisper-1'),
 
