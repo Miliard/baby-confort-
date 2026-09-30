@@ -460,6 +460,7 @@ class Asistente
                 return $this->leerTalla($paso, $texto);
 
             case 'tipo':
+                if ($this->preguntaPorOtras($texto)) return true;
                 $t = Entender::tipo($texto);
                 if ($t === 'diferencia') { $this->f->poner('explicar', true); return true; }
                 if ($t) { $this->ponerTipo($t); $this->municipioDePaso($texto); return true; }
@@ -663,16 +664,102 @@ class Asistente
         $this->f->poner('tallas', $tallas);
         $this->f->quitar('sugeridas', 'peso_valor', 'pide_peso', 'mostradas', 'mostrado_clave', 'elegido');
 
+        // Un tipo que se puso solo (porque la talla anterior tenía uno nada
+        // más) no se arrastra: el cliente nunca lo eligió. Acá estaba el error
+        // de "y en XL" mostrando solo un calzoncito: venía de la L.
+        if ($this->f->dato('tipo_auto')) {
+            $this->f->quitar('tipo', 'tipo_auto');
+        }
+
         // Si en esas tallas hay un solo tipo, no se pregunta.
         $tipos = $this->tiposEn($tallas);
         $tipo  = $this->f->dato('tipo');
 
         if (count($tipos) === 1 && $tipo !== $tipos[0]) {
             if ($tipo && $tipo !== 'ambos') {
-                $this->avisos[] = 'En talla ' . implode(' y ', $tallas) . ' por ahora solo tenemos ' . ($tipos[0] === 'cinta' ? 'de cinta' : 'calzoncito') . ':';
+                $this->avisos[] = 'En talla ' . implode(' y ', $tallas) . ' por ahora solo tenemos ' . $this->nombreTipo($tipos[0]) . ':';
             }
             $this->f->poner('tipo', $tipos[0]);
+            $this->f->poner('tipo_auto', true);
         }
+    }
+
+    private function nombreTipo(string $tipo): string
+    {
+        return $tipo === 'cinta' ? 'de cinta' : 'calzoncito';
+    }
+
+    /**
+     * "¿Solo en calzoncito tienen?", "¿tiene de cinta?", "¿qué otras hay?".
+     *
+     * Son preguntas sobre lo que hay, no una elección. Se contestan con el
+     * catálogo: si hay del otro tipo se muestra todo; si no, se dice que no.
+     */
+    private function preguntaPorOtras(string $texto): bool
+    {
+        $n = Entender::normalizar($texto);
+        $tallas = (array) $this->f->dato('tallas', []);
+        if (! $tallas) return false;
+
+        $enTalla = 'talla ' . implode(' y ', $tallas);
+        $tipos   = $this->tiposEn($tallas);
+        $actual  = (string) $this->f->dato('tipo');
+        $t       = Entender::tipo($texto);
+
+        $pregunta = (bool) preg_match('/\b(solo|solamente|unicamente|nada mas|tiene|tienen|tienes|hay|habra|manejan|otr[oa]s?|mas opciones|mas modelos|que mas|no hay)\b/', $n);
+
+        // "¿Solo en calzoncito tienen?": pregunta si hay del otro, no está
+        // eligiendo. Si hay de los dos, se le muestran todas.
+        $solo = (bool) preg_match('/\b(solo|solamente|unicamente|nada mas)\b/', $n);
+
+        if (in_array($t, ['cinta', 'calzoncito'], true) && $solo && in_array($t, $tipos, true) && count($tipos) > 1) {
+            $otro = $t === 'cinta' ? 'calzoncito' : 'cinta';
+            $this->avisos[] = "No, también tenemos " . $this->nombreTipo($otro) . " en {$enTalla}. Aquí están todas las opciones:";
+            $this->ponerTipo('ambos');
+            return true;
+        }
+
+        if (in_array($t, ['cinta', 'calzoncito'], true)) {
+            if (! in_array($t, $tipos, true)) {
+                $this->avisos[] = "En {$enTalla} por ahora no tenemos " . $this->nombreTipo($t) . ' 😔'
+                    . ($tipos ? ' Tenemos ' . $this->nombreTipo($tipos[0]) . ':' : '');
+                if ($actual !== ($tipos[0] ?? $actual)) $this->ponerTipo($tipos[0]);
+                return true;
+            }
+
+            if ($t !== $actual) {
+                $this->ponerTipo($t);
+                $this->f->quitar('tipo_auto');
+                return true;
+            }
+
+            if (! $pregunta) return false;
+
+            // Preguntó por el mismo que está viendo: "¿solo en calzoncito tienen?"
+            if (count($tipos) > 1) {
+                $otro = $t === 'cinta' ? 'calzoncito' : 'cinta';
+                $this->avisos[] = "También tenemos " . $this->nombreTipo($otro) . " en {$enTalla}. Aquí están todas las opciones:";
+                $this->ponerTipo('ambos');
+                $this->f->quitar('tipo_auto');
+            } else {
+                $this->avisos[] = "Sí, en {$enTalla} por ahora solo tenemos " . $this->nombreTipo($t) . ' 🙏';
+            }
+            return true;
+        }
+
+        if ($pregunta && preg_match('/\b(otr[oa]s?|mas opciones|mas modelos|que mas|no hay mas|solo esa|solo ese|solo eso|nada mas esa|nada mas ese)\b/', $n)) {
+            if ($actual !== 'ambos' && count($tipos) > 1) {
+                $otro = $actual === 'cinta' ? 'calzoncito' : 'cinta';
+                $this->avisos[] = "También tenemos " . $this->nombreTipo($otro) . " en {$enTalla}. Aquí están todas las opciones:";
+                $this->ponerTipo('ambos');
+                $this->f->quitar('tipo_auto');
+            } else {
+                $this->avisos[] = "Esas son todas las opciones que tenemos en {$enTalla} por ahora 🙏";
+            }
+            return true;
+        }
+
+        return false;
     }
 
     /** A mitad del camino dijo otra talla con todas las letras: "mejor XXL". */
@@ -692,9 +779,10 @@ class Asistente
     private function ponerTipo(string $tipo): void
     {
         if (! in_array($tipo, ['cinta', 'calzoncito', 'ambos'], true)) return;
-        if ($this->f->dato('tipo') === $tipo) return;   // ya estaba: no se repite nada
+        if ($this->f->dato('tipo') === $tipo) { $this->f->quitar('tipo_auto'); return; }
 
         $this->f->poner('tipo', $tipo);
+        $this->f->quitar('tipo_auto');
         $this->f->quitar('explicar', 'mostradas', 'mostrado_clave', 'elegido');
     }
 
@@ -712,8 +800,10 @@ class Asistente
 
         if ($this->cambioDeTalla($texto)) return true;
 
+        if ($this->preguntaPorOtras($texto)) return true;
+
         $t = Entender::tipo($texto);
-        if (in_array($t, ['cinta', 'calzoncito', 'ambos'], true) && $t !== $this->f->dato('tipo')) {
+        if ($t === 'ambos' && $t !== $this->f->dato('tipo')) {
             $this->ponerTipo($t);
             return true;
         }
@@ -726,9 +816,10 @@ class Asistente
             return true;
         }
 
+        $antes = $this->f->dato('municipio');
         $this->municipioDePaso($texto);
 
-        return false;
+        return ! $antes && (bool) $this->f->dato('municipio');
     }
 
     private function elegirPresentacion(string $id, ?int $cantidad): bool
@@ -779,6 +870,15 @@ class Asistente
         }
 
         if ($this->cambioDeTalla($texto)) return true;
+
+        // "¿Tiene de cinta?" con el carrito armado: quiere ver más, sin perder
+        // lo que ya eligió.
+        if (in_array(Entender::tipo($texto), ['cinta', 'calzoncito', 'ambos'], true) || preg_match('/\b(otras opciones|que mas hay|mas opciones)\b/', $n)) {
+            $this->f->quitar('carrito_ok', 'mostrado_clave');
+            $this->f->poner('agregando', true);
+            if (! $this->preguntaPorOtras($texto)) $this->ponerTipo((string) Entender::tipo($texto));
+            return true;
+        }
 
         if (preg_match('/\b(agregar|otro|otra|tambien|ademas|mas)\b/', $n)) return $this->accionCarrito('otro');
         if (preg_match('/\b(cambiar|quitar|borrar|mejor no|otro producto)\b/', $n)) return $this->accionCarrito('cambiar');
@@ -1207,6 +1307,16 @@ class Asistente
         $this->f->poner('mostrado_clave', $clave);
 
         $pie = $this->sugerenciaMixta($filas) ?? '';
+
+        // Si está viendo un solo tipo y en esa talla también hay del otro, se
+        // le dice: que no se quede creyendo que es lo único.
+        $tipoVisto = (string) $this->f->dato('tipo');
+        if (in_array($tipoVisto, ['cinta', 'calzoncito'], true)) {
+            $otro = $tipoVisto === 'cinta' ? 'calzoncito' : 'cinta';
+            if (in_array($otro, $this->tiposEn($tallas), true)) {
+                $pie = trim($pie . "\n\nTambién tenemos " . $this->nombreTipo($otro) . ' en talla ' . implode(' y ', $tallas) . ', si quiere se lo muestro.');
+            }
+        }
 
         $this->listaDeOpciones(($pie !== '' ? $pie . "\n\n" : '') . '¿Cuál le gustaría? 😊', $mostradas);
     }
