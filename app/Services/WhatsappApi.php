@@ -224,6 +224,118 @@ class WhatsappApi
     }
 
     /**
+     * Un mensaje con botones para tocar (máximo 3).
+     *
+     * $botones = ['id' => 'Título', ...]. WhatsApp corta el título en 20
+     * letras, así que se recorta acá para que no lo rechace.
+     *
+     * En el panel se guarda como texto, con los botones abajo entre
+     * corchetes, para que se lea qué se le ofreció.
+     */
+    public static function enviarBotones(WaConversacion $conv, string $cuerpo, array $botones, bool $automatico = true): WaMensaje
+    {
+        $botones = array_slice($botones, 0, 3, true);
+
+        $lista = [];
+        foreach ($botones as $id => $titulo) {
+            $lista[] = ['type' => 'reply', 'reply' => [
+                'id'    => mb_substr((string) $id, 0, 200),
+                'title' => mb_substr((string) $titulo, 0, 20),
+            ]];
+        }
+
+        $visible = $cuerpo . "\n\n" . implode('  ', array_map(fn ($t) => '[' . mb_substr((string) $t, 0, 20) . ']', $botones));
+
+        return static::despacharInteractivo($conv, $visible, $automatico, [
+            'type'   => 'button',
+            'body'   => ['text' => mb_substr($cuerpo, 0, 1024)],
+            'action' => ['buttons' => $lista],
+        ]);
+    }
+
+    /**
+     * Un mensaje con una lista desplegable (máximo 10 opciones).
+     *
+     * $filas = [['id' => …, 'titulo' => …, 'detalle' => …], …]. El título se
+     * corta en 24 letras y el detalle en 72, que es lo que WhatsApp permite.
+     */
+    public static function enviarLista(
+        WaConversacion $conv,
+        string $cuerpo,
+        string $boton,
+        array $filas,
+        bool $automatico = true,
+    ): WaMensaje {
+        $filas = array_slice(array_values($filas), 0, 10);
+
+        $rows = [];
+        $visible = [];
+
+        foreach ($filas as $f) {
+            $row = [
+                'id'    => mb_substr((string) $f['id'], 0, 200),
+                'title' => mb_substr((string) $f['titulo'], 0, 24),
+            ];
+
+            if (filled($f['detalle'] ?? null)) {
+                $row['description'] = mb_substr((string) $f['detalle'], 0, 72);
+            }
+
+            $rows[] = $row;
+            $visible[] = '• ' . $row['title'] . (isset($row['description']) ? ' — ' . $row['description'] : '');
+        }
+
+        return static::despacharInteractivo($conv, $cuerpo . "\n\n[" . mb_substr($boton, 0, 20) . "]\n" . implode("\n", $visible), $automatico, [
+            'type'   => 'list',
+            'body'   => ['text' => mb_substr($cuerpo, 0, 1024)],
+            'action' => [
+                'button'   => mb_substr($boton, 0, 20),
+                'sections' => [['title' => 'Opciones', 'rows' => $rows]],
+            ],
+        ]);
+    }
+
+    /** Lo común a botones y listas: guardar, mandar y anotar cómo salió. */
+    private static function despacharInteractivo(WaConversacion $conv, string $visible, bool $automatico, array $interactivo): WaMensaje
+    {
+        $mensaje = WaMensaje::create([
+            'conversacion_id' => $conv->id,
+            'direccion'  => 'saliente',
+            'tipo'       => 'text',
+            'texto'      => $visible,
+            'estado'     => 'enviando',
+            'user_id'    => null,
+            'automatico' => $automatico,
+        ]);
+
+        if (! static::configurado()) {
+            $mensaje->update(['estado' => 'fallido', 'error' => 'Falta configurar el enlace con Meta.']);
+            return $mensaje;
+        }
+
+        try {
+            $r = Http::withToken(static::token())
+                ->timeout(20)
+                ->post(static::url(), [
+                    'messaging_product' => 'whatsapp',
+                    'to'          => $conv->wa_id,
+                    'type'        => 'interactive',
+                    'interactive' => $interactivo,
+                ]);
+
+            $r->successful()
+                ? $mensaje->update(['estado' => 'enviado', 'wa_message_id' => $r->json('messages.0.id')])
+                : $mensaje->update(['estado' => 'fallido', 'error' => mb_substr((string) $r->json('error.message', $r->body()), 0, 300)]);
+        } catch (\Throwable $e) {
+            $mensaje->update(['estado' => 'fallido', 'error' => mb_substr($e->getMessage(), 0, 300)]);
+        }
+
+        static::refrescarConversacion($conv, strtok($visible, "\n") ?: $visible, $mensaje->estado);
+
+        return $mensaje;
+    }
+
+    /**
      * ¿El mensaje lleva el enlace de un producto de la tienda?
      *
      * Para esos, la vista previa SÍ se enciende. La tarjeta que arma WhatsApp
@@ -254,6 +366,7 @@ class WhatsappApi
         string $urlPublica,
         ?string $pie = null,
         ?int $userId = null,
+        bool $automatico = false,
     ): WaMensaje {
         $mensaje = WaMensaje::create([
             'conversacion_id' => $conv->id,
@@ -264,6 +377,7 @@ class WhatsappApi
             'media_ruta' => $urlPublica,
             'estado'     => 'enviando',
             'user_id'    => $userId,
+            'automatico' => $automatico,
         ]);
 
         if (! static::configurado()) {

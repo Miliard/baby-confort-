@@ -293,7 +293,10 @@ class Etiquetado
             // El cliente dijo que quiere comprar, con cualquiera de las mil
             // formas de decirlo. Va a Pedidos para que no se pierda; si al
             // final no se concretó, lo sacás vos al depurar la pestaña.
-            if ($delCliente && static::quierePedir($texto)) {
+            // Salvo que lo esté atendiendo el asistente de ventas: ese lo manda
+            // a Pedidos él mismo cuando cierra el pedido (o cuando te lo pasa).
+            if ($delCliente && static::quierePedir($texto)
+                && ! \App\Services\Asistente\Asistente::loTiene($conv)) {
                 static::marcarIntencion($conv);
             }
 

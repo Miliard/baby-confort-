@@ -73,7 +73,14 @@ class WhatsappWebhookController extends Controller
             Log::error('WhatsApp webhook: ' . $e->getMessage());
         }
 
-        return response()->json(['ok' => true]);
+        // Con el largo dicho de antemano, Meta da la respuesta por completa
+        // apenas la recibe, aunque el asistente siga trabajando después. Sin
+        // esto se quedaría esperando a que se cierre la conexión.
+        $r = response()->json(['ok' => true]);
+        $r->headers->set('Content-Length', (string) strlen((string) $r->getContent()));
+        $r->headers->set('Connection', 'close');
+
+        return $r;
     }
 
     /**
@@ -113,11 +120,27 @@ class WhatsappWebhookController extends Controller
         $mediaId = null;
         $ruta = null;
 
+        // El botón o la opción de lista que tocó, si fue eso.
+        $idBoton = null;
+
         if ($tipo === 'text') {
             $texto = $m['text']['body'] ?? '';
         } elseif (in_array($tipo, ['image', 'video', 'document', 'audio', 'voice'], true)) {
             $mediaId = $m[$tipo]['id'] ?? null;
             $texto   = $m[$tipo]['caption'] ?? null;
+        } elseif ($tipo === 'interactive') {
+            // Tocó un botón o eligió de una lista del asistente. Se guarda como
+            // texto con lo que decía el botón: así se lee en el chat igual que
+            // si lo hubiera escrito, y todo lo demás lo trata como un mensaje.
+            $sub     = $m['interactive']['type'] ?? '';
+            $texto   = $m['interactive'][$sub]['title'] ?? '[botón]';
+            $idBoton = $m['interactive'][$sub]['id'] ?? null;
+            $tipo    = 'text';
+        } elseif ($tipo === 'button') {
+            // El botón de respuesta rápida de una plantilla.
+            $texto   = $m['button']['text'] ?? '[botón]';
+            $idBoton = $m['button']['payload'] ?? null;
+            $tipo    = 'text';
         } else {
             $texto = '[' . $tipo . ']';
         }
@@ -194,8 +217,19 @@ class WhatsappWebhookController extends Controller
         // por la ventana cerrada. Se quitó: el enlace lo manda Wil a mano. La
         // pieza sigue en EnlacesPendientes::mandar() por si se quiere volver.
 
-        // Respuesta automática (por ahora, solo la tabla de tallas).
-        if ($tipo === 'text' && filled($texto)) {
+        // El asistente de ventas. Solo deja anotado que tiene que contestar:
+        // lo hace DESPUÉS de devolverle el 200 a Meta, porque mandar fotos y
+        // precios toma varios segundos y Meta no espera.
+        $loAtiende = false;
+        try {
+            $loAtiende = \App\Services\Asistente\Asistente::alLlegar($conv, $mensaje, $idBoton);
+        } catch (\Throwable $e) {
+            Log::warning('Asistente al llegar: ' . $e->getMessage());
+        }
+
+        // Respuesta automática (por ahora, solo la tabla de tallas). Si el
+        // asistente ya atiende el chat, no: serían dos respuestas a lo mismo.
+        if (! $loAtiende && $tipo === 'text' && filled($texto)) {
             AutoRespuestas::quizasResponder($conv, $texto);
         }
 

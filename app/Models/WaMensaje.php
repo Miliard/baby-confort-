@@ -30,11 +30,27 @@ class WaMensaje extends Model
     protected static function booted(): void
     {
         static::created(function (WaMensaje $m) {
+            // Lo que dice el asistente de ventas no etiqueta: un "Total a
+            // pagar" a mitad del pedido mandaría el chat a Pedidos antes de
+            // tiempo. El asistente pone las etiquetas él mismo, al cerrar.
+            $delAsistente = $m->automatico && \App\Services\Asistente\Asistente::$hablando;
+
             try {
-                \App\Services\Etiquetado::alGuardarMensaje($m->conversacion, $m->texto, $m->esDelCliente());
+                if (! $delAsistente) {
+                    \App\Services\Etiquetado::alGuardarMensaje($m->conversacion, $m->texto, $m->esDelCliente());
+                }
             } catch (\Throwable $e) {
                 // Guardar el mensaje es lo que no puede fallar. Lo demás es
                 // comodidad.
+            }
+
+            // Wil escribió en el chat (panel o teléfono): el asistente se
+            // apaga ahí. Wil manda.
+            if ($m->direccion === 'saliente' && ! $m->automatico) {
+                try {
+                    \App\Services\Asistente\Asistente::wilEscribio($m->conversacion);
+                } catch (\Throwable $e) {
+                }
             }
         });
     }

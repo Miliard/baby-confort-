@@ -996,6 +996,99 @@ class Whatsapp extends Page
         return $n === 1 ? 'mandó' : 'mandaron';
     }
 
+    // ── El asistente de ventas ───────────────────────────────────────────────
+
+    /**
+     * Lo que muestra la franja del asistente arriba del chat, o null si en
+     * este chat no puede atender (mientras se prueba: todos menos los números
+     * de prueba).
+     */
+    public function asistenteEnChat(): ?array
+    {
+        $conv = $this->conversacion();
+        if (! $conv || ! \App\Models\AsistenteFicha::hayTabla()) return null;
+
+        try {
+            if (! \App\Services\Asistente\Asistente::numeroPermitido($conv)) return null;
+
+            $f = \App\Models\AsistenteFicha::de($conv);
+
+            $estado = $f ? $f->estadoLegible() : 'Esperando';
+            $encendido = ! $f || in_array($f->estado, ['listo', 'activo', 'terminado'], true);
+
+            if (! $f || $f->estado === 'listo') {
+                $porQue = \App\Services\Asistente\Asistente::porQueNoEmpieza($conv, $f);
+                if ($porQue) $estado = 'No arranca: ' . $porQue;
+            }
+
+            return [
+                'estado'    => $estado,
+                'paso'      => $f && $f->estado === 'activo' ? $f->pasoLegible() : null,
+                'motivo'    => $f && in_array($f->estado, ['wil', 'apagado'], true) ? $f->motivo : null,
+                'encendido' => $encendido,
+                'prueba'    => \App\Services\Asistente\Asistente::enPrueba(),
+                'clase'     => $f && $f->estado === 'wil' ? 'wil' : ($encendido ? '' : 'off'),
+            ];
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /** Lo vuelve a dejar listo para arrancar con el próximo mensaje del cliente. */
+    public function asistenteEncender(): void
+    {
+        $conv = $this->conversacion();
+        if (! $conv) return;
+
+        \App\Models\AsistenteFicha::updateOrCreate(
+            ['conversacion_id' => $conv->id],
+            [
+                'estado' => 'listo', 'paso' => null, 'datos' => [], 'motivo' => null,
+                // Lo que ya se habló no se vuelve a leer, y lo que escribiste
+                // antes de encenderlo no lo frena.
+                'ultimo_mensaje_id' => \App\Models\WaMensaje::where('conversacion_id', $conv->id)->max('id'),
+                'desde' => now(),
+            ]
+        );
+
+        Notification::make()->title('Asistente encendido en este chat')
+            ->body('Arranca cuando el cliente escriba.')->success()->send();
+    }
+
+    public function asistenteApagar(): void
+    {
+        $conv = $this->conversacion();
+        if (! $conv) return;
+
+        \App\Models\AsistenteFicha::updateOrCreate(
+            ['conversacion_id' => $conv->id],
+            ['estado' => 'apagado', 'motivo' => 'lo apagaste']
+        );
+
+        Notification::make()->title('Asistente apagado en este chat')->success()->send();
+    }
+
+    /**
+     * Empezar la prueba de cero: se borra la ficha y se quitan las etiquetas del
+     * recorrido del pedido, que si no, lo frenarían ("tiene un pedido abierto").
+     * Solo en modo prueba.
+     */
+    public function asistenteReiniciar(): void
+    {
+        $conv = $this->conversacion();
+        if (! $conv || ! \App\Services\Asistente\Asistente::enPrueba()) return;
+        if (! \App\Services\Asistente\Asistente::numeroPermitido($conv)) return;
+
+        foreach (['pedido', 'procesada', 'entregada', 'sin_cobro', 'agotado'] as $rol) {
+            $e = \App\Models\WaEtiqueta::porRol($rol);
+            if ($e) $conv->etiquetas()->detach($e->id);
+        }
+
+        \App\Models\AsistenteFicha::where('conversacion_id', $conv->id)->delete();
+
+        $this->asistenteEncender();
+    }
+
     // ── La ventana del catálogo ──────────────────────────────────────────────
 
     public bool $catalogoAbierto = false;

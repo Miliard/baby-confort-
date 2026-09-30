@@ -559,6 +559,15 @@
                       overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .wa-slash-nada{padding:9px;font-size:12px;color:var(--wa-suave)}
 
+    /* La franja del asistente de ventas, arriba del chat. */
+    .wa-bot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;
+            padding:6px 10px;font-size:12.5px;border-bottom:1px solid rgba(120,140,170,.25);
+            background:rgba(74,163,223,.10)}
+    .wa-bot.wil{background:rgba(229,83,75,.13)}
+    .wa-bot.off{background:rgba(120,140,170,.10)}
+    .wa-bot-txt{min-width:0}
+    .wa-bot-btns{display:flex;gap:6px;flex:none}
+
     /* Las miniaturas de las fotos de cada respuesta. Del tamaño justo para
        reconocer cuál es cuál; más grandes, la lista mostraría dos respuestas
        y habría que deslizar para todo. */
@@ -1307,6 +1316,37 @@
                     @endforeach
                 @endif
             </div>
+
+            {{-- ═══ El asistente de ventas en este chat ═══
+                 Solo aparece en los chats donde puede atender (mientras se
+                 prueba, solo en los números de prueba). Dice qué está haciendo
+                 y deja apagarlo, encenderlo o empezar de cero. --}}
+            @php $bot = $pestana === 'chat' ? $this->asistenteEnChat() : null; @endphp
+
+            @if($bot)
+                <div class="wa-bot {{ $bot['clase'] }}">
+                    <span class="wa-bot-txt">
+                        🤖 <b>Asistente:</b> {{ $bot['estado'] }}
+                        @if($bot['paso']) · paso {{ $bot['paso'] }} @endif
+                        @if($bot['motivo']) · <i>{{ $bot['motivo'] }}</i> @endif
+                    </span>
+
+                    <span class="wa-bot-btns">
+                        @if($bot['encendido'])
+                            <button type="button" class="wa-mini" wire:click="asistenteApagar">Apagar</button>
+                        @else
+                            <button type="button" class="wa-mini" wire:click="asistenteEncender">Encender</button>
+                        @endif
+
+                        @if($bot['prueba'])
+                            <button type="button" class="wa-mini" wire:click="asistenteReiniciar"
+                                    wire:confirm="¿Empezar la prueba de cero? Se borra lo que el asistente llevaba anotado y se quitan las etiquetas de pedido de este chat.">
+                                Reiniciar prueba
+                            </button>
+                        @endif
+                    </span>
+                </div>
+            @endif
 
             {{-- ═══ La ficha del cliente ═══
                  El panel ya sabía la dirección y cuántas veces te compró, pero
