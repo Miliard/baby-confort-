@@ -324,6 +324,48 @@ class Entender
         return null;
     }
 
+    /**
+     * Varias en un mismo mensaje: "2 de noche y 1 magic", "el de noche y el
+     * magic". Devuelve [[id, cantidad], …] si reconoce dos o más distintas;
+     * si no, null (y se lee como una sola). Sin cantidad, va 1.
+     */
+    public static function varias(?string $texto, array $opciones): ?array
+    {
+        $n = static::normalizar($texto);
+        if ($n === '' || count($opciones) < 2) return null;
+
+        $pal = implode('|', array_keys(self::NUMEROS));
+
+        // La coma ya no está (normalizar la quita): "1 magic 2 noche" se corta
+        // también antes de cada cantidad.
+        $partes = preg_split('/\s*(?:\by\b|\be\b|\bmas\b|\bademas\b|\btambien\b|\bcon\b)\s*|\s+(?=(?:\d{1,2}|' . $pal . ')\s+[a-z])/', $n);
+        $vistos = [];
+
+        foreach ($partes as $p) {
+            $p = trim(preg_replace('/^(quiero|quisiera|deme|denme|mandeme|me manda|me da|me das|serian|seria|solo|nada mas|unos|unas|y|tambien|ademas|por favor)\s+/', '', trim($p)));
+            if ($p === '') continue;
+
+            // La cantidad del principio se saca antes de buscar la opción: si
+            // no, "2 de noche" se leería como "la opción 2".
+            $cant = 1;
+            if (preg_match('/^(\d{1,2}|' . $pal . ')\s+(paquetes?\s+)?(de\s+)?(la|el|los|las)?\s*(.*)$/', $p, $m) && $m[5] !== '') {
+                $cant = static::aNumero($m[1]) ?: 1;
+                $p = $m[5];
+            }
+
+            $id = static::opcion($p, $opciones);
+            if ($id === null) continue;
+
+            $vistos[$id] = ($vistos[$id] ?? 0) + $cant;
+        }
+
+        if (count($vistos) < 2) return null;
+
+        $r = [];
+        foreach ($vistos as $id => $c) $r[] = [(string) $id, (int) $c];
+        return $r;
+    }
+
     // ── Datos de entrega ─────────────────────────────────────────────────────
 
     /** Un celular o fijo de El Salvador en el texto: "7123 4567". */
