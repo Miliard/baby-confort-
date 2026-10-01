@@ -1576,15 +1576,22 @@ class Asistente
         }
 
         if ($filas->isEmpty()) {
-            $this->texto($antes . 'En este momento no tenemos disponible talla ' . implode(' ni ', $tallas) . ' 😔');
+            // Un solo mensaje: el aviso y el "le comunico con un asesor" juntos.
+            $this->texto($antes . 'En este momento no tenemos disponible talla ' . implode(' ni ', $tallas) . " 😔\n\n"
+                . trim((string) config('asistente.textos.asesor')));
             $this->marcarAgotado();
             $this->pasarAWil('no hay existencias en talla ' . implode(' y ', $tallas), false);
             return;
         }
 
+        // Para elegir quedan hasta 9 (van en la lista de "Comprar"); con foto
+        // salen solo las primeras: cada foto es un mensaje que Meta cobra.
         $filas = $filas->take(9)->values();
+        $conFoto = max(1, (int) config('asistente.max_fotos', 4));
 
-        if (trim($antes) !== '') $this->texto(trim($antes));
+        // El saludo y los avisos ya no van en un mensaje aparte: van arriba de
+        // la primera foto, como parte de su texto.
+        $prefijo = trim($antes);
 
         $mostradas = [];
         foreach ($filas as $i => $s) {
@@ -1597,13 +1604,21 @@ class Asistente
                 'precio'   => (float) $s->price,
             ];
 
-            $this->tarjeta($s, $i + 1);
+            if ($i < $conFoto) {
+                $this->tarjeta($s, $i + 1, $i === 0 ? $prefijo : '');
+            }
         }
 
         $this->f->poner('mostradas', $mostradas);
         $this->f->poner('mostrado_clave', $clave);
 
         $pie = $this->sugerenciaMixta($filas) ?? '';
+
+        if ($filas->count() > $conFoto) {
+            $mas = $filas->count() - $conFoto;
+            $pie = trim($pie . "\n\nHay " . $mas . ($mas === 1 ? ' opción más' : ' opciones más')
+                . ' en esta talla: las ve todas, con su precio, en *Más opciones → Comprar*.');
+        }
 
         // Si está viendo un solo tipo y en esa talla también hay del otro, se
         // le dice: que no se quede creyendo que es lo único.
@@ -1844,14 +1859,19 @@ class Asistente
 
     private function mostrarOrden(string $antes): void
     {
-        if (trim($antes) !== '') $this->texto(trim($antes));
+        $botones = ['conf:si' => 'Confirmar pedido', 'conf:corregir' => 'Corregir'];
+        $todo = trim(trim($antes) . "\n\n" . $this->textoOrden() . "\n\n¿Está todo correcto?");
 
-        $this->texto($this->textoOrden());
+        // Un solo mensaje con la orden y los botones. WhatsApp deja hasta
+        // 1024 letras en un mensaje con botones; si la orden es más larga
+        // (muchos productos), va en dos.
+        if (mb_strlen($todo) <= 1020) {
+            $this->botones($todo, $botones);
+            return;
+        }
 
-        $this->botones('¿Está todo correcto?', [
-            'conf:si'       => 'Confirmar pedido',
-            'conf:corregir' => 'Corregir',
-        ]);
+        $this->texto(trim(trim($antes) . "\n\n" . $this->textoOrden()));
+        $this->botones('¿Está todo correcto?', $botones);
     }
 
     private function preguntarQueCorregir(string $antes): void
@@ -2106,7 +2126,7 @@ class Asistente
     }
 
     /** La tarjeta de un producto: el mensaje con su enlace (WhatsApp arma la foto). */
-    private function tarjeta(ProductSize $s, int $n): void
+    private function tarjeta(ProductSize $s, int $n, string $prefijo = ''): void
     {
         $p = $s->product;
 
@@ -2131,6 +2151,17 @@ class Asistente
         try {
             $pie .= "\n*Mírelo aquí:*\n" . route('store.show', $p) . '?t=' . urlencode(trim((string) $s->size));
         } catch (\Throwable $e) {
+        }
+
+        // El saludo o un aviso, arriba de la primera foto en el mismo mensaje
+        // (cada mensaje se cobra). Si quedara demasiado largo para el pie de
+        // una foto (WhatsApp deja ~1024 letras), va aparte.
+        if ($prefijo !== '') {
+            if (mb_strlen($prefijo . "\n\n" . $pie) <= 1000) {
+                $pie = $prefijo . "\n\n" . $pie;
+            } else {
+                $this->texto($prefijo);
+            }
         }
 
         // Como FOTO grande, con los datos y el enlace abajo: la tarjetita del

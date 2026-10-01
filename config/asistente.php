@@ -62,6 +62,11 @@ return [
     // no, va como tarjeta.
     'presentacion_como_foto' => (bool) env('ASISTENTE_COMO_FOTO', true),
 
+    // Cuántas presentaciones se mandan con foto por talla. Las demás no se
+    // pierden: aparecen en la lista de "Comprar" con talla, tipo y precio.
+    // Cada foto es un mensaje que Meta cobra (desde octubre de 2026).
+    'max_fotos' => (int) env('ASISTENTE_MAX_FOTOS', 4),
+
     /*
     |--------------------------------------------------------------------------
     | Tallas que ofrece, en este orden
