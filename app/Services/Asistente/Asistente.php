@@ -596,6 +596,12 @@ class Asistente
                 return $this->leerOpcion($texto);
 
             case 'cantidad':
+                // "No, es todo" con el carrito armado: se suelta lo que estaba
+                // eligiendo y vuelve al pedido.
+                if ($this->f->dato('carrito') && $this->diceEsTodo($texto)) {
+                    $this->f->quitar('elegido', 'eligiendo', 'agregando');
+                    return true;
+                }
                 $n = Entender::cantidad($texto);
                 if ($n !== null) return $this->ponerCantidad($n);
                 // Quizás eligió otra opción en vez de decir cuántos.
@@ -784,6 +790,12 @@ class Asistente
     private function bonita(string $talla): string
     {
         return preg_match('/a(ñ|n)os/iu', $talla) ? mb_strtolower($talla) : $talla;
+    }
+
+    private function diceEsTodo(string $texto): bool
+    {
+        return Entender::siNo($texto) === false
+            || (bool) preg_match('/\b(es todo|eso es todo|nada mas|solo eso|ya no|ninguno|ninguna|asi esta bien|ya esta)\b/', Entender::normalizar($texto));
     }
 
     private function quiereOtraTalla(string $texto): bool
@@ -1062,6 +1074,9 @@ class Asistente
         // elegía.
         if ($this->quiereOtraTalla($texto)) return $this->leerBoton('volver');
 
+        // Estaba sumando y dice "no, es todo": vuelve al pedido.
+        if ($this->f->dato('carrito') && $this->diceEsTodo($texto)) return $this->leerBoton('listo');
+
         // "2 de noche y 1 magic": las dos al carrito de una vez.
         if ($varias = Entender::varias($texto, $mostradas)) {
             foreach ($varias as [$vid, $cant]) {
@@ -1079,6 +1094,20 @@ class Asistente
 
         if ($id !== null) {
             return $this->elegirPresentacion($id, Entender::cantidad($texto, true));
+        }
+
+        // "El de noche" con dos de noche (cinta y calzoncito): se le pregunta
+        // cuál, nombrándolos, en vez de "no le entendí".
+        $cand = Entender::candidatos($texto, $mostradas);
+        if (count($cand) >= 2 && count($cand) <= 4) {
+            $l = [];
+            foreach (array_values($mostradas) as $i => $o) {
+                if (in_array((string) $o['id'], $cand, true)) {
+                    $l[] = ($i + 1) . '. ' . $o['nombre'] . ' (' . $this->tipoDe($o['nombre']) . ')';
+                }
+            }
+            $this->avisos[] = "¿Cuál de estos?\n" . implode("\n", $l);
+            return true;
         }
 
         if ($this->cambioDeTalla($texto)) return true;
@@ -1148,7 +1177,17 @@ class Asistente
     {
         $n = Entender::normalizar($texto);
 
-        if (Entender::siNo($texto) === true || Entender::quiereComprar($texto) || preg_match('/\b(continuar|seguir|nada mas|solo eso|eso es todo|asi esta bien|ya|finalizar|terminar)\b/', $n)) {
+        // "Sí" acá quiere decir "sí, agregar más": la pregunta es "¿le
+        // agregamos algo más?". "No", "es todo", "nada más": seguir al envío.
+        if (Entender::siNo($texto) === false || preg_match('/\b(es todo|eso es todo|nada mas|solo eso|asi esta bien|continuar|seguir|finalizar|terminar|ya no|ninguno|ninguna)\b/', $n)) {
+            return $this->accionCarrito('seguir');
+        }
+
+        if (Entender::siNo($texto) === true && ! Entender::tipo($texto) && ! Entender::tallas($texto, true)) {
+            return $this->accionCarrito('otro');
+        }
+
+        if (Entender::quiereComprar($texto) && ! Entender::tipo($texto) && ! Entender::tallas($texto, true)) {
             return $this->accionCarrito('seguir');
         }
 
@@ -1185,7 +1224,11 @@ class Asistente
             $this->f->quitar('elegido', 'carrito_ok');
             $this->f->poner('agregando', true);
 
-            if ($this->f->dato('mostradas')) {
+            // Para sumar, la lista trae TODO lo de esa talla, de cinta y de
+            // calzoncito: si eligió el calzoncito de noche, que pueda sumar
+            // la cinta de día sin volver a empezar.
+            $tallas = (array) $this->f->dato('tallas', []);
+            if ($tallas && $this->recargarMostradas($tallas)) {
                 $this->f->poner('eligiendo', true);
             } else {
                 $this->f->quitar('tallas', 'tipo', 'tipo_auto', 'sugeridas', 'mostrado_clave');
@@ -1660,6 +1703,33 @@ class Asistente
         $this->lista($cuerpo, 'Más opciones', $filas);
     }
 
+    /**
+     * Rehace la lista de presentaciones de esas tallas con los dos tipos, sin
+     * mandar fotos (para "agregar más"). false si no hay nada.
+     */
+    private function recargarMostradas(array $tallas): bool
+    {
+        $filas = $this->presentaciones($tallas, 'ambos')->take(8)->values();
+        if ($filas->isEmpty()) return false;
+
+        $mostradas = [];
+        foreach ($filas as $s) {
+            $mostradas[] = [
+                'id'       => (string) $s->id,
+                'nombre'   => trim((string) $s->product->name),
+                'talla'    => trim((string) $s->size),
+                'unidades' => (int) ($s->unidades ?? 0),
+                'precio'   => (float) $s->price,
+            ];
+        }
+
+        $this->f->poner('tipo', 'ambos');
+        $this->f->quitar('tipo_auto');
+        $this->f->poner('mostradas', $mostradas);
+        $this->f->poner('mostrado_clave', $this->claveMostrado());
+        return true;
+    }
+
     /** Tocó "Quiero comprar": si hay una sola presentación, esa; si no, que elija. */
     private function empezarCompra(): bool
     {
@@ -1686,6 +1756,11 @@ class Asistente
         foreach (array_values((array) $this->f->dato('mostradas', [])) as $i => $o) {
             $peso = $this->pesoDe($o['talla']);
 
+            $ya = 0;
+            foreach ((array) $this->f->dato('carrito', []) as $c) {
+                if ((string) $c['id'] === (string) $o['id']) $ya = (int) $c['cant'];
+            }
+
             $filas[] = [
                 'id'      => 'p:' . $o['id'],
                 // "1. Talla XL · Calzoncito" si cabe en las 24 letras de WhatsApp;
@@ -1696,7 +1771,7 @@ class Asistente
                 'detalle' => ($peso !== '' ? $peso . ' · ' : '')
                     . ($o['unidades'] > 0 ? $o['unidades'] . ' u · ' : '')
                     . '$' . number_format($o['precio'], 2)
-                    . ' · ' . $o['nombre'],
+                    . ' · ' . ($ya ? "ya lleva {$ya} · " : '') . $o['nombre'],
             ];
         }
 
@@ -1704,7 +1779,7 @@ class Asistente
 
         $filas = array_slice($filas, 0, $hayCarrito ? 7 : 8);
         $filas[] = ['id' => 'volver', 'titulo' => 'Ver otra talla', 'detalle' => ''];
-        if ($hayCarrito) $filas[] = ['id' => 'listo', 'titulo' => 'Nada más, continuar', 'detalle' => 'Ver mi pedido'];
+        if ($hayCarrito) $filas[] = ['id' => 'listo', 'titulo' => 'No, es todo', 'detalle' => 'Ver mi pedido'];
         $filas[] = ['id' => 'wil', 'titulo' => 'Hablar con un asesor', 'detalle' => ''];
 
         $cuerpo = $hayCarrito
@@ -1763,7 +1838,7 @@ class Asistente
         $o = $this->mostrada((string) $this->f->dato('elegido'));
         $que = $o ? "*{$o['nombre']}* talla {$o['talla']}" : 'ese';
 
-        $this->botones($antes . "¿Cuántos paquetes de {$que} le enviamos? Si son más de 3, escríbame el número 😊", [
+        $this->botones($antes . "¿Cuántos paquetes de {$que} le enviamos? Si son más de 3, escríbame el número 😊\n\nDespués le pregunto si quiere agregar algo más.", [
             'cant:1' => '1',
             'cant:2' => '2',
             'cant:3' => '3',
@@ -1774,9 +1849,13 @@ class Asistente
     {
         [$lineas, $subtotal] = $this->resumenCarrito();
 
-        $this->botones($antes . "🛒 Le quedaría así:\n" . implode("\n", $lineas) . "\n\n*Subtotal: $" . number_format($subtotal, 2) . "*\n\nSi está bien, toque *Comprar* y le cotizo el envío 🚚", [
-            'carrito:seguir'  => 'Comprar',
-            'carrito:otro'    => 'Agregar otro',
+        // La pregunta es abierta a propósito: "¿le agregamos algo más?". Es
+        // el momento de sumar la de cinta, la de noche o la otra talla, antes
+        // de pasar al envío.
+        $this->botones($antes . "🛒 *Su pedido hasta ahora:*\n" . implode("\n", $lineas) . "\n\n*Subtotal: $" . number_format($subtotal, 2) . "*\n\n"
+            . '¿Le agregamos algo más? Puede ser otra presentación, la de cinta o calzoncito, u otra talla 😊', [
+            'carrito:otro'    => 'Sí, agregar más',
+            'carrito:seguir'  => 'No, es todo',
             'carrito:cambiar' => 'Cambiar',
         ]);
     }

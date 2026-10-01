@@ -395,6 +395,26 @@ class Entender
         return $r;
     }
 
+    /**
+     * Las opciones cuyo nombre tiene alguna palabra del mensaje ("noche"),
+     * para preguntar cuál cuando hay más de una.
+     */
+    public static function candidatos(?string $texto, array $opciones): array
+    {
+        $tokens = explode(' ', static::normalizar($texto));
+        $ids = [];
+
+        foreach ($opciones as $o) {
+            foreach (explode(' ', static::normalizar($o['nombre'])) as $w) {
+                if (mb_strlen($w) < 4) continue;
+                if (in_array($w, ['panal', 'panales', 'calzoncito', 'calzoncitos', 'cinta', 'talla', 'pack', 'paquete', 'bebe', 'para'], true)) continue;
+                if (in_array($w, $tokens, true)) { $ids[] = (string) $o['id']; break; }
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
     // ── Datos de entrega ─────────────────────────────────────────────────────
 
     /** Un celular o fijo de El Salvador en el texto: "7123 4567". */
