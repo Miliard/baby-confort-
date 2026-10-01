@@ -76,6 +76,7 @@ class Entender
         // se reconoció: si no, "extra grande" también sería "grande" (L).
         // Las marcadas con * no valen en modo estricto.
         $reglas = [
+            'RN'   => ['/\b(rn|nb|newborn)\b/', '/\brecien nacid[oa]s?\b/', '/\btalla (rn|0|cero)\b/'],
             '8 A 14 AÑOS' => ['/\b8\s*(a|al|-)?\s*14\b/', '/\bocho a catorce\b/'],
             '4 A 7 AÑOS'  => ['/\b4\s*(a|al|-)?\s*7\b(?!\s*(\d|dias|horas))/', '/\bcuatro a siete\b/'],
             'XXXL' => ['/\b(xxxl|3xl|xxxg|3xg)\b/', '/\btriple extra ?grande\b/'],
@@ -361,6 +362,27 @@ class Entender
 
         return (bool) preg_match('/\b(col|colonia|calle|pasaje|pje|avenida|av|block|poligono|casa|residencial|res|barrio|canton|caserio|km|kilometro|frente|contiguo|costado)\b/', $n)
             && static::palabras($n) >= 3;
+    }
+
+    /**
+     * Si pregunta algo de la lista de respuestas ("¿son calientes?"), el
+     * texto para contestarle. null si no.
+     */
+    public static function respuesta(?string $texto, array $respuestas): ?string
+    {
+        $n = ' ' . static::normalizar($texto) . ' ';
+        if (trim($n) === '') return null;
+
+        foreach ($respuestas as $r) {
+            foreach ((array) ($r['palabras'] ?? []) as $p) {
+                $p = static::normalizar($p);
+                if ($p !== '' && preg_match('/\b' . preg_quote($p, '/') . '\b/', $n)) {
+                    return (string) ($r['texto'] ?? '');
+                }
+            }
+        }
+
+        return null;
     }
 
     /** "Gracias", "ok", un emoji solo: no piden respuesta. */

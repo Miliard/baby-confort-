@@ -361,6 +361,16 @@ class Asistente
 
         $boton = $this->botones[$m->id] ?? null;
 
+        // "¿Son calientes?": se contesta con lo que dice config y se sigue
+        // donde iba. Si en el mismo mensaje dijo algo más, se lee igual.
+        $respondio = false;
+        if (! $boton && ($r = Entender::respuesta($texto, (array) config('asistente.respuestas', [])))) {
+            $entrega = trim((string) \App\Models\Setting::get('envio_tiempo', '24 horas hábiles')) ?: '24 horas hábiles';
+            $this->avisos[] = str_replace('{entrega}', $entrega, $r);
+            $this->leyoAlgo = true;
+            $respondio = true;
+        }
+
         if ($boton === 'wil') {
             $this->paraWil = 'pidió hablar con un asesor';
             return;
@@ -374,6 +384,9 @@ class Asistente
             $this->f->poner('fallos', []);
             return;
         }
+
+        // Era una pregunta y ya se contestó: no es un error.
+        if ($respondio) return;
 
         // "Gracias", "ok", un emoji: no hace falta contestar nada.
         if (Entender::esCortesia($texto)) return;
@@ -659,9 +672,39 @@ class Asistente
             (array) config('asistente.tallas_nino', [])
         );
 
+        // Recién nacido: mientras la tabla no tenga su rango, va por debajo de
+        // la S.
+        if ($r['caso'] === 'fuera' && ! isset(Tallas::rangos((array) config('tallas_peso', []))['RN'])
+            && $kg > 0 && $kg <= (float) config('asistente.rn_hasta_kg', 4.5)) {
+            $r = ['tallas' => ['RN'], 'caso' => 'una'];
+        }
+
         if ($r['caso'] === 'fuera') {
             $this->paraWil = "el peso ({$dicho}) no está en la tabla de tallas";
             return true;
+        }
+
+        // Si ya eligió cinta o calzoncito, cuentan solo las tallas que lo
+        // tienen: "no hay L de cinta, pero con ese peso la XL sí".
+        $tipoPedido = $this->f->dato('tipo_auto') ? null : $this->f->dato('tipo');
+        if (in_array($tipoPedido, ['cinta', 'calzoncito'], true)) {
+            $conTipo = array_values(array_filter($r['tallas'], fn ($t) => in_array($tipoPedido, $this->tiposEn([$t]), true)));
+            $sinTipo = array_values(array_diff(array_intersect($r['tallas'], $this->tallasDisponibles()), $conTipo));
+
+            if ($conTipo) {
+                if (count($conTipo) < count($r['tallas'])) {
+                    $this->avisos[] = "Con {$dicho}, " . ($tipoPedido === 'cinta' ? 'de cinta' : 'en calzoncito') . ' le queda la talla *' . $conTipo[0] . '* 👍';
+                    $this->elegirTallas([$conTipo[0]]);
+                    return true;
+                }
+            } elseif ($sinTipo) {
+                $otro = $tipoPedido === 'cinta' ? 'calzoncito' : 'cinta';
+                $this->avisos[] = "Con {$dicho} le queda la talla " . implode(' o ', $r['tallas']) . ', pero ' . ($tipoPedido === 'cinta' ? 'de cinta' : 'en calzoncito') . ' no tenemos en esa talla 😔 Sí tenemos ' . $this->nombreTipo($otro) . ':';
+                $this->f->poner('tipo', $otro);
+                $this->f->quitar('tipo_auto');
+                $this->elegirTallas($sinTipo);
+                return true;
+            }
         }
 
         $hay = array_values(array_intersect($r['tallas'], $this->tallasDisponibles()));
@@ -756,9 +799,21 @@ class Asistente
 
         if (in_array($t, ['cinta', 'calzoncito'], true)) {
             if (! in_array($t, $tipos, true)) {
-                $this->avisos[] = "En {$enTalla} por ahora no tenemos " . $this->nombreTipo($t) . ' 😔'
-                    . ($tipos ? ' Tenemos ' . $this->nombreTipo($tipos[0]) . ':' : '');
-                if ($actual !== ($tipos[0] ?? $actual)) $this->ponerTipo($tipos[0]);
+                // Las tallas se cruzan: puede que en la de al lado sí haya.
+                // Con el peso se sabe; sin el peso, se pregunta.
+                $this->f->poner('tipo', $t);
+                $this->f->quitar('tipo_auto');
+
+                $kg = $this->f->dato('peso_kg');
+                if ($kg) {
+                    $tallasAntes = $tallas;
+                    $this->ponerPeso((float) $kg, 'kg', $this->f->dato('peso_dicho'));
+                    if ($this->f->dato('tallas') !== $tallasAntes || $this->f->dato('sugeridas')) return true;
+                }
+
+                $this->avisos[] = "En {$enTalla} por ahora no tenemos " . $this->nombreTipo($t) . ' 😔 Pero las tallas se cruzan y puede que le quede la de al lado.';
+                $this->f->quitar('tallas', 'mostradas', 'mostrado_clave', 'elegido', 'sugeridas');
+                $this->f->poner('pide_peso', true);
                 return true;
             }
 
@@ -1801,13 +1856,47 @@ class Asistente
         } catch (\Throwable $e) {
         }
 
-        $this->texto($pie);
+        // Como FOTO grande, con los datos y el enlace abajo: la tarjetita del
+        // enlace es tan chica que no se aprecia la presentación. WhatsApp
+        // solo acepta JPG y PNG; con otra cosa, va como antes.
+        $foto = config('asistente.presentacion_como_foto', true) ? $this->fotoDe($s) : null;
+
+        if ($foto) {
+            WhatsappApi::enviarImagen($this->conv, $foto, $pie, null, true);
+        } else {
+            $this->texto($pie);
+        }
 
         if (config('asistente.con_fotos_uso')) {
             foreach (array_slice($s->fotosUsoUrls(), 0, 3) as $u) {
                 WhatsappApi::enviarImagen($this->conv, $u, null, null, true);
             }
         }
+    }
+
+    /**
+     * La foto de la presentación, con dirección completa, o null si no tiene
+     * o no es JPG/PNG. Primero la de la talla (el empaque exacto); si no, la
+     * del producto.
+     */
+    private function fotoDe(ProductSize $s): ?string
+    {
+        $ruta = null;
+
+        if (filled($s->image_upload ?? null)) {
+            $ruta = '/storage/' . ltrim((string) $s->image_upload, '/');
+        } elseif (filled($s->image ?? null)) {
+            $ruta = \App\Models\Product::urlDe((string) $s->image);
+        } elseif ($s->product) {
+            $ruta = $s->product->imageUrl();
+        }
+
+        if (! $ruta) return null;
+
+        $ext = strtolower(pathinfo((string) parse_url($ruta, PHP_URL_PATH), PATHINFO_EXTENSION));
+        if (! in_array($ext, ['jpg', 'jpeg', 'png'], true)) return null;
+
+        return str_starts_with($ruta, 'http') ? $ruta : url($ruta);
     }
 
     // ════════════════════════════════════════════════════════════════════════
