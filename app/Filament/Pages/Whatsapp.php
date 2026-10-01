@@ -996,6 +996,44 @@ class Whatsapp extends Page
         return $n === 1 ? 'mandó' : 'mandaron';
     }
 
+    /**
+     * Vuelve a mandar un mensaje que falló, sin escribirlo de nuevo.
+     *
+     * El texto se reintenta en el mismo globo. La foto sale de nuevo (Meta la
+     * vuelve a buscar) y el globo viejo queda marcado como reenviado.
+     */
+    public function reintentarEnvio(int $id): void
+    {
+        $conv = $this->conversacion();
+        if (! $conv) return;
+
+        $m = \App\Models\WaMensaje::where('conversacion_id', $conv->id)->whereKey($id)->first();
+        if (! $m || $m->estado !== 'fallido' || $m->direccion !== 'saliente') return;
+
+        if (! $conv->ventanaAbierta()) {
+            Notification::make()->title('La ventana de 24 horas está cerrada')
+                ->body('Hay que esperar a que el cliente escriba de nuevo.')->warning()->send();
+            return;
+        }
+
+        if ($m->tipo === 'text') {
+            $m->update(['estado' => 'enviando', 'error' => null]);
+            $m = WhatsappApi::despacharTexto($m->fresh());
+        } elseif ($m->tipo === 'image' && str_starts_with((string) $m->media_ruta, 'http')) {
+            $nuevo = WhatsappApi::enviarImagen($conv, (string) $m->media_ruta, $m->texto ?: null, auth()->id());
+            if ($nuevo->estado !== 'fallido') {
+                $m->update(['error' => 'Se volvió a mandar abajo ↓']);
+            }
+            $m = $nuevo;
+        } else {
+            return;
+        }
+
+        $m->estado === 'fallido'
+            ? Notification::make()->title('Tampoco salió')->body((string) $m->error)->danger()->duration(8000)->send()
+            : Notification::make()->title('Mensaje enviado')->success()->send();
+    }
+
     // ── El asistente de ventas ───────────────────────────────────────────────
 
     /**

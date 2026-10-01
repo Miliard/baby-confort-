@@ -1537,6 +1537,15 @@
                             <div class="wa-pie" style="opacity:1;text-align:left;
                                         line-height:1.4;margin-top:5px;
                                         white-space:normal;overflow-wrap:anywhere">⚠ {{ $m->error }}</div>
+
+                            {{-- Volver a mandar el mismo mensaje sin escribirlo de
+                                 nuevo. Casi siempre es un corte de conexión con
+                                 Meta que al segundo intento pasa. --}}
+                            @if($m->tipo === 'text' || ($m->tipo === 'image' && str_starts_with((string) $m->media_ruta, 'http')))
+                                <button type="button" class="wa-mini" style="margin-top:6px"
+                                        wire:click="reintentarEnvio({{ $m->id }})"
+                                        wire:loading.attr="disabled">↻ Volver a mandar</button>
+                            @endif
                         @endif
 
                         {{-- Si el mensaje parece una orden de envío, se puede

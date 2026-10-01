@@ -91,6 +91,26 @@ class WhatsappApi
         return filled(static::token()) && filled(static::phoneId());
     }
 
+    /**
+     * El cliente para hablar con Meta, con reintento cuando la conexión se
+     * cae ANTES de mandar nada.
+     *
+     * "cURL error 35: Connection reset by peer" es eso: se cortó al abrir la
+     * conexión segura, el mensaje nunca salió. Pasa de vez en cuando con
+     * Meta y no es culpa nuestra; reintentar un segundo después casi siempre
+     * funciona. Solo se reintenta en esos errores (6, 7 y 35): si la conexión
+     * se cae DESPUÉS de mandar, Meta pudo haberlo recibido y reintentar le
+     * llegaría repetido al cliente.
+     */
+    private static function http()
+    {
+        return Http::withToken(static::token())
+            ->retry(3, 800, function ($e) {
+                return $e instanceof \Illuminate\Http\Client\ConnectionException
+                    && preg_match('/cURL error (6|7|35)\b/', $e->getMessage());
+            }, false);
+    }
+
     private static function url(string $recurso = 'messages'): string
     {
         return 'https://graph.facebook.com/' . static::version() . '/' . static::phoneId() . '/' . $recurso;
@@ -196,7 +216,7 @@ class WhatsappApi
                 $cuerpo['context'] = ['message_id' => $respondeA];
             }
 
-            $r = Http::withToken(static::token())
+            $r = static::http()
                 ->timeout(20)
                 ->post(static::url(), $cuerpo);
 
@@ -314,7 +334,7 @@ class WhatsappApi
         }
 
         try {
-            $r = Http::withToken(static::token())
+            $r = static::http()
                 ->timeout(20)
                 ->post(static::url(), [
                     'messaging_product' => 'whatsapp',
@@ -392,7 +412,7 @@ class WhatsappApi
             $imagen = ['link' => $urlPublica];
             if (filled($pie)) $imagen['caption'] = $pie;
 
-            $r = Http::withToken(static::token())
+            $r = static::http()
                 ->timeout(30)
                 ->post(static::url(), [
                     'messaging_product' => 'whatsapp',

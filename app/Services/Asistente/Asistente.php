@@ -48,6 +48,22 @@ class Asistente
     /** Avisos que van antes de la pregunta del paso ("Disculpe, no le entendí"). */
     private array $avisos = [];
 
+    /** Lo que se le dice al cliente al pasarle el chat a Wil, si no es el de siempre. */
+    private ?string $despedidaWil = null;
+
+    /** ¿El municipio es de los que entrega Wil (San Miguel)? */
+    private function entregaPropia(): bool
+    {
+        $mun = Municipios::normalizar((string) $this->f->dato('municipio'));
+        if ($mun === '') return false;
+
+        foreach ((array) config('asistente.entrega_propia.municipios', []) as $m) {
+            if (Municipios::normalizar($m) === $mun) return true;
+        }
+
+        return false;
+    }
+
     /** Si hubo algo que contestar (una reacción o un "gracias" no cuentan). */
     private bool $leyoAlgo = false;
 
@@ -617,6 +633,18 @@ class Asistente
             case 'cambiar':
             case 'corregir':
                 return $this->corregir($this->queCorregir($texto) ?? '');
+
+            case 'colonia':
+                // Lo que diga ("col. Ciudad Jardín", "por el centro", "cerca
+                // del hospital") sirve: lo interpreta Wil, no el asistente.
+                if (Entender::esCortesia($texto) || Entender::esSaludo($texto) || mb_strlen(trim($texto)) < 3) return false;
+                $this->f->poner('colonia', mb_substr(trim($texto), 0, 200));
+                if (! $this->f->dato('direccion') && Entender::pareceDireccion($texto)) {
+                    $this->f->poner('direccion', mb_substr(trim($texto), 0, 250));
+                }
+                $this->despedidaWil = trim((string) config('asistente.entrega_propia.cierre'));
+                $this->paraWil = 'envío en ' . $this->f->dato('municipio') . ': ' . mb_substr(trim($texto), 0, 120);
+                return true;
 
             case 'nombre':
                 return $this->leerDatos($texto, 'nombre');
@@ -1392,6 +1420,9 @@ class Asistente
         if (! $d('municipio')) return $d('muni_propuesto') ? 'confirmar_muni' : 'municipio';
         if (! $d('departamento')) return 'depto';
 
+        // San Miguel: la entrega es tuya y el costo depende de la colonia.
+        if ($this->entregaPropia() && ! $d('colonia')) return 'colonia';
+
         if (! $d('total_ok')) return 'total';
 
         if (! $d('nombre')) return 'nombre';
@@ -1435,6 +1466,7 @@ class Asistente
             case 'municipio':      $this->pedirMunicipio($antes . $disculpa); break;
             case 'confirmar_muni': $this->confirmarMunicipio($antes . $disculpa); break;
             case 'depto':          $this->pedirDepartamento($antes . $disculpa); break;
+            case 'colonia':        $this->texto($antes . trim((string) config('asistente.entrega_propia.pregunta'))); break;
             case 'total':          $this->mostrarTotal($antes . $disculpa); break;
             case 'cambiar':        $this->preguntarQueCambiar($antes . $disculpa); break;
             case 'nombre':         $this->texto($antes . $disculpa . "¡Perfecto! Para enviarlo necesito unos datos 📝\n\n¿A nombre de quién va el paquete? (nombre y apellido)"); break;
@@ -1780,7 +1812,7 @@ class Asistente
         $txt = "🧾 Su pedido:\n" . implode("\n", $lineas)
             . "\n\nEnvío a {$this->f->dato('municipio')}: " . ($envio > 0 ? '$' . number_format($envio, 2) : '*gratis* 🎉')
             . "\n*Total: $" . number_format($subtotal + $envio, 2) . "*"
-            . "\n\nSe paga al recibir 💵";
+            . "\n\nPuede pagar al recibir o por transferencia 💵";
 
         $this->botones($antes . $txt, [
             'total:si'      => 'Sí, lo quiero',
@@ -1887,7 +1919,17 @@ class Asistente
     private function pasarAWil(string $motivo, bool $avisarAlCliente = true): void
     {
         if ($avisarAlCliente && $this->conv->ventanaAbierta()) {
-            $this->texto(trim((string) config('asistente.textos.asesor')));
+            $this->texto($this->despedidaWil ?: trim((string) config('asistente.textos.asesor')));
+        }
+
+        // San Miguel (o donde entregues vos): la etiqueta, para encontrarlos.
+        if ($this->f->dato('colonia')) {
+            try {
+                $nom = trim((string) config('asistente.entrega_propia.etiqueta'));
+                $e = $nom !== '' ? \App\Models\WaEtiqueta::where('nombre', 'like', '%' . $nom . '%')->first() : null;
+                if ($e) $this->conv->etiquetas()->syncWithoutDetaching([$e->id]);
+            } catch (\Throwable $ex) {
+            }
         }
 
         $this->f->estado = 'wil';

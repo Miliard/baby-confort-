@@ -93,6 +93,7 @@ class AsistenteFicha extends Model
             'municipio' => '5 · municipio',
             'confirmar_muni' => '5 · confirmar municipio',
             'depto'     => '5 · departamento',
+            'colonia'   => '5 · colonia (San Miguel)',
             'total'     => '6 · total',
             'cambiar'   => '6 · qué cambiar',
             'nombre'    => '7 · nombre',

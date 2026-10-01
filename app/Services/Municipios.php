@@ -215,15 +215,30 @@ class Municipios
 
         usort($candidatos, fn ($a, $b) => mb_strlen($b) <=> mb_strlen($a));
 
+        $hallados = [];
+
         foreach ($candidatos as $c) {
             // Con límites de palabra, para que "colon" no aparezca dentro de
             // cualquier palabra que lo contenga.
             if (preg_match('/(?<![\p{L}])' . preg_quote($c, '/') . '(?![\p{L}])/u', $t)) {
-                return static::tabla()[$c]['nombre'];
+                $hallados[] = $c;
+                // Lo ya encontrado se borra, para que "San Miguel Tepezontes"
+                // no cuente además como "San Miguel".
+                $t = preg_replace('/(?<![\p{L}])' . preg_quote($c, '/') . '(?![\p{L}])/u', ' ', $t);
             }
         }
 
-        return null;
+        if (! $hallados) return null;
+
+        // "Chinameca, San Miguel": San Miguel ahí es el DEPARTAMENTO. Si nombró
+        // dos y uno de ellos es también nombre de departamento, gana el otro.
+        if (count($hallados) > 1) {
+            $deptos = array_map(fn ($d) => static::normalizar($d), static::departamentos());
+            $otros = array_values(array_filter($hallados, fn ($h) => ! in_array($h, $deptos, true)));
+            if ($otros) return static::tabla()[$otros[0]]['nombre'];
+        }
+
+        return static::tabla()[$hallados[0]]['nombre'];
     }
 
     /**

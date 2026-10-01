@@ -128,6 +128,24 @@ return [
     | se le pasa el chat a Wil.
     |
     */
+    /*
+    |--------------------------------------------------------------------------
+    | Donde la entrega la hacés vos
+    |--------------------------------------------------------------------------
+    |
+    | En estos municipios el envío no se cotiza solo: depende de la colonia
+    | (hay lugares cerca donde no cobrás y lugares lejos donde sí). El
+    | asistente pregunta la colonia o el lugar de entrega y te pasa el chat
+    | para que vos le digas el costo. Nunca dice "gratis".
+    |
+    */
+    'entrega_propia' => [
+        'municipios' => ['San Miguel'],
+        'etiqueta'   => 'San Miguel',   // se le pone al chat, si existe
+        'pregunta'   => '¡Perfecto! 😊 En San Miguel la entrega la hacemos nosotros. ¿En qué colonia, barrio o lugar sería la entrega? Así le confirmamos el costo del envío 🚚',
+        'cierre'     => 'Gracias 😊 En un momento le confirmamos el costo del envío a esa zona.',
+    ],
+
     'envio' => [
         'solo_tabla' => false,
         'municipios' => [
