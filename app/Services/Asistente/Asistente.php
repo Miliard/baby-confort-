@@ -1415,15 +1415,14 @@ class Asistente
 
     private function pedirTipo(string $antes): void
     {
-        if ($this->f->dato('explicar')) {
-            $antes .= trim((string) config('asistente.textos.diferencia')) . "\n\n";
-            $this->f->quitar('explicar');
-        }
+        $this->f->quitar('explicar');
 
-        $this->botones($antes . '¿Lo prefiere de cinta o calzoncito?', [
+        // La diferencia va siempre en el mensaje, así el tercer botón queda
+        // libre para "Los dos": WhatsApp no deja más de tres botones.
+        $this->botones($antes . '¿Lo prefiere de cinta o calzoncito?' . "\n\n" . trim((string) config('asistente.textos.diferencia')), [
             'tipo:cinta'      => 'Cinta',
             'tipo:calzoncito' => 'Calzoncito',
-            'tipo:diferencia' => '¿Diferencia?',
+            'tipo:ambos'      => 'Los dos',
         ]);
     }
 
@@ -1494,7 +1493,7 @@ class Asistente
         if (in_array($tipoVisto, ['cinta', 'calzoncito'], true)) {
             $otro = $tipoVisto === 'cinta' ? 'calzoncito' : 'cinta';
             if (in_array($otro, $this->tiposEn($tallas), true)) {
-                $pie = trim($pie . "\n\nTambién tenemos " . $this->nombreTipo($otro) . ' en talla ' . implode(' y ', $tallas) . ', si quiere se lo muestro.');
+                $pie = trim($pie . "\n\n¿Prefiere " . ($otro === 'cinta' ? 'de cinta' : 'calzoncito') . '? También lo tenemos en talla ' . implode(' y ', $tallas) . '.');
             }
         }
 
@@ -1549,13 +1548,22 @@ class Asistente
     {
         $filas = [];
 
+        // Lo que se lee primero es la talla y el tipo; el nombre comercial va
+        // abajo, en chico. Así se reconoce de un vistazo cuál es cuál.
         foreach (array_values((array) $this->f->dato('mostradas', [])) as $i => $o) {
+            $peso = $this->pesoDe($o['talla']);
+
             $filas[] = [
                 'id'      => 'p:' . $o['id'],
-                'titulo'  => ($i + 1) . '. ' . $o['nombre'],
-                'detalle' => 'Talla ' . $o['talla']
-                    . ($o['unidades'] > 0 ? ' · ' . $o['unidades'] . ' u' : '')
-                    . ' · $' . number_format($o['precio'], 2),
+                // "1. Talla XL · Calzoncito" si cabe en las 24 letras de WhatsApp;
+                // si no, sin la palabra "Talla".
+                'titulo'  => mb_strlen($t = ($i + 1) . '. Talla ' . $o['talla'] . ' · ' . $this->tipoDe($o['nombre'])) <= 24
+                    ? $t
+                    : ($i + 1) . '. ' . $o['talla'] . ' · ' . $this->tipoDe($o['nombre']),
+                'detalle' => ($peso !== '' ? $peso . ' · ' : '')
+                    . ($o['unidades'] > 0 ? $o['unidades'] . ' u · ' : '')
+                    . '$' . number_format($o['precio'], 2)
+                    . ' · ' . $o['nombre'],
             ];
         }
 
@@ -1612,7 +1620,9 @@ class Asistente
         $nB = Tallas::paquetes($consumo[$grande] ?? null, (int) $b->unidades, 23);
         if (! $nA || ! $nB) return null;
 
-        return "💡 Como está entre dos tallas, para un mes le recomendamos más o menos *{$nA} de {$chica}* para terminar y *{$nB} de {$grande}* para seguir.";
+        // Corto y sin cuentas: "1 de XL para terminar y 4 de XXL para seguir"
+        // no se entendía. Lo que importa es la idea: lleve más de la grande.
+        return "💡 Su bebé ya está por pasar a talla *{$grande}*. Le recomendamos llevar más paquetes de {$grande} que de {$chica}, para que le duren más.";
     }
 
     private function pedirCantidad(string $antes): void
@@ -1972,9 +1982,15 @@ class Asistente
     {
         $p = $s->product;
 
+        // Arriba y en negrita la talla (con su peso) y el tipo; el nombre de la
+        // presentación va debajo. Es lo que la clienta mira para decidir.
+        $talla = trim((string) $s->size);
+        $peso  = $this->pesoDe($talla);
+
         $pie = "*Opción {$n}*\n"
-            . '*' . trim((string) $p->name) . "*\n\n"
-            . '*Talla:* ' . trim((string) $s->size) . "\n";
+            . "*Talla {$talla}*" . ($peso !== '' ? " ({$peso})" : '') . "\n"
+            . '*' . $this->tipoDe((string) $p->name) . "*\n\n"
+            . trim((string) $p->name) . "\n";
 
         if ((int) ($s->unidades ?? 0) > 0) $pie .= '*Contiene:* ' . (int) $s->unidades . " unidades\n";
 
@@ -2005,6 +2021,22 @@ class Asistente
                 WhatsappApi::enviarImagen($this->conv, $u, null, null, true);
             }
         }
+    }
+
+    /** "Cinta" o "Calzoncito", según el nombre del producto. */
+    private function tipoDe(string $nombre): string
+    {
+        return $this->esCalzoncito($nombre) ? 'Calzoncito' : 'Cinta';
+    }
+
+    /** El peso de esa talla en libras, como se dice acá: "26–37 lb". Vacío si no está. */
+    private function pesoDe(string $talla): string
+    {
+        $t = (string) (config('tallas_peso', [])[mb_strtoupper(trim($talla))] ?? '');
+
+        if (preg_match('/(\d+\s*[–-]\s*\d+)\s*lb/u', $t, $m)) return trim($m[1]) . ' lb';
+
+        return trim($t);
     }
 
     /**
