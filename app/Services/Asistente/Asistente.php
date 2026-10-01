@@ -376,6 +376,17 @@ class Asistente
             return;
         }
 
+        // Si era una pregunta ("¿no serán calientes?"), con la respuesta
+        // alcanza. Solo se sigue leyendo si además nombró una talla, un tipo o
+        // un peso: si no, un "no" del principio se tomaba como "no me gusta
+        // ninguna" y te pasaba el chat.
+        if ($respondio && ! $boton
+            && ! Entender::tallas($texto, true)
+            && ! in_array(Entender::tipo($texto), ['cinta', 'calzoncito'], true)
+            && ! Entender::peso($texto)) {
+            return;
+        }
+
         $paso = $this->siguientePaso();
         $entendio = $boton ? $this->leerBoton($boton) : $this->leerTexto($paso, $texto);
 
@@ -387,6 +398,19 @@ class Asistente
 
         // Era una pregunta y ya se contestó: no es un error.
         if ($respondio) return;
+
+        // "Lo quiero comprar" cuando todavía falta elegir algo: no es un
+        // error, es la mejor noticia. Se le dice que sí y se le pregunta lo
+        // que falta (la talla, cuál de las opciones…).
+        if (Entender::quiereComprar($texto)) {
+            if ($paso === 'opciones' && count((array) $this->f->dato('mostradas', [])) > 1) {
+                $this->avisos[] = '¡Con gusto! 😊 ¿Cuál de las opciones quiere comprar?';
+            } elseif ($this->f->dato('saludado')) {
+                $this->avisos[] = '¡Con gusto! 😊';   // el saludo ya lo dice la primera vez
+            }
+            $this->leyoAlgo = true;
+            return;
+        }
 
         // "Gracias", "ok", un emoji: no hace falta contestar nada.
         if (Entender::esCortesia($texto)) return;
@@ -525,7 +549,7 @@ class Asistente
 
             case 'total':
                 $s = Entender::siNo($texto);
-                if ($s === true) { $this->f->poner('total_ok', true); return true; }
+                if ($s === true || Entender::quiereComprar($texto)) { $this->f->poner('total_ok', true); return true; }
                 if ($s === false || preg_match('/\b(cambiar|cambio|otro|otra|quitar|agregar)\b/', Entender::normalizar($texto))) {
                     $this->f->poner('cambiando', true);
                     return true;
@@ -982,7 +1006,7 @@ class Asistente
     {
         $n = Entender::normalizar($texto);
 
-        if (Entender::siNo($texto) === true || preg_match('/\b(continuar|seguir|nada mas|solo eso|eso es todo|asi esta bien|ya)\b/', $n)) {
+        if (Entender::siNo($texto) === true || Entender::quiereComprar($texto) || preg_match('/\b(continuar|seguir|nada mas|solo eso|eso es todo|asi esta bien|ya|finalizar|terminar)\b/', $n)) {
             return $this->accionCarrito('seguir');
         }
 
@@ -1380,7 +1404,7 @@ class Asistente
         // Ya se le mostraron estas mismas: no se repiten las tarjetas, solo la
         // lista para elegir.
         if ($this->f->dato('mostrado_clave') === $clave && $this->f->dato('mostradas')) {
-            $this->listaDeOpciones($antes . $disculpa . 'Toque *Ver opciones* y elija la que le guste 🙏', (array) $this->f->dato('mostradas'));
+            $this->listaDeOpciones($antes . $disculpa . 'Toque *Quiero comprar* y elija la que le guste 🙏', (array) $this->f->dato('mostradas'));
             return;
         }
 
@@ -1437,7 +1461,7 @@ class Asistente
             }
         }
 
-        $this->listaDeOpciones(($pie !== '' ? $pie . "\n\n" : '') . '¿Cuál le gustaría? 😊', $mostradas);
+        $this->listaDeOpciones(($pie !== '' ? $pie . "\n\n" : '') . '¿Cuál le gustaría? 😊 Toque *Quiero comprar* y elija la suya.', $mostradas);
     }
 
     private function listaDeOpciones(string $cuerpo, array $mostradas): void
@@ -1457,7 +1481,7 @@ class Asistente
         $filas = array_slice($filas, 0, 9);
         $filas[] = ['id' => 'wil', 'titulo' => 'Hablar con un asesor', 'detalle' => ''];
 
-        $this->lista($cuerpo, 'Ver opciones', $filas);
+        $this->lista($cuerpo, 'Quiero comprar', $filas);
     }
 
     /** "Para un mes: 1 de M para terminar y 3 de L para seguir." */
@@ -1498,8 +1522,8 @@ class Asistente
     {
         [$lineas, $subtotal] = $this->resumenCarrito();
 
-        $this->botones($antes . "🛒 Le quedaría así:\n" . implode("\n", $lineas) . "\n\n*Subtotal: $" . number_format($subtotal, 2) . '*', [
-            'carrito:seguir'  => 'Continuar',
+        $this->botones($antes . "🛒 Le quedaría así:\n" . implode("\n", $lineas) . "\n\n*Subtotal: $" . number_format($subtotal, 2) . "*\n\nSi está bien, toque *Comprar* y le cotizo el envío 🚚", [
+            'carrito:seguir'  => 'Comprar',
             'carrito:otro'    => 'Agregar otro',
             'carrito:cambiar' => 'Cambiar',
         ]);
@@ -1894,9 +1918,59 @@ class Asistente
         if (! $ruta) return null;
 
         $ext = strtolower(pathinfo((string) parse_url($ruta, PHP_URL_PATH), PATHINFO_EXTENSION));
-        if (! in_array($ext, ['jpg', 'jpeg', 'png'], true)) return null;
 
-        return str_starts_with($ruta, 'http') ? $ruta : url($ruta);
+        if (in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
+            return str_starts_with($ruta, 'http') ? $ruta : url($ruta);
+        }
+
+        // WEBP u otro formato guardado acá: se saca una copia en JPG (una sola
+        // vez; después se reutiliza) y se manda esa. Si no se puede, null y
+        // la presentación sale como tarjeta.
+        if (str_starts_with($ruta, '/storage/')) {
+            $copia = $this->copiaJpg(substr($ruta, strlen('/storage/')), (int) $s->id);
+            if ($copia) return url('/storage/' . $copia);
+        }
+
+        return null;
+    }
+
+    private function copiaJpg(string $relativa, int $id): ?string
+    {
+        try {
+            $disco = \Illuminate\Support\Facades\Storage::disk('public');
+            if (! $disco->exists($relativa)) return null;
+
+            $destino = 'whatsapp/presentaciones/' . $id . '-' . substr(md5($relativa . '|' . $disco->lastModified($relativa)), 0, 12) . '.jpg';
+            if ($disco->exists($destino)) return $destino;
+
+            if (! function_exists('imagecreatefromstring') || ! function_exists('imagejpeg')) return null;
+
+            $img = @imagecreatefromstring((string) $disco->get($relativa));
+            if (! $img) return null;
+
+            // Fondo blanco: con transparencia, el JPG quedaría con fondo negro.
+            $w = imagesx($img);
+            $h = imagesy($img);
+            $plano = imagecreatetruecolor($w, $h);
+            imagefill($plano, 0, 0, imagecolorallocate($plano, 255, 255, 255));
+            imagecopy($plano, $img, 0, 0, 0, 0, $w, $h);
+
+            ob_start();
+            imagejpeg($plano, null, 88);
+            $bytes = ob_get_clean();
+
+            imagedestroy($img);
+            imagedestroy($plano);
+
+            if (! $bytes) return null;
+
+            $disco->put($destino, $bytes);
+
+            return $destino;
+        } catch (\Throwable $e) {
+            Log::warning('Asistente, foto a JPG: ' . $e->getMessage());
+            return null;
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════════

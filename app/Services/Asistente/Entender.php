@@ -385,6 +385,15 @@ class Entender
         return null;
     }
 
+    /** "Lo quiero", "quiero comprar", "¿cómo hago el pedido?". */
+    public static function quiereComprar(?string $texto): bool
+    {
+        $n = static::normalizar($texto);
+        if ($n === '') return false;
+
+        return (bool) preg_match('/\b(lo quiero|la quiero|los quiero|las quiero|quiero comprar|quiero pedir|quiero ordenar|quiero hacer (un|el|mi) pedido|hacer (un|el|mi) pedido|como (lo |la )?compro|como (hago|hacer|puedo hacer) (el |un |mi )?pedido|como (lo |la )?pido|me interesa|lo compro|la compro|lo llevo|la llevo|me lo llevo|deseo comprar|quisiera comprar|quisiera pedir|quiero adquirir|adquirir|comprar|me los manda|me lo manda|mandemelo|envienmelo)\b/', $n);
+    }
+
     /** "Gracias", "ok", un emoji solo: no piden respuesta. */
     public static function esCortesia(?string $texto): bool
     {
