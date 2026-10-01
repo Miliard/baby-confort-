@@ -161,10 +161,6 @@ class GuiaFotoController extends Controller
          * Entonces: la foto entra igual. Lo que falte se ve y se escribe en la
          * lista de abajo, con la foto ya guardada y a la vista.
          */
-        // Más tiempo que el de fábrica (30 s). La lectura con IA se suma a la
-        // subida, y si el servidor cortara a mitad de camino la foto quedaría
-        // en el disco pero sin su fila: no aparecería en ningún lado. La IA
-        // tiene su propio tope de 20 s, así que esto es solo margen.
         @set_time_limit(90);
 
         $data = $request->validate([
@@ -188,30 +184,20 @@ class GuiaFotoController extends Controller
         $loteFoto    = trim((string) ($data['lote'] ?? '')) ?: null;
 
         /*
-         * La IA lee la etiqueta entera, con la foto ya guardada.
+         * La IA lee la etiqueta DESPUÉS de contestarle al teléfono.
          *
-         * El lector del teléfono solo manda nombre y teléfono, y los lee
-         * regular. La IA lee todo lo impreso: con eso se empareja aunque un
-         * dígito haya salido mal. Si falla —sin saldo, sin red, lo que sea—
-         * se sigue con lo que mandó el teléfono, como antes: la foto se guarda
-         * igual.
+         * Antes la leía acá, en medio de la subida, y cada foto tardaba lo que
+         * tardaba la IA (5 a 20 segundos). Si en ese rato salías de la
+         * pantalla, el teléfono dormía la página y la tanda se quedaba parada
+         * a la mitad.
+         *
+         * Ahora la foto se guarda con lo que mandó el teléfono (el QR y lo que
+         * leyó) y se contesta enseguida: cada foto tarda lo que tarda en
+         * subir. La lectura con IA corre en el servidor después —con la
+         * pantalla del teléfono apagada o no— y completa la fila sola
+         * (ver leerDespues).
          */
         $lectura = null;
-
-        try {
-            $lectura = \App\Services\LeerEtiqueta::de(
-                \Illuminate\Support\Facades\Storage::disk('public')->path($ruta)
-            );
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('Leyendo etiqueta con IA: ' . $e->getMessage());
-        }
-
-        // Sin QR, pero la IA leyó el "Orden #": con ese número se encuentra la
-        // guía que vino en el PDF, y de ahí sale el teléfono exacto. El QR y
-        // ese número son el mismo dato, impreso de dos maneras.
-        if ($guia === '' && ! empty($lectura['orden'])) {
-            $guia = $lectura['orden'];
-        }
 
         // Lo que dice la etiqueta: primero lo de la IA, que lee mejor; si no
         // leyó, lo del lector del teléfono.
@@ -288,6 +274,12 @@ class GuiaFotoController extends Controller
             ]);
         }
 
+        // La lectura con IA, después de contestar (ver arriba).
+        $fotoId = $foto->id;
+        app()->terminating(function () use ($fotoId) {
+            static::leerDespues($fotoId);
+        });
+
         // Limpieza: quita del disco las imágenes ya vencidas (una vez al día).
         static::limpiarSiTocaHoy();
 
@@ -306,7 +298,7 @@ class GuiaFotoController extends Controller
         } catch (\Throwable $e) {
         }
 
-        return response()->json([
+        $r = response()->json([
             'ok'       => true,
             'guia'     => $guia,
             'url'      => $foto->url(),
@@ -314,6 +306,90 @@ class GuiaFotoController extends Controller
             'telefono' => $telefono,
             'nombre'   => $nombre,
         ]);
+
+        // Con el largo dicho, el teléfono da la respuesta por recibida apenas
+        // le llega, aunque la IA siga leyendo la etiqueta después. Sin esto,
+        // esperaría a que se cierre la conexión: lo mismo que antes.
+        $r->headers->set('Content-Length', (string) strlen((string) $r->getContent()));
+        $r->headers->set('Connection', 'close');
+
+        return $r;
+    }
+
+    /**
+     * Lee la etiqueta con IA y completa la fila. Corre después de que el
+     * teléfono ya recibió su respuesta, así que puede tardar lo que haga falta.
+     *
+     * Hace lo mismo que antes se hacía durante la subida:
+     *  · Sin QR pero con "Orden #": la foto pasa a la guía que vino en el PDF.
+     *  · El teléfono y el nombre leídos completan lo que falte, sin pisar lo
+     *    del PDF ni el número que escribiste a mano.
+     */
+    public static function leerDespues(int $fotoId): void
+    {
+        @ignore_user_abort(true);
+        @set_time_limit(120);
+
+        try {
+            $foto = GuiaFoto::find($fotoId);
+            if (! $foto || ! $foto->ruta) return;
+
+            $lectura = \App\Services\LeerEtiqueta::de(
+                \Illuminate\Support\Facades\Storage::disk('public')->path($foto->ruta)
+            );
+            if (! $lectura) return;
+
+            $foto->refresh();
+            $telIa = $lectura['telefono'] ?? null;
+
+            // Sin QR, la IA leyó el número de orden: si ya hay una guía con ese
+            // número (vino del PDF), la foto se va a esa fila, que tiene los
+            // datos exactos de Sistrack. La fila provisoria se borra.
+            if (! $foto->guia && ! empty($lectura['orden'])) {
+                $existente = GuiaFoto::where('guia', $lectura['orden'])->where('id', '!=', $foto->id)->first();
+
+                if ($existente) {
+                    if ($existente->ruta && $existente->ruta !== $foto->ruta) {
+                        try { \Illuminate\Support\Facades\Storage::disk('public')->delete($existente->ruta); } catch (\Throwable $e) {}
+                    }
+
+                    $existente->ruta            = $foto->ruta;
+                    $existente->lote            = $foto->lote ?: $existente->lote;
+                    $existente->nombre          = $existente->nombre ?: (($lectura['nombre'] ?? null) ?: $foto->nombre);
+                    $existente->telefono        = $existente->telefono ?: ($telIa ?: $foto->telefono);
+                    $existente->tel_leido       = $telIa ?: ($foto->tel_leido ?: $existente->tel_leido);
+                    $existente->lectura         = $lectura;
+                    $existente->chat_error      = null;
+                    $existente->chat_oculta_at  = null;
+                    $existente->foto_borrada_at = null;
+                    $existente->save();
+
+                    // Solo la fila: el archivo ahora es de la otra.
+                    GuiaFoto::whereKey($foto->id)->delete();
+                    return;
+                }
+
+                $foto->guia = $lectura['orden'];
+            }
+
+            // El teléfono que se leyó en el teléfono es peor que el de la IA:
+            // si la fila tiene ese (y no uno escrito a mano ni del PDF), se
+            // cambia por el de la IA.
+            $teniaElLeido = ! $foto->telefono || preg_replace('/\D/', '', (string) $foto->telefono) === preg_replace('/\D/', '', (string) $foto->tel_leido);
+            if ($telIa && $teniaElLeido && ! $foto->tel_manual) {
+                $foto->telefono = $telIa;
+            }
+
+            if (! empty($lectura['nombre']) && (! $foto->nombre || $teniaElLeido)) {
+                $foto->nombre = $lectura['nombre'];
+            }
+
+            $foto->tel_leido = $telIa ?: $foto->tel_leido;
+            $foto->lectura   = $lectura;
+            $foto->save();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Leyendo etiqueta con IA (después): ' . $e->getMessage());
+        }
     }
 
     /**

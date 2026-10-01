@@ -628,6 +628,55 @@
             if (!document.hidden) refrescarToken();
         });
 
+        /*
+         * SALIR DE LA PANTALLA A MEDIA TANDA.
+         *
+         * El teléfono duerme la página cuando salís a otra app o se apaga la
+         * pantalla, y con ella se para la subida. Tres cosas para que no se
+         * pierda nada:
+         *  1. Mientras sube, la pantalla se mantiene encendida sola (Wake Lock).
+         *  2. Si una foto se cortó porque la página se durmió, al volver se
+         *     reintenta sola, sin tocar nada.
+         *  3. El servidor ya no hace esperar a la IA: cada foto sube en un
+         *     par de segundos y la etiqueta se lee después, del lado del
+         *     servidor, aunque cierres la pantalla.
+         */
+        let huboPausa = false;
+        let subiendo = false;
+        let candado = null;
+
+        async function pantallaEncendida() {
+            try {
+                if ('wakeLock' in navigator && !candado) {
+                    candado = await navigator.wakeLock.request('screen');
+                    candado.addEventListener('release', () => { candado = null; });
+                }
+            } catch (e) { candado = null; }
+        }
+
+        function soltarPantalla() {
+            try { if (candado) candado.release(); } catch (e) {}
+            candado = null;
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (subiendo) huboPausa = true;
+            } else if (subiendo) {
+                // Al volver, el candado de la pantalla se perdió: se pide otro.
+                pantallaEncendida();
+            }
+        });
+
+        /** Espera a que la página vuelva a estar a la vista. */
+        function cuandoVisible() {
+            if (!document.hidden) return Promise.resolve();
+            return new Promise((r) => {
+                const f = () => { if (!document.hidden) { document.removeEventListener('visibilitychange', f); r(); } };
+                document.addEventListener('visibilitychange', f);
+            });
+        }
+
         // Carga la imagen a un canvas (reducida) para leer el QR.
         const aCanvas = (img, maxLado) => {
             const escala = Math.min(1, maxLado / Math.max(img.width, img.height));
@@ -794,7 +843,12 @@
                 return;
             }
 
-            progreso(0, files.length, 'Procesando fotos…', '');
+            progreso(0, files.length, 'Procesando fotos…',
+                '📱 <b>Dejá esta pantalla abierta hasta que termine.</b> Si salís, al volver sigue sola.');
+
+            subiendo = true;
+            huboPausa = false;
+            pantallaEncendida();
 
             let i = 0;
             for (const file of files) {
@@ -892,6 +946,15 @@
             }
 
             input.value = '';
+            subiendo = false;
+            soltarPantalla();
+
+            // La IA termina de leer las etiquetas en el servidor unos segundos
+            // después: se refresca la lista otra vez para que aparezcan los
+            // teléfonos que leyó.
+            [25000, 60000].forEach((ms) => setTimeout(() => {
+                try { if (window.Livewire) window.Livewire.dispatch('fotos-subidas'); } catch (e) {}
+            }, ms));
 
             // Las fotos suben por fuera de Livewire —el QR se lee acá, en el
             // navegador— así que el panel no se entera de que hay fotos nuevas.
@@ -1075,8 +1138,9 @@
             return t;
         }
 
-        async function subir(file, guia, est, acc, datos, img) {
+        async function subir(file, guia, est, acc, datos, img, intento = 0) {
             if (est) est.textContent = 'Subiendo guía ' + guia + '…';
+            huboPausa = false;
 
             // Si achicar tarda de más, se manda la foto tal como vino.
             const liviana = await conLimite(achicar(file, img), 8000, file);
@@ -1177,6 +1241,15 @@
                 }
             } catch (e) {
                 clearTimeout(reloj);
+
+                // Se cortó porque la página se durmió (saliste de la
+                // pantalla): al volver se reintenta sola, hasta dos veces.
+                if (intento < 2 && (huboPausa || document.hidden)) {
+                    if (est) est.textContent = 'Pausada · sigue al volver a esta pantalla…';
+                    await cuandoVisible();
+                    return subir(file, guia, est, acc, datos, img, intento + 1);
+                }
+
                 fallo++;
                 const motivo = e.name === 'AbortError'
                     ? 'El servidor no respondió en 60 s'
