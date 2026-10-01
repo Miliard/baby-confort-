@@ -1714,11 +1714,11 @@ class Asistente
     private function pedirTelefono(string $antes): void
     {
         if ($this->conv->esExtranjero() || $this->f->dato('pide_otro_tel')) {
-            $this->texto($antes . '¿A qué número de El Salvador le llamamos cuando llegue el paquete? (8 dígitos) 📞');
+            $this->texto($antes . '¿A qué número le podemos llamar o escribir para coordinar la entrega? (número de El Salvador, 8 dígitos) 📞');
             return;
         }
 
-        $this->botones($antes . '¿Le llamamos a este mismo número (' . $this->conv->telefonoLegible() . ') cuando llegue el paquete? 📞', [
+        $this->botones($antes . '¿Le podemos llamar o escribir a este mismo número (' . $this->conv->telefonoLegible() . ') para coordinar la entrega? 📞', [
             'tel:este' => 'Sí, a este',
             'tel:otro' => 'Otro número',
         ]);
@@ -2011,7 +2011,13 @@ class Asistente
         $foto = config('asistente.presentacion_como_foto', true) ? $this->fotoDe($s) : null;
 
         if ($foto) {
-            WhatsappApi::enviarImagen($this->conv, $foto, $pie, null, true);
+            $m = WhatsappApi::enviarImagen($this->conv, $foto, $pie, null, true);
+
+            // WhatsApp tarda en bajar la foto de nuestro sitio, y mientras
+            // tanto los textos que salen después le ganan: el menú llegaba
+            // arriba y la foto abajo. Se espera a que WhatsApp confirme que la
+            // entregó antes de mandar lo siguiente.
+            if ($m && $m->estado !== 'fallido') $this->esperarEntrega((int) $m->id);
         } else {
             $this->texto($pie);
         }
@@ -2117,6 +2123,29 @@ class Asistente
     // ════════════════════════════════════════════════════════════════════════
     // Mandar
     // ════════════════════════════════════════════════════════════════════════
+
+    /** Lo que queda para esperar fotos en este turno, en segundos. */
+    private float $esperaRestante = 25.0;
+
+    /**
+     * Espera a que WhatsApp avise que entregó ese mensaje (el aviso llega por
+     * el webhook y queda en el mensaje). Como mucho unos segundos por foto, y
+     * un tope por turno: si el teléfono del cliente está apagado, el aviso no
+     * llega nunca y no se puede quedar esperando para siempre.
+     */
+    private function esperarEntrega(int $id, float $max = 6.0): void
+    {
+        $inicio = microtime(true);
+        $max = min($max, $this->esperaRestante);
+
+        while ((microtime(true) - $inicio) < $max) {
+            $estado = WaMensaje::whereKey($id)->value('estado');
+            if (in_array($estado, ['entregado', 'leido', 'fallido'], true)) break;
+            usleep(400000);
+        }
+
+        $this->esperaRestante = max(0.0, $this->esperaRestante - (microtime(true) - $inicio));
+    }
 
     private function texto(string $t): void
     {
