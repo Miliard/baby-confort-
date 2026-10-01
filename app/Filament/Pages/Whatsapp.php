@@ -64,26 +64,30 @@ class Whatsapp extends Page
     }
 
     /**
-     * El rango de ese día, en horas del reloj de acá.
+     * El rango de cada botón, contado hacia atrás desde AHORA y no por día del
+     * calendario.
      *
-     * Las fechas se guardan en UTC y El Salvador va seis horas atrás, así que
-     * "hoy" no es de medianoche a medianoche en la base. Sin esta conversión,
-     * los mensajes de después de las 6 de la tarde aparecerían como de mañana.
+     *   24 h · las últimas 24 horas
+     *   Ayer · de 24 a 48 horas atrás
+     *   Anteayer · de 48 a 72 horas atrás
+     *
+     * Antes "Hoy" iba de medianoche a medianoche: a las 7 de la mañana no
+     * mostraba a la clienta que escribió anoche a las 10, que es justo la que
+     * hay que atender primero. Así los tres botones se tocan uno con otro, sin
+     * huecos ni repetidos.
      */
     private function rangoDelDia(?string $cual): ?array
     {
         if (! $cual) return null;
 
-        $tz = config('app.zona_local');
+        $atras = ['hoy' => 0, 'ayer' => 1, 'anteayer' => 2][$cual] ?? null;
+        if ($atras === null) return null;
 
-        $inicio = now()->timezone($tz)->startOfDay();
-
-        if ($cual === 'ayer')     $inicio->subDay();
-        if ($cual === 'anteayer') $inicio->subDays(2);
+        $fin = now()->subHours(24 * $atras);
 
         return [
-            $inicio->copy()->utc(),
-            $inicio->copy()->endOfDay()->utc(),
+            $fin->copy()->subHours(24)->utc(),
+            $fin->copy()->utc(),
         ];
     }
 

@@ -1039,7 +1039,9 @@
 
                 <div class="wa-dias" x-show="abierto" x-cloak>
                     <span class="wa-dias-t">Con movimiento…</span>
-                    @foreach(['hoy' => 'Hoy', 'ayer' => 'Ayer', 'anteayer' => 'Anteayer'] as $clave => $texto)
+                    {{-- Por horas hacia atrás, no por día del calendario: "24 h"
+                         a las 7 de la mañana incluye lo de anoche. --}}
+                    @foreach(['hoy' => 'Últimas 24 h', 'ayer' => '24 a 48 h', 'anteayer' => '48 a 72 h'] as $clave => $texto)
                         <button type="button" wire:click="filtrarDia('{{ $clave }}')"
                                 wire:key="dia-{{ $clave }}"
                                 class="wa-fil {{ $filtroDia === $clave ? 'on' : '' }}"
