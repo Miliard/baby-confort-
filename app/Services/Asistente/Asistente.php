@@ -331,8 +331,15 @@ class Asistente
         $texto = trim((string) $m->texto);
 
         // Reacciones, stickers y avisos del sistema: no dicen nada.
-        if (in_array($tipo, ['reaction', 'sticker', 'unsupported', 'system', 'ephemeral'], true)
-            || preg_match('/^\[(reaction|sticker|unsupported|system|ephemeral)\]$/', $texto)) {
+        // Un mensaje que WhatsApp no deja leer ("unsupported") al principio del
+        // chat suele ser el clic en un anuncio: se le saluda igual.
+        if (($tipo === 'unsupported' || $texto === '[unsupported]') && ! $this->f->dato('saludado')) {
+            $this->leyoAlgo = true;
+            return;
+        }
+
+        if (in_array($tipo, ['reaction', 'sticker', 'unsupported', 'system', 'ephemeral', 'edit'], true)
+            || preg_match('/^\[(reaction|sticker|unsupported|system|ephemeral|edit)\]$/', $texto)) {
             return;
         }
 
@@ -365,8 +372,44 @@ class Asistente
         // donde iba. Si en el mismo mensaje dijo algo más, se lee igual.
         $respondio = false;
         if (! $boton && ($r = Entender::respuesta($texto, (array) config('asistente.respuestas', [])))) {
-            $entrega = trim((string) \App\Models\Setting::get('envio_tiempo', '24 horas hábiles')) ?: '24 horas hábiles';
-            $this->avisos[] = str_replace('{entrega}', $entrega, $r);
+            $this->avisos[] = $this->rellenar($r);
+            $this->leyoAlgo = true;
+            $respondio = true;
+
+            // "¿Cuándo tendrán?": a Agotados, para avisarle cuando entre.
+            if (str_contains($r, 'Apenas entren')) $this->marcarAgotado();
+        }
+
+        // Le respondió a una foto de las que se le mandaron ("este", "lo
+        // quiero", "2"): se sabe cuál es por la foto que citó.
+        if (! $boton && $m->responde_a && ($sid = ((array) $this->f->dato('tarjetas', []))[$m->responde_a] ?? null)) {
+            $corto = count(explode(' ', Entender::normalizar($texto))) <= 5;
+            if (Entender::quiereComprar($texto) || Entender::cantidad($texto) !== null || ($corto && ! Entender::preguntaPrecio($texto) && ! $respondio)) {
+                if ($this->elegirPresentacion((string) $sid, Entender::cantidad($texto))) {
+                    $this->leyoAlgo = true;
+                    $this->f->poner('fallos', []);
+                    return;
+                }
+            }
+        }
+
+        // "¿Qué precio tiene?", "¿cuántos trae?": si ya vio opciones, se le
+        // resumen; si no, se le dice que depende de la talla y se le pregunta.
+        if (! $boton && ! $respondio && Entender::preguntaPrecio($texto)) {
+            $mostradas = (array) $this->f->dato('mostradas', []);
+
+            if ($mostradas) {
+                $lineas = [];
+                foreach (array_values($mostradas) as $i => $o) {
+                    $lineas[] = ($i + 1) . '. Talla ' . $o['talla'] . ' · ' . $this->tipoDe($o['nombre'])
+                        . ($o['unidades'] > 0 ? ' — ' . $o['unidades'] . ' unidades' : '')
+                        . ' — *$' . number_format($o['precio'], 2) . '*';
+                }
+                $this->avisos[] = implode("\n", $lineas);
+            } elseif (! Entender::tallas($texto) && ! Entender::peso($texto)) {
+                $this->avisos[] = 'Con gusto le doy el precio 😊 Cada talla tiene su precio.';
+            }
+
             $this->leyoAlgo = true;
             $respondio = true;
         }
@@ -524,6 +567,7 @@ class Asistente
                 return $this->leerTalla($paso, $texto);
 
             case 'tipo':
+                if ($this->quiereOtraTalla($texto)) return $this->leerBoton('volver');
                 if ($this->pesoDePaso($texto)) return true;
                 if ($this->preguntaPorOtras($texto)) return true;
                 $t = Entender::tipo($texto);
@@ -612,6 +656,16 @@ class Asistente
 
         $tallas = array_values(array_intersect(Entender::tallas($texto), $disponibles));
 
+        // "Talla 6 de Pampers": cada marca mide distinto; con el peso se acierta.
+        if (! $tallas && ! Entender::peso($texto) && Entender::tallaNumerica($texto)) {
+            $tipo = Entender::tipo($texto);
+            if (in_array($tipo, ['cinta', 'calzoncito'], true)) $this->ponerTipo($tipo);
+
+            $this->avisos[] = 'Esa numeración es de otra marca y cada marca mide distinto 😊';
+            $this->f->poner('pide_peso', true);
+            return true;
+        }
+
         if ($paso === 'elegir_talla') {
             $sug = (array) $this->f->dato('sugeridas', []);
 
@@ -629,7 +683,24 @@ class Asistente
         $tipo = Entender::tipo($texto);
         if (in_array($tipo, ['cinta', 'calzoncito'], true)) $this->ponerTipo($tipo);
 
-        $this->municipioDePaso($texto);
+        $dijoMunicipio = $this->municipioDePaso($texto);
+
+        $n = Entender::normalizar($texto);
+
+        // Todavía no nació: recién nacido, sin vueltas.
+        if (preg_match('/\b(no (ha|a) nacido|va a nacer|por nacer|esta por nacer|embarazada|estoy esperando|para cuando nazca|todavia no nace|aun no nace)\b/', $n)
+            && in_array('RN', $this->tallasDisponibles(), true)) {
+            $this->avisos[] = 'Para cuando nazca le recomendamos la talla *RN* (recién nacido) 👶';
+            $this->elegirTallas(['RN']);
+            return true;
+        }
+
+        // No sabe el peso: se le muestran las tallas para que elija la que usa.
+        if (preg_match('/\bno (se|sabe|sabemos|recuerdo|me acuerdo|lo se|estoy segura|estoy seguro)\b.*\b(pesa|peso)\b|\bno lo he pesado\b|\bno la he pesado\b/', $n)) {
+            $this->f->quitar('pide_peso', 'dijo_edad');
+            $this->avisos[] = 'No se preocupe 😊 Dígame qué talla usa ahora y le ayudo.';
+            return true;
+        }
 
         if (count($tallas) === 1) {
             $this->elegirTallas($tallas);
@@ -673,7 +744,7 @@ class Asistente
         }
 
         // "Quiero calzoncito" sin talla todavía: se entendió algo.
-        return in_array($tipo, ['cinta', 'calzoncito'], true) || (bool) $this->f->dato('municipio');
+        return in_array($tipo, ['cinta', 'calzoncito'], true) || $dijoMunicipio;
     }
 
     /**
@@ -681,12 +752,25 @@ class Asistente
      * aunque todavía no sea su turno. Solo si todavía no hay uno: después, el
      * municipio se cambia a propósito, no de pasada.
      */
-    private function municipioDePaso(string $texto): void
+    /** "8 A 14 AÑOS" → "8 a 14 años"; las de letra quedan igual. */
+    private function bonita(string $talla): string
     {
-        if ($this->f->dato('municipio')) return;
+        return preg_match('/a(ñ|n)os/iu', $talla) ? mb_strtolower($talla) : $talla;
+    }
 
+    private function quiereOtraTalla(string $texto): bool
+    {
+        return (bool) preg_match('/\b(cambiar (la |de )?talla|otra talla|ver otra|otras tallas|mas tallas|equivoque de talla|no es esa talla)\b/', Entender::normalizar($texto));
+    }
+
+    /** Devuelve true si nombró un municipio (aunque ya estuviera anotado). */
+    private function municipioDePaso(string $texto): bool
+    {
         $m = Municipios::buscarEn($texto);
-        if ($m) $this->ponerMunicipio($m);
+        if (! $m) return false;
+
+        if (! $this->f->dato('municipio')) $this->ponerMunicipio($m);
+        return true;
     }
 
     private function ponerPeso(float $valor, string $unidad, ?string $dicho = null): bool
@@ -945,6 +1029,11 @@ class Asistente
     {
         $mostradas = (array) $this->f->dato('mostradas', []);
 
+        // "Quiero cambiar la talla", "otra talla": al menú de tallas. Va
+        // primero: si no, con una sola opción en pantalla, el "quiero" la
+        // elegía.
+        if ($this->quiereOtraTalla($texto)) return $this->leerBoton('volver');
+
         // "2 de noche y 1 magic": las dos al carrito de una vez.
         if ($varias = Entender::varias($texto, $mostradas)) {
             foreach ($varias as [$vid, $cant]) {
@@ -984,10 +1073,7 @@ class Asistente
             return true;
         }
 
-        $antes = $this->f->dato('municipio');
-        $this->municipioDePaso($texto);
-
-        return ! $antes && (bool) $this->f->dato('municipio');
+        return $this->municipioDePaso($texto);
     }
 
     private function elegirPresentacion(string $id, ?int $cantidad): bool
@@ -1364,7 +1450,7 @@ class Asistente
     {
         if ($this->f->dato('pide_peso')) {
             $pre = $this->f->dato('dijo_edad') ? 'Para recomendarle bien la talla, ' : '';
-            $this->texto($antes . $pre . '¿Cuánto pesa su bebé? Por ejemplo: *22 libras* o *10 kilos* ⚖️');
+            $this->texto($antes . $pre . '¿Cuánto pesa su bebé? Por ejemplo: *22 libras* o *10 kilos* ⚖️' . "\n\nSi no sabe el peso, dígame qué talla usa ahora.");
             return;
         }
 
@@ -1372,7 +1458,7 @@ class Asistente
         $filas = [];
 
         foreach ($this->tallasDisponibles() as $t) {
-            $filas[] = ['id' => 'talla:' . $t, 'titulo' => 'Talla ' . $t, 'detalle' => (string) ($pesos[$t] ?? '')];
+            $filas[] = ['id' => 'talla:' . $t, 'titulo' => 'Talla ' . $this->bonita($t), 'detalle' => (string) ($pesos[$t] ?? '')];
         }
 
         $filas = array_slice($filas, 0, 9);
@@ -1514,7 +1600,7 @@ class Asistente
 
         foreach ($this->tallasDisponibles() as $t) {
             if (in_array(mb_strtoupper($t), $actuales, true)) continue;
-            $filas[] = ['id' => 'talla:' . $t, 'titulo' => 'Ver talla ' . $t, 'detalle' => (string) ($pesos[$t] ?? '')];
+            $filas[] = ['id' => 'talla:' . $t, 'titulo' => 'Ver talla ' . $this->bonita($t), 'detalle' => (string) ($pesos[$t] ?? '')];
         }
 
         // Comprar va primero; abajo, las otras tallas y el asesor.
@@ -1988,7 +2074,7 @@ class Asistente
         $peso  = $this->pesoDe($talla);
 
         $pie = "*Opción {$n}*\n"
-            . "*Talla {$talla}*" . ($peso !== '' ? " ({$peso})" : '') . "\n"
+            . '*Talla ' . $this->bonita($talla) . '*' . ($peso !== '' ? " ({$peso})" : '') . "\n"
             . '*' . $this->tipoDe((string) $p->name) . "*\n\n"
             . trim((string) $p->name) . "\n";
 
@@ -2019,7 +2105,15 @@ class Asistente
             // entregó antes de mandar lo siguiente.
             if ($m && $m->estado !== 'fallido') $this->esperarEntrega((int) $m->id);
         } else {
-            $this->texto($pie);
+            $m = WhatsappApi::enviarTexto($this->conv, $pie, null, true);
+        }
+
+        // Qué presentación es cada foto: si la clienta le responde a una
+        // ("este"), se sabe cuál eligió.
+        if (! empty($m?->wa_message_id)) {
+            $tarjetas = (array) $this->f->dato('tarjetas', []);
+            $tarjetas[$m->wa_message_id] = (string) $s->id;
+            $this->f->poner('tarjetas', array_slice($tarjetas, -30, null, true));
         }
 
         if (config('asistente.con_fotos_uso')) {
@@ -2145,6 +2239,42 @@ class Asistente
         }
 
         $this->esperaRestante = max(0.0, $this->esperaRestante - (microtime(true) - $inicio));
+    }
+
+    /** Completa {entrega}, {envio} y {promos} en las respuestas. */
+    private function rellenar(string $r): string
+    {
+        $entrega = trim((string) \App\Models\Setting::get('envio_tiempo', '24 horas hábiles')) ?: '24 horas hábiles';
+        $r = str_replace('{entrega}', $entrega, $r);
+        $r = str_replace('{envio}', number_format((float) \App\Models\Setting::envio(), 2), $r);
+
+        if (str_contains($r, '{promos}')) {
+            $r = str_replace('{promos}', $this->promos(), $r);
+        }
+
+        return $r;
+    }
+
+    /** Las ofertas "3 por $25" que hay hoy en el catálogo, con existencia. */
+    private function promos(): string
+    {
+        $lineas = [];
+
+        try {
+            foreach ($this->consultaBase()->get() as $s) {
+                if ((int) $s->combo_qty > 1 && (float) $s->combo_price > 0 && $s->product) {
+                    $lineas[] = '• Talla ' . trim((string) $s->size) . ' · ' . $this->tipoDe((string) $s->product->name)
+                        . ' (' . trim((string) $s->product->name) . '): *' . (int) $s->combo_qty . ' por $' . number_format((float) $s->combo_price, 2) . '*';
+                }
+            }
+        } catch (\Throwable $e) {
+        }
+
+        $lineas = array_values(array_unique($lineas));
+
+        return $lineas
+            ? "🎉 Estas son las promociones de hoy:\n" . implode("\n", array_slice($lineas, 0, 8))
+            : 'En este momento no tenemos promociones activas, pero los precios ya son muy buenos 😊';
     }
 
     private function texto(string $t): void

@@ -150,28 +150,41 @@ return [
     */
     'respuestas' => [
         [
-            'palabras' => ['calientes', 'caliente', 'calor', 'acaloran', 'sudan', 'sudor', 'sofocan', 'transpiran', 'respiran', 'frescos', 'frescas'],
-            'texto'    => 'Nuestros pañales cuentan con certificación *Dermatest* ✅, que avala que son seguros para el cuidado de la piel del bebé. Son hipoalergénicos y pensados para pieles sensibles 😊',
-        ],
-        [
-            'palabras' => ['piel sensible', 'pieles sensibles', 'delicada', 'delicado', 'hipoalergenico', 'hipoalergenicos', 'dermatest', 'certificado', 'certificacion'],
-            'texto'    => 'Sí 😊 Cuentan con certificación *Dermatest* para el cuidado de la piel, y son hipoalergénicos, pensados para pieles sensibles.',
+            'palabras' => ['calientes', 'caliente', 'calor', 'acaloran', 'sudan', 'sudor', 'sofocan', 'transpiran', 'respiran', 'frescos', 'frescas',
+                           'piel sensible', 'pieles sensibles', 'delicada', 'delicado', 'hipoalergenico', 'hipoalergenicos', 'dermatest', 'certificado', 'certificacion', 'son buenos', 'son buenas', 'calidad'],
+            'texto'    => 'Nuestros productos cuentan con certificación *Dermatest de Alemania*, lo que significa que han sido evaluados en pruebas relacionadas con la seguridad y compatibilidad con la piel, obteniendo una calificación de excelencia. Es un respaldo de calidad que brinda mayor confianza al elegir el cuidado para su bebé 👶✨',
         ],
         [
             'palabras' => ['absorben', 'absorbe', 'absorcion', 'se pasan', 'se rebalsan', 'derrama', 'derraman', 'toda la noche', 'aguantan', 'aguanta', 'se llenan'],
             'texto'    => 'Tienen alta absorción y protegen durante toda la noche 🌙',
         ],
         [
-            'palabras' => ['que marca', 'cual marca', 'de que marca', 'son originales', 'son buenos', 'son buenas', 'que tal son', 'calidad'],
-            'texto'    => 'Son pañales *Aiwibi* 💙: certificación Dermatest, hipoalergénicos y de alta absorción.',
+            'palabras' => ['que marca', 'cual marca', 'de que marca', 'son originales', 'de donde son', 'de donde vienen', 'son de el salvador', 'son de aqui', 'son importados', 'australia', 'son chinos'],
+            'texto'    => 'Son pañales *Aiwibi* y vienen desde Australia 🇦🇺',
         ],
         [
-            'palabras' => ['forma de pago', 'como pago', 'como se paga', 'contra entrega', 'transferencia', 'tarjeta', 'pago al recibir', 'se paga al recibir'],
-            'texto'    => 'Se paga al recibir el paquete 💵',
+            'palabras' => ['donde estan', 'donde quedan', 'donde queda', 'ubicados', 'ubicada', 'ubicacion de la tienda', 'tienda fisica', 'tienen tienda', 'tienen local', 'pasar a recoger', 'pasar a traer', 'recoger en tienda'],
+            'texto'    => 'Tenemos tienda en *San Miguel, plaza Concepción* (a dos cuadras de Sertracen) 📍 Y también le enviamos a domicilio a todo El Salvador 🚚',
         ],
         [
-            'palabras' => ['cuanto tarda', 'cuanto tardan', 'cuando llega', 'cuando me llega', 'tiempo de entrega', 'cuantos dias', 'en cuanto tiempo', 'hacen envios', 'hacen envio', 'envian a', 'llegan a', 'entregan en', 'todo el pais'],
-            'texto'    => 'Entregamos a domicilio en todo El Salvador 🚚. Llega en {entrega}.',
+            'palabras' => ['forma de pago', 'como pago', 'como se paga', 'como seria el pago', 'contra entrega', 'transferencia', 'tarjeta', 'pago al recibir', 'se paga al recibir', 'efectivo', 'numero de cuenta'],
+            'texto'    => 'Puede pagar al recibir o por transferencia, como usted prefiera 😊',
+        ],
+        [
+            'palabras' => ['cuanto cuesta el envio', 'cuanto es el envio', 'cuanto sale el envio', 'costo de envio', 'costo del envio', 'precio del envio', 'cobran envio', 'el envio', 'envios', 'envio nacional', 'envios nacionales', 'acen envios', 'asen envios', 'hacen entregas', 'y el envio', 'entregas en', 'entregan en', 'hacen envios', 'hace envios', 'hacen envio', 'envian a', 'llegan a', 'mandan a', 'a domicilio', 'todo el pais'],
+            'texto'    => "⚡ ¡El envío más barato del mercado! 🚚\n💲 Solo \${envio} (¡lleve lo que lleve!)\n⏱️ Entrega rápida en 24 horas (en la mayoría de pedidos)\n🏠 Hasta su casa o lugar de trabajo",
+        ],
+        [
+            'palabras' => ['cuanto tarda', 'cuanto tardan', 'cuando llega', 'cuando me llega', 'cuando llegaria', 'tiempo de entrega', 'cuantos dias', 'en cuanto tiempo', 'para hoy', 'hoy mismo', 'para manana', 'llega hoy', 'el domingo', 'los domingos'],
+            'texto'    => 'La entrega es en {entrega} con Express El Salvador 🚚. Los domingos no despachamos: si lo necesita para el domingo, hay que encargarlo un día antes.',
+        ],
+        [
+            'palabras' => ['promocion', 'promociones', 'promo', 'promos', 'oferta', 'ofertas', '3 x 25', '3x25', '3 por 25', 'combo'],
+            'texto'    => '{promos}',
+        ],
+        [
+            'palabras' => ['cuando tendran', 'cuando van a tener', 'cuando entran', 'cuando entrarian', 'cuando les llega', 'cuando vuelven', 'cuando hay', 'de nuevo disponible', 'nuevamente', 'cuando tenga me avisa', 'me avisa cuando', 'avisame cuando', 'aviseme cuando'],
+            'texto'    => 'Vienen desde Australia por barco 🚢 y ya están en camino. Apenas entren le avisamos por aquí 😊',
         ],
     ],
 

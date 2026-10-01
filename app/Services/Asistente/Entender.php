@@ -38,12 +38,19 @@ class Entender
         $n = static::normalizar($texto);
         if ($n === '') return null;
 
+        // El mensaje que trae escrito el anuncio de Facebook ("Me gustaría
+        // obtener más información. ¿Puedo hablar con alguien?") NO es pedir
+        // una persona: es como empiezan 1 de cada 4 chats. Se lee como saludo.
+        if (static::esDelAnuncio($n)) return null;
+
         $reglas = [
             'pidió hablar con una persona' => '/\b(asesor|asesora|persona|humano|agente|encargad[oa]|vendedor[a]?|hablar con alguien|me atiende alguien|atiendame|llamenme|llameme|me pueden llamar|me puede llamar)\b/',
             'queja o reclamo'              => '/\b(queja|reclamo|estafa|estafador|mal servicio|pesimo|no me ha llegado|no me llego|no ha llegado|no llego|devolucion|devolver|reembolso|venia malo|vino malo|vinieron malos|incompleto)\b/',
             'pregunta por un pedido que ya hizo' => '/\b(donde (esta|va|viene) mi (pedido|paquete)|ya lo enviaron|ya lo mandaron|numero de guia|rastreo|ya hice (mi|el) pedido|ya pedi)\b/',
             'salud del bebé'               => '/\b(rozadura|rozaduras|rosadura|rosaduras|alergia|alergico|alergica|irritacion|irritado|irritada|sarpullido|roncha|ronchas|sangre|herida|hongo|hongos|dermatitis|pediatra|infeccion|quemadura|paspado|paspadura)\b/',
             'pidió rebaja o precio especial' => '/\b(rebaja|rebajita|descuento|mas barato|mas baratos|por mayor|mayoreo|al mayor|precio especial|credito|fiado|a plazos|factura|credito fiscal|ccf)\b/',
+            'pregunta por pañal de adulto'  => '/\b(adulto|adultos|adulta|adultas|para (el|la|mi) (abuel[oa]|senor[a]?|mama|papa|esposo|esposa)|anciano|anciana)\b/',
+            'pregunta por otro producto'    => '/\b(toallitas|toallas humedas|toalla humeda|wipes|biberon|biberones|viberon|viveron|biveron|pacha|pachas|chupon|chupete|toallas sanitarias|toalla sanitaria)\b/',
             'mensaje ofensivo'             => '/\b(puta|puto|mierda|pendej[oa]|idiota|estupid[oa]|maldit[oa]|hijo de|cerot[oa]|ladron|ladrones)\b/',
         ];
 
@@ -77,7 +84,7 @@ class Entender
         // Las marcadas con * no valen en modo estricto.
         $reglas = [
             'RN'   => ['/\b(rn|nb|newborn)\b/', '/\brecien nacid[oa]s?\b/', '/\btalla (rn|0|cero)\b/'],
-            '8 A 14 AÑOS' => ['/\b8\s*(a|al|-)?\s*14\b/', '/\bocho a catorce\b/'],
+            '8 A 14 AÑOS' => ['/\b8\s*(a|al|-)?\s*1[45]\b/', '/\bocho a (catorce|quince)\b/', '/\btalla especial\b/'],
             '4 A 7 AÑOS'  => ['/\b4\s*(a|al|-)?\s*7\b(?!\s*(\d|dias|horas))/', '/\bcuatro a siete\b/'],
             'XXXL' => ['/\b(xxxl|3xl|xxxg|3xg)\b/', '/\btriple extra ?grande\b/'],
             'XXL'  => ['/\b(xxl|2xl|xxg|2xg)\b/', '/\b(doble|extra) extra ?grande\b/'],
@@ -116,6 +123,28 @@ class Entender
         asort($pos);
 
         return array_keys($pos);
+    }
+
+    /**
+     * "Talla 3", "talla 6 de Pampers": la numeración de otra marca. No se
+     * traduce (cada marca mide distinto); se pregunta el peso.
+     */
+    public static function tallaNumerica(?string $texto): bool
+    {
+        $n = static::normalizar($texto);
+
+        return (bool) preg_match('/\b(talla|tallita|numero|etapa)\s*[0-9]\b(?!\s*(a|al|-)?\s*\d)/', $n)
+            || (bool) preg_match('/\bpampers?\b.*\b[1-8]\b(?!\s*(a|al|-)?\s*\d)/', $n);
+    }
+
+    /** "¿Qué precio tiene?", "¿cuánto cuesta?", "¿cuántos trae?". */
+    public static function preguntaPrecio(?string $texto): bool
+    {
+        $n = static::normalizar($texto);
+
+        if (preg_match('/\benvio\b/', $n)) return false;   // eso lo contesta la respuesta del envío
+
+        return (bool) preg_match('/\b(precio|precios|(q|que) (cuesta|cuestan|vale|valen)|cuanto (cuesta|cuestan|vale|valen|sale|salen|es|son|esta|estan|cobra)|a como|a cuanto|que valor|cuantos? (trae|traen|vienen|viene|unidades|panales|pamper|pampers)|cuantas unidades|de cuantos?)\b/', $n);
     }
 
     // ── Peso ─────────────────────────────────────────────────────────────────
@@ -183,7 +212,7 @@ class Entender
         if (preg_match('/\b(diferencia|cual es mejor|que diferencia|como son|en que se diferencian)\b/', $n)) return 'diferencia';
 
         $calzon = (bool) preg_match('/\b(calzoncitos?|calzon|calzones|pants?|pantis?|de subir|tipo calzon|braga|bragas|training)\b/', $n);
-        $cinta  = (bool) preg_match('/\b(cintas?|de pegar|pegadit[oa]s?|adhesiv[oa]s?|velcro|normal|normales|tradicional|de los normales)\b/', $n);
+        $cinta  = (bool) preg_match('/\b(cintas?|de pegar|pegar|broches?|de broche|pegadit[oa]s?|adhesiv[oa]s?|velcro|normal|normales|tradicional|de los normales)\b/', $n);
 
         if ($calzon && $cinta) return 'ambos';
         if ($calzon) return 'calzoncito';
@@ -204,7 +233,7 @@ class Entender
 
         if (preg_match('/^(no|nop|nel|no gracias|todavia no|aun no|mejor no|no por ahora|nada)\b/', $n)) return false;
 
-        if (preg_match('/^(si|sii+|sip|simon|ok|okay|oki|va|dale|claro|correcto|esta bien|asi esta bien|perfecto|listo|de acuerdo|confirmo|confirmado|exacto|eso|ese|esa|sale|bueno|confirmar|confirmar pedido|si lo quiero|lo quiero|esta correcto|todo bien|todo correcto)\b/', $n)) return true;
+        if (preg_match('/^(si|sii+|sip|simon|ok|okay|oki|va|vaya|valla|baya|dale|claro|correcto|esta bien|asi esta bien|perfecto|listo|de acuerdo|confirmo|confirmado|exacto|eso|ese|esa|sale|bueno|confirmar|confirmar pedido|si lo quiero|lo quiero|esta correcto|todo bien|todo correcto)\b/', $n)) return true;
 
         return null;
     }
@@ -317,7 +346,7 @@ class Entender
         if (count($cand) === 1) return (string) array_key_first($cand);
 
         // "ese", "esa", "si" con una sola opción en pantalla.
-        if ($total === 1 && preg_match('/\b(ese|esa|eso|este|esta|si|lo quiero|la quiero|me gusta|quiero)\b/', $n)) {
+        if ($total === 1 && preg_match('/^(si |ok |)?(ese|esa|eso|este|esta|si|lo quiero|la quiero|los quiero|me gusta|me interesa|ese mismo|esa misma|ese quiero|esa quiero|quiero ese|quiero esa|seria ese|seria esa)( (por favor|porfa|gracias|mismo|misma))?$/', $n)) {
             return (string) $opciones[0]['id'];
         }
 
@@ -442,7 +471,17 @@ class Entender
         $n = static::normalizar($texto);
         if ($n === '') return true;
 
-        return (bool) preg_match('/^(gracias|muchas gracias|mil gracias|ok|okey|oki|okis|dale|va|listo|perfecto|bueno|esta bien|genial|excelente|entendido|de acuerdo|ah ok|a ok|aja|mmm+|jaja+|jeje+)( gracias)?$/', $n);
+        return (bool) preg_match('/^(ah |a |o |oh )?(gracias|grasias|gracia|muchas gracias|mil gracias|ok|okey|oki|okis|dale|va|vaya|valla|baya|vaya vaya|listo|perfecto|bueno|esta bien|genial|excelente|entendido|entiendo|comprendo|de acuerdo|asi es|aja|mmm+|(ja)+j?|(je)+j?|ijole|le agradezco|se lo agradezco|todo esta bien|gracias estare pendiente|por favor|porfavor|porfa|xfavor|ya le digo|ya le confirmo|ya le aviso|estare pendiente|en serio|que bien|que bueno|ya recibi)( (gracias|esta bien|muchas gracias|por favor))?$/', $n);
+    }
+
+    /** El texto que viene escrito de fábrica en el botón del anuncio. */
+    public static function esDelAnuncio(?string $texto): bool
+    {
+        $n = static::normalizar($texto);
+
+        return (bool) preg_match('/\b(obtener|tener|recibir|saber) (mas )?informacion\b/', $n)
+            && (bool) preg_match('/\b(puedo hablar con alguien|me gustaria|quisiera|quiero)\b/', $n)
+            && mb_strlen($n) <= 90;
     }
 
     /** Mensajes que no dicen nada: "hola", "buenas", "gracias", un emoji. */
@@ -451,6 +490,19 @@ class Entender
         $n = static::normalizar($texto);
         if ($n === '') return true;
 
-        return (bool) preg_match('/^(hola|holi|ola|buenas|buenos dias|buen dia|buenas tardes|buenas noches|hey|que tal|saludos|gracias|muchas gracias|ok|okey|info|informacion|precio|precios|me interesa|quisiera informacion|quiero informacion|disponible|tiene|hay)( [a-z]+)?$/', $n);
+        if (static::esDelAnuncio($n)) return true;
+
+        // Se le sacan las palabras de saludo y relleno: si no queda nada (o una
+        // palabra suelta), era un saludo. Así "hola buenas tardes", "hola
+        // buen día, una consulta" y "buenas noches" cuentan, que en los chats
+        // reales eran de los mensajes más comunes.
+        $resto = preg_replace('/\b(hola|holi|holis|ola|buenas|buenos|buena|buen|muy|dias|dia|tardes|tarde|noches|noche|hey|que tal|como esta|como estan|saludos|disculpe|disculpa|una consulta|consulta|una pregunta|pregunta|mire|fijese|info|informacion|me gustaria|quisiera|quiero|me interesa|por favor|porfa|gracias|bendiciones|feliz)\b/', ' ', $n);
+        $resto = trim(preg_replace('/\s+/', ' ', $resto));
+
+        if ($resto === '' || ! str_contains($resto, ' ') && mb_strlen($resto) <= 8 && ! preg_match('/\d/', $resto)) {
+            return $resto !== $n || $resto === '';
+        }
+
+        return (bool) preg_match('/^(precio|precios|disponible|tiene|hay)( [a-z]+)?$/', $n);
     }
 }
