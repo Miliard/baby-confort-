@@ -85,6 +85,10 @@ Route::middleware(['web', 'auth'])->group(function () {
     // La consulta el trabajador en segundo plano, que no manda el token de
     // formulario: va por GET justamente para no necesitarlo.
     Route::get('/chat/sin-leer', [\App\Http\Controllers\PushController::class, 'sinLeer'])->name('push.sinleer');
+
+    // Todas las conversaciones en un archivo, sin datos personales, para
+    // analizarlas y mejorar el asistente.
+    Route::get('/chat/descargar-chats', [\App\Http\Controllers\ChatsExportController::class, 'descargar'])->name('chats.descargar');
 });
 
 // Fotos de paquetes (solo con sesión iniciada en el panel)

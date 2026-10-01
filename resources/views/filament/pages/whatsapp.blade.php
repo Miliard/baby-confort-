@@ -1090,6 +1090,24 @@
                 🔊 Probar sonido
             </button>
 
+            {{-- Todas las conversaciones en un archivo, sin datos personales,
+                 para analizarlas y mejorar el asistente. Se elige el período y
+                 se descarga de una vez. --}}
+            <span x-data="{ dias: '60' }" style="display:inline-flex;gap:4px;align-items:center;margin-top:8px">
+                <select x-model="dias" class="wa-fil" style="--c:#94a3b8;padding-right:4px"
+                        aria-label="Período de los chats a descargar">
+                    <option value="30">30 días</option>
+                    <option value="60">60 días</option>
+                    <option value="90">90 días</option>
+                    <option value="0">Todos</option>
+                </select>
+                <a :href="'{{ route('chats.descargar') }}?dias=' + dias" class="wa-fil"
+                   style="--c:#94a3b8;text-decoration:none"
+                   aria-label="Descargar todos los chats para analizar">
+                    📥 Descargar chats
+                </a>
+            </span>
+
             <div class="wa-filtros">
                 {{-- aria-pressed en los filtros: sin eso, un lector de pantalla
                      dice "Sin leer, botón" tanto si está puesto como si no. --}}
