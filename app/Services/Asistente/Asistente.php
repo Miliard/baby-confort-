@@ -249,6 +249,20 @@ class Asistente
         $nuevos = $q->limit(10)->get();
         if ($nuevos->isEmpty()) return;
 
+        // Una conversación vieja no se retoma donde quedó: si pasó mucho rato,
+        // o si vuelve a saludar después de un rato, se empieza de cero. Si
+        // no, un "hola" de mañana seguiría hablando de la talla de ayer.
+        if (! $arranca) {
+            $ultimoTurno = max(array_merge([0], (array) $f->dato('turnos', [])));
+            $pasaron = $ultimoTurno ? (now()->timestamp - $ultimoTurno) / 60 : 0;
+
+            $vieja   = $pasaron >= (int) config('asistente.reiniciar_tras_minutos', 120);
+            $saluda  = Entender::esSaludo((string) $nuevos->first()->texto)
+                && $pasaron >= (int) config('asistente.reiniciar_si_saluda_minutos', 10);
+
+            if ($vieja || $saluda) $arranca = true;
+        }
+
         if ($arranca) {
             $f->estado = 'activo';
             $f->paso = null;
@@ -460,6 +474,7 @@ class Asistente
                 return $this->leerTalla($paso, $texto);
 
             case 'tipo':
+                if ($this->pesoDePaso($texto)) return true;
                 if ($this->preguntaPorOtras($texto)) return true;
                 $t = Entender::tipo($texto);
                 if ($t === 'diferencia') { $this->f->poner('explicar', true); return true; }
@@ -634,15 +649,35 @@ class Asistente
         $this->f->poner('peso_kg', $kg);
         $this->f->poner('peso_dicho', $dicho);
 
+        // La talla se calcula con TODAS las tallas, y después se mira cuáles
+        // hay. Así, si le queda una que está agotada, se le dice eso, y no que
+        // su peso "no está en la tabla".
         $r = Tallas::porPeso(
             $kg,
             Tallas::rangos((array) config('tallas_peso', [])),
-            $this->tallasDisponibles(),
+            (array) config('asistente.tallas', []),
             (array) config('asistente.tallas_nino', [])
         );
 
         if ($r['caso'] === 'fuera') {
             $this->paraWil = "el peso ({$dicho}) no está en la tabla de tallas";
+            return true;
+        }
+
+        $hay = array_values(array_intersect($r['tallas'], $this->tallasDisponibles()));
+        $faltan = array_values(array_diff($r['tallas'], $hay));
+
+        if (! $hay) {
+            $this->texto('Con ' . $dicho . ' le queda la talla *' . implode('* o la *', $r['tallas']) . '*, pero en este momento no la tenemos 😔');
+            $this->marcarAgotado();
+            $this->paraWil = 'su talla (' . implode(' / ', $r['tallas']) . ') no tiene existencia';
+            return true;
+        }
+
+        if ($faltan) {
+            // Le quedan dos y una no hay: se ofrece la que hay.
+            $this->avisos[] = "Con {$dicho} le quedan la talla {$r['tallas'][0]} y la {$r['tallas'][1]}. La {$faltan[0]} no la tenemos ahora, pero la *{$hay[0]}* sí 👍";
+            $this->elegirTallas($hay);
             return true;
         }
 
@@ -762,6 +797,31 @@ class Asistente
         return false;
     }
 
+    /**
+     * Dijo el peso cuando ya estaba viendo opciones: "de 10 libras". Se
+     * recalcula la talla desde el peso; el tipo que eligió se respeta.
+     */
+    private function pesoDePaso(string $texto): bool
+    {
+        $p = Entender::peso($texto);
+        if (! $p) return false;
+
+        // Un número suelto a esta altura es una opción o una cantidad, no un
+        // peso. Tiene que decir la unidad o "pesa".
+        if ($p['kg'] === null && ! preg_match('/\b(pesa|peso|libras?|kilos?|lb|kg)\b/', Entender::normalizar($texto))) return false;
+
+        $this->f->quitar('tallas', 'sugeridas', 'mostradas', 'mostrado_clave', 'elegido', 'carrito_ok', 'total_ok', 'confirmado');
+        if ($this->f->dato('tipo_auto')) $this->f->quitar('tipo', 'tipo_auto');
+        if ($this->f->dato('carrito')) $this->f->poner('agregando', true);
+
+        if ($p['kg'] === null) {
+            $this->f->poner('peso_valor', $p['valor']);
+            return true;
+        }
+
+        return $this->ponerPeso($p['kg'], 'kg', $p['dicho'] ?? null);
+    }
+
     /** A mitad del camino dijo otra talla con todas las letras: "mejor XXL". */
     private function cambioDeTalla(string $texto): bool
     {
@@ -799,6 +859,8 @@ class Asistente
         }
 
         if ($this->cambioDeTalla($texto)) return true;
+
+        if ($this->pesoDePaso($texto)) return true;
 
         if ($this->preguntaPorOtras($texto)) return true;
 
@@ -870,6 +932,8 @@ class Asistente
         }
 
         if ($this->cambioDeTalla($texto)) return true;
+
+        if ($this->pesoDePaso($texto)) return true;
 
         // "¿Tiene de cinta?" con el carrito armado: quiere ver más, sin perder
         // lo que ya eligió.

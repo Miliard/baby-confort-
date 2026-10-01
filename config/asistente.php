@@ -44,6 +44,11 @@ return [
     // algo raro está pasando: se lo pasa a Wil.
     'max_turnos_hora' => 40,
 
+    // Si la conversación quedó parada este rato, el siguiente mensaje empieza
+    // de cero. Y si vuelve a saludar ("hola") después de este otro rato, también.
+    'reiniciar_tras_minutos'      => 120,
+    'reiniciar_si_saluda_minutos' => 10,
+
     // Más paquetes que esto en un solo producto huele a mayoreo: a Wil.
     'max_paquetes' => 10,
 
