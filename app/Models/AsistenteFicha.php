@@ -87,6 +87,7 @@ class AsistenteFicha extends Model
             'elegir_talla' => '1 · elegir entre dos tallas',
             'tipo'      => '2 · cinta o calzoncito',
             'opciones'  => '3 · opciones y precio',
+            'elegir'    => '3 · eligiendo cuál comprar',
             'cantidad'  => '3 · cuántos paquetes',
             'carrito'   => '4 · carrito',
             'municipio' => '5 · municipio',

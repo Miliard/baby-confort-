@@ -403,8 +403,8 @@ class Asistente
         // error, es la mejor noticia. Se le dice que sí y se le pregunta lo
         // que falta (la talla, cuál de las opciones…).
         if (Entender::quiereComprar($texto)) {
-            if ($paso === 'opciones' && count((array) $this->f->dato('mostradas', [])) > 1) {
-                $this->avisos[] = '¡Con gusto! 😊 ¿Cuál de las opciones quiere comprar?';
+            if ($paso === 'opciones') {
+                $this->empezarCompra();
             } elseif ($this->f->dato('saludado')) {
                 $this->avisos[] = '¡Con gusto! 😊';   // el saludo ya lo dice la primera vez
             }
@@ -463,6 +463,15 @@ class Asistente
             case 'p':
                 return $this->elegirPresentacion($valor, null);
 
+            case 'comprar':
+                return $this->empezarCompra();
+
+            case 'volver':
+                $this->f->quitar('eligiendo', 'tallas', 'mostradas', 'mostrado_clave', 'elegido');
+                if ($this->f->dato('tipo_auto')) $this->f->quitar('tipo', 'tipo_auto');
+                if ($this->f->dato('carrito')) $this->f->poner('agregando', true);
+                return true;
+
             case 'cant':
                 return $this->ponerCantidad((int) $valor);
 
@@ -519,6 +528,7 @@ class Asistente
                 return $this->cambioDeTalla($texto);
 
             case 'opciones':
+            case 'elegir':
                 return $this->leerOpcion($texto);
 
             case 'cantidad':
@@ -764,7 +774,7 @@ class Asistente
         if (! $tallas) return;
 
         $this->f->poner('tallas', $tallas);
-        $this->f->quitar('sugeridas', 'peso_valor', 'pide_peso', 'mostradas', 'mostrado_clave', 'elegido');
+        $this->f->quitar('sugeridas', 'peso_valor', 'pide_peso', 'mostradas', 'mostrado_clave', 'elegido', 'eligiendo');
 
         // Un tipo que se puso solo (porque la talla anterior tenía uno nada
         // más) no se arrastra: el cliente nunca lo eligió. Acá estaba el error
@@ -969,6 +979,7 @@ class Asistente
         if (! in_array((string) $id, $ids, true)) return false;
 
         $this->f->poner('elegido', (string) $id);
+        $this->f->quitar('eligiendo');
 
         if ($cantidad !== null) return $this->ponerCantidad($cantidad);
 
@@ -1263,7 +1274,7 @@ class Asistente
 
         if (! $d('carrito_ok')) {
             if ($d('elegido')) return 'cantidad';
-            if (! $d('carrito') || $d('agregando')) return 'opciones';
+            if (! $d('carrito') || $d('agregando')) return $d('eligiendo') ? 'elegir' : 'opciones';
             return 'carrito';
         }
 
@@ -1307,6 +1318,7 @@ class Asistente
             case 'elegir_talla':   $this->pedirEntreDos($antes . $disculpa); break;
             case 'tipo':           $this->pedirTipo($antes . $disculpa); break;
             case 'opciones':       $this->mostrarOpciones($antes, $disculpa); break;
+            case 'elegir':         $this->pedirPresentacion($antes . $disculpa); break;
             case 'cantidad':       $this->pedirCantidad($antes . $disculpa); break;
             case 'carrito':        $this->mostrarCarrito($antes . $disculpa); break;
             case 'municipio':      $this->pedirMunicipio($antes . $disculpa); break;
@@ -1343,7 +1355,7 @@ class Asistente
 
         $this->lista(
             $antes . '¿Qué talla usa su bebé? Si no está segura, dígame cuánto pesa y le recomiendo la talla 😊',
-            'Ver tallas',
+            'Ver detalles',
             $filas
         );
     }
@@ -1404,7 +1416,7 @@ class Asistente
         // Ya se le mostraron estas mismas: no se repiten las tarjetas, solo la
         // lista para elegir.
         if ($this->f->dato('mostrado_clave') === $clave && $this->f->dato('mostradas')) {
-            $this->listaDeOpciones($antes . $disculpa . 'Toque *Quiero comprar* y elija la que le guste 🙏', (array) $this->f->dato('mostradas'));
+            $this->menuDeOpciones($antes . $disculpa . '¿Le gustaría hacer su pedido o ver otra talla? Toque *Ver opciones* 😊');
             return;
         }
 
@@ -1461,7 +1473,69 @@ class Asistente
             }
         }
 
-        $this->listaDeOpciones(($pie !== '' ? $pie . "\n\n" : '') . '¿Cuál le gustaría? 😊 Toque *Quiero comprar* y elija la suya.', $mostradas);
+        $this->menuDeOpciones(($pie !== '' ? $pie . "\n\n" : '') . '¿Le gustaría hacer su pedido o ver otra talla? Toque *Ver opciones* 😊');
+    }
+
+    /**
+     * El menú que va debajo de las fotos: otras tallas para seguir mirando,
+     * "Quiero comprar" y "Hablar con un asesor". Comprar es un paso aparte, a
+     * propósito: la clienta primero mira tranquila; si se le pone "comprar"
+     * de entrada, se asusta y no entra.
+     */
+    private function menuDeOpciones(string $cuerpo): void
+    {
+        $actuales = array_map('mb_strtoupper', (array) $this->f->dato('tallas', []));
+        $pesos = (array) config('tallas_peso', []);
+        $filas = [];
+
+        foreach ($this->tallasDisponibles() as $t) {
+            if (in_array(mb_strtoupper($t), $actuales, true)) continue;
+            $filas[] = ['id' => 'talla:' . $t, 'titulo' => 'Ver talla ' . $t, 'detalle' => (string) ($pesos[$t] ?? '')];
+        }
+
+        $filas = array_slice($filas, 0, 8);
+        $filas[] = ['id' => 'comprar', 'titulo' => 'Quiero comprar', 'detalle' => 'Elegir presentación y cantidad'];
+        $filas[] = ['id' => 'wil', 'titulo' => 'Hablar con un asesor', 'detalle' => ''];
+
+        $this->lista($cuerpo, 'Ver opciones', $filas);
+    }
+
+    /** Tocó "Quiero comprar": si hay una sola presentación, esa; si no, que elija. */
+    private function empezarCompra(): bool
+    {
+        $mostradas = array_values((array) $this->f->dato('mostradas', []));
+        if (! $mostradas) return false;
+
+        if (count($mostradas) === 1) {
+            $this->f->poner('elegido', (string) $mostradas[0]['id']);
+            $this->f->quitar('eligiendo');
+        } else {
+            $this->f->poner('eligiendo', true);
+        }
+
+        return true;
+    }
+
+    /** "¿Cuál quiere comprar?" con la lista de lo que se le mostró. */
+    private function pedirPresentacion(string $antes): void
+    {
+        $filas = [];
+
+        foreach (array_values((array) $this->f->dato('mostradas', [])) as $i => $o) {
+            $filas[] = [
+                'id'      => 'p:' . $o['id'],
+                'titulo'  => ($i + 1) . '. ' . $o['nombre'],
+                'detalle' => 'Talla ' . $o['talla']
+                    . ($o['unidades'] > 0 ? ' · ' . $o['unidades'] . ' u' : '')
+                    . ' · $' . number_format($o['precio'], 2),
+            ];
+        }
+
+        $filas = array_slice($filas, 0, 8);
+        $filas[] = ['id' => 'volver', 'titulo' => 'Ver otras tallas', 'detalle' => ''];
+        $filas[] = ['id' => 'wil', 'titulo' => 'Hablar con un asesor', 'detalle' => ''];
+
+        $this->lista($antes . '¡Con gusto! 😊 ¿Cuál quiere comprar?', 'Elegir', $filas);
     }
 
     private function listaDeOpciones(string $cuerpo, array $mostradas): void
