@@ -519,8 +519,12 @@ class Entender
         $resto = preg_replace('/\b(hola|holi|holis|ola|buenas|buenos|buena|buen|muy|dias|dia|tardes|tarde|noches|noche|hey|que tal|como esta|como estan|saludos|disculpe|disculpa|una consulta|consulta|una pregunta|pregunta|mire|fijese|info|informacion|me gustaria|quisiera|quiero|me interesa|por favor|porfa|gracias|bendiciones|feliz)\b/', ' ', $n);
         $resto = trim(preg_replace('/\s+/', ' ', $resto));
 
-        if ($resto === '' || ! str_contains($resto, ' ') && mb_strlen($resto) <= 8 && ! preg_match('/\d/', $resto)) {
-            return $resto !== $n || $resto === '';
+        // Tiene que haber un saludo de verdad: si no, "de día porfa" (sin
+        // "día" ni "porfa") quedaba en "de" y contaba como saludo.
+        $saluda = (bool) preg_match('/\b(hola|holi|holis|ola|buenas|buenos|buen dia|saludos|hey|que tal|como esta|como estan)\b/', $n);
+
+        if ($saluda && ($resto === '' || ! str_contains($resto, ' ') && mb_strlen($resto) <= 8 && ! preg_match('/\d/', $resto))) {
+            return true;
         }
 
         return (bool) preg_match('/^(precio|precios|disponible|tiene|hay)( [a-z]+)?$/', $n);

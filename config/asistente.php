@@ -19,6 +19,21 @@ return [
 
     'activo' => (bool) env('ASISTENTE', false),
 
+    /*
+    | Cómo conversa:
+    |   conversacion · la clienta escribe como quiera y la IA lo entiende con
+    |                  el catálogo. Botones solo para confirmar (total, teléfono
+    |                  y la orden final). Es el que se eligió.
+    |   botones      · como antes: menús y listas para tocar.
+    */
+    'modo' => env('ASISTENTE_MODO', 'conversacion'),
+
+    // La IA que entiende los pedidos escritos. gpt-5-mini es barato y rápido;
+    // es independiente de OPENAI_MODELO (el de "Mejorar" y las órdenes).
+    // Con ASISTENTE_IA=false se apaga y quedan solo las reglas.
+    'usar_ia'   => (bool) env('ASISTENTE_IA', true),
+    'modelo_ia' => env('ASISTENTE_MODELO', 'gpt-5-mini'),
+
     'solo_numeros' => array_values(array_filter(array_map(
         fn ($n) => substr(preg_replace('/\D/', '', $n), -8),
         explode(',', (string) env('ASISTENTE_SOLO_NUMEROS', ''))

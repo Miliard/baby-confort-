@@ -38,9 +38,30 @@ class IA
         return config('ia.' . static::proveedor() . '.clave') ?: null;
     }
 
+    /** Un modelo distinto solo para este pedido (lo usa el asistente de ventas). */
+    private static ?string $modeloForzado = null;
+
     private static function modelo(): string
     {
+        if (static::$modeloForzado && static::proveedor() === 'openai') return static::$modeloForzado;
+
         return (string) config('ia.' . static::proveedor() . '.modelo');
+    }
+
+    /**
+     * Igual que pedir(), pero con un modelo elegido para esto. Así el asistente
+     * de ventas usa gpt-5-mini (barato y rápido) aunque OPENAI_MODELO diga otro.
+     */
+    public static function pedirConModelo(string $modelo, string $instrucciones, string $entrada, float $temperatura = 0.0): ?string
+    {
+        $antes = static::$modeloForzado;
+        static::$modeloForzado = trim($modelo) ?: null;
+
+        try {
+            return static::pedir($instrucciones, $entrada, $temperatura);
+        } finally {
+            static::$modeloForzado = $antes;
+        }
     }
 
     /**

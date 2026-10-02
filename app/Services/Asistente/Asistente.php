@@ -447,7 +447,37 @@ class Asistente
         }
 
         $paso = $this->siguientePaso();
-        $entendio = $boton ? $this->leerBoton($boton) : $this->leerTexto($paso, $texto);
+
+        /*
+         * LA IA ENTIENDE, EL SISTEMA DECIDE.
+         *
+         * Mientras elige qué llevar, lo que escribe la clienta lo lee la IA
+         * con el catálogo de hoy ("2 de noche XL y uno de cinta M", "mejor
+         * quíteme el M"). La IA solo devuelve ids del catálogo y cantidades;
+         * precios, envío y total los pone el sistema.
+         *
+         * Los mensajes simples ("2", "la 1", "XL") los resuelven las reglas
+         * primero, que son instantáneas y gratis; la IA entra cuando el
+         * mensaje es enredado o cuando las reglas no lo entendieron.
+         */
+        $usaIa = ! $boton && $this->pasoDeEleccion($paso) && InterpretarIA::disponible()
+            && ! Entender::esCortesia($texto) && ! Entender::esSaludo($texto);
+
+        $entendio = false;
+        $iaProbada = false;
+
+        if ($usaIa && $this->mensajeEnredado($texto)) {
+            $iaProbada = true;
+            $entendio = $this->entenderConIA($m, $texto);
+        }
+
+        if (! $entendio) {
+            $entendio = $boton ? $this->leerBoton($boton) : $this->leerTexto($paso, $texto);
+        }
+
+        if (! $entendio && $usaIa && ! $iaProbada) {
+            $entendio = $this->entenderConIA($m, $texto);
+        }
 
         if ($entendio) {
             $this->leyoAlgo = true;
@@ -790,6 +820,218 @@ class Asistente
     private function bonita(string $talla): string
     {
         return preg_match('/a(ñ|n)os/iu', $talla) ? mb_strtolower($talla) : $talla;
+    }
+
+    /** Conversación escrita (la clienta escribe y la IA entiende) o con botones. */
+    private function conversacion(): bool
+    {
+        return config('asistente.modo', 'conversacion') !== 'botones';
+    }
+
+    /** Lo que va al final de las fotos de una talla. */
+    private function finOpciones(): string
+    {
+        return $this->conversacion()
+            ? '¿Le gusta alguna? Dígame cuál y cuántos paquetes, por ejemplo: *2 de la opción 1*. También le muestro otra talla si quiere 😊'
+            : 'Para cualquier duda o más información, toque *Más opciones* 😊';
+    }
+
+    /** "RN, M, L y XL". */
+    private function unir(array $cosas, string $ultimo = ' y '): string
+    {
+        $cosas = array_values(array_filter($cosas));
+        if (count($cosas) <= 1) return (string) ($cosas[0] ?? '');
+        return implode(', ', array_slice($cosas, 0, -1)) . $ultimo . end($cosas);
+    }
+
+    /** Los pasos en que la clienta está eligiendo qué llevar. */
+    private function pasoDeEleccion(string $paso): bool
+    {
+        return in_array($paso, ['talla', 'unidad', 'elegir_talla', 'tipo', 'opciones', 'elegir', 'cantidad', 'carrito'], true);
+    }
+
+    /** Mensajes que las reglas leen mal: varios productos, cambios, frases largas. */
+    private function mensajeEnredado(string $texto): bool
+    {
+        $n = Entender::normalizar($texto);
+
+        return preg_match_all('/\d+/', $n) >= 2
+            || (bool) preg_match('/\b(y|tambien|ademas|mejor|cambie|cambieme|quite|quiteme|en vez|sin el|sin la|otro de|otra de)\b/', $n)
+            || count(explode(' ', $n)) >= 9;
+    }
+
+    /** Le pasa el mensaje a la IA y aplica lo que entendió. */
+    private function entenderConIA(WaMensaje $m, string $texto): bool
+    {
+        try {
+            $catalogo = [];
+            foreach ($this->consultaBase()->get()->take(60) as $s) {
+                if (! $s->product) continue;
+                if (! in_array(mb_strtoupper(trim((string) $s->size)), array_map('mb_strtoupper', (array) config('asistente.tallas', [])), true)) continue;
+                $catalogo[] = [
+                    'id'       => (string) $s->id,
+                    'talla'    => mb_strtoupper(trim((string) $s->size)),
+                    'tipo'     => $this->tipoDe((string) $s->product->name),
+                    'nombre'   => trim((string) $s->product->name),
+                    'unidades' => (int) $s->unidades,
+                    'precio'   => number_format((float) $s->price, 2),
+                    'oferta'   => ((int) $s->combo_qty > 1 && (float) $s->combo_price > 0) ? (int) $s->combo_qty . ' por $' . number_format((float) $s->combo_price, 2) : '',
+                ];
+            }
+
+            $carrito = [];
+            foreach ((array) $this->f->dato('carrito', []) as $c) {
+                $o = $this->mostrada((string) $c['id']);
+                $carrito[] = ['id' => (string) $c['id'], 'cantidad' => (int) $c['cant'], 'producto' => $o ? ($o['nombre'] . ' talla ' . $o['talla']) : ''];
+            }
+
+            $mostradas = [];
+            foreach (array_values((array) $this->f->dato('mostradas', [])) as $i => $o) {
+                $mostradas[] = ['opcion' => $i + 1, 'id' => (string) $o['id'], 'producto' => $o['nombre'] . ' talla ' . $o['talla'] . ' (' . $this->tipoDe($o['nombre']) . ')'];
+            }
+
+            $estado = [
+                'paso'           => $this->siguientePaso(),
+                'mirando_tallas' => (array) $this->f->dato('tallas', []),
+                'tipo'           => $this->f->dato('tipo'),
+                'mostradas'      => $mostradas,
+                'carrito'        => $carrito,
+            ];
+
+            $charla = [];
+            $previos = WaMensaje::where('conversacion_id', $this->conv->id)
+                ->where('id', '<', $m->id)->orderByDesc('id')->limit(10)->get()->reverse();
+            foreach ($previos as $p) {
+                if (! filled($p->texto)) continue;
+                $charla[] = ['quien' => $p->direccion === 'entrante' ? 'CLIENTA' : 'TIENDA', 'texto' => $p->texto];
+            }
+
+            $r = InterpretarIA::de($catalogo, $estado, $charla, $texto);
+            if ($r === null) return false;
+
+            return $this->aplicarIA($r);
+        } catch (\Throwable $e) {
+            Log::warning('Asistente con IA: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /** Lo que entendió la IA, al carrito y a la ficha. true si hizo algo. */
+    private function aplicarIA(array $r): bool
+    {
+        $hizo = false;
+
+        if ($r['reemplazar'] && $r['items']) {
+            $this->f->quitar('carrito', 'carrito_ok', 'total_ok', 'confirmado');
+        }
+
+        if ($r['quitar']) {
+            $carrito = array_values(array_filter((array) $this->f->dato('carrito', []), fn ($c) => ! in_array((string) $c['id'], $r['quitar'], true)));
+            $this->f->poner('carrito', $carrito);
+            $this->f->quitar('carrito_ok', 'total_ok', 'confirmado');
+            if (! $carrito) $this->f->quitar('carrito');
+            $hizo = true;
+        }
+
+        if ($r['items']) {
+            $solo = count($r['items']) === 1;
+
+            foreach ($r['items'] as $it) {
+                $this->asegurarMostrada($it['id']);
+
+                if ($it['cantidad'] === null && $solo) {
+                    // Eligió uno sin decir cuántos: se le pregunta.
+                    $this->f->poner('elegido', $it['id']);
+                    $this->f->quitar('eligiendo');
+                } else {
+                    $this->f->poner('elegido', $it['id']);
+                    $this->ponerCantidad($it['cantidad'] ?? 1);
+                    if ($this->paraWil) return true;
+                }
+            }
+
+            $this->f->quitar('eligiendo', 'agregando');
+
+            // Como contexto, la talla de lo que pidió: si después dice "y otro
+            // de cinta", se sabe de qué talla habla.
+            if (! $this->f->dato('tallas')) {
+                $tallas = [];
+                foreach ($r['items'] as $it) {
+                    $o = $this->mostrada($it['id']);
+                    if ($o) $tallas[] = mb_strtoupper($o['talla']);
+                }
+                $this->f->poner('tallas', array_values(array_unique($tallas)));
+                $this->f->poner('tipo', $this->f->dato('tipo') ?: 'ambos');
+            }
+
+            $hizo = true;
+        } else {
+            if ($r['peso']) {
+                if ($r['peso']['unidad']) {
+                    $this->ponerPeso($r['peso']['valor'], $r['peso']['unidad']);
+                } else {
+                    // Sin unidad: se le pregunta si son libras o kilos.
+                    $this->f->quitar('tallas', 'mostradas', 'mostrado_clave', 'elegido');
+                    $this->f->poner('peso_valor', $r['peso']['valor']);
+                }
+                $hizo = true;
+            } elseif ($r['tallas']) {
+                $hay = array_values(array_intersect($r['tallas'], array_map('mb_strtoupper', $this->tallasDisponibles())));
+                if ($hay) {
+                    if ($hay !== (array) $this->f->dato('tallas', [])) {
+                        $this->elegirTallas(array_slice($hay, 0, 2));
+                        if ($this->f->dato('carrito')) { $this->f->poner('agregando', true); $this->f->quitar('carrito_ok'); }
+                    }
+                } else {
+                    $this->avisos[] = 'En este momento no tenemos talla ' . implode(' ni ', array_map(fn ($t) => $this->bonita($t), $r['tallas'])) . ' 😔';
+                    $this->marcarAgotado();
+                }
+                $hizo = true;
+            }
+
+            if ($r['tipo'] && $this->f->dato('tallas')) {
+                $this->ponerTipo($r['tipo']);
+                if ($this->f->dato('carrito')) { $this->f->poner('agregando', true); $this->f->quitar('carrito_ok'); }
+                $hizo = true;
+            } elseif ($r['tipo']) {
+                $this->f->poner('tipo', $r['tipo']);
+                $hizo = true;
+            }
+
+            if ($r['listo'] && $this->f->dato('carrito')) {
+                $this->f->poner('carrito_ok', true);
+                $this->f->quitar('agregando', 'eligiendo', 'elegido');
+                $hizo = true;
+            }
+        }
+
+        if ($r['municipio'] && $this->municipioDePaso($r['municipio'])) $hizo = true;
+
+        if ($r['aclaracion']) {
+            $this->avisos[] = $r['aclaracion'];
+            $hizo = true;
+        }
+
+        return $hizo;
+    }
+
+    /** Que la presentación esté entre las "mostradas", para poder elegirla. */
+    private function asegurarMostrada(string $id): void
+    {
+        $mostradas = (array) $this->f->dato('mostradas', []);
+        foreach ($mostradas as $o) if ((string) $o['id'] === $id) return;
+
+        $s = ProductSize::with('product')->find($id);
+        if (! $s || ! $s->product) return;
+
+        $mostradas[] = [
+            'id'       => (string) $s->id,
+            'nombre'   => trim((string) $s->product->name),
+            'talla'    => trim((string) $s->size),
+            'unidades' => (int) $s->unidades,
+            'precio'   => (float) $s->price,
+        ];
+        $this->f->poner('mostradas', $mostradas);
     }
 
     private function diceEsTodo(string $texto): bool
@@ -1446,13 +1688,21 @@ class Asistente
         if ($d('cambiando')) return 'cambiar';
         if ($d('corrigiendo')) return 'corregir';
 
-        if (! $d('tallas')) {
+        // Ya eligió una presentación (por ejemplo, escribiéndola de una): falta
+        // solo cuántos, aunque nunca haya pasado por el paso de la talla.
+        if (! $d('carrito_ok') && $d('elegido')) return 'cantidad';
+
+        // Con algo en el carrito y sin estar sumando, no se vuelve a preguntar
+        // la talla ni el tipo: va directo al carrito.
+        $sumando = ! $d('carrito') || $d('agregando');
+
+        if ($sumando && ! $d('tallas')) {
             if ($d('peso_valor') !== null) return 'unidad';
             if ($d('sugeridas')) return 'elegir_talla';
             return 'talla';
         }
 
-        if (! $d('tipo')) return 'tipo';
+        if ($sumando && ! $d('tipo')) return 'tipo';
 
         if (! $d('carrito_ok')) {
             if ($d('elegido')) return 'cantidad';
@@ -1529,6 +1779,13 @@ class Asistente
             return;
         }
 
+        if ($this->conversacion()) {
+            $hay = array_map(fn ($t) => $this->bonita($t), $this->tallasDisponibles());
+            $this->texto($antes . '¿Qué talla usa su bebé? Tenemos *' . $this->unir($hay) . '*.'
+                . "\n\nSi no está segura, dígame cuánto pesa (por ejemplo, *22 libras*) y le recomiendo la talla 😊");
+            return;
+        }
+
         $pesos = (array) config('tallas_peso', []);
         $filas = [];
 
@@ -1550,6 +1807,8 @@ class Asistente
     {
         $v = rtrim(rtrim(number_format((float) $this->f->dato('peso_valor'), 1), '0'), '.');
 
+        if ($this->conversacion()) { $this->texto($antes . "¿Son {$v} libras o {$v} kilos?"); return; }
+
         $this->botones($antes . "¿Son {$v} libras o {$v} kilos?", [
             'unidad:lb' => 'Libras',
             'unidad:kg' => 'Kilos',
@@ -1567,6 +1826,13 @@ class Asistente
             ? "Con {$dicho} le quedan bien la talla *{$a}* y la *{$b}*. Si ya está por pasar de talla, conviene la *{$b}* porque le va a durar más 😉\n\n¿Cuál prefiere?"
             : "¿Cuál prefiere, la talla *{$a}* o la *{$b}*?";
 
+        if ($this->conversacion()) {
+            $this->texto($antes . ($dicho
+                ? "Con {$dicho} le quedan bien la talla *{$a}* y la *{$b}*. Si ya está por pasar de talla, conviene la *{$b}* porque le va a durar más 😉\n\n¿Le muestro la {$a}, la {$b} o las dos?"
+                : "¿Le muestro la talla *{$a}*, la *{$b}* o las dos?"));
+            return;
+        }
+
         $this->botones($antes . $cuerpo, [
             'talla:' . $a => 'Talla ' . $a,
             'talla:' . $b => 'Talla ' . $b,
@@ -1580,6 +1846,11 @@ class Asistente
 
         // La diferencia va siempre en el mensaje, así el tercer botón queda
         // libre para "Los dos": WhatsApp no deja más de tres botones.
+        if ($this->conversacion()) {
+            $this->texto($antes . '¿Lo prefiere de cinta, calzoncito, o le muestro los dos?' . "\n\n" . trim((string) config('asistente.textos.diferencia')));
+            return;
+        }
+
         $this->botones($antes . '¿Lo prefiere de cinta o calzoncito?' . "\n\n" . trim((string) config('asistente.textos.diferencia')), [
             'tipo:cinta'      => 'Cinta',
             'tipo:calzoncito' => 'Calzoncito',
@@ -1601,7 +1872,7 @@ class Asistente
         // Ya se le mostraron estas mismas: no se repiten las tarjetas, solo la
         // lista para elegir.
         if ($this->f->dato('mostrado_clave') === $clave && $this->f->dato('mostradas')) {
-            $this->menuDeOpciones($antes . $disculpa . 'Para cualquier duda o más información, toque *Más opciones* 😊');
+            $this->menuDeOpciones($antes . $disculpa . $this->finOpciones());
             return;
         }
 
@@ -1673,7 +1944,7 @@ class Asistente
             }
         }
 
-        $this->menuDeOpciones(($pie !== '' ? $pie . "\n\n" : '') . 'Para cualquier duda o más información, toque *Más opciones* 😊');
+        $this->menuDeOpciones(($pie !== '' ? $pie . "\n\n" : '') . $this->finOpciones());
     }
 
     /**
@@ -1684,6 +1955,8 @@ class Asistente
      */
     private function menuDeOpciones(string $cuerpo): void
     {
+        if ($this->conversacion()) { $this->texto($cuerpo); return; }
+
         $actuales = array_map('mb_strtoupper', (array) $this->f->dato('tallas', []));
         $pesos = (array) config('tallas_peso', []);
         $filas = [];
@@ -1786,6 +2059,20 @@ class Asistente
             ? '¿Qué más le agregamos? 😊 Si quiere varios, puede escribirlo: *2 de noche y 1 Magic*.'
             : '¡Con gusto! 😊 ¿Cuál quiere comprar? Si quiere varios, puede escribirlo: *2 de noche y 1 Magic*.';
 
+        if ($this->conversacion()) {
+            $l = [];
+            foreach (array_values((array) $this->f->dato('mostradas', [])) as $i => $o) {
+                $l[] = '*' . ($i + 1) . '.* Talla ' . $this->bonita($o['talla']) . ' · ' . $this->tipoDe($o['nombre'])
+                    . ' — ' . ($o['unidades'] > 0 ? $o['unidades'] . ' u · ' : '') . '$' . number_format($o['precio'], 2)
+                    . ' (' . $o['nombre'] . ')';
+            }
+            $this->texto($antes . ($hayCarrito ? '¿Qué más le agregamos? 😊' : '¡Con gusto! 😊 ¿Cuál quiere?')
+                . "\n\n" . implode("\n", $l)
+                . "\n\nDígame cuál y cuántos paquetes, por ejemplo: *2 de la 1*."
+                . ($hayCarrito ? ' Si ya no quiere más, dígame *es todo*.' : ''));
+            return;
+        }
+
         $this->lista($antes . $cuerpo, 'Elegir', $filas);
     }
 
@@ -1838,6 +2125,11 @@ class Asistente
         $o = $this->mostrada((string) $this->f->dato('elegido'));
         $que = $o ? "*{$o['nombre']}* talla {$o['talla']}" : 'ese';
 
+        if ($this->conversacion()) {
+            $this->texto($antes . "¿Cuántos paquetes de {$que} le enviamos? 😊\n\nDespués le pregunto si quiere agregar algo más.");
+            return;
+        }
+
         $this->botones($antes . "¿Cuántos paquetes de {$que} le enviamos? Si son más de 3, escríbame el número 😊\n\nDespués le pregunto si quiere agregar algo más.", [
             'cant:1' => '1',
             'cant:2' => '2',
@@ -1852,6 +2144,12 @@ class Asistente
         // La pregunta es abierta a propósito: "¿le agregamos algo más?". Es
         // el momento de sumar la de cinta, la de noche o la otra talla, antes
         // de pasar al envío.
+        if ($this->conversacion()) {
+            $this->texto($antes . "🛒 *Su pedido hasta ahora:*\n" . implode("\n", $lineas) . "\n\n*Subtotal: $" . number_format($subtotal, 2) . "*\n\n"
+                . '¿Le agregamos algo más (otra presentación, de cinta o calzoncito, u otra talla) o así está bien? 😊');
+            return;
+        }
+
         $this->botones($antes . "🛒 *Su pedido hasta ahora:*\n" . implode("\n", $lineas) . "\n\n*Subtotal: $" . number_format($subtotal, 2) . "*\n\n"
             . '¿Le agregamos algo más? Puede ser otra presentación, la de cinta o calzoncito, u otra talla 😊', [
             'carrito:otro'    => 'Sí, agregar más',
@@ -1876,6 +2174,8 @@ class Asistente
     {
         $m = (string) $this->f->dato('muni_propuesto');
 
+        if ($this->conversacion()) { $this->texto($antes . "¿Quiso decir *{$m}*? (sí o no)"); return; }
+
         $this->botones($antes . "¿Quiso decir *{$m}*?", [
             'muni:si' => 'Sí',
             'muni:no' => 'No',
@@ -1887,6 +2187,11 @@ class Asistente
         $m = (string) $this->f->dato('municipio');
         $b = [];
         foreach ((array) $this->f->dato('deptos', []) as $d) $b['depto:' . $d] = $d;
+
+        if ($this->conversacion()) {
+            $this->texto($antes . "Hay un {$m} en varios departamentos. ¿Cuál es el suyo: " . $this->unir(array_values($b), ' o ') . '?');
+            return;
+        }
 
         $this->botones($antes . "Hay un {$m} en varios departamentos. ¿Cuál es el suyo?", $b);
     }
@@ -1916,6 +2221,8 @@ class Asistente
 
     private function preguntarQueCambiar(string $antes): void
     {
+        if ($this->conversacion()) { $this->texto($antes . '¿Qué le gustaría cambiar: los productos o el municipio?'); return; }
+
         $this->botones($antes . '¿Qué le gustaría cambiar?', [
             'cambiar:productos' => 'Productos',
             'cambiar:municipio' => 'Municipio',
@@ -1955,6 +2262,11 @@ class Asistente
 
     private function preguntarQueCorregir(string $antes): void
     {
+        if ($this->conversacion()) {
+            $this->texto($antes . '¿Qué dato corrijo: los productos, el municipio, el nombre, la dirección o el teléfono?');
+            return;
+        }
+
         $this->lista($antes . '¿Qué dato hay que corregir?', 'Elegir', [
             ['id' => 'corr:productos', 'titulo' => 'Productos',  'detalle' => ''],
             ['id' => 'corr:municipio', 'titulo' => 'Municipio',  'detalle' => (string) $this->f->dato('municipio')],
