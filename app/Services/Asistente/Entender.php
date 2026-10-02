@@ -137,6 +137,17 @@ class Entender
             || (bool) preg_match('/\bpampers?\b.*\b[1-8]\b(?!\s*(a|al|-)?\s*\d)/', $n);
     }
 
+    /** El número de "talla 6", "talla 3 de Pampers"; null si no dice uno. */
+    public static function numeroDeTalla(?string $texto): ?int
+    {
+        $n = static::normalizar($texto);
+
+        if (preg_match('/\b(talla|tallita|numero|etapa)\s*([0-9])\b(?!\s*(a|al|-)?\s*\d)/', $n, $m)) return (int) $m[2];
+        if (preg_match('/\bpampers?\b.*?\b([0-8])\b(?!\s*(a|al|-)?\s*\d)/', $n, $m)) return (int) $m[1];
+
+        return null;
+    }
+
     /** "¿Qué precio tiene?", "¿cuánto cuesta?", "¿cuántos trae?". */
     public static function preguntaPrecio(?string $texto): bool
     {
@@ -209,7 +220,7 @@ class Entender
         $n = static::normalizar($texto);
         if ($n === '') return null;
 
-        if (preg_match('/\b(diferencia|cual es mejor|que diferencia|como son|en que se diferencian)\b/', $n)) return 'diferencia';
+        if (preg_match('/\b(diferencias?|cual es mejor|cual me recomienda|cual recomienda|que diferencia|como son|en que se diferencian|que tienen de diferente|cual conviene)\b/', $n)) return 'diferencia';
 
         $calzon = (bool) preg_match('/\b(calzoncitos?|calzon|calzones|pants?|pantis?|de subir|tipo calzon|braga|bragas|training)\b/', $n);
         $cinta  = (bool) preg_match('/\b(cintas?|de pegar|pegar|broches?|de broche|pegadit[oa]s?|adhesiv[oa]s?|velcro|normal|normales|tradicional|de los normales)\b/', $n);

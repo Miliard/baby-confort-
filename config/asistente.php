@@ -97,6 +97,20 @@ return [
     // no tenga el rango de RN. Cuando lo pongas ahí, manda ese.
     'rn_hasta_kg' => 4.5,
 
+    // La numeración que usan otras marcas ("talla 6" de Pampers) y a cuál de
+    // las nuestras equivale. Si una clienta dice un número que no está acá,
+    // se le pregunta el peso.
+    'tallas_numericas' => [
+        0 => 'RN',
+        1 => 'RN',
+        2 => 'S',
+        3 => 'M',
+        4 => 'L',
+        5 => 'XL',
+        6 => 'XXL',
+        7 => 'XXXL',
+    ],
+
     // Las de niño grande solo se sugieren por peso si ninguna de bebé le queda.
     'tallas_nino' => ['4 A 7 AÑOS', '8 A 14 AÑOS'],
 

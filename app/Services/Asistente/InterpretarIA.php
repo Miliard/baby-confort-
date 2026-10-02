@@ -40,6 +40,7 @@ class InterpretarIA
 
         $pesos = [];
         foreach ((array) config('tallas_peso', []) as $t => $r) $pesos[] = "{$t}: {$r}";
+        foreach ((array) config('asistente.tallas_numericas', []) as $num => $t) $pesos[] = "\"talla {$num}\" (numeración de otras marcas) = {$t}";
 
         $lineasCharla = [];
         foreach (array_slice($charla, -10) as $m) {

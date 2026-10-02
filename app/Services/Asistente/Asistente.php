@@ -720,10 +720,13 @@ class Asistente
 
         $tallas = array_values(array_intersect(Entender::tallas($texto), $disponibles));
 
-        // "Talla 6 de Pampers": cada marca mide distinto; con el peso se acierta.
+        // "Talla 6", "talla 3 de Pampers": la numeración que usan otras marcas.
+        // Se pasa a la nuestra con la tabla de config (6 = XXL, 3 = M…).
         if (! $tallas && ! Entender::peso($texto) && Entender::tallaNumerica($texto)) {
             $tipo = Entender::tipo($texto);
             if (in_array($tipo, ['cinta', 'calzoncito'], true)) $this->ponerTipo($tipo);
+
+            if ($this->tallaPorNumero($texto)) return true;
 
             $this->avisos[] = 'Esa numeración es de otra marca y cada marca mide distinto 😊';
             $this->f->poner('pide_peso', true);
@@ -820,6 +823,77 @@ class Asistente
     private function bonita(string $talla): string
     {
         return preg_match('/a(ñ|n)os/iu', $talla) ? mb_strtolower($talla) : $talla;
+    }
+
+    /**
+     * "Talla 6" → XXL, con la tabla de config. true si la pudo traducir (y la
+     * eligió, o avisó que no hay). false si ese número no está en la tabla.
+     */
+    private function tallaPorNumero(string $texto): bool
+    {
+        $num = Entender::numeroDeTalla($texto);
+        if ($num === null) return false;
+
+        $nuestra = ((array) config('asistente.tallas_numericas', []))[$num] ?? null;
+        if (! $nuestra) return false;
+
+        if (in_array($nuestra, $this->tallasDisponibles(), true)) {
+            $this->avisos[] = "La talla {$num} equivale a nuestra talla *" . $this->bonita($nuestra) . '* 👍';
+            $this->elegirTallas([$nuestra]);
+        } else {
+            $this->avisos[] = "La talla {$num} equivale a nuestra talla *" . $this->bonita($nuestra) . '*, pero en este momento no la tenemos 😔'
+                . ' Si me dice cuánto pesa su bebé, le digo si le queda otra.';
+            $this->marcarAgotado();
+            $this->f->poner('pide_peso', true);
+        }
+
+        return true;
+    }
+
+    /**
+     * La diferencia entre las opciones que está viendo, con lo que dice el
+     * catálogo de cada producto (sus características o la descripción). Nada
+     * inventado: si un producto no tiene descripción, se comparan unidades y
+     * precio.
+     */
+    private function compararMostradas(array $mostradas): string
+    {
+        $lineas = [];
+        $tipos = [];
+
+        foreach (array_values($mostradas) as $i => $o) {
+            $s = ProductSize::with('product')->find($o['id']);
+            $p = $s?->product;
+
+            $resumen = '';
+            if ($p) {
+                $rasgos = array_values(array_filter(array_map(fn ($x) => trim(strip_tags((string) (is_array($x) ? ($x['texto'] ?? $x['text'] ?? reset($x)) : $x))), (array) ($p->features ?? []))));
+                if ($rasgos) {
+                    $resumen = implode(' · ', array_slice($rasgos, 0, 2));
+                } else {
+                    $desc = trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($p->description ?? ''))));
+                    if ($desc !== '') {
+                        $resumen = preg_split('/(?<=[.!?])\s/u', $desc)[0] ?? $desc;
+                    }
+                }
+            }
+            if (mb_strlen($resumen) > 170) $resumen = rtrim(mb_substr($resumen, 0, 167)) . '…';
+
+            $tipo = $this->tipoDe($o['nombre']);
+            $tipos[$tipo] = true;
+
+            $lineas[] = '*Opción ' . ($i + 1) . ' — ' . $o['nombre'] . '* (' . $tipo . ', talla ' . $this->bonita($o['talla']) . ")\n"
+                . ($resumen !== '' ? $resumen . "\n" : '')
+                . ($o['unidades'] > 0 ? $o['unidades'] . ' unidades · ' : '') . '$' . number_format($o['precio'], 2);
+        }
+
+        $txt = "Con gusto le explico 😊\n\n" . implode("\n\n", $lineas);
+
+        if (count($tipos) > 1) {
+            $txt .= "\n\n" . trim((string) config('asistente.textos.diferencia'));
+        }
+
+        return $txt;
     }
 
     /** Conversación escrita (la clienta escribe y la IA entiende) o con botones. */
@@ -1227,7 +1301,9 @@ class Asistente
                 return true;
             }
 
-            if (! $pregunta) return false;
+            // Repite el tipo que ya está viendo ("calzoncito"): entendido, no
+            // es un error. Se le vuelve a preguntar cuál le gusta.
+            if (! $pregunta) return true;
 
             // Preguntó por el mismo que está viendo: "¿solo en calzoncito tienen?"
             if (count($tipos) > 1) {
@@ -1285,6 +1361,14 @@ class Asistente
     private function cambioDeTalla(string $texto): bool
     {
         $t = array_values(array_intersect(Entender::tallas($texto, true), $this->tallasDisponibles()));
+
+        // "¿Y en talla 5?": la numeración de otras marcas también vale acá.
+        if (! $t && Entender::tallaNumerica($texto) && $this->tallaPorNumero($texto)) {
+            $this->f->quitar('carrito_ok', 'total_ok', 'confirmado');
+            if ($this->f->dato('carrito')) $this->f->poner('agregando', true);
+            return true;
+        }
+
         if (! $t) return false;
 
         $this->elegirTallas(array_slice($t, 0, 2));
@@ -1364,7 +1448,17 @@ class Asistente
             return true;
         }
 
-        if ($t === 'diferencia') { $this->f->poner('explicar', true); return true; }
+        // "¿Y cuál es la diferencia?" con varias opciones en pantalla: se
+        // comparan ESAS opciones (con lo que dice tu catálogo de cada una),
+        // no solo cinta contra calzoncito.
+        if ($t === 'diferencia') {
+            if (count($mostradas) >= 2) {
+                $this->avisos[] = $this->compararMostradas($mostradas);
+            } else {
+                $this->f->poner('explicar', true);
+            }
+            return true;
+        }
 
         if (Entender::siNo($texto) === false
             || preg_match('/\b(ninguna|ninguno|no me (gusta|gustan|convence|convencen|sirve|sirven))\b/', Entender::normalizar($texto))) {
