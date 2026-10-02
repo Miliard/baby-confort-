@@ -346,6 +346,12 @@
         .theme-btn .th-sun{display:none}
         html.dark .theme-btn .th-moon{display:none}
         html.dark .theme-btn .th-sun{display:grid}
+        /* Los botones no heredan el color del texto: sin esto el ícono salía
+           negro, y en modo oscuro no se veía. En claro va del color del texto;
+           en oscuro, el sol amarillo y el borde más visible. */
+        .theme-btn{color:var(--azul-osc)}
+        html.dark .theme-btn{color:#ffd76a;border-color:rgba(255,255,255,.28)}
+        html.dark .theme-btn:hover{border-color:#ffd76a}
 
         /* ===== MODO NOCHE ===== */
         html.dark{
