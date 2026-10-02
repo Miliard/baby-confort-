@@ -293,20 +293,18 @@
                                     📱 <b>Mandala a mano</b> desde el teléfono (la app sí deja, aunque pasen las 24 horas):
                                 </div>
                                 <div style="display:flex;flex-wrap:wrap;gap:6px">
-                                    <button type="button" onclick="bcCompartirFoto(this)"
-                                            data-url="{{ url($foto->url()) }}" data-texto="{{ $textoMano }}"
-                                            data-nombre="guia-{{ $foto->guia ?: $foto->id }}.jpg"
+                                    {{-- Dos botones, uno para cada cosa: se copia la
+                                         imagen, se pega en el chat; se copia el texto,
+                                         se pega abajo. --}}
+                                    <button type="button" onclick="bcCopiarImagen(this)"
+                                            data-url="{{ url($foto->url()) }}"
                                             style="background:#25D366;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-weight:700;font-size:12.5px;cursor:pointer">
-                                        📤 Compartir foto y texto
+                                        🖼️ Copiar imagen
                                     </button>
                                     <button type="button" class="js-copiar" data-copiar="{{ $textoMano }}"
                                             style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-weight:700;font-size:12.5px;cursor:pointer">
                                         📋 Copiar texto
                                     </button>
-                                    <a href="{{ $foto->url() }}" download="guia-{{ $foto->guia ?: $foto->id }}.jpg"
-                                       style="background:#f1f5f9;color:#334155;border:1px solid #e5e7eb;border-radius:8px;padding:7px 11px;font-weight:600;font-size:12.5px;text-decoration:none">
-                                        ⬇️ Descargar foto
-                                    </a>
                                     @if($waMano)
                                         <a href="{{ $waMano }}" target="_blank" rel="noopener"
                                            style="background:#f1f5f9;color:#334155;border:1px solid #e5e7eb;border-radius:8px;padding:7px 11px;font-weight:600;font-size:12.5px;text-decoration:none">

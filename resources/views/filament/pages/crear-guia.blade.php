@@ -1010,6 +1010,51 @@
             }
         };
 
+        /*
+         * "Copiar imagen": deja la FOTO en el portapapeles, para pegarla en el
+         * chat de WhatsApp (en la PC con Ctrl+V; en el teléfono, mantener
+         * apretado el cuadro de escribir → Pegar).
+         *
+         * El portapapeles solo acepta PNG, así que la foto se pasa a PNG en el
+         * momento. El ClipboardItem se arma al toque, con la imagen "en
+         * camino": Safari y algunos teléfonos solo dejan copiar si se hace en
+         * el mismo instante del toque.
+         *
+         * Si el navegador no deja copiar imágenes, se abre la foto: ahí se
+         * mantiene apretada y se elige "Copiar imagen" del propio teléfono.
+         */
+        window.bcCopiarImagen = function (b) {
+            const url = b.dataset.url;
+            const antes = b.textContent;
+            const listo = (t) => { b.textContent = t; setTimeout(() => { b.textContent = antes; }, 2200); };
+
+            const comoPng = fetch(url, { credentials: 'same-origin' })
+                .then(r => r.blob())
+                .then(blob => new Promise((ok, mal) => {
+                    if (blob.type === 'image/png') return ok(blob);
+                    const img = new Image();
+                    img.onload = () => {
+                        const c = document.createElement('canvas');
+                        c.width = img.naturalWidth; c.height = img.naturalHeight;
+                        c.getContext('2d').drawImage(img, 0, 0);
+                        c.toBlob(p => p ? ok(p) : mal(new Error('png')), 'image/png');
+                    };
+                    img.onerror = mal;
+                    img.src = URL.createObjectURL(blob);
+                }));
+
+            try {
+                if (!navigator.clipboard || !window.ClipboardItem) throw new Error('sin portapapeles');
+                b.textContent = 'Copiando…';
+                navigator.clipboard.write([new ClipboardItem({ 'image/png': comoPng })])
+                    .then(() => listo('✓ Imagen copiada'))
+                    .catch(() => { window.open(url, '_blank'); listo('Mantené apretada la foto → Copiar'); });
+            } catch (e) {
+                window.open(url, '_blank');
+                listo('Mantené apretada la foto → Copiar');
+            }
+        };
+
         // Botones de copiar de la lista guardada (funcionan aunque Livewire redibuje).
         document.addEventListener('click', async (e) => {
             const b = e.target.closest('.js-copiar');
