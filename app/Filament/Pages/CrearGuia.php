@@ -215,6 +215,31 @@ class CrearGuia extends Page implements HasForms
     }
 
     /** Sacar una de la lista sin mandarla: ya se la pasaste por otro lado. */
+    /**
+     * "Ya la mandé": la foto salió a mano desde el teléfono (la ventana de 24
+     * horas estaba cerrada). Queda como enviada y el chat pasa a Entregados,
+     * igual que si hubiera salido por el panel.
+     */
+    public function marcarFotoManual(int $id): void
+    {
+        $f = \App\Models\GuiaFoto::find($id);
+        if (! $f) return;
+
+        $f->forceFill([
+            'chat_manual_at'  => now(),
+            'chat_enviada_at' => $f->chat_enviada_at ?: now(),
+            'chat_error'      => null,
+        ])->save();
+
+        try {
+            $conv = \App\Services\FotosAlChat::conversacionDe((string) \App\Models\GuiaFoto::telefonoCorto($f->telefono));
+            if ($conv) \App\Services\Etiquetado::marcarEntregada($conv);
+        } catch (\Throwable $e) {
+        }
+
+        Notification::make()->title('Marcada como enviada a mano')->success()->send();
+    }
+
     public function omitirFotoChat(int $id): void
     {
         $f = \App\Models\GuiaFoto::find($id);

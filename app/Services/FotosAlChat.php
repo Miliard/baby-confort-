@@ -559,6 +559,20 @@ class FotosAlChat
 
     public static function revisar(GuiaFoto $foto): array
     {
+        // La mandaste vos a mano (ventana cerrada): enviada, sin buscarla en
+        // el chat. Si se la buscara, al no encontrarla se le sacaría la marca
+        // y volvería a la lista como pendiente.
+        if (! empty($foto->chat_manual_at)) {
+            return [
+                'foto'   => $foto,
+                'conv'   => static::conversacionDe((string) GuiaFoto::telefonoCorto($foto->telefono)),
+                'estado' => static::ENVIADA,
+                'msj'    => null,
+                'porque' => 'La mandaste a mano el '
+                          . $foto->chat_manual_at->timezone(config('app.zona_local'))->format('d/m g:i a') . '.',
+            ];
+        }
+
         if ($foto->chat_enviada_at) {
             $llego = static::mensajeQueLlego($foto);
 

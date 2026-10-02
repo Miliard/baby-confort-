@@ -275,6 +275,53 @@
                             @endif
                         </p>
 
+                        {{-- MANDARLA A MANO.
+
+                             Cuando la ventana de 24 horas está cerrada (o el
+                             cliente no tiene chat), el panel no la puede mandar.
+                             Desde la app del teléfono sí se puede, a cualquier
+                             hora. Acá está todo para hacerlo en dos toques: la
+                             foto y el texto con la guía y el enlace, iguales a
+                             los que habría mandado el panel. --}}
+                        @if(! $yaSalio && in_array($estado, [\App\Services\FotosAlChat::ESPERA, \App\Services\FotosAlChat::SIN_CHAT, \App\Services\FotosAlChat::SIN_NUMERO], true) && $foto->url())
+                            @php
+                                $textoMano = \App\Services\FotosAlChat::pie($foto);
+                                $waMano = $foto->whatsapp() ? preg_replace('/\?text=.*/', '', $foto->whatsapp()) . '?text=' . rawurlencode($textoMano) : null;
+                            @endphp
+                            <div style="margin-top:8px;padding:8px;border-radius:10px;background:rgba(245,158,11,.08);border:1px dashed rgba(245,158,11,.45)">
+                                <div class="text-gray-600 dark:text-gray-300" style="font-size:12px;margin-bottom:6px">
+                                    📱 <b>Mandala a mano</b> desde el teléfono (la app sí deja, aunque pasen las 24 horas):
+                                </div>
+                                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                                    <button type="button" onclick="bcCompartirFoto(this)"
+                                            data-url="{{ url($foto->url()) }}" data-texto="{{ $textoMano }}"
+                                            data-nombre="guia-{{ $foto->guia ?: $foto->id }}.jpg"
+                                            style="background:#25D366;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-weight:700;font-size:12.5px;cursor:pointer">
+                                        📤 Compartir foto y texto
+                                    </button>
+                                    <button type="button" class="js-copiar" data-copiar="{{ $textoMano }}"
+                                            style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-weight:700;font-size:12.5px;cursor:pointer">
+                                        📋 Copiar texto
+                                    </button>
+                                    <a href="{{ $foto->url() }}" download="guia-{{ $foto->guia ?: $foto->id }}.jpg"
+                                       style="background:#f1f5f9;color:#334155;border:1px solid #e5e7eb;border-radius:8px;padding:7px 11px;font-weight:600;font-size:12.5px;text-decoration:none">
+                                        ⬇️ Descargar foto
+                                    </a>
+                                    @if($waMano)
+                                        <a href="{{ $waMano }}" target="_blank" rel="noopener"
+                                           style="background:#f1f5f9;color:#334155;border:1px solid #e5e7eb;border-radius:8px;padding:7px 11px;font-weight:600;font-size:12.5px;text-decoration:none">
+                                            💬 Abrir su chat
+                                        </a>
+                                    @endif
+                                    <x-filament::button size="xs" color="success"
+                                        wire:click="marcarFotoManual({{ $foto->id }})"
+                                        wire:confirm="¿Ya se la mandaste desde el teléfono? Queda como enviada y el chat pasa a Entregados.">
+                                        ✓ Ya la mandé
+                                    </x-filament::button>
+                                </div>
+                            </div>
+                        @endif
+
                         @if(filled($foto->chat_error))
                             <p class="font-semibold text-danger-600 dark:text-danger-400"
                                style="font-size:12px;line-height:1.4;margin-top:4px">

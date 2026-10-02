@@ -980,6 +980,36 @@
             try { if (window.Livewire) Livewire.dispatch('$refresh'); } catch (e) {}
         });
 
+        /*
+         * "Compartir foto y texto": en el teléfono abre el menú de compartir
+         * con la foto Y el texto juntos; se elige WhatsApp y el chat del
+         * cliente. Si el teléfono o el navegador no lo permiten (en la PC, por
+         * ejemplo), copia el texto y abre la foto para guardarla.
+         */
+        window.bcCompartirFoto = async function (b) {
+            const url = b.dataset.url, texto = b.dataset.texto || '', nombre = b.dataset.nombre || 'foto.jpg';
+            const antes = b.textContent;
+            b.disabled = true; b.textContent = 'Preparando…';
+            try {
+                const blob = await (await fetch(url, { credentials: 'same-origin' })).blob();
+                const archivo = new File([blob], nombre, { type: blob.type || 'image/jpeg' });
+                if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
+                    await navigator.share({ files: [archivo], text: texto });
+                    b.textContent = '✓ Compartida';
+                    return;
+                }
+                throw new Error('sin compartir');
+            } catch (e) {
+                if (e && e.name === 'AbortError') { b.textContent = antes; return; }
+                try { await navigator.clipboard.writeText(texto); } catch (x) {}
+                window.open(url, '_blank');
+                b.textContent = '✓ Texto copiado · foto abierta';
+            } finally {
+                b.disabled = false;
+                setTimeout(() => { b.textContent = antes; }, 2500);
+            }
+        };
+
         // Botones de copiar de la lista guardada (funcionan aunque Livewire redibuje).
         document.addEventListener('click', async (e) => {
             const b = e.target.closest('.js-copiar');
