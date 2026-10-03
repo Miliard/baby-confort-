@@ -407,6 +407,27 @@ class Whatsapp extends Page
         }
     }
 
+    /** Cuántos mensajes se muestran del chat abierto (los más nuevos). */
+    public int $limiteMensajes = 200;
+
+    /**
+     * Tocó una cita de un mensaje viejo que no está entre los cargados: se
+     * cargan los necesarios para llegar hasta él, y se avisa al navegador para
+     * que se deslice hasta ahí.
+     */
+    public function irAMensaje(int $id): void
+    {
+        if (! $this->abierta) return;
+
+        $existe = WaMensaje::where('conversacion_id', $this->abierta)->whereKey($id)->exists();
+        if (! $existe) return;
+
+        $despues = WaMensaje::where('conversacion_id', $this->abierta)->where('id', '>=', $id)->count();
+        $this->limiteMensajes = min(3000, max($this->limiteMensajes, $despues + 15));
+
+        $this->dispatch('wa-ir', id: $id);
+    }
+
     /** Los mensajes del chat abierto, del más viejo al más nuevo. */
     public function mensajes()
     {
@@ -420,7 +441,7 @@ class Whatsapp extends Page
             return WaMensaje::with('agente')
                 ->where('conversacion_id', $this->abierta)
                 ->orderByDesc('id')
-                ->limit(200)
+                ->limit(max(200, $this->limiteMensajes))
                 ->get()
                 ->reverse()
                 ->values();
@@ -512,6 +533,7 @@ class Whatsapp extends Page
     public function abrir(int $id): void
     {
         $this->abierta = $id;
+        $this->limiteMensajes = 200;
         $this->texto = '';
         $this->pestana = 'chat';
 

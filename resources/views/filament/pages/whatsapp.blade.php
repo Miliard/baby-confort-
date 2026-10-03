@@ -476,6 +476,11 @@
     .wa-cita{border-left:3px solid currentColor;padding:4px 0 4px 8px;margin-bottom:6px;
              font-size:12.5px;line-height:1.4;opacity:.72}
     .wa-cita-q{font-weight:800;font-size:11px;margin-bottom:2px}
+    .wa-cita-ir{cursor:pointer;border-radius:4px}
+    .wa-cita-ir:hover{background:rgba(127,127,127,.12)}
+    /* El mensaje al que se llegó tocando una cita: se ilumina un momento. */
+    .wa-glo.wa-resalta{animation:waResalta 1.8s ease-out}
+    @keyframes waResalta{0%,30%{box-shadow:0 0 0 3px #4aa3df,0 0 18px rgba(74,163,223,.6)}100%{box-shadow:0 0 0 0 transparent}}
 
     .wa-citando{display:flex;gap:10px;align-items:center;margin-bottom:8px;
                 background:rgba(120,140,170,.12);border-left:3px solid #2e9e6b;
@@ -1461,10 +1466,17 @@
                         if ($m->estado === 'enviando') $clase .= ' wa-yendo';
                     @endphp
 
-                    <div class="wa-glo {{ $clase }}" wire:key="msg-{{ $m->id }}">
+                    <div class="wa-glo {{ $clase }}" wire:key="msg-{{ $m->id }}" id="wa-msg-{{ $m->id }}">
                         @php $cita = $m->citado(); @endphp
                         @if($cita)
-                            <div class="wa-cita">
+                            {{-- Tocar la cita lleva al mensaje original, como en
+                                 WhatsApp. Si es viejo y no está cargado, se
+                                 cargan más mensajes hasta llegar a él. --}}
+                            <div class="wa-cita wa-cita-ir" role="button" tabindex="0"
+                                 title="Ir al mensaje"
+                                 x-data
+                                 x-on:click.stop="waIrA({{ $cita->id }}, $wire)"
+                                 x-on:keydown.enter.prevent="waIrA({{ $cita->id }}, $wire)">
                                 <div class="wa-cita-q">{{ $cita->esDelCliente() ? $conv->titulo() : 'Vos' }}</div>
                                 {{ $cita->resumen() }}
                             </div>
@@ -2453,6 +2465,31 @@
     // Suena, avisa el navegador y pone el número en el título de la pestaña.
     // Todo esto funciona con el panel abierto. Con el panel cerrado, el aviso
     // te lo sigue dando tu WhatsApp Business del teléfono.
+    // ── Ir al mensaje citado ─────────────────────────────────────────────────
+    // Si ya está en pantalla, se desliza hasta él y se ilumina. Si es más viejo
+    // que lo cargado, se le pide al panel que cargue hasta ese mensaje, y al
+    // volver (evento "wa-ir") se hace lo mismo.
+    function waResaltar(id) {
+        var el = document.getElementById('wa-msg-' + id);
+        if (!el) return false;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.remove('wa-resalta');
+        void el.offsetWidth;            // para que la animación arranque de nuevo
+        el.classList.add('wa-resalta');
+        setTimeout(function () { el.classList.remove('wa-resalta'); }, 1900);
+        return true;
+    }
+    window.waIrA = function (id, wire) {
+        if (waResaltar(id)) return;
+        if (wire) wire.irAMensaje(id);
+    };
+    window.addEventListener('wa-ir', function (e) {
+        var id = (e.detail && (e.detail.id || (e.detail[0] && e.detail[0].id))) || null;
+        if (!id) return;
+        // Después de que el panel dibuje los mensajes nuevos.
+        setTimeout(function () { waResaltar(id); }, 250);
+    });
+
     var waPedirPermiso;
     var waProbarSonido;
 
