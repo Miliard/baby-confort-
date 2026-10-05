@@ -1917,9 +1917,22 @@ class Asistente
         }
 
         if ($this->conversacion()) {
-            $hay = array_map(fn ($t) => $this->bonita($t), $this->tallasDisponibles());
-            $this->texto($antes . '¿Qué talla usa su bebé? Tenemos *' . $this->unir($hay) . '*.'
-                . "\n\nSi no está segura, dígame cuánto pesa (por ejemplo, *22 libras*) y le recomiendo la talla 😊");
+            // Cada talla con su peso en libras (como lo dicen acá) y cómo le
+            // dicen otras marcas: así la clienta se ubica sola.
+            $lineas = [];
+            foreach ($this->tallasDisponibles() as $t) {
+                $lb = $this->pesoDe($t);
+                $alias = array_values(array_filter((array) (config('asistente.tallas_alias', [])[mb_strtoupper($t)] ?? []), fn ($x) => mb_strlen($x) <= 4));
+                $nums = array_keys(array_filter((array) config('asistente.tallas_numericas', []), fn ($x) => mb_strtoupper($x) === mb_strtoupper($t)));
+                $otros = array_merge($alias, $nums ? ['talla ' . implode('-', $nums)] : []);
+
+                $lineas[] = '• *' . $this->bonita($t) . '*'
+                    . ($otros ? ' (' . implode(' · ', $otros) . ')' : '')
+                    . ' — ' . ($lb !== '' ? str_replace(['–', 'lb'], [' a ', 'libras'], $lb) : (mb_strtoupper($t) === 'RN' ? 'recién nacido, hasta ' . (int) round((float) config('asistente.rn_hasta_kg', 4.5) * 2.2046) . ' libras' : ''));
+            }
+
+            $this->texto($antes . "Estas son las tallas que tenemos 👶\n\n" . implode("\n", $lineas)
+                . "\n\n¿Qué talla usa su bebé? Si no está segura, dígame cuánto pesa y le recomiendo la talla 😊");
             return;
         }
 
