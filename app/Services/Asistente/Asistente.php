@@ -1443,8 +1443,9 @@ class Asistente
         if ($this->preguntaPorOtras($texto)) return true;
 
         $t = Entender::tipo($texto);
-        if ($t === 'ambos' && $t !== $this->f->dato('tipo')) {
-            $this->ponerTipo($t);
+        if ($t === 'ambos') {
+            // "Los dos" cuando ya está viendo los dos: entendido, no es error.
+            if ($t !== $this->f->dato('tipo')) $this->ponerTipo($t);
             return true;
         }
 
@@ -2024,8 +2025,22 @@ class Asistente
 
         if ($filas->count() > $conFoto) {
             $mas = $filas->count() - $conFoto;
-            $pie = trim($pie . "\n\nHay " . $mas . ($mas === 1 ? ' opción más' : ' opciones más')
-                . ' en esta talla: las ve todas, con su precio, en *Más opciones → Comprar*.');
+
+            if ($this->conversacion()) {
+                // En la conversación no hay menú "Más opciones": las que no
+                // salieron con foto se nombran acá mismo, con su número, para
+                // que pueda pedirlas igual ("2 de la opción 5").
+                $l = [];
+                foreach ($filas->slice($conFoto)->values() as $k => $s) {
+                    $l[] = '*' . ($conFoto + $k + 1) . '.* Talla ' . $this->bonita(trim((string) $s->size)) . ' · ' . $this->tipoDe((string) $s->product->name)
+                        . ' — ' . ((int) $s->unidades > 0 ? (int) $s->unidades . ' u · ' : '') . '$' . number_format((float) $s->price, 2)
+                        . ' (' . trim((string) $s->product->name) . ')';
+                }
+                $pie = trim($pie . "\n\nTambién tenemos:\n" . implode("\n", $l));
+            } else {
+                $pie = trim($pie . "\n\nHay " . $mas . ($mas === 1 ? ' opción más' : ' opciones más')
+                    . ' en esta talla: las ve todas, con su precio, en *Más opciones → Comprar*.');
+            }
         }
 
         // Si está viendo un solo tipo y en esa talla también hay del otro, se
@@ -2197,21 +2212,29 @@ class Asistente
         if (count($tallas) !== 2) return null;
 
         [$chica, $grande] = $tallas;
-        $consumo = (array) config('asistente.consumo_diario', []);
 
-        $primera = fn ($t) => $filas->first(fn ($s) => mb_strtoupper(trim((string) $s->size)) === mb_strtoupper($t) && (int) $s->unidades > 0);
+        /*
+         * Prudente y con el peso a la vista. Antes decía siempre "ya está por
+         * pasar a la grande, lleve más de esa", aunque el bebé estuviera en
+         * la mitad de la talla chica. Ahora:
+         *  · sin peso (eligió "las dos" sin decirlo) → no se recomienda nada;
+         *  · cerca del tope de la chica → se le dice, y que la grande le va a
+         *    servir pronto;
+         *  · si no → que le quedan las dos, con la diferencia, y que elija.
+         */
+        $kg = (float) $this->f->dato('peso_kg');
+        $dicho = (string) $this->f->dato('peso_dicho');
+        if ($kg <= 0 || $dicho === '') return null;
 
-        $a = $primera($chica);
-        $b = $primera($grande);
-        if (! $a || ! $b) return null;
+        $r = Tallas::rangos((array) config('tallas_peso', []));
+        $topeChica = $r[mb_strtoupper($chica)]['max'] ?? null;
+        if (! $topeChica) return null;
 
-        $nA = Tallas::paquetes($consumo[$chica] ?? null, (int) $a->unidades, 7);
-        $nB = Tallas::paquetes($consumo[$grande] ?? null, (int) $b->unidades, 23);
-        if (! $nA || ! $nB) return null;
+        if ($kg >= $topeChica - 1) {
+            return "💡 Con {$dicho} su bebé está cerca del límite de la talla {$chica}. Si va a comprar para varias semanas, le conviene llevar también la {$grande}, que le va a servir cuando crezca un poquito.";
+        }
 
-        // Corto y sin cuentas: "1 de XL para terminar y 4 de XXL para seguir"
-        // no se entendía. Lo que importa es la idea: lleve más de la grande.
-        return "💡 Su bebé ya está por pasar a talla *{$grande}*. Le recomendamos llevar más paquetes de {$grande} que de {$chica}, para que le duren más.";
+        return "💡 Con {$dicho} le quedan bien las dos: la {$chica} le queda más justa y la {$grande} un poco más holgada.";
     }
 
     private function pedirCantidad(string $antes): void
