@@ -61,6 +61,11 @@ class Etiquetado
         '/\bquiero\s+(el|la|los|las)\s+(de\s+)?(talla|paquete|paquetes|panales|calzoncito)/',
         '/\b(quisiera|deseo|necesito|ocupo)\s+(otro|otra|un|una|dos|tres|\d+|pedir|encargar|comprar|llevar)\b(?!\s+(foto|fotos|imagen|imagenes|informacion|info|precio|precios|ubicacion|captura|video|audio|lista|catalogo|cotizacion|numero|cuenta|mensaje))/',
 
+        // "necesito pamper", "ocupo pañales", "quiero calzoncitos", "busco
+        // pampers talla 6": el verbo de querer pegado al PRODUCTO. Pampers es
+        // como le dice la gente a cualquier pañal.
+        '/\b(necesito|ocupo|quiero|quisiera|deseo|busco|ando\s+buscando)\s+(unos\s+|unas\s+|un\s+|una\s+|los\s+|las\s+|el\s+|la\s+|\d+\s+|dos\s+|tres\s+)?(paquetes?\s+(de\s+)?)?(pampers?|pamper|pamperes|panal|panales|calzoncitos?|calzones|pants|pañal(es)?)\b/',
+
         // "me manda dos", "mándeme la talla XL", "me puede enviar otro"
         '/\bme\s+(manda|mandas|mandan|envia|envias|envian|trae|traes)\s+(otro|otra|un|una|dos|tres|cuatro|\d+|el\s+paquete|los\s+paquetes|la\s+talla|talla|panales|calzoncito)\b(?!\s+(foto|fotos|imagen|imagenes|informacion|info|precio|precios|ubicacion|captura|video|audio|lista|catalogo|cotizacion|numero|cuenta|mensaje))/',
         '/\b(mandeme|mandame|enviame|envieme|traigame|traeme)\s+(otro|otra|un|una|dos|tres|cuatro|\d+|el\s+paquete|los\s+paquetes|la\s+talla|talla|panales|calzoncito)\b(?!\s+(foto|fotos|imagen|imagenes|informacion|info|precio|precios|ubicacion|captura|video|audio|lista|catalogo|cotizacion|numero|cuenta|mensaje))/',
@@ -85,6 +90,43 @@ class Etiquetado
         '/\b(si\s+)?(lo|los|la|las)\s+quiero\b/',
         '/\bme\s+(llevo|quedo\s+con)\b/',
         '/\b(apartame|aparteme|apartemelo|apartemelos)\b/',
+
+        // ── De los chats reales (los que se escapaban) ──────────────────────
+
+        // "me regala un paquetito", "deme ese", "regáleme dos", "me aparta 3
+        // bolsas". En El Salvador "me regala" es "me vende". Frenado si lo que
+        // sigue es información: "regáleme el precio", "me regala su número".
+        '/\bme\s+(regala|regalas|regalan|da|das|dan|vende|vendes|venden|despacha|aparta|apartas|aparten)\s+(un|una|unos|unas|dos|tres|cuatro|\d+|otro|otra|el|la|los|las|ese|esa|esos|esas|este|estos|paquet\w*|bolsa\w*|fardo\w*)\b(?!\s+(el\s+|la\s+|los\s+|las\s+|su\s+|sus\s+)?(precio|precios|foto|fotos|imagen|imagenes|numero|cuenta|informacion|info|datos|direccion|ubicacion|link|enlace|total|catalogo))/',
+        '/\b(regaleme|regalame|regalenme|deme|dame|denme|vendame|vendeme|despacheme|apartame|aparteme)\s+(un|una|unos|unas|dos|tres|cuatro|\d+|otro|otra|el|la|los|las|ese|esa|esos|esas|este|esta|estos|estas)\b(?!\s+(el\s+|la\s+|los\s+|las\s+|su\s+|sus\s+)?(precio|precios|foto|fotos|imagen|imagenes|numero|cuenta|informacion|info|datos|direccion|ubicacion|link|enlace|total|catalogo))/',
+        '/\b(mandarme|enviarme|traerme)\s+(un|una|unos|dos|tres|\d+)\s+(paquet|bolsa|calzon|panal|pamper)/',
+
+        // Volver a pedir lo mismo: "de los mismos", "lo mismo que me manda
+        // siempre", "mismo pedido de la vez pasada", "de estos mismos".
+        '/\b(manda|mande|mandeme|envie|envieme|envia|regala|regaleme|deme|dame|necesito|quiero|ocupo)\w*\s+(de\s+)?(los|las|lo|el|la|del)\s+mism[oa]s?\b/',
+        '/\b(los|las|lo|la|el)\s+(mism[oa]s?\s+)?(que|q)\s+(siempre\s+)?me\s+(manda|envia|mandan|envian|mando|envio)\b/',
+        '/\b(mismo|misma)\s+pedido\b|\bpedido\s+(de\s+)?(la\s+)?vez\s+pasada\b|\b(la|lo)\s+mism[oa]\s+de\s+la\s+vez\s+pasada\b/',
+        '/\bde\s+(estos|esos|este|ese|estas|esas)\s+mism[oa]s?\b|\b(los|las)\s+mism[oa]s\s+(\d+|dos|tres|cuatro)\b/',
+
+        // Señalando lo que vio: "esos quiero", "quiero ese", "de este me
+        // manda", "mándelos", "si me los puede mandar".
+        '/\b(quiero|necesito|ocupo|me\s+manda|mandeme|envieme)\s+(de\s+)?(ese|esa|esos|esas|este|esta|estos|estas)\b/',
+        '/\b(de\s+)?(ese|esa|esos|esas|este|esta|estos|estas)\s+(me\s+)?(quiero|necesito|ocupo|manda|mande|me\s+lo\s+manda)\b/',
+        '/\b(mandelos|mandelas|mandelo|mandela|envielos|envielas|envielo|enviela)\b/',
+        '/\bme\s+(los|las|lo|la)\s+(puede|podria|pueden|podrian|pueda)\s+(mandar|enviar|traer)\b/',
+
+        // Con la cantidad o la talla adelante: "3 me manda", "2 necesito",
+        // "L necesito", "quiero XXXL", "quiero de día", "quiero uno de noche".
+        '/\b(\d+|dos|tres|cuatro|cinco)\s+(paquetes?\s+|bolsas?\s+)?(me\s+manda|me\s+trae|necesito|quiero|ocupo)\b/',
+        '/\b(\d+|dos|tres|cuatro)\s+(paquetes|bolsas|fardos)\s+(las|los)\s+(que|q)\s+quiero\b/',
+        '/\b(quiero|necesito|ocupo)\s+(la\s+|el\s+)?(talla\s+)?(xxxl|xxl|xl|rn|xxg|xg)\b/',
+        '/\b(talla\s+)?(xxxl|xxl|xl|rn|l|m|s|g)\s+(necesito|quiero|ocupo)\b/',
+        '/\b(quiero|necesito|ocupo)\s+(uno|una|dos|tres|\d+)?\s*de\s+(dia|noche|cinta|calzon\w*|recien)\b/',
+        '/\b(necesito|ocupo)\s+(la|el)\s+talla\b/',
+        '/\bquiero\s+(el|la|los|las)\W+de\s/',
+        '/\bquiero\s+(la\s+|una\s+)?(oferta|promo|promocion)\b/',
+        '/\b(quiero|quisiera|quiera)\s+(ordenar|encargar)\b/',
+        '/\b(necesito|ocupo)\s+(un\s+)?pedido\b/',
+        '/\b(necesito|ocupo|quiero)\s+(panpers?|panperes|pamperes|pampers?)\b/',
     ];
 
     /**
