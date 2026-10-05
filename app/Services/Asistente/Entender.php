@@ -137,6 +137,42 @@ class Entender
             || (bool) preg_match('/\bpampers?\b.*\b[1-8]\b(?!\s*(a|al|-)?\s*\d)/', $n);
     }
 
+    /**
+     * Si nombró la talla con otro nombre ("G", "grande", "XG", "XXG", "P"),
+     * cuál dijo y a cuál de las nuestras equivale. null si usó la nuestra.
+     */
+    public static function aliasDeTalla(?string $texto, array $alias): ?array
+    {
+        $n = ' ' . static::normalizar($texto) . ' ';
+
+        // De la más larga a la más corta: "extra grande" antes que "grande",
+        // "XXXG" antes que "XXG".
+        $todos = [];
+        foreach ($alias as $nuestra => $nombres) {
+            foreach ((array) $nombres as $nom) $todos[] = [$nom, $nuestra];
+        }
+        usort($todos, fn ($a, $b) => mb_strlen($b[0]) <=> mb_strlen($a[0]));
+
+        foreach ($todos as [$nom, $nuestra]) {
+            $k = static::normalizar($nom);
+            if ($k === '') continue;
+            // Una letra sola ("g", "p") solo cuenta pegada a "talla" o como
+            // mensaje cortito: "la g" en una frase larga puede ser cualquier cosa.
+            if (mb_strlen($k) === 1) {
+                if (preg_match('/\btalla\s+' . preg_quote($k, '/') . '\b/', $n)
+                    || (count(explode(' ', trim($n))) <= 3 && preg_match('/\b' . preg_quote($k, '/') . '\b/', $n))) {
+                    return ['dicho' => mb_strtoupper($nom), 'talla' => $nuestra];
+                }
+                continue;
+            }
+            if (preg_match('/\b' . preg_quote($k, '/') . '\b/', $n)) {
+                return ['dicho' => mb_strlen($k) <= 4 ? mb_strtoupper($nom) : $nom, 'talla' => $nuestra];
+            }
+        }
+
+        return null;
+    }
+
     /** El número de "talla 6", "talla 3 de Pampers"; null si no dice uno. */
     public static function numeroDeTalla(?string $texto): ?int
     {

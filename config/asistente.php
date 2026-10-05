@@ -111,6 +111,17 @@ return [
         7 => 'XXXL',
     ],
 
+    // Cómo le dicen a cada talla otras marcas y la gente. Cuando la clienta
+    // usa uno de estos nombres, se le aclara a cuál de las nuestras equivale
+    // ("La talla G es nuestra talla L, en otras marcas talla 4").
+    'tallas_alias' => [
+        'S'    => ['P', 'pequeña'],
+        'L'    => ['G', 'grande'],
+        'XL'   => ['XG', 'extra grande'],
+        'XXL'  => ['XXG'],
+        'XXXL' => ['XXXG'],
+    ],
+
     // Las de niño grande solo se sugieren por peso si ninguna de bebé le queda.
     'tallas_nino' => ['4 A 7 AÑOS', '8 A 14 AÑOS'],
 

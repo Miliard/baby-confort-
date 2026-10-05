@@ -770,6 +770,7 @@ class Asistente
         }
 
         if (count($tallas) === 1) {
+            $this->aclararAlias($texto, $tallas[0]);
             $this->elegirTallas($tallas);
             return true;
         }
@@ -783,7 +784,13 @@ class Asistente
         // Una talla que no tenemos.
         $pedidas = Entender::tallas($texto);
         if ($pedidas) {
-            $this->avisos[] = 'En este momento no tenemos talla ' . implode(' ni ', $pedidas) . ' 😔';
+            // Si la nombró con otro nombre ("XXXG"), se le dice a cuál de las
+            // nuestras equivale, para que sepa que se entendió bien.
+            $a = Entender::aliasDeTalla($texto, (array) config('asistente.tallas_alias', []));
+            $this->avisos[] = $a && count($pedidas) === 1 && mb_strtoupper($a['talla']) === mb_strtoupper($pedidas[0])
+                ? "La talla {$a['dicho']} es nuestra talla *" . $this->bonita($pedidas[0]) . '*, pero en este momento no la tenemos 😔 Si me dice cuánto pesa su bebé, le digo si le queda otra.'
+                : 'En este momento no tenemos talla ' . implode(' ni ', $pedidas) . ' 😔';
+            if ($a) $this->f->poner('pide_peso', true);
             $this->marcarAgotado();
             return true;
         }
@@ -826,6 +833,35 @@ class Asistente
     }
 
     /**
+     * Dijo "talla G" y la nuestra se llama L: se le aclara que es la misma,
+     * para que no crea que le mostramos otra cosa.
+     */
+    private function aclararAlias(string $texto, string $talla): void
+    {
+        $a = Entender::aliasDeTalla($texto, (array) config('asistente.tallas_alias', []));
+        if (! $a || mb_strtoupper($a['talla']) !== mb_strtoupper($talla)) return;
+
+        $otros = $this->otrosNombres($talla, $a['dicho']);
+        $this->avisos[] = "La talla {$a['dicho']} es nuestra talla *" . $this->bonita($talla) . '*' . ($otros ? " ({$otros})" : '') . ' 👍';
+    }
+
+    /** Los otros nombres de una talla, para aclarar: "en otras marcas, talla 4". */
+    private function otrosNombres(string $talla, string $yaDicho = ''): string
+    {
+        $partes = [];
+
+        foreach ((array) config('asistente.tallas_alias', [])[mb_strtoupper($talla)] ?? [] as $nom) {
+            if (mb_strlen($nom) <= 4 && mb_strtoupper($nom) !== mb_strtoupper($yaDicho)) $partes[] = 'talla ' . mb_strtoupper($nom);
+        }
+
+        $nums = array_keys(array_filter((array) config('asistente.tallas_numericas', []), fn ($t) => mb_strtoupper($t) === mb_strtoupper($talla)));
+        $nums = array_values(array_filter($nums, fn ($n) => (string) $n !== $yaDicho));
+        if ($nums) $partes[] = 'en otras marcas, talla ' . implode(' o ', $nums);
+
+        return implode(' · ', array_slice($partes, 0, 2));
+    }
+
+    /**
      * "Talla 6" → XXL, con la tabla de config. true si la pudo traducir (y la
      * eligió, o avisó que no hay). false si ese número no está en la tabla.
      */
@@ -838,7 +874,8 @@ class Asistente
         if (! $nuestra) return false;
 
         if (in_array($nuestra, $this->tallasDisponibles(), true)) {
-            $this->avisos[] = "La talla {$num} equivale a nuestra talla *" . $this->bonita($nuestra) . '* 👍';
+            $otros = $this->otrosNombres($nuestra, (string) $num);
+            $this->avisos[] = "La talla {$num} equivale a nuestra talla *" . $this->bonita($nuestra) . '*' . ($otros ? " ({$otros})" : '') . ' 👍';
             $this->elegirTallas([$nuestra]);
         } else {
             $this->avisos[] = "La talla {$num} equivale a nuestra talla *" . $this->bonita($nuestra) . '*, pero en este momento no la tenemos 😔'
@@ -983,7 +1020,12 @@ class Asistente
             $r = InterpretarIA::de($catalogo, $estado, $charla, $texto);
             if ($r === null) return false;
 
-            return $this->aplicarIA($r);
+            $ok = $this->aplicarIA($r);
+
+            // Si la IA entendió "talla G" como nuestra L, se aclara igual.
+            if ($ok && count($r['tallas']) === 1 && ! $r['items']) $this->aclararAlias($texto, $r['tallas'][0]);
+
+            return $ok;
         } catch (\Throwable $e) {
             Log::warning('Asistente con IA: ' . $e->getMessage());
             return false;
