@@ -1113,6 +1113,14 @@
                    aria-label="Descargar todos los chats para analizar">
                     📥 Descargar chats
                 </a>
+                {{-- El banco de ejemplos del asistente: tus respuestas reales,
+                     de donde la IA aprende cómo contestás. --}}
+                <button type="button" wire:click="actualizarEjemplos" wire:loading.attr="disabled"
+                        class="wa-fil" style="--c:#94a3b8"
+                        title="Vuelve a juntar tus respuestas de los chats para que el asistente conteste como vos">
+                    <span wire:loading.remove wire:target="actualizarEjemplos">🧠 Ejemplos ({{ number_format($this->cuantosEjemplos()) }})</span>
+                    <span wire:loading wire:target="actualizarEjemplos">🧠 Juntando…</span>
+                </button>
             </span>
 
             <div class="wa-filtros">

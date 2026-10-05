@@ -8,6 +8,13 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+// El banco de ejemplos del asistente: tus respuestas reales de los chats.
+// También se arma solo (una vez por semana) y con el botón 🧠 del chat.
+Artisan::command('asistente:ejemplos {--dias=}', function () {
+    $n = \App\Services\Asistente\Ejemplos::reconstruir($this->option('dias') ? (int) $this->option('dias') : null);
+    $this->info("Ejemplos guardados: {$n}");
+})->purpose('Arma el banco de ejemplos del asistente con los chats reales');
+
 // Todas las madrugadas se sueltan del disco las fotos ya vencidas.
 // El registro del pedido se queda: solo se va la imagen.
 //

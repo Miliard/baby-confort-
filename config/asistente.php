@@ -25,8 +25,19 @@ return [
     |                  el catálogo. Botones solo para confirmar (total, teléfono
     |                  y la orden final). Es el que se eligió.
     |   botones      · como antes: menús y listas para tocar.
+    |   ejemplos     · la IA conversa sola mirando cómo contestás VOS en tus
+    |                  chats reales (el banco de ejemplos). El sistema solo
+    |                  cuida precios, el envío, San Miguel y arma la orden.
     */
     'modo' => env('ASISTENTE_MODO', 'conversacion'),
+
+    // El banco de ejemplos (modo "ejemplos"): de cuántos días de chats se
+    // arma, cuántos guarda como mucho y cuántos le pasa a la IA por turno.
+    'ejemplos' => [
+        'dias'    => (int) env('ASISTENTE_EJEMPLOS_DIAS', 180),
+        'maximo'  => 8000,
+        'cuantos' => 10,
+    ],
 
     // La IA que entiende los pedidos escritos. gpt-5-mini es barato y rápido;
     // es independiente de OPENAI_MODELO (el de "Mejorar" y las órdenes).

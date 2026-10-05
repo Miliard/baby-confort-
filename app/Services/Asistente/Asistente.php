@@ -308,6 +308,12 @@ class Asistente
             fn ($t) => $t >= now()->subHour()->timestamp
         ));
 
+        // Modo "ejemplos": la IA conversa mirando cómo contestás vos.
+        if (config('asistente.modo') === 'ejemplos') {
+            $this->correrConEjemplos($mensajes, $turnos);
+            return;
+        }
+
         foreach ($mensajes as $m) {
             $this->leer($m);
             $this->f->ultimo_mensaje_id = $m->id;
@@ -388,7 +394,14 @@ class Asistente
         // donde iba. Si en el mismo mensaje dijo algo más, se lee igual.
         $respondio = false;
         if (! $boton && ($r = Entender::respuesta($texto, (array) config('asistente.respuestas', [])))) {
-            $this->avisos[] = $this->rellenar($r);
+            // "¿Y el envío?": el costo depende de dónde es, así que se le
+            // pregunta el municipio antes de seguir (o se le da el costo si ya
+            // se sabe). No se le repite el pedido.
+            if (str_contains($r, '{envio}')) {
+                $this->preguntoEnvio($texto);
+            } else {
+                $this->avisos[] = $this->rellenar($r);
+            }
             $this->leyoAlgo = true;
             $respondio = true;
 
@@ -641,7 +654,8 @@ class Asistente
                 return $this->leerCarrito($texto);
 
             case 'municipio':
-                return $this->leerMunicipio($texto);
+                if ($this->leerMunicipio($texto)) return true;
+                return $this->dejarEnvioPrimero($texto);
 
             case 'confirmar_muni':
                 $s = Entender::siNo($texto);
@@ -850,7 +864,7 @@ class Asistente
     {
         $partes = [];
 
-        foreach ((array) config('asistente.tallas_alias', [])[mb_strtoupper($talla)] ?? [] as $nom) {
+        foreach ((array) (config('asistente.tallas_alias', [])[mb_strtoupper($talla)] ?? []) as $nom) {
             if (mb_strlen($nom) <= 4 && mb_strtoupper($nom) !== mb_strtoupper($yaDicho)) $partes[] = 'talla ' . mb_strtoupper($nom);
         }
 
@@ -975,20 +989,7 @@ class Asistente
     private function entenderConIA(WaMensaje $m, string $texto): bool
     {
         try {
-            $catalogo = [];
-            foreach ($this->consultaBase()->get()->take(60) as $s) {
-                if (! $s->product) continue;
-                if (! in_array(mb_strtoupper(trim((string) $s->size)), array_map('mb_strtoupper', (array) config('asistente.tallas', [])), true)) continue;
-                $catalogo[] = [
-                    'id'       => (string) $s->id,
-                    'talla'    => mb_strtoupper(trim((string) $s->size)),
-                    'tipo'     => $this->tipoDe((string) $s->product->name),
-                    'nombre'   => trim((string) $s->product->name),
-                    'unidades' => (int) $s->unidades,
-                    'precio'   => number_format((float) $s->price, 2),
-                    'oferta'   => ((int) $s->combo_qty > 1 && (float) $s->combo_price > 0) ? (int) $s->combo_qty . ' por $' . number_format((float) $s->combo_price, 2) : '',
-                ];
-            }
+            $catalogo = $this->catalogoParaIA();
 
             $carrito = [];
             foreach ((array) $this->f->dato('carrito', []) as $c) {
@@ -1030,6 +1031,32 @@ class Asistente
             Log::warning('Asistente con IA: ' . $e->getMessage());
             return false;
         }
+    }
+
+    /** El catálogo de hoy (con existencia) como se le pasa a la IA. */
+    private function catalogoParaIA(): array
+    {
+        $catalogo = [];
+        $tallas = array_map('mb_strtoupper', (array) config('asistente.tallas', []));
+
+        foreach ($this->consultaBase()->get()->take(60) as $s) {
+            if (! $s->product) continue;
+            $t = mb_strtoupper(trim((string) $s->size));
+            if (! in_array($t, $tallas, true)) continue;
+
+            $catalogo[] = [
+                'id'       => (string) $s->id,
+                'talla'    => $t,
+                'peso'     => str_replace(['–', 'lb'], [' a ', 'libras'], $this->pesoDe($t)),
+                'tipo'     => $this->tipoDe((string) $s->product->name),
+                'nombre'   => trim((string) $s->product->name),
+                'unidades' => (int) $s->unidades,
+                'precio'   => number_format((float) $s->price, 2),
+                'oferta'   => ((int) $s->combo_qty > 1 && (float) $s->combo_price > 0) ? (int) $s->combo_qty . ' por $' . number_format((float) $s->combo_price, 2) : '',
+            ];
+        }
+
+        return $catalogo;
     }
 
     /** Lo que entendió la IA, al carrito y a la ficha. true si hizo algo. */
@@ -1691,6 +1718,65 @@ class Asistente
         return true;
     }
 
+    /**
+     * Preguntó cuánto es el envío. Si ya se sabe de dónde es (o lo dijo en el
+     * mismo mensaje: "¿cuánto el envío a Soyapango?"), se le da el costo de
+     * una vez; si no, se le pregunta el municipio antes de seguir.
+     */
+    private function preguntoEnvio(string $texto): void
+    {
+        $this->municipioDePaso($texto);
+
+        if ($this->f->dato('municipio') && $this->f->dato('departamento') && ! $this->entregaPropia()) {
+            $this->avisos[] = $this->textoEnvio();
+            return;
+        }
+
+        $this->f->poner('envio_primero', true);
+
+        // San Miguel: la pregunta de la colonia ya lo explica todo.
+        if (! $this->entregaPropia()) {
+            $this->avisos[] = '🚚 Hacemos envíos a todo El Salvador, hasta su casa o lugar de trabajo. El costo depende del municipio.';
+        }
+    }
+
+    /** "El envío a Soyapango es de $2.50…", con el total si ya hay pedido. */
+    private function textoEnvio(): string
+    {
+        $mun = (string) $this->f->dato('municipio');
+        [, $subtotal] = $this->resumenCarrito();
+        $envio = $this->envio($subtotal);
+
+        if ($envio === null) {
+            return "El costo del envío a *{$mun}* se lo confirmamos al terminar su pedido 🙏";
+        }
+
+        $txt = $envio > 0
+            ? "🚚 El envío a *{$mun}* es de *$" . number_format($envio, 2) . '* (lleve lo que lleve) y llega en {entrega}.'
+            : "🚚 Con su pedido, el envío a *{$mun}* no tiene costo. Llega en {entrega}.";
+
+        if ($subtotal > 0) {
+            $txt .= "\nCon su pedido de $" . number_format($subtotal, 2) . ' quedaría en *$' . number_format($subtotal + $envio, 2) . '*.';
+        }
+
+        return $this->rellenar($txt);
+    }
+
+    /**
+     * Se le preguntó el municipio por el envío, pero escribió otra cosa
+     * ("agrégueme uno de cinta"): se deja la pregunta y se lee como si
+     * siguiera donde iba, para no trabarla.
+     */
+    private function dejarEnvioPrimero(string $texto): bool
+    {
+        if (! $this->f->dato('envio_primero')) return false;
+
+        $this->f->quitar('envio_primero', 'muni_propuesto');
+        $paso = $this->siguientePaso();
+
+        return $paso === 'municipio' ? false : $this->leerTexto($paso, $texto);
+    }
+
     /** El envío a ese municipio, o null si no se puede cotizar solo. */
     private function envio(float $subtotal): ?float
     {
@@ -1825,6 +1911,14 @@ class Asistente
         if ($d('cambiando')) return 'cambiar';
         if ($d('corrigiendo')) return 'corregir';
 
+        // Preguntó por el envío: primero se averigua de dónde es (y en San
+        // Miguel, la colonia); después se sigue donde iba.
+        if ($d('envio_primero')) {
+            if (! $d('municipio')) return $d('muni_propuesto') ? 'confirmar_muni' : 'municipio';
+            if (! $d('departamento')) return 'depto';
+            if ($this->entregaPropia() && ! $d('colonia')) return 'colonia';
+        }
+
         // Ya eligió una presentación (por ejemplo, escribiéndola de una): falta
         // solo cuántos, aunque nunca haya pasado por el paso de la talla.
         if (! $d('carrito_ok') && $d('elegido')) return 'cantidad';
@@ -1870,6 +1964,13 @@ class Asistente
 
     private function responder(): void
     {
+        // Ya dijo de dónde es: se le contesta lo que preguntó (el costo del
+        // envío) y se sigue donde iba.
+        if ($this->f->dato('envio_primero') && $this->f->dato('municipio') && $this->f->dato('departamento') && ! $this->entregaPropia()) {
+            $this->f->quitar('envio_primero');
+            $this->avisos[] = $this->textoEnvio();
+        }
+
         $paso = $this->siguientePaso();
 
         // Cambió de paso: los fallos del anterior ya no cuentan.
@@ -1917,6 +2018,14 @@ class Asistente
         }
 
         if ($this->conversacion()) {
+            // Ya vio la lista y ahora hizo una pregunta ("¿y el envío?"): se le
+            // contesta y se le pregunta la talla, sin repetirle toda la lista.
+            if ($this->f->dato('tallas_vistas') && $this->avisos) {
+                $this->texto($antes . '¿Qué talla usa su bebé? Si no está segura, dígame cuánto pesa y le recomiendo la talla 😊');
+                return;
+            }
+            $this->f->poner('tallas_vistas', true);
+
             // Cada talla con su peso en libras (como lo dicen acá) y cómo le
             // dicen otras marcas: así la clienta se ubica sola.
             $lineas = [];
@@ -2313,6 +2422,17 @@ class Asistente
     {
         [$lineas, $subtotal] = $this->resumenCarrito();
 
+        // Si el pedido no cambió desde la última vez que se le mostró (hizo
+        // una pregunta, dijo de dónde es), no se le repite: solo la pregunta.
+        $clave = md5(json_encode((array) $this->f->dato('carrito', [])));
+        $repetido = $this->f->dato('carrito_visto') === $clave;
+        $this->f->poner('carrito_visto', $clave);
+
+        if ($repetido && $this->conversacion()) {
+            $this->texto($antes . '¿Le agregamos algo más o así está bien? 😊');
+            return;
+        }
+
         // La pregunta es abierta a propósito: "¿le agregamos algo más?". Es
         // el momento de sumar la de cinta, la de noche o la otra talla, antes
         // de pasar al envío.
@@ -2498,6 +2618,426 @@ class Asistente
     // ════════════════════════════════════════════════════════════════════════
     // Pasar a Wil
     // ════════════════════════════════════════════════════════════════════════
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Modo "ejemplos": la IA conversa como vos, el sistema cuida lo importante
+    // ════════════════════════════════════════════════════════════════════════
+
+    private function correrConEjemplos($mensajes, array $turnos): void
+    {
+        $textos = [];
+        $boton  = null;
+        $desde  = null;
+
+        foreach ($mensajes as $m) {
+            $desde ??= (int) $m->id;
+            $this->f->ultimo_mensaje_id = $m->id;
+
+            $t = $this->textoParaEjemplos($m);
+            if ($this->paraWil) break;
+
+            if ($b = $this->botones[$m->id] ?? null) $boton = $b;
+            if ($t !== null && $t !== '') $textos[] = $t;
+        }
+
+        if (! $this->paraWil && count($turnos) >= (int) config('asistente.max_turnos_hora', 40)) {
+            $this->paraWil = 'demasiados mensajes seguidos';
+        }
+
+        if ($this->paraWil) {
+            $this->pasarAWil($this->paraWil);
+            return;
+        }
+
+        if (! $textos && ! $boton) {
+            $this->f->save();
+            return;
+        }
+
+        // La orden ya se le mostró: "Confirmar" (o un "sí" solito) la cierra
+        // el sistema, sin preguntarle a la IA.
+        if ($this->f->dato('orden_mostrada')) {
+            $soloSi = ! $boton && count($textos) === 1 && Entender::siNo($textos[0]) === true
+                && count(explode(' ', Entender::normalizar($textos[0]))) <= 4;
+
+            if ($boton === 'conf:si' || $soloSi) {
+                $this->f->poner('confirmado', true);
+                $this->terminar();
+                $this->f->save();
+                return;
+            }
+
+            if ($boton === 'conf:corregir') $textos[] = 'Quiero corregir algo de la orden';
+        }
+
+        $turnos[] = now()->timestamp;
+        $this->f->poner('turnos', $turnos);
+
+        $this->hablarConEjemplos(implode("\n", $textos), (int) $desde);
+
+        $this->f->save();
+
+        // De vez en cuando (una vez por semana) el banco se vuelve a armar con
+        // los chats nuevos. Ya se le contestó a la clienta: no la hace esperar.
+        Ejemplos::alDia();
+    }
+
+    /** Lo que dijo en ese mensaje, como texto. null si no dice nada. */
+    private function textoParaEjemplos(WaMensaje $m): ?string
+    {
+        $tipo  = (string) $m->tipo;
+        $texto = trim((string) $m->texto);
+
+        // El clic en un anuncio llega como "unsupported": es un saludo.
+        if (($tipo === 'unsupported' || $texto === '[unsupported]') && ! $this->f->dato('turnos')) {
+            return '(la clienta escribió desde un anuncio, sin texto)';
+        }
+
+        if (in_array($tipo, ['reaction', 'sticker', 'unsupported', 'system', 'ephemeral', 'edit'], true)
+            || preg_match('/^\[(reaction|sticker|unsupported|system|ephemeral|edit)\]$/', $texto)) {
+            return null;
+        }
+
+        if (in_array($tipo, ['image', 'video', 'document', 'location', 'contacts'], true)
+            || preg_match('/^\[(location|contacts|order|image|video|document)\]$/', $texto)) {
+            $this->paraWil = 'mandó ' . ([
+                'image' => 'una foto', 'video' => 'un video', 'document' => 'un documento',
+                'location' => 'una ubicación', 'contacts' => 'un contacto',
+            ][$tipo] ?? 'algo que no es texto');
+            return null;
+        }
+
+        if (in_array($tipo, ['audio', 'voice'], true) && ($texto === '' || str_starts_with($texto, '['))) {
+            $this->paraWil = 'mandó un audio que no se pudo leer';
+            return null;
+        }
+
+        if ($texto === '') return null;
+
+        if ($motivo = Entender::motivoParaWil($texto)) {
+            $this->paraWil = $motivo;
+            return null;
+        }
+
+        return $texto;
+    }
+
+    private function hablarConEjemplos(string $nuevo, int $desdeId): void
+    {
+        $catalogo = $this->catalogoParaIA();
+
+        // La conversación hasta antes de lo nuevo.
+        $charla = [];
+        $ultimaTienda = '';
+        $previos = WaMensaje::where('conversacion_id', $this->conv->id)
+            ->where('id', '<', $desdeId)
+            ->orderByDesc('id')->limit(20)->get()->reverse();
+
+        foreach ($previos as $p) {
+            $t = trim((string) $p->texto);
+            if ($p->direccion === 'saliente' && $p->tipo === 'image') {
+                $t = '[foto: ' . mb_substr(str_replace("\n", ' · ', $t), 0, 120) . ']';
+            }
+            if ($t === '' || preg_match('/^\[(reaction|sticker|unsupported|revoke|edit)\]$/', $t)) continue;
+
+            $quien = $p->direccion === 'entrante' ? 'CLIENTA' : 'TIENDA';
+            $charla[] = ['quien' => $quien, 'texto' => $t];
+            if ($quien === 'TIENDA') $ultimaTienda = $t;
+        }
+
+        $ejemplos = Ejemplos::parecidos(
+            $nuevo . ' ' . mb_substr($ultimaTienda, 0, 150),
+            (int) config('asistente.ejemplos.cuantos', 10),
+            $this->conv->id
+        );
+
+        $r = Vendedora::preguntar([
+            'catalogo'     => $catalogo,
+            'datos'        => $this->datosDeLaTienda(),
+            'tallas'       => $this->tallasParaIA(),
+            'estado'       => $this->estadoParaVendedora(),
+            'charla'       => $charla,
+            'nuevo'        => $nuevo,
+            'ejemplos'     => $ejemplos,
+            'permitidos'   => fn (?array $carrito) => $this->montosPermitidos($carrito),
+            'max_paquetes' => (int) config('asistente.max_paquetes', 10),
+        ]);
+
+        if ($r === null) {
+            $this->pasarAWil('la IA no contestó');
+            return;
+        }
+
+        if (isset($r['error'])) {
+            Log::warning('Asistente (ejemplos): ' . $r['error']);
+            $this->pasarAWil('la IA no pudo contestar bien');
+            return;
+        }
+
+        $this->aplicarVendedora($r);
+    }
+
+    private function aplicarVendedora(array $r): void
+    {
+        $mensaje = $r['mensaje'];
+        $this->f->paso = 'IA con tus ejemplos';
+
+        // El pedido.
+        if ($r['carrito'] !== null) {
+            $this->f->poner('carrito', array_map(fn ($c) => ['id' => $c['id'], 'cant' => $c['cantidad']], $r['carrito']));
+            $this->f->quitar('orden_mostrada', 'confirmado', 'envio');
+        }
+
+        // El municipio (y el departamento si hay varios con ese nombre).
+        if ($r['municipio']) {
+            $m = Municipios::buscarEn($r['municipio']) ?: $r['municipio'];
+            if (Municipios::normalizar((string) Municipios::nombreBueno($m)) !== Municipios::normalizar((string) $this->f->dato('municipio'))) {
+                $this->ponerMunicipio($m);
+                $this->f->quitar('orden_mostrada', 'envio', 'colonia');
+            }
+        }
+        if ($r['departamento'] && ! $this->f->dato('departamento') && $this->f->dato('deptos')) {
+            foreach ((array) $this->f->dato('deptos') as $d) {
+                if (Municipios::normalizar($d) === Municipios::normalizar($r['departamento'])) $this->ponerDepartamento($d);
+            }
+        }
+
+        foreach (['colonia', 'nombre', 'direccion'] as $k) {
+            if ($r[$k]) $this->f->poner($k, $r[$k]);
+        }
+
+        if ($r['telefono']) {
+            $tel = Entender::normalizar($r['telefono']) === 'este' || Entender::siNo($r['telefono']) === true
+                ? ($this->conv->esExtranjero() ? null : $this->conv->telefonoLegible())
+                : (Entender::telefonoSV($r['telefono']) ?: null);
+            if ($tel) $this->f->poner('telefono', $tel);
+        }
+
+        // San Miguel: con la colonia, te pasa el chat (con la etiqueta). Sin
+        // la colonia no se cotiza ni se cierra: se le pregunta.
+        if ($this->entregaPropia()) {
+            if ($this->f->dato('colonia')) {
+                $this->despedidaWil = $mensaje !== '' ? $mensaje : trim((string) config('asistente.entrega_propia.cierre'));
+                $this->pasarAWil('envío en ' . $this->f->dato('municipio') . ': ' . $this->f->dato('colonia'));
+                return;
+            }
+
+            if ($r['accion'] === 'mostrar_orden' || ! preg_match('/colonia|barrio|lugar|zona/i', $mensaje)) {
+                // Si la IA ya escribió algo, solo se le suma la pregunta; si
+                // no, va el texto completo de config.
+                $mensaje = ($r['accion'] === 'mostrar_orden' || $mensaje === '')
+                    ? trim((string) config('asistente.entrega_propia.pregunta'))
+                    : $mensaje . "\n\n¿En qué colonia, barrio o lugar sería la entrega? Así le confirmamos el costo del envío 🚚";
+                $r['accion'] = 'conversar';
+            }
+        }
+
+        if ($r['accion'] === 'pasar_a_wil') {
+            if ($mensaje !== '') $this->despedidaWil = $mensaje;
+            $this->pasarAWil($r['motivo'] ?: 'la IA lo pasó');
+            return;
+        }
+
+        // Un municipio que existe en varios departamentos.
+        if ($this->f->dato('municipio') && ! $this->f->dato('departamento') && $this->f->dato('deptos')
+            && ! preg_match('/departamento/i', $mensaje)) {
+            $mensaje = trim($mensaje . "\n\nHay un " . $this->f->dato('municipio') . ' en varios departamentos. ¿Cuál es el suyo: '
+                . $this->unir((array) $this->f->dato('deptos'), ' o ') . '?');
+            if ($r['accion'] === 'mostrar_orden') $r['accion'] = 'conversar';
+        }
+
+        // Las fotos, antes del mensaje.
+        $this->mandarFotosVendedora($r['fotos']);
+
+        if ($r['accion'] === 'mostrar_orden') {
+            $falta = $this->faltaParaLaOrden();
+
+            if (! $falta) {
+                [, $subtotal] = $this->resumenCarrito();
+                $envio = $this->envio($subtotal);
+
+                if ($envio === null) {
+                    $this->pasarAWil('no hay precio de envío para ' . $this->f->dato('municipio'));
+                    return;
+                }
+
+                $this->f->poner('envio', $envio);
+                $this->f->poner('orden_mostrada', true);
+                $this->f->paso = 'IA · orden para confirmar';
+                $this->mostrarOrden($mensaje);
+                return;
+            }
+
+            // La IA creyó que ya estaba todo, pero falta algo.
+            if ($mensaje === '' || ! preg_match('/\?/', $mensaje)) {
+                $mensaje = '¡Con gusto! 😊 Para enviarlo necesito ' . $this->unir($falta) . '.';
+            }
+        }
+
+        if ($mensaje !== '') $this->texto($mensaje);
+    }
+
+    /** Qué dato falta para poder armar la orden. */
+    private function faltaParaLaOrden(): array
+    {
+        $falta = [];
+        if (! $this->f->dato('carrito'))      $falta[] = 'qué productos lleva';
+        if (! $this->f->dato('municipio'))    $falta[] = 'el municipio';
+        elseif (! $this->f->dato('departamento')) $falta[] = 'el departamento';
+        if (! $this->f->dato('nombre'))       $falta[] = 'el nombre y apellido';
+        if (! $this->f->dato('direccion'))    $falta[] = 'la dirección exacta';
+        if (! $this->f->dato('telefono'))     $falta[] = 'un número de teléfono';
+
+        return $falta;
+    }
+
+    private function mandarFotosVendedora(array $ids): void
+    {
+        $enviadas = (array) $this->f->dato('fotos_enviadas', []);
+        $mostradas = (array) $this->f->dato('mostradas', []);
+
+        foreach ($ids as $id) {
+            $s = ProductSize::with('product')->find($id);
+            if (! $s || ! $s->product) continue;
+
+            $n = count($enviadas) + 1;
+            $this->tarjeta($s, $n);
+
+            $enviadas[] = ['opcion' => $n, 'id' => (string) $s->id];
+            $mostradas[(string) $s->id] = [
+                'id' => (string) $s->id, 'nombre' => trim((string) $s->product->name), 'talla' => trim((string) $s->size),
+                'unidades' => (int) $s->unidades, 'precio' => (float) $s->price,
+            ];
+        }
+
+        $this->f->poner('fotos_enviadas', array_slice($enviadas, -20));
+        $this->f->poner('mostradas', $mostradas);
+    }
+
+    /** Cómo va el pedido, para la IA. */
+    private function estadoParaVendedora(): array
+    {
+        [$lineas, $subtotal] = $this->resumenCarrito();
+
+        $envio = null;
+        if ($this->f->dato('municipio') && ! $this->entregaPropia()) {
+            $envio = $this->envio($subtotal);
+        }
+
+        $fotos = [];
+        foreach ((array) $this->f->dato('fotos_enviadas', []) as $e) {
+            $o = $this->mostrada((string) $e['id']);
+            $fotos[] = ['opcion' => $e['opcion'], 'id' => (string) $e['id'], 'producto' => $o ? $o['nombre'] . ' talla ' . $o['talla'] : ''];
+        }
+
+        $carrito = [];
+        foreach ((array) $this->f->dato('carrito', []) as $c) {
+            $s = ProductSize::with('product')->find($c['id']);
+            if (! $s || ! $s->product) continue;
+            $carrito[] = [
+                'id' => (string) $s->id, 'producto' => trim((string) $s->product->name) . ' talla ' . trim((string) $s->size),
+                'cantidad' => (int) $c['cant'], 'subtotal' => '$' . number_format((float) $s->subtotalPara((int) $c['cant']), 2),
+            ];
+        }
+
+        return array_filter([
+            'carrito'          => $carrito,
+            'subtotal'         => $carrito ? '$' . number_format($subtotal, 2) : null,
+            'municipio'        => $this->f->dato('municipio'),
+            'departamento'     => $this->f->dato('departamento'),
+            'departamentos_posibles' => $this->f->dato('departamento') ? null : $this->f->dato('deptos'),
+            'entrega_de_la_tienda_san_miguel' => $this->entregaPropia() ?: null,
+            'colonia'          => $this->f->dato('colonia'),
+            'envio'            => $envio !== null ? '$' . number_format($envio, 2) : null,
+            'total_con_envio'  => ($envio !== null && $carrito) ? '$' . number_format($subtotal + $envio, 2) : null,
+            'nombre'           => $this->f->dato('nombre'),
+            'direccion'        => $this->f->dato('direccion'),
+            'telefono'         => $this->f->dato('telefono'),
+            'numero_del_chat'  => $this->conv->esExtranjero() ? 'es del extranjero: hay que pedir un número de El Salvador' : $this->conv->telefonoLegible(),
+            'fotos_enviadas'   => $fotos,
+            'orden_mostrada'   => (bool) $this->f->dato('orden_mostrada') ?: null,
+        ], fn ($v) => $v !== null && $v !== [] && $v !== '');
+    }
+
+    /** Lo que la IA puede afirmar de la tienda. */
+    private function datosDeLaTienda(): array
+    {
+        $entrega = trim((string) \App\Models\Setting::get('envio_tiempo', '24 horas hábiles')) ?: '24 horas hábiles';
+        $sm = implode(', ', (array) config('asistente.entrega_propia.municipios', []));
+
+        $datos = [
+            '- Envío a domicilio a todo El Salvador por $' . number_format((float) \App\Models\Setting::envio(), 2) . ', lleve lo que lleve. Llega en ' . $entrega . ' con Express El Salvador. Los domingos no se despacha.',
+            '- En ' . $sm . ' la entrega la hace la tienda y el costo depende de la colonia: se pregunta la colonia y lo confirma Wil. Nunca se dice que es gratis.',
+            '- Diferencia: ' . str_replace("\n", ' ', trim((string) config('asistente.textos.diferencia'))),
+        ];
+
+        foreach ((array) config('asistente.respuestas', []) as $r) {
+            $t = (string) ($r['texto'] ?? '');
+            if ($t === '' || str_contains($t, '{envio}')) continue;
+            $datos[] = '- ' . str_replace("\n", ' ', $this->rellenar($t));
+        }
+
+        return $datos;
+    }
+
+    /** Las tallas por peso y cómo les dicen otras marcas. */
+    private function tallasParaIA(): array
+    {
+        $lineas = [];
+        foreach ((array) config('tallas_peso', []) as $t => $rango) $lineas[] = "{$t}: {$rango}";
+        $lineas[] = 'RN (recién nacido): hasta ' . (int) round((float) config('asistente.rn_hasta_kg', 4.5) * 2.2046) . ' libras';
+
+        foreach ((array) config('asistente.tallas_numericas', []) as $num => $t) {
+            $lineas[] = "\"talla {$num}\" de otras marcas = nuestra {$t}";
+        }
+        foreach ((array) config('asistente.tallas_alias', []) as $t => $alias) {
+            $lineas[] = implode(', ', (array) $alias) . " = nuestra {$t}";
+        }
+
+        return $lineas;
+    }
+
+    /**
+     * Los montos que la IA puede escribir: precios y ofertas del catálogo (y
+     * lo que suman de 1 a 10 paquetes), el envío, y el subtotal y el total
+     * del pedido (el de ahora y el nuevo, si lo cambió en este mensaje).
+     */
+    private function montosPermitidos(?array $carritoNuevo): array
+    {
+        $ok = [(float) \App\Models\Setting::envio()];
+        $max = (int) config('asistente.max_paquetes', 10);
+
+        foreach ($this->consultaBase()->get() as $s) {
+            $ok[] = (float) $s->price;
+            if ((float) $s->combo_price > 0) $ok[] = (float) $s->combo_price;
+            for ($q = 2; $q <= $max; $q++) $ok[] = (float) $s->subtotalPara($q);
+        }
+
+        $carritos = [(array) $this->f->dato('carrito', [])];
+        if ($carritoNuevo !== null) {
+            $carritos[] = array_map(fn ($c) => ['id' => $c['id'], 'cant' => $c['cantidad']], $carritoNuevo);
+        }
+
+        foreach ($carritos as $carrito) {
+            $sub = 0.0;
+            foreach ($carrito as $c) {
+                $s = ProductSize::with('product')->find($c['id']);
+                if ($s) $sub += (float) $s->subtotalPara((int) $c['cant']);
+            }
+            if ($sub <= 0) continue;
+
+            $ok[] = round($sub, 2);
+            if ($this->f->dato('municipio') && ! $this->entregaPropia()) {
+                $envio = (float) ($this->envio($sub) ?? \App\Models\Setting::envio());
+                $ok[] = $envio;
+                $ok[] = round($sub + $envio, 2);
+            } else {
+                $ok[] = round($sub + (float) \App\Models\Setting::envio(), 2);
+            }
+        }
+
+        return array_values(array_unique($ok, SORT_REGULAR));
+    }
 
     private function pasarAWil(string $motivo, bool $avisarAlCliente = true): void
     {

@@ -1153,6 +1153,25 @@ class Whatsapp extends Page
         $this->asistenteEncender();
     }
 
+    // ── El banco de ejemplos del asistente ──────────────────────────────────
+
+    public function cuantosEjemplos(): int
+    {
+        return \App\Services\Asistente\Ejemplos::cuantos();
+    }
+
+    /** Vuelve a juntar tus respuestas reales de los chats. */
+    public function actualizarEjemplos(): void
+    {
+        $n = \App\Services\Asistente\Ejemplos::reconstruir();
+
+        \Filament\Notifications\Notification::make()
+            ->title($n > 0 ? "Listo: {$n} ejemplos de tus respuestas" : 'No se pudieron juntar ejemplos')
+            ->body($n > 0 ? 'El asistente ya contesta mirando cómo lo hacés vos.' : 'Revisá que la tabla exista (php artisan migrate).')
+            ->{$n > 0 ? 'success' : 'warning'}()
+            ->send();
+    }
+
     // ── La ventana del catálogo ──────────────────────────────────────────────
 
     public bool $catalogoAbierto = false;
