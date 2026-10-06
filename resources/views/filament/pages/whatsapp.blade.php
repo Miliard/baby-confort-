@@ -1742,6 +1742,25 @@
                                           $event.preventDefault();
                                           $wire.enviar();
                                       }
+                                  "
+                                  {{-- Pegar una captura (Ctrl+V) o arrastrar una imagen al
+                                       cuadro: se manda como el botón 📎 Foto, después de
+                                       confirmar (para no mandar una captura equivocada). --}}
+                                  x-on:paste="
+                                      const its = Array.from(($event.clipboardData && $event.clipboardData.items) || []);
+                                      const fotos = its.filter(i => i.kind === 'file' && i.type.startsWith('image/')).map(i => i.getAsFile()).filter(Boolean);
+                                      if (! fotos.length) return;
+                                      $event.preventDefault();
+                                      if (! confirm(fotos.length === 1 ? '¿Mandarle esta imagen al cliente?' : '¿Mandarle estas ' + fotos.length + ' imágenes al cliente?')) return;
+                                      $wire.uploadMultiple('fotoSuelta', fotos);
+                                  "
+                                  x-on:dragover.prevent=""
+                                  x-on:drop="
+                                      const fotos = Array.from(($event.dataTransfer && $event.dataTransfer.files) || []).filter(f => f.type.startsWith('image/'));
+                                      if (! fotos.length) return;
+                                      $event.preventDefault();
+                                      if (! confirm(fotos.length === 1 ? '¿Mandarle esta imagen al cliente?' : '¿Mandarle estas ' + fotos.length + ' imágenes al cliente?')) return;
+                                      $wire.uploadMultiple('fotoSuelta', fotos);
                                   "></textarea>
                     </div>
 
@@ -1847,7 +1866,7 @@
                         {{-- En el teléfono el Enter salta línea siempre, así que
                              esta ayuda solo aplica en la computadora. --}}
                         <span class="wa-t-largo" style="font-size:11.5px;color:var(--wa-suave)">
-                            Enter envía · Shift+Enter salta línea
+                            Enter envía · Shift+Enter salta línea · Ctrl+V pega una captura
                         </span>
                     </div>
                 @else
