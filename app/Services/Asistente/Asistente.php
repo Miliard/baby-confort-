@@ -29,6 +29,8 @@ use Illuminate\Support\Facades\Log;
  */
 class Asistente
 {
+    use GuionEnsayado;
+
     /**
      * Mientras el asistente manda mensajes. El etiquetado automático lo mira
      * para no reaccionar a lo que dice el asistente como si lo hubiera dicho
@@ -2026,21 +2028,7 @@ class Asistente
             }
             $this->f->poner('tallas_vistas', true);
 
-            // Cada talla con su peso en libras (como lo dicen acá) y cómo le
-            // dicen otras marcas: así la clienta se ubica sola.
-            $lineas = [];
-            foreach ($this->tallasDisponibles() as $t) {
-                $lb = $this->pesoDe($t);
-                $alias = array_values(array_filter((array) (config('asistente.tallas_alias', [])[mb_strtoupper($t)] ?? []), fn ($x) => mb_strlen($x) <= 4));
-                $nums = array_keys(array_filter((array) config('asistente.tallas_numericas', []), fn ($x) => mb_strtoupper($x) === mb_strtoupper($t)));
-                $otros = array_merge($alias, $nums ? ['talla ' . implode('-', $nums)] : []);
-
-                $lineas[] = '• *' . $this->bonita($t) . '*'
-                    . ($otros ? ' (' . implode(' · ', $otros) . ')' : '')
-                    . ' — ' . ($lb !== '' ? str_replace(['–', 'lb'], [' a ', 'libras'], $lb) : (mb_strtoupper($t) === 'RN' ? 'recién nacido, hasta ' . (int) round((float) config('asistente.rn_hasta_kg', 4.5) * 2.2046) . ' libras' : ''));
-            }
-
-            $this->texto($antes . "Estas son las tallas que tenemos 👶\n\n" . implode("\n", $lineas)
+            $this->texto($antes . "Estas son las tallas que tenemos 👶\n\n" . $this->listaDeTallas()
                 . "\n\n¿Qué talla usa su bebé? Si no está segura, dígame cuánto pesa y le recomiendo la talla 😊");
             return;
         }
@@ -2060,6 +2048,27 @@ class Asistente
             'Ver detalles',
             $filas
         );
+    }
+
+    /**
+     * Las tallas con existencia, cada una con su peso en libras (como lo
+     * dicen acá) y cómo le dicen otras marcas: así la clienta se ubica sola.
+     */
+    private function listaDeTallas(): string
+    {
+        $lineas = [];
+        foreach ($this->tallasDisponibles() as $t) {
+            $lb = $this->pesoDe($t);
+            $alias = array_values(array_filter((array) (config('asistente.tallas_alias', [])[mb_strtoupper($t)] ?? []), fn ($x) => mb_strlen($x) <= 4));
+            $nums = array_keys(array_filter((array) config('asistente.tallas_numericas', []), fn ($x) => mb_strtoupper($x) === mb_strtoupper($t)));
+            $otros = array_merge($alias, $nums ? ['talla ' . implode('-', $nums)] : []);
+
+            $lineas[] = '• *' . $this->bonita($t) . '*'
+                . ($otros ? ' (' . implode(' · ', $otros) . ')' : '')
+                . ' — ' . ($lb !== '' ? str_replace(['–', 'lb'], [' a ', 'libras'], $lb) : (mb_strtoupper($t) === 'RN' ? 'recién nacido, hasta ' . (int) round((float) config('asistente.rn_hasta_kg', 4.5) * 2.2046) . ' libras' : ''));
+        }
+
+        return implode("\n", $lineas);
     }
 
     private function pedirUnidad(string $antes): void
@@ -2537,8 +2546,10 @@ class Asistente
 
     private function mostrarOrden(string $antes): void
     {
-        $botones = ['conf:si' => 'Confirmar pedido', 'conf:corregir' => 'Corregir'];
-        $todo = trim(trim($antes) . "\n\n" . $this->textoOrden() . "\n\n¿Está todo correcto?");
+        // Tu frase de siempre al mandar la orden.
+        $pregunta = '¿Me podría revisar la orden de envío para evitar futuros errores? 🙏';
+        $botones = ['conf:si' => 'Está correcta', 'conf:corregir' => 'Corregir'];
+        $todo = trim(trim($antes) . "\n\n" . $this->textoOrden() . "\n\n" . $pregunta);
 
         // Un solo mensaje con la orden y los botones. WhatsApp deja hasta
         // 1024 letras en un mensaje con botones; si la orden es más larga
@@ -2549,7 +2560,7 @@ class Asistente
         }
 
         $this->texto(trim(trim($antes) . "\n\n" . $this->textoOrden()));
-        $this->botones('¿Está todo correcto?', $botones);
+        $this->botones($pregunta, $botones);
     }
 
     private function preguntarQueCorregir(string $antes): void
@@ -2618,426 +2629,6 @@ class Asistente
     // ════════════════════════════════════════════════════════════════════════
     // Pasar a Wil
     // ════════════════════════════════════════════════════════════════════════
-
-    // ════════════════════════════════════════════════════════════════════════
-    // Modo "ejemplos": la IA conversa como vos, el sistema cuida lo importante
-    // ════════════════════════════════════════════════════════════════════════
-
-    private function correrConEjemplos($mensajes, array $turnos): void
-    {
-        $textos = [];
-        $boton  = null;
-        $desde  = null;
-
-        foreach ($mensajes as $m) {
-            $desde ??= (int) $m->id;
-            $this->f->ultimo_mensaje_id = $m->id;
-
-            $t = $this->textoParaEjemplos($m);
-            if ($this->paraWil) break;
-
-            if ($b = $this->botones[$m->id] ?? null) $boton = $b;
-            if ($t !== null && $t !== '') $textos[] = $t;
-        }
-
-        if (! $this->paraWil && count($turnos) >= (int) config('asistente.max_turnos_hora', 40)) {
-            $this->paraWil = 'demasiados mensajes seguidos';
-        }
-
-        if ($this->paraWil) {
-            $this->pasarAWil($this->paraWil);
-            return;
-        }
-
-        if (! $textos && ! $boton) {
-            $this->f->save();
-            return;
-        }
-
-        // La orden ya se le mostró: "Confirmar" (o un "sí" solito) la cierra
-        // el sistema, sin preguntarle a la IA.
-        if ($this->f->dato('orden_mostrada')) {
-            $soloSi = ! $boton && count($textos) === 1 && Entender::siNo($textos[0]) === true
-                && count(explode(' ', Entender::normalizar($textos[0]))) <= 4;
-
-            if ($boton === 'conf:si' || $soloSi) {
-                $this->f->poner('confirmado', true);
-                $this->terminar();
-                $this->f->save();
-                return;
-            }
-
-            if ($boton === 'conf:corregir') $textos[] = 'Quiero corregir algo de la orden';
-        }
-
-        $turnos[] = now()->timestamp;
-        $this->f->poner('turnos', $turnos);
-
-        $this->hablarConEjemplos(implode("\n", $textos), (int) $desde);
-
-        $this->f->save();
-
-        // De vez en cuando (una vez por semana) el banco se vuelve a armar con
-        // los chats nuevos. Ya se le contestó a la clienta: no la hace esperar.
-        Ejemplos::alDia();
-    }
-
-    /** Lo que dijo en ese mensaje, como texto. null si no dice nada. */
-    private function textoParaEjemplos(WaMensaje $m): ?string
-    {
-        $tipo  = (string) $m->tipo;
-        $texto = trim((string) $m->texto);
-
-        // El clic en un anuncio llega como "unsupported": es un saludo.
-        if (($tipo === 'unsupported' || $texto === '[unsupported]') && ! $this->f->dato('turnos')) {
-            return '(la clienta escribió desde un anuncio, sin texto)';
-        }
-
-        if (in_array($tipo, ['reaction', 'sticker', 'unsupported', 'system', 'ephemeral', 'edit'], true)
-            || preg_match('/^\[(reaction|sticker|unsupported|system|ephemeral|edit)\]$/', $texto)) {
-            return null;
-        }
-
-        if (in_array($tipo, ['image', 'video', 'document', 'location', 'contacts'], true)
-            || preg_match('/^\[(location|contacts|order|image|video|document)\]$/', $texto)) {
-            $this->paraWil = 'mandó ' . ([
-                'image' => 'una foto', 'video' => 'un video', 'document' => 'un documento',
-                'location' => 'una ubicación', 'contacts' => 'un contacto',
-            ][$tipo] ?? 'algo que no es texto');
-            return null;
-        }
-
-        if (in_array($tipo, ['audio', 'voice'], true) && ($texto === '' || str_starts_with($texto, '['))) {
-            $this->paraWil = 'mandó un audio que no se pudo leer';
-            return null;
-        }
-
-        if ($texto === '') return null;
-
-        if ($motivo = Entender::motivoParaWil($texto)) {
-            $this->paraWil = $motivo;
-            return null;
-        }
-
-        return $texto;
-    }
-
-    private function hablarConEjemplos(string $nuevo, int $desdeId): void
-    {
-        $catalogo = $this->catalogoParaIA();
-
-        // La conversación hasta antes de lo nuevo.
-        $charla = [];
-        $ultimaTienda = '';
-        $previos = WaMensaje::where('conversacion_id', $this->conv->id)
-            ->where('id', '<', $desdeId)
-            ->orderByDesc('id')->limit(20)->get()->reverse();
-
-        foreach ($previos as $p) {
-            $t = trim((string) $p->texto);
-            if ($p->direccion === 'saliente' && $p->tipo === 'image') {
-                $t = '[foto: ' . mb_substr(str_replace("\n", ' · ', $t), 0, 120) . ']';
-            }
-            if ($t === '' || preg_match('/^\[(reaction|sticker|unsupported|revoke|edit)\]$/', $t)) continue;
-
-            $quien = $p->direccion === 'entrante' ? 'CLIENTA' : 'TIENDA';
-            $charla[] = ['quien' => $quien, 'texto' => $t];
-            if ($quien === 'TIENDA') $ultimaTienda = $t;
-        }
-
-        $ejemplos = Ejemplos::parecidos(
-            $nuevo . ' ' . mb_substr($ultimaTienda, 0, 150),
-            (int) config('asistente.ejemplos.cuantos', 10),
-            $this->conv->id
-        );
-
-        $r = Vendedora::preguntar([
-            'catalogo'     => $catalogo,
-            'datos'        => $this->datosDeLaTienda(),
-            'tallas'       => $this->tallasParaIA(),
-            'estado'       => $this->estadoParaVendedora(),
-            'charla'       => $charla,
-            'nuevo'        => $nuevo,
-            'ejemplos'     => $ejemplos,
-            'permitidos'   => fn (?array $carrito) => $this->montosPermitidos($carrito),
-            'max_paquetes' => (int) config('asistente.max_paquetes', 10),
-        ]);
-
-        if ($r === null) {
-            $this->pasarAWil('la IA no contestó');
-            return;
-        }
-
-        if (isset($r['error'])) {
-            Log::warning('Asistente (ejemplos): ' . $r['error']);
-            $this->pasarAWil('la IA no pudo contestar bien');
-            return;
-        }
-
-        $this->aplicarVendedora($r);
-    }
-
-    private function aplicarVendedora(array $r): void
-    {
-        $mensaje = $r['mensaje'];
-        $this->f->paso = 'IA con tus ejemplos';
-
-        // El pedido.
-        if ($r['carrito'] !== null) {
-            $this->f->poner('carrito', array_map(fn ($c) => ['id' => $c['id'], 'cant' => $c['cantidad']], $r['carrito']));
-            $this->f->quitar('orden_mostrada', 'confirmado', 'envio');
-        }
-
-        // El municipio (y el departamento si hay varios con ese nombre).
-        if ($r['municipio']) {
-            $m = Municipios::buscarEn($r['municipio']) ?: $r['municipio'];
-            if (Municipios::normalizar((string) Municipios::nombreBueno($m)) !== Municipios::normalizar((string) $this->f->dato('municipio'))) {
-                $this->ponerMunicipio($m);
-                $this->f->quitar('orden_mostrada', 'envio', 'colonia');
-            }
-        }
-        if ($r['departamento'] && ! $this->f->dato('departamento') && $this->f->dato('deptos')) {
-            foreach ((array) $this->f->dato('deptos') as $d) {
-                if (Municipios::normalizar($d) === Municipios::normalizar($r['departamento'])) $this->ponerDepartamento($d);
-            }
-        }
-
-        foreach (['colonia', 'nombre', 'direccion'] as $k) {
-            if ($r[$k]) $this->f->poner($k, $r[$k]);
-        }
-
-        if ($r['telefono']) {
-            $tel = Entender::normalizar($r['telefono']) === 'este' || Entender::siNo($r['telefono']) === true
-                ? ($this->conv->esExtranjero() ? null : $this->conv->telefonoLegible())
-                : (Entender::telefonoSV($r['telefono']) ?: null);
-            if ($tel) $this->f->poner('telefono', $tel);
-        }
-
-        // San Miguel: con la colonia, te pasa el chat (con la etiqueta). Sin
-        // la colonia no se cotiza ni se cierra: se le pregunta.
-        if ($this->entregaPropia()) {
-            if ($this->f->dato('colonia')) {
-                $this->despedidaWil = $mensaje !== '' ? $mensaje : trim((string) config('asistente.entrega_propia.cierre'));
-                $this->pasarAWil('envío en ' . $this->f->dato('municipio') . ': ' . $this->f->dato('colonia'));
-                return;
-            }
-
-            if ($r['accion'] === 'mostrar_orden' || ! preg_match('/colonia|barrio|lugar|zona/i', $mensaje)) {
-                // Si la IA ya escribió algo, solo se le suma la pregunta; si
-                // no, va el texto completo de config.
-                $mensaje = ($r['accion'] === 'mostrar_orden' || $mensaje === '')
-                    ? trim((string) config('asistente.entrega_propia.pregunta'))
-                    : $mensaje . "\n\n¿En qué colonia, barrio o lugar sería la entrega? Así le confirmamos el costo del envío 🚚";
-                $r['accion'] = 'conversar';
-            }
-        }
-
-        if ($r['accion'] === 'pasar_a_wil') {
-            if ($mensaje !== '') $this->despedidaWil = $mensaje;
-            $this->pasarAWil($r['motivo'] ?: 'la IA lo pasó');
-            return;
-        }
-
-        // Un municipio que existe en varios departamentos.
-        if ($this->f->dato('municipio') && ! $this->f->dato('departamento') && $this->f->dato('deptos')
-            && ! preg_match('/departamento/i', $mensaje)) {
-            $mensaje = trim($mensaje . "\n\nHay un " . $this->f->dato('municipio') . ' en varios departamentos. ¿Cuál es el suyo: '
-                . $this->unir((array) $this->f->dato('deptos'), ' o ') . '?');
-            if ($r['accion'] === 'mostrar_orden') $r['accion'] = 'conversar';
-        }
-
-        // Las fotos, antes del mensaje.
-        $this->mandarFotosVendedora($r['fotos']);
-
-        if ($r['accion'] === 'mostrar_orden') {
-            $falta = $this->faltaParaLaOrden();
-
-            if (! $falta) {
-                [, $subtotal] = $this->resumenCarrito();
-                $envio = $this->envio($subtotal);
-
-                if ($envio === null) {
-                    $this->pasarAWil('no hay precio de envío para ' . $this->f->dato('municipio'));
-                    return;
-                }
-
-                $this->f->poner('envio', $envio);
-                $this->f->poner('orden_mostrada', true);
-                $this->f->paso = 'IA · orden para confirmar';
-                $this->mostrarOrden($mensaje);
-                return;
-            }
-
-            // La IA creyó que ya estaba todo, pero falta algo.
-            if ($mensaje === '' || ! preg_match('/\?/', $mensaje)) {
-                $mensaje = '¡Con gusto! 😊 Para enviarlo necesito ' . $this->unir($falta) . '.';
-            }
-        }
-
-        if ($mensaje !== '') $this->texto($mensaje);
-    }
-
-    /** Qué dato falta para poder armar la orden. */
-    private function faltaParaLaOrden(): array
-    {
-        $falta = [];
-        if (! $this->f->dato('carrito'))      $falta[] = 'qué productos lleva';
-        if (! $this->f->dato('municipio'))    $falta[] = 'el municipio';
-        elseif (! $this->f->dato('departamento')) $falta[] = 'el departamento';
-        if (! $this->f->dato('nombre'))       $falta[] = 'el nombre y apellido';
-        if (! $this->f->dato('direccion'))    $falta[] = 'la dirección exacta';
-        if (! $this->f->dato('telefono'))     $falta[] = 'un número de teléfono';
-
-        return $falta;
-    }
-
-    private function mandarFotosVendedora(array $ids): void
-    {
-        $enviadas = (array) $this->f->dato('fotos_enviadas', []);
-        $mostradas = (array) $this->f->dato('mostradas', []);
-
-        foreach ($ids as $id) {
-            $s = ProductSize::with('product')->find($id);
-            if (! $s || ! $s->product) continue;
-
-            $n = count($enviadas) + 1;
-            $this->tarjeta($s, $n);
-
-            $enviadas[] = ['opcion' => $n, 'id' => (string) $s->id];
-            $mostradas[(string) $s->id] = [
-                'id' => (string) $s->id, 'nombre' => trim((string) $s->product->name), 'talla' => trim((string) $s->size),
-                'unidades' => (int) $s->unidades, 'precio' => (float) $s->price,
-            ];
-        }
-
-        $this->f->poner('fotos_enviadas', array_slice($enviadas, -20));
-        $this->f->poner('mostradas', $mostradas);
-    }
-
-    /** Cómo va el pedido, para la IA. */
-    private function estadoParaVendedora(): array
-    {
-        [$lineas, $subtotal] = $this->resumenCarrito();
-
-        $envio = null;
-        if ($this->f->dato('municipio') && ! $this->entregaPropia()) {
-            $envio = $this->envio($subtotal);
-        }
-
-        $fotos = [];
-        foreach ((array) $this->f->dato('fotos_enviadas', []) as $e) {
-            $o = $this->mostrada((string) $e['id']);
-            $fotos[] = ['opcion' => $e['opcion'], 'id' => (string) $e['id'], 'producto' => $o ? $o['nombre'] . ' talla ' . $o['talla'] : ''];
-        }
-
-        $carrito = [];
-        foreach ((array) $this->f->dato('carrito', []) as $c) {
-            $s = ProductSize::with('product')->find($c['id']);
-            if (! $s || ! $s->product) continue;
-            $carrito[] = [
-                'id' => (string) $s->id, 'producto' => trim((string) $s->product->name) . ' talla ' . trim((string) $s->size),
-                'cantidad' => (int) $c['cant'], 'subtotal' => '$' . number_format((float) $s->subtotalPara((int) $c['cant']), 2),
-            ];
-        }
-
-        return array_filter([
-            'carrito'          => $carrito,
-            'subtotal'         => $carrito ? '$' . number_format($subtotal, 2) : null,
-            'municipio'        => $this->f->dato('municipio'),
-            'departamento'     => $this->f->dato('departamento'),
-            'departamentos_posibles' => $this->f->dato('departamento') ? null : $this->f->dato('deptos'),
-            'entrega_de_la_tienda_san_miguel' => $this->entregaPropia() ?: null,
-            'colonia'          => $this->f->dato('colonia'),
-            'envio'            => $envio !== null ? '$' . number_format($envio, 2) : null,
-            'total_con_envio'  => ($envio !== null && $carrito) ? '$' . number_format($subtotal + $envio, 2) : null,
-            'nombre'           => $this->f->dato('nombre'),
-            'direccion'        => $this->f->dato('direccion'),
-            'telefono'         => $this->f->dato('telefono'),
-            'numero_del_chat'  => $this->conv->esExtranjero() ? 'es del extranjero: hay que pedir un número de El Salvador' : $this->conv->telefonoLegible(),
-            'fotos_enviadas'   => $fotos,
-            'orden_mostrada'   => (bool) $this->f->dato('orden_mostrada') ?: null,
-        ], fn ($v) => $v !== null && $v !== [] && $v !== '');
-    }
-
-    /** Lo que la IA puede afirmar de la tienda. */
-    private function datosDeLaTienda(): array
-    {
-        $entrega = trim((string) \App\Models\Setting::get('envio_tiempo', '24 horas hábiles')) ?: '24 horas hábiles';
-        $sm = implode(', ', (array) config('asistente.entrega_propia.municipios', []));
-
-        $datos = [
-            '- Envío a domicilio a todo El Salvador por $' . number_format((float) \App\Models\Setting::envio(), 2) . ', lleve lo que lleve. Llega en ' . $entrega . ' con Express El Salvador. Los domingos no se despacha.',
-            '- En ' . $sm . ' la entrega la hace la tienda y el costo depende de la colonia: se pregunta la colonia y lo confirma Wil. Nunca se dice que es gratis.',
-            '- Diferencia: ' . str_replace("\n", ' ', trim((string) config('asistente.textos.diferencia'))),
-        ];
-
-        foreach ((array) config('asistente.respuestas', []) as $r) {
-            $t = (string) ($r['texto'] ?? '');
-            if ($t === '' || str_contains($t, '{envio}')) continue;
-            $datos[] = '- ' . str_replace("\n", ' ', $this->rellenar($t));
-        }
-
-        return $datos;
-    }
-
-    /** Las tallas por peso y cómo les dicen otras marcas. */
-    private function tallasParaIA(): array
-    {
-        $lineas = [];
-        foreach ((array) config('tallas_peso', []) as $t => $rango) $lineas[] = "{$t}: {$rango}";
-        $lineas[] = 'RN (recién nacido): hasta ' . (int) round((float) config('asistente.rn_hasta_kg', 4.5) * 2.2046) . ' libras';
-
-        foreach ((array) config('asistente.tallas_numericas', []) as $num => $t) {
-            $lineas[] = "\"talla {$num}\" de otras marcas = nuestra {$t}";
-        }
-        foreach ((array) config('asistente.tallas_alias', []) as $t => $alias) {
-            $lineas[] = implode(', ', (array) $alias) . " = nuestra {$t}";
-        }
-
-        return $lineas;
-    }
-
-    /**
-     * Los montos que la IA puede escribir: precios y ofertas del catálogo (y
-     * lo que suman de 1 a 10 paquetes), el envío, y el subtotal y el total
-     * del pedido (el de ahora y el nuevo, si lo cambió en este mensaje).
-     */
-    private function montosPermitidos(?array $carritoNuevo): array
-    {
-        $ok = [(float) \App\Models\Setting::envio()];
-        $max = (int) config('asistente.max_paquetes', 10);
-
-        foreach ($this->consultaBase()->get() as $s) {
-            $ok[] = (float) $s->price;
-            if ((float) $s->combo_price > 0) $ok[] = (float) $s->combo_price;
-            for ($q = 2; $q <= $max; $q++) $ok[] = (float) $s->subtotalPara($q);
-        }
-
-        $carritos = [(array) $this->f->dato('carrito', [])];
-        if ($carritoNuevo !== null) {
-            $carritos[] = array_map(fn ($c) => ['id' => $c['id'], 'cant' => $c['cantidad']], $carritoNuevo);
-        }
-
-        foreach ($carritos as $carrito) {
-            $sub = 0.0;
-            foreach ($carrito as $c) {
-                $s = ProductSize::with('product')->find($c['id']);
-                if ($s) $sub += (float) $s->subtotalPara((int) $c['cant']);
-            }
-            if ($sub <= 0) continue;
-
-            $ok[] = round($sub, 2);
-            if ($this->f->dato('municipio') && ! $this->entregaPropia()) {
-                $envio = (float) ($this->envio($sub) ?? \App\Models\Setting::envio());
-                $ok[] = $envio;
-                $ok[] = round($sub + $envio, 2);
-            } else {
-                $ok[] = round($sub + (float) \App\Models\Setting::envio(), 2);
-            }
-        }
-
-        return array_values(array_unique($ok, SORT_REGULAR));
-    }
 
     private function pasarAWil(string $motivo, bool $avisarAlCliente = true): void
     {

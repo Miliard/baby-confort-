@@ -5,175 +5,153 @@ namespace App\Services\Asistente;
 use App\Services\IA;
 
 /**
- * La vendedora: la IA conversa con la clienta mirando cómo contestás VOS.
+ * El lector del guion: la IA lee lo que escribió la clienta y devuelve lo
+ * que entendió (talla, peso, producto, cantidad, municipio, datos, si dijo
+ * que sí…). Si además hizo una pregunta suelta ("¿son calientes?"), la
+ * contesta en una o dos líneas con tu manera de hablar, mirando los ejemplos
+ * de tus chats.
  *
- * En cada turno recibe el catálogo de hoy, los datos de la tienda, cómo va el
- * pedido, la conversación y los ejemplos más parecidos de tus chats reales.
- * Contesta con un JSON: el mensaje para la clienta y lo que entendió
- * (carrito, municipio, datos de envío, fotos a mandar, si hay que pasarte el
- * chat).
+ * Lo que NO hace: decidir qué se pregunta después ni escribir los mensajes
+ * del pedido. Eso es el guion que ensayaste, y lo escribe el sistema con los
+ * datos reales (precios, envío, total, orden).
  *
- * El sistema revisa el mensaje antes de mandarlo: cada precio tiene que ser
- * uno de verdad (del catálogo, del envío o de un total bien sumado), nunca
- * dice "gratis", y los productos que elige tienen que existir. Si algo no
- * cuadra, se le pide que lo corrija una vez; si tampoco, se te pasa el chat.
+ * La respuesta suelta se revisa antes de mandarla: sin precios inventados,
+ * sin "gratis", sin enlaces. Si no pasa, se descarta.
  */
 class Vendedora
 {
-    public const ACCIONES = ['conversar', 'mostrar_orden', 'pasar_a_wil'];
-
     /**
-     * @param array $ctx catalogo, datos, tallas, estado, charla, nuevo, ejemplos,
-     *                   permitidos (callable: carrito => montos válidos), max_paquetes
-     * @return array|null  null si la IA no contestó; con 'error' si contestó mal dos veces
+     * @param array $ctx catalogo, datos, tallas, estado, charla, nuevo, ejemplos, permitidos (montos válidos)
+     * @return array|null  lo que entendió, o null si la IA no contestó
      */
-    public static function preguntar(array $ctx): ?array
+    public static function leer(array $ctx): ?array
     {
         if (! IA::disponible()) return null;
 
-        $modelo  = (string) config('asistente.modelo_ia', 'gpt-5-mini');
-        $entrada = static::entrada($ctx);
-        $ids     = array_map(fn ($c) => (string) $c['id'], $ctx['catalogo']);
+        $modelo = (string) config('asistente.modelo_ia', 'gpt-5-mini');
+        $d = IA::json(IA::pedirConModelo($modelo, static::instrucciones(), static::entrada($ctx)));
 
-        $error = null;
+        if (! is_array($d)) return null;
 
-        for ($intento = 0; $intento < 2; $intento++) {
-            $extra = $error ? "\n\nOJO: TU RESPUESTA ANTERIOR NO SE PUDO MANDAR porque {$error}. Escribila de nuevo corrigiendo eso." : '';
+        $r = static::limpiar($d, array_map(fn ($c) => (string) $c['id'], $ctx['catalogo']));
 
-            $d = IA::json(IA::pedirConModelo($modelo, static::instrucciones(), $entrada . $extra));
-
-            if (! is_array($d)) { $error = 'no era un JSON válido'; continue; }
-
-            $r = static::limpiar($d, $ids, (int) ($ctx['max_paquetes'] ?? 10));
-
-            $permitidos = is_callable($ctx['permitidos'] ?? null)
-                ? ($ctx['permitidos'])($r['carrito'] ?? null)
-                : [];
-
-            $error = static::revisar($r['mensaje'], $permitidos);
-            if ($error === null) return $r;
+        // La respuesta suelta, revisada: si trae un precio que no existe o un
+        // "gratis", no se manda.
+        if ($r['respuesta'] !== null && static::revisar($r['respuesta'], (array) ($ctx['permitidos'] ?? [])) !== null) {
+            $r['respuesta'] = null;
         }
 
-        return ['error' => $error];
+        return $r;
     }
 
-    /** Lo que se le manda a la IA en cada turno. */
     public static function entrada(array $ctx): string
     {
         $cat = [];
         foreach ($ctx['catalogo'] as $c) {
-            $cat[] = "id={$c['id']} | talla {$c['talla']}" . (! empty($c['peso']) ? " ({$c['peso']})" : '')
-                . " | {$c['tipo']} | {$c['nombre']} | " . ($c['unidades'] ? $c['unidades'] . ' unidades | ' : '')
-                . "\${$c['precio']}" . ($c['oferta'] ? " | oferta {$c['oferta']}" : '');
+            $cat[] = "id={$c['id']} | talla {$c['talla']} | {$c['tipo']} | {$c['nombre']}"
+                . ($c['unidades'] ? " | {$c['unidades']} unidades" : '') . " | \${$c['precio']}"
+                . ($c['oferta'] ? " | oferta {$c['oferta']}" : '');
         }
 
         $ej = [];
         foreach ((array) ($ctx['ejemplos'] ?? []) as $e) {
-            $ej[] = '—' . (! empty($e['antes']) ? "\n(antes la tienda había dicho: " . mb_substr(str_replace("\n", ' / ', $e['antes']), -160) . ')' : '')
-                . "\nClienta: " . str_replace("\n", ' / ', $e['cliente'])
-                . "\nWil: " . str_replace("\n", ' / ', $e['respuesta']);
+            $ej[] = '— Clienta: ' . str_replace("\n", ' / ', $e['cliente']) . "\n  Wil: " . str_replace("\n", ' / ', $e['respuesta']);
         }
 
         $charla = [];
         foreach ((array) ($ctx['charla'] ?? []) as $m) {
-            $charla[] = $m['quien'] . ': ' . mb_substr(str_replace("\n", ' / ', (string) $m['texto']), 0, 400);
+            $charla[] = $m['quien'] . ': ' . mb_substr(str_replace("\n", ' / ', (string) $m['texto']), 0, 300);
         }
 
-        return "DATOS DE LA TIENDA (lo único que podés afirmar):\n" . implode("\n", (array) $ctx['datos'])
-            . "\n\nCATÁLOGO DE HOY (solo esto hay, con existencia; precios en dólares):\n" . ($cat ? implode("\n", $cat) : '(no hay nada disponible)')
-            . "\n\nTALLAS POR PESO Y EQUIVALENCIAS:\n" . implode("\n", (array) ($ctx['tallas'] ?? []))
-            . "\n\nCÓMO VA EL PEDIDO:\n" . json_encode($ctx['estado'] ?? [], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
-            . "\n\nEJEMPLOS DE CÓMO CONTESTA WIL EN CHATS PARECIDOS (copiá su manera de vender y su tono; los precios, existencias y fechas de los ejemplos pueden ser VIEJOS: nunca los uses):\n"
-            . ($ej ? implode("\n", $ej) : '(sin ejemplos)')
-            . "\n\nCONVERSACIÓN DE AHORA (lo más reciente al final):\n" . ($charla ? implode("\n", $charla) : '(recién empieza)')
+        return "DATOS DE LA TIENDA:\n" . implode("\n", (array) $ctx['datos'])
+            . "\n\nCATÁLOGO DE HOY (con existencia):\n" . ($cat ? implode("\n", $cat) : '(nada)')
+            . "\n\nTALLAS Y EQUIVALENCIAS:\n" . implode("\n", (array) ($ctx['tallas'] ?? []))
+            . "\n\nLO QUE YA SE SABE DEL PEDIDO (y lo último que se le preguntó):\n" . json_encode($ctx['estado'] ?? [], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            . "\n\nEJEMPLOS DE CÓMO CONTESTA WIL (solo para el tono de \"respuesta\"; sus precios y existencias pueden ser viejos):\n" . ($ej ? implode("\n", $ej) : '(sin ejemplos)')
+            . "\n\nCONVERSACIÓN (lo más reciente al final):\n" . ($charla ? implode("\n", $charla) : '(recién empieza)')
             . "\n\nLO QUE ACABA DE ESCRIBIR LA CLIENTA:\n" . $ctx['nuevo'];
     }
 
     /** Solo se queda lo que tiene sentido. */
-    public static function limpiar(array $d, array $ids, int $maxPaquetes = 10): array
+    public static function limpiar(array $d, array $ids): array
     {
-        $str = fn ($v, $max = 200) => is_scalar($v) && trim((string) $v) !== '' ? mb_substr(trim((string) $v), 0, $max) : null;
+        $str = fn ($v, $max = 200) => is_scalar($v) && trim((string) $v) !== '' && ! in_array(mb_strtolower(trim((string) $v)), ['null', 'ninguno'], true)
+            ? mb_substr(trim((string) $v), 0, $max) : null;
 
-        $carrito = null;
-        if (array_key_exists('carrito', $d) && is_array($d['carrito'])) {
-            $carrito = [];
-            foreach ($d['carrito'] as $it) {
-                if (! is_array($it)) continue;
-                $id = (string) ($it['id'] ?? '');
-                $n  = (int) ($it['cantidad'] ?? 0);
-                if (! in_array($id, $ids, true) || $n < 1) continue;
-                $carrito[$id] = min($maxPaquetes, ($carrito[$id] ?? 0) + $n);
-            }
-            $carrito = array_map(fn ($id, $n) => ['id' => (string) $id, 'cantidad' => $n], array_keys($carrito), $carrito);
+        $tallasOk = array_map('mb_strtoupper', (array) config('asistente.tallas', []));
+        $tallas = array_values(array_unique(array_filter(
+            array_map(fn ($t) => mb_strtoupper(trim((string) $t)), (array) ($d['tallas'] ?? [])),
+            fn ($t) => in_array($t, $tallasOk, true)
+        )));
+
+        $items = [];
+        foreach ((array) ($d['items'] ?? []) as $it) {
+            if (! is_array($it)) continue;
+            $id = (string) ($it['id'] ?? '');
+            if (! in_array($id, $ids, true)) continue;
+            $n = $it['cantidad'] ?? null;
+            $items[] = ['id' => $id, 'cantidad' => is_numeric($n) && (int) $n > 0 ? (int) $n : null];
         }
 
-        $fotos = [];
-        foreach ((array) ($d['fotos'] ?? []) as $id) {
-            $id = (string) $id;
-            if (in_array($id, $ids, true) && ! in_array($id, $fotos, true)) $fotos[] = $id;
+        $peso = null;
+        if (is_array($d['peso'] ?? null) && is_numeric($d['peso']['valor'] ?? null) && (float) $d['peso']['valor'] > 0) {
+            $u = strtolower((string) ($d['peso']['unidad'] ?? ''));
+            $peso = ['valor' => (float) $d['peso']['valor'], 'unidad' => in_array($u, ['lb', 'kg'], true) ? $u : null];
         }
 
-        $accion = in_array($d['accion'] ?? null, static::ACCIONES, true) ? $d['accion'] : 'conversar';
+        $si = $d['acepta'] ?? null;
 
         return [
-            'mensaje'      => trim((string) ($d['mensaje'] ?? '')),
-            'fotos'        => array_slice($fotos, 0, max(1, (int) config('asistente.max_fotos', 4))),
-            'carrito'      => $carrito,
-            'municipio'    => $str($d['municipio'] ?? null, 80),
-            'departamento' => $str($d['departamento'] ?? null, 40),
-            'colonia'      => $str($d['colonia'] ?? null),
-            'nombre'       => $str($d['nombre'] ?? null, 120),
-            'direccion'    => $str($d['direccion'] ?? null, 250),
-            'telefono'     => $str($d['telefono'] ?? null, 30),
-            'accion'       => $accion,
-            'motivo'       => $str($d['motivo'] ?? null, 150) ?? '',
+            'tallas'         => $tallas,
+            'peso'           => $peso,
+            'edad_meses'     => is_numeric($d['edad_meses'] ?? null) ? max(0, (int) $d['edad_meses']) : null,
+            'tipo'           => in_array($d['tipo'] ?? null, ['cinta', 'calzoncito', 'ambos'], true) ? $d['tipo'] : null,
+            'items'          => $items,
+            'cantidad'       => is_numeric($d['cantidad'] ?? null) && (int) $d['cantidad'] > 0 ? (int) $d['cantidad'] : null,
+            'quitar'         => array_values(array_filter(array_map('strval', (array) ($d['quitar'] ?? [])), fn ($id) => in_array($id, $ids, true))),
+            'reemplazar'     => (bool) ($d['reemplazar'] ?? false),
+            'municipio'      => $str($d['municipio'] ?? null, 80),
+            'nombre'         => $str($d['nombre'] ?? null, 120),
+            'direccion'      => $str($d['direccion'] ?? null, 250),
+            'telefono'       => $str($d['telefono'] ?? null, 30),
+            'acepta'         => is_bool($si) ? $si : null,
+            'corregir'       => (bool) ($d['corregir'] ?? false),
+            'pregunta_envio' => (bool) ($d['pregunta_envio'] ?? false),
+            'respuesta'      => $str($d['respuesta'] ?? null, 500),
+            'pasar_a_wil'    => (bool) ($d['pasar_a_wil'] ?? false),
+            'motivo'         => $str($d['motivo'] ?? null, 150) ?? '',
         ];
     }
 
-    /**
-     * ¿Se puede mandar este mensaje? null si sí; si no, qué tiene mal (se le
-     * dice a la IA para que lo corrija).
-     */
-    public static function revisar(string $mensaje, array $permitidos): ?string
+    /** null si el texto se puede mandar; si no, qué tiene mal. */
+    public static function revisar(string $texto, array $permitidos): ?string
     {
-        if (mb_strlen($mensaje) > 1400) return 'el mensaje es demasiado largo (máximo unas 8 líneas)';
+        if (mb_strlen($texto) > 600) return 'demasiado largo';
 
-        $n = Entender::normalizar($mensaje);
+        $n = Entender::normalizar($texto);
+        if (preg_match('/\b(gratis|gratuito|gratuita|sin costo|sin cargo|free)\b/', $n)) return 'dice gratis';
+        if (preg_match('~https?://|www\.~i', $texto)) return 'trae un enlace';
+        if (preg_match('/\[(nombre|tel[eé]fono|correo|enlace|tapado|foto|tarjeta)/iu', $texto)) return 'copió una marca de los ejemplos';
 
-        if (preg_match('/\b(gratis|gratuito|gratuita|sin costo|sin cargo|free)\b/', $n)) {
-            return 'dijiste "gratis" o "sin costo", y eso nunca se dice';
-        }
-
-        if (preg_match('~https?://|www\.~i', $mensaje)) return 'pusiste un enlace, y no se mandan enlaces';
-
-        if (preg_match('/\[(nombre|tel[eé]fono|correo|enlace|tapado|foto|tarjeta)/iu', $mensaje)) {
-            return 'copiaste una marca de los ejemplos ([nombre], [foto]…) en vez de escribir el mensaje';
-        }
-
-        foreach (static::montos($mensaje) as $m) {
+        foreach (static::montos($texto) as $m) {
             $ok = false;
             foreach ($permitidos as $p) {
                 if (abs((float) $p - $m) < 0.011) { $ok = true; break; }
             }
-            if (! $ok) {
-                return 'pusiste el monto $' . number_format($m, 2) . ', que no es ningún precio del catálogo, del envío ni un total bien sumado';
-            }
+            if (! $ok) return 'monto inventado $' . number_format($m, 2);
         }
 
         return null;
     }
 
-    /** Los montos de dinero que aparecen en un texto: "$20", "$ 2.50", "20 dólares". */
+    /** Los montos de dinero de un texto: "$20", "$ 2.50", "20 dólares". */
     public static function montos(string $t): array
     {
-        $out = [];
-
         preg_match_all('/\$\s*(\d{1,4}(?:[.,]\d{1,2})?)/u', $t, $a);
         preg_match_all('/(\d{1,4}(?:[.,]\d{1,2})?)\s*(?:\$|d[oó]lares?\b|usd\b)/iu', $t, $b);
 
-        foreach (array_merge($a[1], $b[1]) as $v) {
-            $out[] = (float) str_replace(',', '.', $v);
-        }
+        $out = [];
+        foreach (array_merge($a[1], $b[1]) as $v) $out[] = (float) str_replace(',', '.', $v);
 
         return array_values(array_unique($out, SORT_REGULAR));
     }
@@ -181,54 +159,47 @@ class Vendedora
     public static function instrucciones(): string
     {
         return <<<'TXT'
-Atendés el WhatsApp de Baby-Confort, una tienda de pañales Aiwibi en El Salvador. Escribís como Wil, el dueño: en los EJEMPLOS ves cómo contesta él en chats parecidos. Copiá su manera: frases cortas, cálidas, trato de usted, "con gusto", pocos emojis, una pregunta a la vez. No suenes a robot ni a folleto. Escribí sin faltas: los ejemplos tienen errores de tipeo ("entnedido") que no se copian.
+Leés los mensajes de WhatsApp de las clientas de Baby-Confort (pañales Aiwibi, El Salvador) y devolvés lo que entendiste en un JSON. El sistema decide qué contestar con un guion fijo; vos solo entendés, y si la clienta hizo una pregunta suelta, la contestás corto.
 
-CÓMO CONTESTAR
-- Un solo mensaje de WhatsApp, corto (1 a 5 líneas). Si ya se saludó en la conversación, no vuelvas a saludar.
-- Primero contestá lo que preguntó; después, si hace falta, una sola pregunta para avanzar la venta.
-- Solo afirmás lo que está en DATOS DE LA TIENDA, en el CATÁLOGO o en CÓMO VA EL PEDIDO. Los ejemplos son para el estilo: sus precios, existencias ("agotado", "solo calzoncito"), fechas y promociones pueden ser viejos y NO se usan.
-- Precios: solo los del catálogo (o la oferta tal cual está escrita). Nunca inventes descuentos ni rebajas. El envío, solo el de DATOS. Nunca digas "gratis" ni "sin costo".
-- Si te preguntan algo que no está en los datos, no lo inventes: pasale el chat a Wil.
-
-TALLAS
-- Recomendá por el peso con TALLAS POR PESO. Si el peso cae en dos tallas, ofrecé las dos y decí que la más grande le dura más. Si está en el tope de una talla, sugerí la siguiente. Si no sabe el peso, preguntalo (o qué talla usa ahora).
-- Si la clienta usa otro nombre de talla (G, XG, talla 4, grande…), decile a cuál de las nuestras equivale.
-- Solo ofrecé lo que está en el CATÁLOGO. Si pide algo que no hay, decile que en este momento no hay y ofrecé lo más parecido que sí hay. Si quiere que le avisen, "apenas entren le avisamos".
-
-FOTOS
-- Para mostrar productos, poné sus ids en "fotos" (máximo 4). El sistema manda cada foto con la talla, el tipo, las unidades y el precio, y DESPUÉS tu mensaje: no repitas esos datos, solo preguntá cuál le gusta y cuántos paquetes.
-- No vuelvas a mandar fotos que ya están en "fotos_enviadas", salvo que la clienta lo pida.
-
-EL PEDIDO
-- "carrito" es el pedido COMPLETO después de este mensaje (ids del catálogo y cantidad de paquetes). Ponelo solo cuando la clienta elige, suma, cambia o quita algo; si no cambió nada, null.
-- Antes de pasar a los datos de envío, preguntá una vez si le agregamos algo más.
-- Envío: si pregunta cuánto cuesta y no se sabe el municipio, contestá corto y preguntale para qué municipio es. Cuando lo diga, ponelo en "municipio" (y "departamento" si lo dijo).
-- SAN MIGUEL (municipio San Miguel): la entrega la hace la tienda y el costo depende de la colonia. Preguntá en qué colonia o lugar es la entrega; cuando lo diga, ponelo en "colonia" y la acción "pasar_a_wil". Nunca digas un precio de envío para San Miguel.
-- Para cerrar: con el pedido decidido y el municipio, pedí nombre y apellido, la dirección exacta (colonia, calle o pasaje, número de casa y un punto de referencia) y el teléfono ("¿le llamamos a este mismo número?"; si dice que sí, poné "telefono": "este"). Podés pedir varios datos juntos, como hace Wil.
-- Cuando ya estén el carrito, el municipio, el nombre, la dirección y el teléfono, poné "accion": "mostrar_orden" y un mensaje cortito ("¡Perfecto! Le comparto su orden para que la revise 😊"). El sistema arma la orden con el total y los botones para confirmar.
-- Si la orden ya se mostró (orden_mostrada) y quiere cambiar algo, actualizá lo que cambió y otra vez "mostrar_orden".
-
-PASARLE EL CHAT A WIL ("accion": "pasar_a_wil", con el motivo en pocas palabras)
-- Reclamos o problemas con un pedido, preguntas por un pedido ya enviado, comprobantes de pago, pedidos por mayor, rebajas, otros productos (pañales de adulto, toallitas…), si está molesta, si pide hablar con una persona, o si no sabés la respuesta.
-- En ese caso el mensaje puede ir vacío (el sistema le avisa que la atiende un asesor).
-
-Nunca pidas datos de tarjeta ni contraseñas. Nunca prometas fechas ni cosas que no estén en los datos.
-
-Devolvé SOLO este JSON, sin texto alrededor:
+Devolvé SOLO este JSON:
 {
-  "mensaje": "lo que se le escribe a la clienta",
-  "fotos": [],
-  "carrito": null,
+  "tallas": [],
+  "peso": null,
+  "edad_meses": null,
+  "tipo": null,
+  "items": [],
+  "cantidad": null,
+  "quitar": [],
+  "reemplazar": false,
   "municipio": null,
-  "departamento": null,
-  "colonia": null,
   "nombre": null,
   "direccion": null,
   "telefono": null,
-  "accion": "conversar",
+  "acepta": null,
+  "corregir": false,
+  "pregunta_envio": false,
+  "respuesta": null,
+  "pasar_a_wil": false,
   "motivo": ""
 }
-En municipio, colonia, nombre, dirección y teléfono poné solo lo que la clienta dijo en esta conversación (null si no lo dijo o si ya está en CÓMO VA EL PEDIDO y no cambió).
+
+QUÉ VA EN CADA CAMPO (solo lo que dijo en ESTE mensaje; si no lo dijo, vacío o null)
+- tallas: las tallas que pide o elige, con NUESTROS nombres: RN, S, M, L, XL, XXL, XXXL, 4 A 7 AÑOS, 8 A 14 AÑOS. Traducí: G/grande/talla 4 = L; XG/extra grande/talla 5 = XL; XXG/talla 6 = XXL; XXXG/talla 7 = XXXL; P/pequeña/talla 2 = S; talla 3/mediana = M; talla 0, 1, recién nacido = RN. Si responde a "¿le muestro la L, la XL o las dos?" con "las dos", poné las dos.
+- peso: {"valor": 36, "unidad": "lb"} o "kg". Si no dijo la unidad, unidad null.
+- edad_meses: la edad del bebé en meses ("2 años" = 24, "8 meses" = 8).
+- tipo: "cinta" (de pegar, de broche, normal), "calzoncito" (pants, de subir) o "ambos".
+- items: productos del CATÁLOGO que elige, con su id. "la opción 2", "el de noche", "ese", "el Magic" se resuelven con fotos_enviadas y la talla de LO QUE YA SE SABE. "cantidad" en paquetes, o null si no dijo cuántos. Si no se sabe cuál es, no adivines: items vacío.
+- cantidad: si SOLO dice un número de paquetes ("2", "dos paquetes", "deme 3") para el producto que ya eligió.
+- quitar / reemplazar: si quita productos o dice "mejor", "cámbieme", "en vez de".
+- municipio: el municipio o ciudad de entrega tal como lo escribió (aunque esté mal escrito). Si en la dirección nombra un lugar, eso NO va acá: va en direccion.
+- nombre: nombre y apellido de quien recibe. direccion: la dirección tal cual (colonia, calle, casa, referencia). telefono: un número de teléfono que dé, o "este" si dice que al mismo número.
+- acepta: true si dice que sí / está bien / ok / correcto a lo último que se le preguntó (ver ultima_pregunta); false si dice que no. null si no contesta eso.
+- corregir: true si quiere corregir algo de la orden.
+- pregunta_envio: true si pregunta cuánto cuesta el envío, si hacen envíos o si llegan a su zona.
+- respuesta: SOLO si hizo una pregunta que no es del pedido (si son calientes, la marca, cómo se paga, dónde están, cuándo llega, la diferencia entre cinta y calzoncito…). Contestala en 1 o 2 líneas, de usted, con el tono de Wil en los ejemplos, y SOLO con DATOS DE LA TIENDA. Sin precios. Sin saludar. Si no hizo pregunta, null. No contestes el envío (de eso se encarga el sistema).
+- pasar_a_wil: true si reclama o tiene un problema con un pedido, pregunta por un pedido ya enviado, manda o habla de un comprobante, pide por mayor o rebaja, dice que el envío está caro, pide otro producto (pañal de adulto, toallitas…), está molesta, pide hablar con una persona, o pregunta algo que no está en los datos. motivo: en pocas palabras.
+
+Nunca inventes ids. Nunca pongas en items algo que no está en el CATÁLOGO.
 TXT;
     }
 }

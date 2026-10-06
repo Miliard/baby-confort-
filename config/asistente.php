@@ -136,6 +136,19 @@ return [
     // Las de niño grande solo se sugieren por peso si ninguna de bebé le queda.
     'tallas_nino' => ['4 A 7 AÑOS', '8 A 14 AÑOS'],
 
+    // Solo para orientar cuando la clienta dice la edad y no el peso ("tiene
+    // 2 años"): qué tallas usa la mayoría a esa edad. Igual se le pide el
+    // peso, que es lo que manda. [desde meses, hasta meses, texto]
+    'tallas_por_edad' => [
+        [0, 1, '*RN* o *S*'],
+        [2, 4, '*S* o *M*'],
+        [5, 9, '*M* o *L*'],
+        [10, 17, '*L*'],
+        [18, 35, '*L* o *XL*'],
+        [36, 47, '*XL* o *XXL*'],
+        [48, 200, '*XXL* o *XXXL*'],
+    ],
+
     // Productos que NO ofrece aunque tengan talla S, M, L… (el pañal de adulto
     // también tiene talla M). Son las categorías del catálogo.
     'excluir_categorias' => ['adulto', 'mujer', 'accesorios'],
