@@ -2303,7 +2303,9 @@ class Whatsapp extends Page
         $municipio = $cliente['municipio'] ?? '';
         $direccion = $cliente['direccion'] ?? '';
         $productos = '';
-        $envio     = '';
+        // El envío que se le cobró la última vez ($2, $2.50, $2.90…): depende
+        // de dónde vive, y casi siempre es el mismo de nuevo.
+        $envio     = $this->envioAnterior($conv);
         $total     = '';
 
         /*
@@ -2684,8 +2686,12 @@ class Whatsapp extends Page
         $dicho = static::montoDe($datos['total'] ?? '');
 
         if ($dicho > 0 && $reconocido['items']) {
+            // El envío que dice la orden ($2, $2.50, $2.90 según dónde vive);
+            // si no lo dice, el de siempre.
+            $envioOrden = static::montoDe($datos['envio'] ?? '');
+
             $porCatalogo = round(
-                (float) ($reconocido['total'] ?? 0) + $this->envioPedido(),
+                (float) ($reconocido['total'] ?? 0) + ($envioOrden > 0 ? $envioOrden : $this->envioPedido()),
                 2
             );
 
@@ -2855,6 +2861,32 @@ class Whatsapp extends Page
         }
 
         return false;
+    }
+
+    /**
+     * El costo de envío de la última orden que se le mandó a este cliente,
+     * leído del renglón "Costo de envío:" de esa orden. Vacío si nunca se le
+     * mandó una (cliente nuevo): ahí se escribe a mano.
+     */
+    private function envioAnterior(WaConversacion $conv): string
+    {
+        try {
+            $ordenes = WaMensaje::where('conversacion_id', $conv->id)
+                ->where('direccion', 'saliente')
+                ->where('texto', 'like', '%osto de env%')
+                ->orderByDesc('id')
+                ->limit(10)
+                ->pluck('texto');
+
+            foreach ($ordenes as $texto) {
+                $m = static::montoDe($this->leerOrden((string) $texto)['envio'] ?? '');
+                if ($m > 0 && $m < 20) return number_format($m, 2);
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Envío anterior: ' . $e->getMessage());
+        }
+
+        return '';
     }
 
     private function leerOrden(string $texto): array
