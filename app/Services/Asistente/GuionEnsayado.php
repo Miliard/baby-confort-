@@ -341,6 +341,12 @@ trait GuionEnsayado
         // solo: eso se pregunta (más abajo).
         if ($r['municipio'] && $r['direccion'] && $f->dato('municipio')) $r['municipio'] = null;
 
+        // Preguntó por el envío: solo cuenta como municipio si es uno de verdad
+        // ("¿cuánto a Soyapango?"); si no, se le pregunta de dónde es.
+        if ($r['municipio'] && $r['pregunta_envio'] && ! Municipios::buscarEn($r['municipio']) && ! Municipios::existe($r['municipio'])) {
+            $r['municipio'] = null;
+        }
+
         if ($r['municipio']) {
             $entendio = true;
             $this->guionPonerMunicipio($r['municipio']);
@@ -355,6 +361,8 @@ trait GuionEnsayado
             $entendio = true;
             if (! $f->dato('municipio')) {
                 $f->poner('envio_primero', true);
+                // Un intento fallido anterior no cuenta: esto era una pregunta.
+                $f->quitar('muni_ops', 'muni_escrito', 'muni_fallos');
             }
         }
 
@@ -453,6 +461,7 @@ trait GuionEnsayado
                 $e = $this->envio($sub);
                 if ($e !== null) {
                     $this->gAntes[] = '🚚 El envío a *' . $f->dato('municipio') . '* es de *$' . number_format($e, 2) . '* (lleve lo que lleve) y llega en ' . $this->guionEntrega() . '.';
+                    $f->poner('envio_dicho', true);
                 }
             }
         }
@@ -801,7 +810,10 @@ trait GuionEnsayado
             if ($partes) $resumen = '¡Con gusto! 😊 ' . $this->unir($partes) . ".\n\n";
         }
 
-        $this->guionDecir($hola . $resumen . '📦 ¡Tenemos cobertura nacional en nuestros envíos! 🇸🇻 ¿De cuál municipio nos escribe, disculpe?' . ($resumen ? '' : ' 😊'), 'municipio');
+        // Si preguntó cuánto vale el envío, se le dice que depende de dónde es.
+        $depende = $f->dato('envio_primero') ? ' El costo depende del municipio:' : '';
+
+        $this->guionDecir($hola . $resumen . '📦 ¡Tenemos cobertura nacional en nuestros envíos! 🇸🇻' . $depende . ' ¿De cuál municipio nos escribe, disculpe?' . ($resumen ? '' : ' 😊'), 'municipio');
     }
 
     private function guionTotal(): void
@@ -818,9 +830,15 @@ trait GuionEnsayado
         $f->poner('envio', $envio);
         $mun = (string) $f->dato('municipio');
 
-        $msg = ($envio > 0
-                ? '¡Perfecto! 🚚 El envío a *' . $mun . '* es de *$' . number_format($envio, 2) . '* (lleve lo que lleve) y llega en ' . $this->guionEntrega() . '.'
-                : '¡Perfecto! 🚚 Su pedido a *' . $mun . '* llega en ' . $this->guionEntrega() . '.')
+        // Si ya se le dijo el costo del envío a ese municipio, no se repite.
+        $yaDicho = (bool) $f->dato('envio_dicho');
+        $f->quitar('envio_dicho');
+
+        $msg = ($yaDicho
+                ? '¡Perfecto! 😊 Así queda su pedido:'
+                : ($envio > 0
+                    ? '¡Perfecto! 🚚 El envío a *' . $mun . '* es de *$' . number_format($envio, 2) . '* (lleve lo que lleve) y llega en ' . $this->guionEntrega() . '.'
+                    : '¡Perfecto! 🚚 Su pedido a *' . $mun . '* llega en ' . $this->guionEntrega() . '.'))
             . "\n\n🛒 " . implode("\n", array_map(fn ($l) => ltrim($l, '• '), $lineas))
             . "\nEnvío — $" . number_format($envio, 2)
             . "\n*Total: $" . number_format($subtotal + $envio, 2) . '*'
@@ -966,7 +984,10 @@ trait GuionEnsayado
             $s = ProductSize::with('product')->find($e['id']);
             if ($s) $vistas[] = ['id' => (string) $s->id, 'nombre' => trim((string) $s->product->name), 'unidades' => (int) $s->unidades, 'precio' => (float) $s->price];
         }
-        if (in_array($ultima, ['producto', 'cantidad'], true) && ($id = Entender::opcion($texto, $vistas))) {
+        // Con un producto ya elegido, un número solo ("2") es la cantidad, no
+        // la opción 2. La opción cuenta si lo dice: "la 2", "opción 2".
+        $diceOpcion = $ultima === 'producto' || preg_match('/\b(opcion|numero|la|el|#)\s*\d/', $n) || ! preg_match('/^\s*\d+\s*$/', $n);
+        if (in_array($ultima, ['producto', 'cantidad'], true) && $diceOpcion && ($id = Entender::opcion($texto, $vistas))) {
             $r['items'] = [['id' => $id, 'cantidad' => Entender::cantidad($texto, true)]];
         }
 
@@ -979,7 +1000,10 @@ trait GuionEnsayado
 
         if ($m = Municipios::buscarEn($texto)) {
             if (! in_array($ultima, ['datos'], true)) $r['municipio'] = $m;
-        } elseif (in_array($ultima, ['municipio', 'muni_ops', 'cantidad'], true) && count(explode(' ', $n)) <= 4 && ! $r['cantidad']) {
+        } elseif (in_array($ultima, ['municipio', 'muni_ops', 'cantidad'], true) && count(explode(' ', $n)) <= 4 && ! $r['cantidad']
+            // Una pregunta ("q vale el envío", "¿cuánto cuesta?") no es un municipio mal escrito.
+            && ! str_contains($texto, '?')
+            && ! preg_match('/\b(q|que|cuanto|cuantos|vale|valen|cuesta|cuestan|precio|costo|envio|envios|tienen|hay|como|cuando|donde|sale)\b/', $n)) {
             $r['municipio'] = preg_replace('/^(de que|de|que|soy de|somos de|para|en|desde)\s+/iu', '', trim($texto, " .,!"));
         }
 
@@ -1077,7 +1101,7 @@ trait GuionEnsayado
         if ($m) {
             $nuevo = Municipios::nombreBueno($m) ?: $m;
             if (Municipios::normalizar($nuevo) !== Municipios::normalizar((string) $f->dato('municipio'))) {
-                $f->quitar('envio_ok', 'orden_mostrada', 'colonia', 'envio');
+                $f->quitar('envio_ok', 'orden_mostrada', 'colonia', 'envio', 'envio_dicho');
             }
             $this->ponerMunicipio($m);
             $f->quitar('muni_ops', 'muni_escrito', 'muni_fallos');
