@@ -1117,7 +1117,8 @@
                      avisarles cuando llegue. Mismo período elegido al lado. --}}
                 <a :href="'{{ route('agotados.descargar') }}?dias=' + (dias === '0' ? 365 : dias)" class="wa-fil"
                    style="--c:#94a3b8;text-decoration:none"
-                   title="Excel con los clientes a los que les dijiste que algo estaba agotado">
+                   target="_blank" rel="noopener"
+                   title="PDF con los clientes a los que les dijiste que algo estaba agotado">
                     📋 Agotados
                 </a>
                 {{-- El banco de ejemplos del asistente: tus respuestas reales,

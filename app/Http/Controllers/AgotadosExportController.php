@@ -7,11 +7,9 @@ use App\Models\WaMensaje;
 use App\Services\Asistente\Entender;
 use App\Services\Etiquetado;
 use Illuminate\Http\Request;
-use OpenSpout\Common\Entity\Row;
-use OpenSpout\Writer\XLSX\Writer;
 
 /**
- * La lista de a quién le dijiste "está agotado", en Excel.
+ * La lista de a quién le dijiste "está agotado", lista para guardar en PDF.
  *
  * Una fila por cliente: nombre, teléfono, cuándo se le dijo, qué pidió (la
  * talla, el tipo y el producto que se leen en lo que escribió y en lo que le
@@ -106,23 +104,84 @@ class AgotadosExportController extends Controller
 
         usort($filas, fn ($a, $b) => ($b['fecha']?->timestamp ?? 0) <=> ($a['fecha']?->timestamp ?? 0));
 
-        // 3. El Excel.
-        $ruta = storage_path('app/agotados-' . now($zona)->format('Ymd-His') . '.xlsx');
+        // 3. Una hoja lista para guardar como PDF (o leer así nomás en el
+        //    teléfono, con el chat de cada uno a un toque). Se abre sola la
+        //    ventana de imprimir: ahí se elige "Guardar como PDF".
+        return response($this->hoja($filas, $dias, $zona))
+            ->header('Content-Type', 'text/html; charset=UTF-8');
+    }
 
-        $w = new Writer();
-        $w->openToFile($ruta);
-        $w->addRow(Row::fromValues(['Fecha del aviso', 'Nombre', 'Teléfono', 'Lo que pidió', 'Lo que escribió', 'Lo que le dijiste', '¿Ya pidió?', 'Abrir chat']));
+    private function hoja(array $filas, int $dias, string $zona): string
+    {
+        $e = fn ($t) => htmlspecialchars((string) $t, ENT_QUOTES, 'UTF-8');
 
+        // Cuántos por talla, arriba, para saber de un vistazo qué se pidió más.
+        $porTalla = [];
         foreach ($filas as $f) {
-            $w->addRow(Row::fromValues([
-                $f['fecha'] ? $f['fecha']->format('d/m/Y H:i') : '',
-                $f['nombre'], $f['telefono'], $f['pidio'], $f['escribio'], $f['dijiste'], $f['ya'], $f['enlace'],
-            ]));
+            if ($f['ya']) continue;
+            if (preg_match('/Talla ([^·]+)/u', $f['pidio'], $m)) {
+                foreach (array_map('trim', explode(',', $m[1])) as $t) $porTalla[$t] = ($porTalla[$t] ?? 0) + 1;
+            } else {
+                $porTalla['(sin talla clara)'] = ($porTalla['(sin talla clara)'] ?? 0) + 1;
+            }
+        }
+        arsort($porTalla);
+
+        $resumen = '';
+        foreach ($porTalla as $t => $n) $resumen .= '<span class="chip">' . $e($t) . ': <b>' . $n . '</b></span> ';
+
+        $pendientes = count(array_filter($filas, fn ($f) => ! $f['ya']));
+
+        $filasHtml = '';
+        foreach ($filas as $i => $f) {
+            $filasHtml .= '<tr class="' . ($f['ya'] ? 'ya' : '') . '">'
+                . '<td>' . ($i + 1) . '</td>'
+                . '<td>' . $e($f['fecha'] ? $f['fecha']->format('d/m/Y') : '') . '</td>'
+                . '<td><b>' . $e($f['nombre'] ?: '—') . '</b><br><a href="' . $e($f['enlace']) . '">' . $e($f['telefono']) . '</a></td>'
+                . '<td class="pidio">' . $e($f['pidio'] ?: '—') . ($f['ya'] ? '<br><span class="ok">✓ ya pidió después</span>' : '') . '</td>'
+                . '<td class="txt"><b>Escribió:</b> ' . $e(mb_substr($f['escribio'], 0, 220)) . '<br><b>Le dijiste:</b> ' . $e(mb_substr($f['dijiste'], 0, 160)) . '</td>'
+                . '</tr>';
         }
 
-        $w->close();
+        $hoy = now($zona)->format('d/m/Y H:i');
+        $total = count($filas);
 
-        return response()->download($ruta, 'agotados-' . now($zona)->format('Y-m-d') . '.xlsx')->deleteFileAfterSend(true);
+        return <<<HTML
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agotados {$hoy}</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;margin:18px}
+  h1{font-size:18px;margin:0 0 4px}
+  .sub{color:#555;margin-bottom:10px}
+  .chip{display:inline-block;border:1px solid #bbb;border-radius:10px;padding:2px 8px;margin:2px 4px 2px 0}
+  table{width:100%;border-collapse:collapse;margin-top:12px}
+  th,td{border:1px solid #ccc;padding:5px 6px;vertical-align:top;text-align:left}
+  th{background:#eef2f7}
+  tr{page-break-inside:avoid}
+  tr.ya td{color:#888}
+  .pidio{font-weight:bold;width:22%}
+  .txt{font-size:11px;color:#333}
+  .ok{color:#2a7a2a;font-weight:normal}
+  a{color:#0b5cad}
+  .barra{margin:10px 0}
+  .barra button{font-size:14px;padding:8px 14px;border-radius:8px;border:1px solid #0b5cad;background:#0b5cad;color:#fff}
+  @media print{.barra{display:none} body{margin:8mm}}
+</style></head>
+<body>
+<h1>Clientes con producto agotado</h1>
+<div class="sub">Últimos {$dias} días · {$total} clientes ({$pendientes} sin pedir todavía) · generado el {$hoy}</div>
+<div class="barra"><button onclick="window.print()">📄 Guardar como PDF</button>
+  <span style="color:#555">En la ventana que se abre, elegí <b>"Guardar como PDF"</b> como impresora.</span></div>
+<div><b>Lo que más pidieron (sin contar los que ya pidieron):</b><br>{$resumen}</div>
+<table>
+<thead><tr><th>#</th><th>Aviso</th><th>Cliente</th><th>Lo que pidió</th><th>Mensajes</th></tr></thead>
+<tbody>{$filasHtml}</tbody>
+</table>
+<script>setTimeout(function(){ window.print(); }, 600);</script>
+</body></html>
+HTML;
     }
 
     /**
