@@ -1113,6 +1113,13 @@
                    aria-label="Descargar todos los chats para analizar">
                     📥 Descargar chats
                 </a>
+                {{-- A quién se le dijo "agotado": teléfono y lo que pidió, para
+                     avisarles cuando llegue. Mismo período elegido al lado. --}}
+                <a :href="'{{ route('agotados.descargar') }}?dias=' + (dias === '0' ? 365 : dias)" class="wa-fil"
+                   style="--c:#94a3b8;text-decoration:none"
+                   title="Excel con los clientes a los que les dijiste que algo estaba agotado">
+                    📋 Agotados
+                </a>
                 {{-- El banco de ejemplos del asistente: tus respuestas reales,
                      de donde la IA aprende cómo contestás. --}}
                 <button type="button" wire:click="actualizarEjemplos" wire:loading.attr="disabled"

@@ -89,6 +89,10 @@ Route::middleware(['web', 'auth'])->group(function () {
     // Todas las conversaciones en un archivo, sin datos personales, para
     // analizarlas y mejorar el asistente.
     Route::get('/chat/descargar-chats', [\App\Http\Controllers\ChatsExportController::class, 'descargar'])->name('chats.descargar');
+
+    // A quién se le dijo "está agotado", con lo que pidió y su teléfono, para
+    // avisarles cuando entre la mercadería.
+    Route::get('/chat/descargar-agotados', [\App\Http\Controllers\AgotadosExportController::class, 'descargar'])->name('agotados.descargar');
 });
 
 // Fotos de paquetes (solo con sesión iniciada en el panel)
