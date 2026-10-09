@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Log;
  *
  *   1. Talla       · por talla, por peso (recomienda) o por edad (orienta y pide el peso)
  *   2. Producto    · fotos de esa talla; "¿cuál le gusta y cuántos paquetes?"
- *   3. Municipio   · "📦 ¡Tenemos cobertura nacional…! ¿De cuál municipio nos escribe?"
+ *   3. Municipio   · "📦 ¡Tenemos cobertura nacional…! ¿Desde qué municipio nos escribe?"
  *   4. Total       · envío + total; "¿Le parece bien?"
  *   5. Datos       · nombre completo y dirección exacta (el teléfono es el del chat)
  *   6. Orden       · la de siempre + "¿Me podría revisar la orden de envío…?"
@@ -186,6 +186,28 @@ trait GuionEnsayado
             $f->quitar('orden_mostrada');
             $f->poner('ultima', 'corregir');
             $this->texto('Con gusto 😊 ¿Qué dato corrijo: el producto, el municipio, el nombre, la dirección o el teléfono?');
+            return;
+        }
+
+        // ── Se le ofreció explicar la diferencia ────────────────────────────
+        // "Sí" → se le explica. "No, gracias" → se le dice que aquí estamos.
+        // Nunca se le insiste en que elija.
+        $ofrecio   = $ultima === 'producto' && $f->dato('ofrecio_diferencia');
+        $pideDif   = Entender::tipo($texto) === 'diferencia';
+        $eligeAlgo = $r['items'] || $r['cantidad'] || $r['tallas'] || $r['municipio'] || $r['peso'];
+
+        if (! $eligeAlgo && ($pideDif || ($ofrecio && $r['acepta'] === true))) {
+            if ($txt = $this->guionDiferencia()) {
+                $f->quitar('ofrecio_diferencia');
+                $this->gAntes = [];   // la explicación ya contesta; sin repetir
+                $this->guionDecir($txt . "\n\nCualquier duda, aquí estoy 😊", 'producto');
+                return;
+            }
+        }
+
+        if (! $eligeAlgo && $ofrecio && $r['acepta'] === false) {
+            $f->quitar('ofrecio_diferencia');
+            $this->guionDecir('Con gusto 😊 Cualquier cosa, aquí estoy.', 'producto');
             return;
         }
 
@@ -493,14 +515,36 @@ trait GuionEnsayado
             return;
         }
 
+        // Eligió un producto sin decir cuántos. PRIMERO dónde es: sin eso no se
+        // sabe el envío, y preguntar "¿cuántos le enviamos?" sin saber a dónde
+        // es apurarla. Con el municipio ya dicho, se le da el costo y recién ahí
+        // se le pregunta cuántos.
         if ($f->dato('elegido')) {
             $s = ProductSize::with('product')->find($f->dato('elegido'));
             $que = $s ? '*' . trim((string) $s->product->name) . '* talla ' . trim((string) $s->size) : 'ese';
-            $msg = $f->dato('municipio')
-                ? "¿Cuántos paquetes de {$que} le enviamos? 😊"
-                : "¡Con gusto! 😊 ¿Cuántos paquetes de {$que} le enviamos y de qué municipio nos escribe?";
-            $this->guionDecir($hola . $msg, 'cantidad');
-            return;
+
+            if (! $f->dato('municipio')) {
+                if ($f->dato('muni_ops') || (int) $f->dato('muni_fallos', 0) > 0) {
+                    $this->guionPreguntarMunicipio($hola);
+                } else {
+                    $this->guionDecir($hola . "¡Con gusto! 😊 {$que}.\n\n📦 ¡Tenemos cobertura nacional en nuestros envíos! 🇸🇻 ¿Desde qué municipio nos escribe?", 'municipio');
+                }
+                return;
+            }
+
+            if ($f->dato('departamento') && ! $this->entregaPropia()) {
+                $costo = '';
+                if (! $f->dato('envio_dicho')) {
+                    $e = $this->envio(0);
+                    if ($e !== null) {
+                        $costo = '🚚 El envío a *' . $f->dato('municipio') . '* es de *$' . number_format($e, 2) . '* (lleve lo que lleve) y llega en ' . $this->guionEntrega() . ".\n\n";
+                        $f->poner('envio_dicho', true);
+                    }
+                }
+                $this->guionDecir($hola . $costo . "¿Cuántos paquetes de {$que} le enviamos? 😊", 'cantidad');
+                return;
+            }
+            // Falta el departamento, o es San Miguel: eso va primero (abajo).
         }
 
         // ── 3. Municipio ────────────────────────────────────────────────────
@@ -757,9 +801,12 @@ trait GuionEnsayado
             }
             $f->poner('fotos_enviadas', array_slice($enviadas, -20));
 
+            // Sin apurarla: se le ofrece explicar, no se le pide que elija.
+            // Si no contesta, no se le insiste.
+            $f->poner('ofrecio_diferencia', true);
             $this->guionDecir($una
-                ? (($f->dato('municipio') ? '' : '¡Con gusto! 😊 ') . '¿Cuántos paquetes le enviamos' . ($f->dato('municipio') ? '?' : ' y de qué municipio nos escribe?'))
-                : '¿Cuál le gusta y cuántos paquetes le enviamos? 😊', $una ? 'cantidad' : 'producto');
+                ? '¿Le gustaría conocer más detalles de esta presentación? 😊'
+                : '¿Le gustaría que le explique la diferencia entre ellas? 😊', 'producto');
             return;
         }
 
@@ -772,11 +819,12 @@ trait GuionEnsayado
         }
 
         $donde = ($tipo !== 'ambos' && $f->dato('tipo') ? 'En ' . $tipo . ' talla ' : 'En talla ') . $nombreTallas;
+        $f->poner('ofrecio_diferencia', true);
         $msg = $una
-            ? '¡Perfecto! 😊 ' . $donde . ' tenemos ' . $lineas[0] . '. ¿Cuántos paquetes le enviamos?'
-            : '¡Perfecto! 😊 ' . $donde . ' tenemos ' . $this->unir($lineas) . ', son las fotos que le mandé.' . "\n\n¿Cuál le gusta y cuántos paquetes le enviamos?";
+            ? '¡Perfecto! 😊 ' . $donde . ' tenemos ' . $lineas[0] . '. ¿Le gustaría conocer más detalles?'
+            : '¡Perfecto! 😊 ' . $donde . ' tenemos ' . $this->unir($lineas) . ', son las fotos que le mandé.' . "\n\n¿Le gustaría que le explique la diferencia entre ellas?";
 
-        $this->guionDecir($hola . $msg, $una ? 'cantidad' : 'producto');
+        $this->guionDecir($hola . $msg, 'producto');
     }
 
     private function guionPreguntarMunicipio(string $hola): void
@@ -813,7 +861,7 @@ trait GuionEnsayado
         // Si preguntó cuánto vale el envío, se le dice que depende de dónde es.
         $depende = $f->dato('envio_primero') ? ' El costo depende del municipio:' : '';
 
-        $this->guionDecir($hola . $resumen . '📦 ¡Tenemos cobertura nacional en nuestros envíos! 🇸🇻' . $depende . ' ¿De cuál municipio nos escribe, disculpe?' . ($resumen ? '' : ' 😊'), 'municipio');
+        $this->guionDecir($hola . $resumen . '📦 ¡Tenemos cobertura nacional en nuestros envíos! 🇸🇻' . $depende . ' ¿Desde qué municipio nos escribe?' . ($resumen ? '' : ' 😊'), 'municipio');
     }
 
     private function guionTotal(): void
@@ -1019,6 +1067,56 @@ trait GuionEnsayado
         return $r;
     }
 
+    /**
+     * La diferencia entre las opciones que se le mostraron de la talla que
+     * mira, con el número de foto de cada una y lo que dice la ficha del
+     * producto. Vacío si no hay qué comparar.
+     */
+    private function guionDiferencia(): string
+    {
+        $f = $this->f;
+        $tallas = array_map('mb_strtoupper', (array) $f->dato('tallas', []));
+        $tipo = (string) ($f->dato('tipo') ?: 'ambos');
+
+        $lineas = [];
+        $tipos = [];
+
+        foreach ((array) $f->dato('fotos_enviadas', []) as $e) {
+            $s = ProductSize::with('product')->find($e['id']);
+            if (! $s || ! $s->product) continue;
+            if ($tallas && ! in_array(mb_strtoupper(trim((string) $s->size)), $tallas, true)) continue;
+
+            $p = $s->product;
+            $t = $this->tipoDe((string) $p->name);
+            if ($tipo !== 'ambos' && mb_strtolower($t) !== $tipo) continue;
+            $tipos[$t] = true;
+
+            // Lo que distingue al producto: sus características cargadas en el
+            // admin, o la primera oración de la descripción.
+            $rasgos = array_values(array_filter(array_map(
+                fn ($x) => trim(strip_tags((string) (is_array($x) ? ($x['texto'] ?? $x['text'] ?? reset($x)) : $x))),
+                (array) ($p->features ?? [])
+            )));
+            $resumen = $rasgos ? implode(' · ', array_slice($rasgos, 0, 2)) : '';
+            if ($resumen === '') {
+                $desc = trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($p->description ?? ''))));
+                $resumen = $desc !== '' ? (preg_split('/(?<=[.!?])\s/u', $desc)[0] ?? $desc) : '';
+            }
+            if (mb_strlen($resumen) > 170) $resumen = rtrim(mb_substr($resumen, 0, 167)) . '…';
+
+            $lineas[] = '*Opción ' . $e['opcion'] . ' — ' . trim((string) $p->name) . "* ({$t})"
+                . ($resumen !== '' ? "\n" . $resumen : '')
+                . ((int) $s->unidades > 0 ? "\n" . (int) $s->unidades . ' unidades por paquete' : '');
+        }
+
+        if (count($lineas) === 0) return '';
+
+        $txt = "Con gusto le explico 😊\n\n" . implode("\n\n", $lineas);
+        if (count($tipos) > 1) $txt .= "\n\n" . trim((string) config('asistente.textos.diferencia'));
+
+        return $txt;
+    }
+
     /** Cómo va el pedido, para la IA (y lo último que se le preguntó). */
     private function guionEstado(): array
     {
@@ -1030,9 +1128,9 @@ trait GuionEnsayado
             'peso'        => '¿Cuánto pesa el bebé?',
             'peso_unidad' => '¿Son libras o kilos?',
             'dos_tallas'  => '¿Le muestro una talla, la otra o las dos?',
-            'producto'    => '¿Cuál le gusta (de las fotos) y cuántos paquetes?',
+            'producto'    => 'Se le mostraron las fotos y se le ofreció explicarle la diferencia (o más detalles). Si dice que sí, acepta=true. Si elige un producto o dice cuántos, va en items/cantidad.',
             'cantidad'    => '¿Cuántos paquetes?',
-            'municipio'   => '¿De cuál municipio nos escribe?',
+            'municipio'   => '¿Desde qué municipio nos escribe?',
             'muni_ops'    => '¿Será alguno de estos municipios?',
             'depto'       => '¿De qué departamento?',
             'colonia'     => '¿En qué colonia de San Miguel?',
