@@ -197,10 +197,10 @@ trait GuionEnsayado
         $eligeAlgo = $r['items'] || $r['cantidad'] || $r['tallas'] || $r['municipio'] || $r['peso'];
 
         if (! $eligeAlgo && ($pideDif || ($ofrecio && $r['acepta'] === true))) {
-            if ($txt = $this->guionDiferencia()) {
+            if ($txt = $this->guionDiferencia($pideDif ? $texto : '')) {
                 $f->quitar('ofrecio_diferencia');
                 $this->gAntes = [];   // la explicación ya contesta; sin repetir
-                $this->guionDecir($txt . "\n\nCualquier duda, aquí estoy 😊", 'producto');
+                $this->guionDecir($txt, 'producto');
                 return;
             }
         }
@@ -1072,15 +1072,15 @@ trait GuionEnsayado
      * mira, con el número de foto de cada una y lo que dice la ficha del
      * producto. Vacío si no hay qué comparar.
      */
-    private function guionDiferencia(): string
+    private function guionDiferencia(string $pregunta = ''): string
     {
         $f = $this->f;
         $tallas = array_map('mb_strtoupper', (array) $f->dato('tallas', []));
         $tipo = (string) ($f->dato('tipo') ?: 'ambos');
 
-        $lineas = [];
-        $tipos = [];
-
+        // Los datos de cada opción mostrada, en limpio (sin emojis ni frases de
+        // propaganda): tipo, si es de noche, unidades y cuánto sale cada pañal.
+        $ops = [];
         foreach ((array) $f->dato('fotos_enviadas', []) as $e) {
             $s = ProductSize::with('product')->find($e['id']);
             if (! $s || ! $s->product) continue;
@@ -1089,32 +1089,105 @@ trait GuionEnsayado
             $p = $s->product;
             $t = $this->tipoDe((string) $p->name);
             if ($tipo !== 'ambos' && mb_strtolower($t) !== $tipo) continue;
-            $tipos[$t] = true;
 
-            // Lo que distingue al producto: sus características cargadas en el
-            // admin, o la primera oración de la descripción.
+            $nombre = trim(preg_replace('/\s+/u', ' ', preg_replace('/[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{FE0F}\x{200D}]/u', '', (string) $p->name)));
             $rasgos = array_values(array_filter(array_map(
                 fn ($x) => trim(strip_tags((string) (is_array($x) ? ($x['texto'] ?? $x['text'] ?? reset($x)) : $x))),
                 (array) ($p->features ?? [])
             )));
-            $resumen = $rasgos ? implode(' · ', array_slice($rasgos, 0, 2)) : '';
-            if ($resumen === '') {
-                $desc = trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($p->description ?? ''))));
-                $resumen = $desc !== '' ? (preg_split('/(?<=[.!?])\s/u', $desc)[0] ?? $desc) : '';
-            }
-            if (mb_strlen($resumen) > 170) $resumen = rtrim(mb_substr($resumen, 0, 167)) . '…';
 
-            $lineas[] = '*Opción ' . $e['opcion'] . ' — ' . trim((string) $p->name) . "* ({$t})"
-                . ($resumen !== '' ? "\n" . $resumen : '')
-                . ((int) $s->unidades > 0 ? "\n" . (int) $s->unidades . ' unidades por paquete' : '');
+            $ops[] = [
+                'opcion'   => (int) $e['opcion'],
+                'nombre'   => $nombre,
+                'tipo'     => $t,
+                'noche'    => (bool) preg_match('/noche|nocturn/iu', $nombre),
+                'unidades' => (int) $s->unidades,
+                'precio'   => (float) $s->price,
+                'c_u'      => (int) $s->unidades > 0 ? round((float) $s->price / (int) $s->unidades, 2) : null,
+                'rasgos'   => mb_substr(implode(' · ', array_slice($rasgos, 0, 3)), 0, 200),
+            ];
         }
 
-        if (count($lineas) === 0) return '';
+        if (count($ops) < 1) return '';
 
-        $txt = "Con gusto le explico 😊\n\n" . implode("\n\n", $lineas);
-        if (count($tipos) > 1) $txt .= "\n\n" . trim((string) config('asistente.textos.diferencia'));
+        return $this->guionDiferenciaIA($ops, $pregunta) ?: $this->guionDiferenciaReglas($ops);
+    }
+
+    /**
+     * La IA contesta SOLO lo que preguntó, en pocas líneas, con estos datos.
+     * Sin recomendar ni empujar a elegir. Se revisa antes de mandarla.
+     */
+    private function guionDiferenciaIA(array $ops, string $pregunta): ?string
+    {
+        if (! \App\Services\IA::disponible()) return null;
+
+        $datos = [];
+        $montos = [];
+        foreach ($ops as $o) {
+            $datos[] = "Opción {$o['opcion']}: {$o['nombre']} | {$o['tipo']}" . ($o['noche'] ? ' | de noche' : '')
+                . ($o['unidades'] ? " | {$o['unidades']} unidades" : '') . ' | $' . number_format($o['precio'], 2)
+                . ($o['c_u'] ? ' | $' . number_format($o['c_u'], 2) . ' por pañal' : '')
+                . ($o['rasgos'] !== '' ? " | {$o['rasgos']}" : '');
+            $montos[] = $o['precio'];
+            if ($o['c_u']) $montos[] = $o['c_u'];
+        }
+
+        $instr = "Sos Wil, de Baby-Confort (pañales Aiwibi, El Salvador). Una clienta pregunta por la diferencia entre unas presentaciones.\n"
+            . "Contestá SOLO lo que pregunta, en 2 a 4 líneas cortas, de usted, claro y sencillo, como lo diría una persona.\n"
+            . "Decí la diferencia que importa (cinta o calzoncito, de noche o de día, cuántas unidades trae, cuál rinde más por pañal). Nada de frases de propaganda ni términos técnicos.\n"
+            . "NO recomiendes ninguna, NO preguntes cuál quiere ni cuántos, NO saludes. Usá solo los datos dados. Nombrá cada una por su número de opción.\n"
+            . "Diferencia general: " . str_replace("\n", ' ', trim((string) config('asistente.textos.diferencia')))
+            . "\nDevolvé solo el texto.";
+
+        $entrada = "OPCIONES QUE VIO:\n" . implode("\n", $datos)
+            . "\n\nLO QUE PREGUNTÓ: " . ($pregunta !== '' ? $pregunta : '¿Cuál es la diferencia entre ellas?');
+
+        try {
+            $txt = trim((string) \App\Services\IA::pedirConModelo((string) config('asistente.modelo_ia', 'gpt-5-mini'), $instr, $entrada));
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        if ($txt === '' || mb_strlen($txt) > 600) return null;
+        if (Vendedora::revisar($txt, $montos) !== null) return null;
+        // Sin empujar: si igual pregunta cuál quiere o recomienda, no va.
+        if (preg_match('/\b(cual (le gusta|prefiere|quiere|desea)|cuantos paquetes|le recomiendo|le sugiero)\b/u', Entender::normalizar($txt))) return null;
 
         return $txt;
+    }
+
+    /** Sin IA: la diferencia en pocas líneas, armada con los datos. */
+    private function guionDiferenciaReglas(array $ops): string
+    {
+        $num = fn (array $lista) => $this->unir(array_map(fn ($o) => (string) $o['opcion'], $lista));
+        $lineas = [];
+
+        $cintas = array_values(array_filter($ops, fn ($o) => $o['tipo'] === 'Cinta'));
+        $calzon = array_values(array_filter($ops, fn ($o) => $o['tipo'] === 'Calzoncito'));
+        if ($cintas && $calzon) {
+            $lineas[] = '• *Cinta* (' . (count($cintas) > 1 ? 'opciones ' : 'opción ') . $num($cintas) . '): se pega a los lados, ideal si todavía no camina.';
+            $lineas[] = '• *Calzoncito* (' . (count($calzon) > 1 ? 'opciones ' : 'opción ') . $num($calzon) . '): se sube como ropa interior, más cómodo si ya gatea o camina.';
+        }
+
+        $noche = array_values(array_filter($ops, fn ($o) => $o['noche']));
+        if ($noche && count($noche) < count($ops)) {
+            $lineas[] = '• *De noche* (' . (count($noche) > 1 ? 'opciones ' : 'opción ') . $num($noche) . '): más absorción para toda la noche.';
+        }
+
+        $conCu = array_values(array_filter($ops, fn ($o) => $o['c_u']));
+        if (count($conCu) > 1) {
+            usort($conCu, fn ($a, $b) => $a['c_u'] <=> $b['c_u']);
+            $b = $conCu[0];
+            $lineas[] = '• La *opción ' . $b['opcion'] . '* trae ' . $b['unidades'] . ' unidades y es la que más rinde por pañal.';
+        }
+
+        if (! $lineas) {
+            foreach ($ops as $o) {
+                $lineas[] = '• *Opción ' . $o['opcion'] . '*: ' . $o['tipo'] . ($o['unidades'] ? ', ' . $o['unidades'] . ' unidades' : '') . '.';
+            }
+        }
+
+        return "Con gusto 😊\n\n" . implode("\n", $lineas);
     }
 
     /** Cómo va el pedido, para la IA (y lo último que se le preguntó). */

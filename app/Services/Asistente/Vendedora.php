@@ -196,7 +196,7 @@ QUÉ VA EN CADA CAMPO (solo lo que dijo en ESTE mensaje; si no lo dijo, vacío o
 - acepta: true si dice que sí / está bien / ok / correcto a lo último que se le preguntó (ver ultima_pregunta); false si dice que no. null si no contesta eso.
 - corregir: true si quiere corregir algo de la orden.
 - pregunta_envio: true si pregunta cuánto cuesta el envío, si hacen envíos o si llegan a su zona.
-- respuesta: SOLO si hizo una pregunta que no es del pedido (si son calientes, la marca, cómo se paga, dónde están, cuándo llega, la diferencia entre cinta y calzoncito…). Contestala en 1 o 2 líneas, de usted, con el tono de Wil en los ejemplos, y SOLO con DATOS DE LA TIENDA. Sin precios. Sin saludar. Si no hizo pregunta, null. No contestes el envío (de eso se encarga el sistema).
+- respuesta: SOLO si hizo una pregunta que no es del pedido (si son calientes, la marca, cómo se paga, dónde están, cuándo llega, la diferencia entre cinta y calzoncito…). Contestala en 1 o 2 líneas, de usted, con el tono de Wil en los ejemplos, y SOLO con DATOS DE LA TIENDA. Sin precios. Sin saludar. Contestá SOLO lo que preguntó: no recomiendes ni sugieras productos, no preguntes cuál quiere ni cuántos. Si no hizo pregunta, null. No contestes el envío (de eso se encarga el sistema).
 - pasar_a_wil: true si reclama o tiene un problema con un pedido, pregunta por un pedido ya enviado, manda o habla de un comprobante, pide por mayor o rebaja, dice que el envío está caro, pide otro producto (pañal de adulto, toallitas…), está molesta, pide hablar con una persona, o pregunta algo que no está en los datos. motivo: en pocas palabras.
 
 Nunca inventes ids. Nunca pongas en items algo que no está en el CATÁLOGO.
