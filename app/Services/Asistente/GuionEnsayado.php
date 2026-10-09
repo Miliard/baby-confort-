@@ -1124,7 +1124,7 @@ trait GuionEnsayado
         $datos = [];
         $montos = [];
         foreach ($ops as $o) {
-            $datos[] = "Opción {$o['opcion']}: {$o['nombre']} | {$o['tipo']}" . ($o['noche'] ? ' | de noche' : '')
+            $datos[] = "Opción {$o['opcion']}: {$o['nombre']} | {$o['tipo']}" . ($o['noche'] ? ' | de noche' : ' | de día')
                 . ($o['unidades'] ? " | {$o['unidades']} unidades" : '') . ' | $' . number_format($o['precio'], 2)
                 . ($o['c_u'] ? ' | $' . number_format($o['c_u'], 2) . ' por pañal' : '')
                 . ($o['rasgos'] !== '' ? " | {$o['rasgos']}" : '');
@@ -1134,9 +1134,12 @@ trait GuionEnsayado
 
         $instr = "Sos Wil, de Baby-Confort (pañales Aiwibi, El Salvador). Una clienta pregunta por la diferencia entre unas presentaciones.\n"
             . "Contestá SOLO lo que pregunta, en 2 a 4 líneas cortas, de usted, claro y sencillo, como lo diría una persona.\n"
-            . "Decí la diferencia que importa (cinta o calzoncito, de noche o de día, cuántas unidades trae, cuál rinde más por pañal). Nada de frases de propaganda ni términos técnicos.\n"
+            . "Decí la diferencia que importa (de noche o de día con sus litros, cinta o calzoncito; las unidades solo si se lo preguntan). Nada de frases de propaganda ni términos técnicos.\n"
             . "NO recomiendes ninguna, NO preguntes cuál quiere ni cuántos, NO saludes. Usá solo los datos dados. Nombrá cada una por su número de opción.\n"
-            . "Diferencia general: " . str_replace("\n", ' ', trim((string) config('asistente.textos.diferencia')))
+            . "Cinta o calzoncito: " . str_replace("\n", ' ', trim((string) config('asistente.textos.diferencia')))
+            . "\nDe noche: " . str_replace('*', '', trim((string) config('asistente.dia_noche.noche'))) . '.'
+            . "\nDe día: " . str_replace('*', '', trim((string) config('asistente.dia_noche.dia'))) . '.'
+            . "\nSi entre las opciones hay de día y de noche, ESA es la diferencia principal: decí los litros (2 litros la de noche, 1.5 la de día)."
             . "\nDevolvé solo el texto.";
 
         $entrada = "OPCIONES QUE VIO:\n" . implode("\n", $datos)
@@ -1160,6 +1163,32 @@ trait GuionEnsayado
     private function guionDiferenciaReglas(array $ops): string
     {
         $num = fn (array $lista) => $this->unir(array_map(fn ($o) => (string) $o['opcion'], $lista));
+        $cual = fn (array $lista) => (count($lista) > 1 ? 'opciones ' : 'opción ') . $num($lista);
+
+        // Día contra noche: es LA diferencia que importa (2 litros contra 1.5).
+        $noche = array_values(array_filter($ops, fn ($o) => $o['noche']));
+        $dia   = array_values(array_filter($ops, fn ($o) => ! $o['noche']));
+
+        if ($noche && $dia) {
+            $lineas = [
+                '🌙 *De noche* (' . $cual($noche) . '): ' . trim((string) config('asistente.dia_noche.noche')) . '.',
+                '☀️ *De día* (' . $cual($dia) . '): ' . trim((string) config('asistente.dia_noche.dia')) . '.',
+            ];
+
+            $tipos = array_unique(array_map(fn ($o) => $o['tipo'], $ops));
+            if (count($tipos) > 1) {
+                $cintas = array_values(array_filter($ops, fn ($o) => $o['tipo'] === 'Cinta'));
+                $calzon = array_values(array_filter($ops, fn ($o) => $o['tipo'] === 'Calzoncito'));
+                $lineas[] = '📌 Las de *cinta* (' . $cual($cintas) . ') se pegan a los lados; los *calzoncitos* (' . $cual($calzon) . ') se suben como ropa interior.';
+            } else {
+                $lineas[] = reset($tipos) === 'Calzoncito'
+                    ? '📌 Ambos son tipo pants, fáciles de colocar y cómodos para el bebé.'
+                    : '📌 Ambos son de cinta, se pegan a los lados.';
+            }
+
+            return "Con gusto 😊\n\n" . implode("\n\n", $lineas);
+        }
+
         $lineas = [];
 
         $cintas = array_values(array_filter($ops, fn ($o) => $o['tipo'] === 'Cinta'));

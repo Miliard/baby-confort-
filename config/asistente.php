@@ -280,6 +280,16 @@ return [
     | Textos
     |--------------------------------------------------------------------------
     */
+    /*
+    | Día y noche: lo que se le explica cuando pregunta la diferencia entre
+    | uno de día y uno de noche (vale igual para calzoncito y para cinta).
+    | Un producto es "de noche" si su nombre dice noche; los demás, de día.
+    */
+    'dia_noche' => [
+        'noche' => 'más grueso y absorbente, soporta hasta *2 litros*. Diseñado para uso prolongado, como durante el sueño: mayor retención para evitar fugas y mantiene al bebé seco hasta la mañana',
+        'dia'   => 'más ligero, soporta hasta *1.5 litros*. Para bebés en constante movimiento y cambios frecuentes: fresco, cómodo y con buena absorción',
+    ],
+
     'textos' => [
         'saludo'     => '¡Hola! 😊 Con gusto le ayudamos.',
         'diferencia' => "La de *cinta* se pega a los lados: ideal para bebés que todavía no caminan.\n"
