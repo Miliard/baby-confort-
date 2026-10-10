@@ -250,11 +250,14 @@ return [
             'texto'    => 'Son pañales *Aiwibi* y vienen desde Australia 🇦🇺',
         ],
         [
-            'palabras' => ['donde estan', 'donde quedan', 'donde queda', 'ubicados', 'ubicada', 'ubicacion de la tienda', 'tienda fisica', 'tienen tienda', 'tienen local', 'pasar a recoger', 'pasar a traer', 'recoger en tienda'],
-            'texto'    => 'Tenemos tienda en *San Miguel, plaza Concepción* (a dos cuadras de Sertracen) 📍 Y también le enviamos a domicilio a todo El Salvador 🚚',
+            'palabras' => ['donde estan', 'donde quedan', 'donde queda', 'ubicados', 'ubicada', 'ubicacion de la tienda', 'tienda fisica', 'tienen tienda', 'tienen local', 'de donde son ustedes', 'donde se encuentran'],
+            // Primero el envío a todo el país, después la tienda: que lea que se lo
+            // mandamos antes de ver que estamos en San Miguel (caso 8).
+            'texto'    => '📦 ¡Tenemos cobertura nacional en nuestros envíos! 🇸🇻 Y nuestra tienda está en *San Miguel, plaza Concepción* (a dos cuadras de Sertracen) 📍',
         ],
         [
-            'palabras' => ['forma de pago', 'como pago', 'como se paga', 'como seria el pago', 'contra entrega', 'transferencia', 'tarjeta', 'pago al recibir', 'se paga al recibir', 'efectivo', 'numero de cuenta'],
+            // Transferencia, tarjeta y número de cuenta te los pasa (caso 5).
+            'palabras' => ['forma de pago', 'formas de pago', 'como pago', 'como se paga', 'como seria el pago', 'como le pago', 'contra entrega', 'pago al recibir', 'se paga al recibir', 'pagar al recibir', 'efectivo'],
             'texto'    => 'Puede pagar al recibir o por transferencia, como usted prefiera 😊',
         ],
         [
@@ -262,8 +265,9 @@ return [
             'texto'    => "⚡ ¡El envío más barato del mercado! 🚚\n💲 Solo \${envio} (¡lleve lo que lleve!)\n⏱️ Entrega rápida en 24 horas (en la mayoría de pedidos)\n🏠 Hasta su casa o lugar de trabajo",
         ],
         [
-            'palabras' => ['cuanto tarda', 'cuanto tardan', 'cuando llega', 'cuando me llega', 'cuando llegaria', 'tiempo de entrega', 'cuantos dias', 'en cuanto tiempo', 'para hoy', 'hoy mismo', 'para manana', 'llega hoy', 'el domingo', 'los domingos'],
-            'texto'    => 'La entrega es en {entrega} con Express El Salvador 🚚. Los domingos no despachamos: si lo necesita para el domingo, hay que encargarlo un día antes.',
+            // "¿Llega mañana / hoy / el domingo?" no se contesta (caso 6).
+            'palabras' => ['cuanto tarda', 'cuanto tardan', 'tiempo de entrega', 'cuantos dias', 'en cuanto tiempo'],
+            'texto'    => 'La entrega es en {entrega} con Express El Salvador 🚚',
         ],
         [
             'palabras' => ['promocion', 'promociones', 'promo', 'promos', 'oferta', 'ofertas', '3 x 25', '3x25', '3 por 25', 'combo'],

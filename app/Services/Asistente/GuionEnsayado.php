@@ -34,6 +34,9 @@ trait GuionEnsayado
     /** Si en este turno aceptó el envío (para decir "¡Excelente!"). */
     private bool $gAcepto = false;
 
+    /** Pasarte el chat sin decirle nada a la clienta (ej. quiere recoger en tienda). */
+    private bool $wilEnSilencio = false;
+
     // ════════════════════════════════════════════════════════════════════════
     // Entrada
     // ════════════════════════════════════════════════════════════════════════
@@ -65,7 +68,7 @@ trait GuionEnsayado
         }
 
         if ($this->paraWil) {
-            $this->pasarAWil($this->paraWil);
+            $this->pasarAWil($this->paraWil, ! $this->wilEnSilencio);
             return;
         }
 
@@ -112,8 +115,16 @@ trait GuionEnsayado
             return null;
         }
 
-        if (in_array($tipo, ['audio', 'voice'], true) && ($texto === '' || str_starts_with($texto, '['))) {
-            $this->paraWil = 'mandó un audio que no se pudo leer';
+        // Los audios te los pasa siempre (decidido en el ensayo de casos).
+        if (in_array($tipo, ['audio', 'voice'], true)) {
+            $this->paraWil = 'mandó un audio';
+            return null;
+        }
+
+        // Quiere pasar a recoger a la tienda: te lo pasa sin contestarle.
+        if (preg_match('/\b(pasar a (recoger|traer|traerlos|recogerlos|buscar)|recoger(lo|los)? en (la )?tienda|ir a (traer|recoger)|paso a (traer|recoger)|llegar a (traer|recoger))\b/', Entender::normalizar($texto))) {
+            $this->paraWil = 'quiere pasar a recoger a la tienda';
+            $this->wilEnSilencio = true;
             return null;
         }
 
@@ -152,16 +163,114 @@ trait GuionEnsayado
         // ── Qué dijo ─────────────────────────────────────────────────────────
         $r = $this->guionEntender($texto, $desdeId);
 
-        if ($r['pasar_a_wil']) {
+        // El mensaje del anuncio ("¿Puedo hablar con alguien?") es un saludo.
+        if ($r['pasar_a_wil'] && ! Entender::esDelAnuncio(Entender::normalizar($texto))) {
             $this->pasarAWil($r['motivo'] ?: 'la IA lo pasó');
             return;
         }
 
         $entendio = false;
+        $n = Entender::normalizar($texto);
+
+        // ── Casos decididos en el ensayo (ver el reglamento en la ficha) ────
+
+        // 10 · Más de 10 paquetes: te lo pasa.
+        $max = (int) config('asistente.max_paquetes', 10);
+        foreach (array_merge([$r['cantidad']], array_column($r['items'], 'cantidad')) as $c) {
+            if ($c && $c > $max) { $this->pasarAWil("pide {$c} paquetes"); return; }
+        }
+
+        // 6 / 14 · "¿Llega mañana?", "¿el domingo?", "¿a qué hora?": si ya
+        // pidió antes, es por su pedido y te lo pasa; si no, no se contesta
+        // esa pregunta (las fechas las decidís vos).
+        $preguntaCuando = (bool) preg_match('/\b(manana|hoy mismo|para hoy|domingo|sabado|a que hora|que dia|cuando (llega|llegaria|me llega|lo traen|lo traerian|lo mandan))\b/', $n)
+            && (bool) preg_match('/\b(llega|llegaria|llegan|traen|traerian|traeria|mandan|mandarian|manda|envian|enviarian|dejan|dejarian|entregan|entregarian|vienen|pueden|puede|despachan|sale)\b/', $n);
+        if ($preguntaCuando && $this->guionYaPidio()) {
+            $this->pasarAWil('pregunta cuándo le llega su pedido');
+            return;
+        }
+        if ($preguntaCuando) $r['respuesta'] = null;
+
+        // 1 / 11 / 12 / 25 · Precio, cuántos trae, promociones o fotos.
+        $pidePrecio = Entender::preguntaPrecio($texto) || (bool) preg_match('/\bcuant[oa]s? (trae|traen|vienen|viene|tiene|tienen|son|unidades)\b|\bde cuant[oa]s\b/', $n);
+        $pidePromo  = (bool) preg_match('/\b(promo|promos|promocion|promociones|oferta|ofertas|combo|combos)\b/', $n);
+        $pideFotos  = (bool) preg_match('/\b(fotos|foto|imagenes|imagen|catalogo|que presentaciones|presentaciones tienen|que tienen|que hay|que manejan)\b/', $n)
+            && ! $r['items'];
+        $diceTalla  = $r['tallas'] || $r['peso'] || $r['edad_meses'] !== null;
+
+        if (($pidePrecio || $pidePromo || $pideFotos) && ! $f->dato('tallas') && ! $diceTalla) {
+            $r['respuesta'] = null;
+            $this->guionPideTallaOPeso($pideFotos && ! $pidePrecio && ! $pidePromo, $primero);
+            return;
+        }
+
+        // Con la talla ya vista: el precio y las unidades de las opciones que
+        // vio; las promos de esa talla si hay (si no hay, no se dice nada).
+        if (($pidePrecio || $pidePromo) && $f->dato('tallas') && ! $diceTalla && ! $r['items']) {
+            $r['respuesta'] = null;
+            $partes = [];
+            if ($pidePrecio && ($txt = $this->guionPreciosVistos())) $partes[] = $txt;
+            if ($pidePromo && ($txt = $this->guionPromosDeTalla())) $partes[] = $txt;
+            if ($partes) {
+                $this->guionDecir(implode("\n\n", $partes), $ultima ?: 'producto');
+                return;
+            }
+            $entendio = true;   // promos que no hay: no se dice nada, se sigue
+        }
+
+        // 4 · "De los mismos", "lo mismo de la vez pasada".
+        if ($ultima === 'recompra' && $f->dato('recompra')) {
+            if ($r['acepta'] === true && ! $r['items'] && ! $r['tallas']) {
+                $this->guionAplicarRecompra();
+                $this->guionSiguiente($texto, false);
+                return;
+            }
+            $f->quitar('recompra');
+            $entendio = true;
+        } elseif (preg_match('/\b(de los mismos|los mismos|lo mismo|mismo pedido|de estos mismos|de esos mismos|como la (vez|otra) pasada|igual que la (vez|otra)|los de siempre|lo de siempre|el mismo de siempre)\b/', $n)
+            && ! $r['tallas'] && ! $r['items']) {
+            $this->guionProponerRecompra();
+            return;
+        }
+
+        // 16 · Bebé por nacer o recién nacido: RN y S.
+        if (! $f->dato('tallas') && ! $r['tallas'] && ! $r['peso']
+            && preg_match('/\b(no ha nacido|todavia no nace|aun no nace|no nace|embarazada|va a nacer|por nacer|recien nacid[oa]s?|nacera|nace en)\b/', $n)) {
+            $disp = array_map('mb_strtoupper', $this->tallasDisponibles());
+            $hay = array_values(array_intersect(['RN', 'S'], $disp));
+            if ($hay) {
+                $f->poner('tallas', $hay);
+                $this->gAntes[] = 'Para recién nacido le sirve la talla *RN* (hasta ' . (int) round((float) config('asistente.rn_hasta_kg', 4.5) * 2.2046) . ' libras); si nace grandecito, la *S* 😊';
+                $entendio = true;
+            }
+        }
+
+        // 24 · "Le queda grande la M" / "le queda apretada la L": la vecina.
+        $tallaDicha = $r['tallas'][0] ?? (Entender::tallas($texto)[0] ?? null);
+        if ($tallaDicha) {
+            $grande = (bool) preg_match('/\b(le|me|les) queda(n)? (muy |bien )?(grande|grandes|flojo|flojos|floja|aguado|aguados)\b/', $n);
+            $chica  = (bool) preg_match('/\b(le|me|les) queda(n)? (muy |bien )?(apretad[oa]s?|pequen[oa]s?|chic[oa]s?|justo|justa)\b|\ble aprieta(n)?\b/', $n);
+            if ($grande || $chica) {
+                $orden = array_values(array_map('mb_strtoupper', (array) config('asistente.tallas', [])));
+                $i = array_search(mb_strtoupper($tallaDicha), $orden, true);
+                $vecina = $i === false ? null : ($orden[$grande ? $i - 1 : $i + 1] ?? null);
+                if ($vecina) {
+                    $r['tallas'] = [$vecina];
+                    $this->gAntes[] = 'Si la *' . $this->bonita($tallaDicha) . '* le queda ' . ($grande ? 'grande' : 'apretada') . ', le recomiendo la *' . $this->bonita($vecina) . '* 😊';
+                }
+            }
+        }
+
+        // 9 · El pedido es para otra persona.
+        if (preg_match('/\b((es|son|seria|serian|va|van) para (mi|una|un) (hermana|hermano|mama|mami|hija|hijo|cunada|prima|tia|amiga|nuera|vecina|suegra|nieta|nieto|sobrina|sobrino|comadre)|lo recibe|los recibe|va a recibir|quien recibe|lo va a recibir)\b/', $n)) {
+            $f->poner('para_otro', true);
+            $entendio = true;
+        }
 
         // Una pregunta suelta: tu respuesta de config si la hay; si no, la de
         // la IA (ya revisada).
-        $faq = Entender::respuesta($texto, (array) config('asistente.respuestas', []));
+        $faq = $preguntaCuando ? null : Entender::respuesta($texto, (array) config('asistente.respuestas', []));
+        if ($faq !== null && str_contains($faq, '{promos}')) $faq = null;   // las promos van por talla (arriba)
         if ($faq !== null && str_contains($faq, '{envio}')) {
             $r['pregunta_envio'] = true;
             $faq = null;
@@ -196,12 +305,35 @@ trait GuionEnsayado
         $pideDif   = Entender::tipo($texto) === 'diferencia';
         $eligeAlgo = $r['items'] || $r['cantidad'] || $r['tallas'] || $r['municipio'] || $r['peso'];
 
-        if (! $eligeAlgo && ($pideDif || ($ofrecio && $r['acepta'] === true))) {
-            if ($txt = $this->guionDiferencia($pideDif ? $texto : '')) {
+        // 15 · "¿Cuál me recomienda?": la diferencia día/noche y se le
+        // pregunta para qué la usa (no se elige por ella).
+        $recomienda = (bool) preg_match('/\b(cual (me |le )?(recomienda|recomiendas|conviene)|que me recomienda|cual es (el |la )?mejor|cual (seria|es) mejor)\b/', $n);
+
+        if (! $eligeAlgo && ($pideDif || $recomienda || ($ofrecio && $r['acepta'] === true))) {
+            if ($txt = $this->guionDiferencia(($pideDif || $recomienda) ? $texto : '')) {
                 $f->quitar('ofrecio_diferencia');
                 $this->gAntes = [];   // la explicación ya contesta; sin repetir
-                $this->guionDecir($txt, 'producto');
+                if ($recomienda && $this->guionHayDiaYNoche()) {
+                    $this->guionDecir($txt . "\n\n¿Lo necesita para el día o para la noche? 😊", 'uso');
+                } else {
+                    $this->guionDecir($txt, 'producto');
+                }
                 return;
+            }
+        }
+
+        // Contestó para qué lo usa: las opciones de día o las de noche.
+        if ($ultima === 'uso' && ! $eligeAlgo) {
+            $noche = (bool) preg_match('/\bnoche|dormir|nocturn/', $n);
+            $dia   = (bool) preg_match('/\bdia\b|\bdiario|de dia/', $n);
+            if ($noche xor $dia) {
+                $ops = $this->guionOpcionesVistas();
+                $sirven = array_values(array_filter($ops, fn ($o) => $o['noche'] === $noche));
+                if ($sirven) {
+                    $lista = $this->unir(array_map(fn ($o) => 'la *opción ' . $o['opcion'] . '* (' . $o['nombre'] . ')', $sirven));
+                    $this->guionDecir('Para ' . ($noche ? 'la noche' : 'el día') . ' le sirve ' . $lista . ' 😊', 'producto');
+                    return;
+                }
             }
         }
 
@@ -424,6 +556,9 @@ trait GuionEnsayado
         if (! $entendio) {
             if (Entender::esCortesia($texto)) { $f->save(); return; }
 
+            // Solo preguntó si llega mañana / el domingo: no se contesta (6).
+            if ($preguntaCuando) { $f->save(); return; }
+
             if (! $primero && ! Entender::esSaludo($texto)) {
                 $fallos = (array) $f->dato('fallos', []);
                 $fallos[$ultima] = ($fallos[$ultima] ?? 0) + 1;
@@ -458,10 +593,6 @@ trait GuionEnsayado
             $msg = 'Gracias 😊 Solo para confirmar: la dirección dice *' . $duda . '*, pero antes me dijo *' . $f->dato('municipio') . '*. '
                 . '¿El envío es para ' . $duda . ($deps ? ' (' . $deps[0] . ')' : '') . '?';
 
-            [, $sub] = $this->resumenCarrito();
-            $a = $this->envio($sub);
-            if ($a !== null) $msg .= ' El costo es el mismo, $' . number_format($a, 2) . '.';
-
             if (! $f->dato('nombre')) $msg .= "\n\n¿Y a nombre de quién lo enviamos? (nombre y apellido)";
 
             $this->guionDecir($msg, 'muni_duda');
@@ -476,14 +607,17 @@ trait GuionEnsayado
 
         // El municipio recién dicho cuando preguntó por el envío: se le da el
         // costo y se sigue con lo que falta.
+        // El costo solo se dice si ya se le cobró un envío a ese municipio
+        // antes; si no, lo confirmás vos al final (caso 21).
         if ($f->dato('envio_primero') && $f->dato('municipio') && $f->dato('departamento')) {
             $f->quitar('envio_primero');
-            if (! $this->entregaPropia() && ! $f->dato('carrito')) {
-                [, $sub] = $this->resumenCarrito();
-                $e = $this->envio($sub);
+            if (! $this->entregaPropia()) {
+                $e = $this->guionEnvioConocido();
                 if ($e !== null) {
-                    $this->gAntes[] = '🚚 El envío a *' . $f->dato('municipio') . '* es de *$' . number_format($e, 2) . '* (lleve lo que lleve) y llega en ' . $this->guionEntrega() . '.';
+                    $this->gAntes[] = '🚚 El envío a *' . $f->dato('municipio') . '* es de *$' . number_format($e, 2) . '*, como la vez pasada, y llega en ' . $this->guionEntrega() . '.';
                     $f->poner('envio_dicho', true);
+                } else {
+                    $this->gAntes[] = '🚚 El costo del envío a *' . $f->dato('municipio') . '* se lo confirmamos al terminar su pedido 😊';
                 }
             }
         }
@@ -534,12 +668,9 @@ trait GuionEnsayado
 
             if ($f->dato('departamento') && ! $this->entregaPropia()) {
                 $costo = '';
-                if (! $f->dato('envio_dicho')) {
-                    $e = $this->envio(0);
-                    if ($e !== null) {
-                        $costo = '🚚 El envío a *' . $f->dato('municipio') . '* es de *$' . number_format($e, 2) . '* (lleve lo que lleve) y llega en ' . $this->guionEntrega() . ".\n\n";
-                        $f->poner('envio_dicho', true);
-                    }
+                if (! $f->dato('envio_dicho') && ($e = $this->guionEnvioConocido()) !== null) {
+                    $costo = '🚚 El envío a *' . $f->dato('municipio') . '* es de *$' . number_format($e, 2) . '*, como la vez pasada, y llega en ' . $this->guionEntrega() . ".\n\n";
+                    $f->poner('envio_dicho', true);
                 }
                 $this->guionDecir($hola . $costo . "¿Cuántos paquetes de {$que} le enviamos? 😊", 'cantidad');
                 return;
@@ -566,8 +697,13 @@ trait GuionEnsayado
         }
 
         // ── 4. Total: ¿le parece bien? ──────────────────────────────────────
-        if (! $f->dato('envio_ok')) {
-            $this->guionTotal();
+        // Solo si ya se le cobró un envío a ese municipio antes (se usa el
+        // mismo). Si es nuevo, el envío lo ponés vos: se piden los datos y se
+        // te pasa el pedido armado (caso 21).
+        $envioConocido = $this->guionEnvioConocido();
+
+        if ($envioConocido !== null && ! $f->dato('envio_ok')) {
+            $this->guionTotal($envioConocido);
             return;
         }
 
@@ -578,11 +714,25 @@ trait GuionEnsayado
         }
 
         if (! $f->dato('telefono')) {
-            if ($this->conv->esExtranjero()) {
-                $this->guionDecir('¿A qué número de El Salvador le podemos llamar o escribir para coordinar la entrega? (8 dígitos) 📞', 'telefono');
+            if ($this->conv->esExtranjero() || $f->dato('para_otro')) {
+                $msg = $f->dato('para_otro')
+                    ? '¿A qué número le llamamos a quien recibe, para coordinar la entrega? 📞'
+                    : '¿A qué número de El Salvador le llamamos a quien recibe, para coordinar la entrega? (8 dígitos) 📞';
+                if ($this->conv->esExtranjero() && ! $f->dato('pago_dicho')) {
+                    $msg .= "\n\nY ¿cómo le gustaría pagar: al recibir (paga quien recibe) o por transferencia?";
+                    $f->poner('pago_dicho', true);
+                }
+                $this->guionDecir($msg, 'telefono');
                 return;
             }
             $f->poner('telefono', $this->conv->telefonoLegible());
+        }
+
+        // Cliente nuevo en ese municipio: el envío lo ponés vos. Se le muestra
+        // el pedido sin envío y te lo pasa armado.
+        if ($envioConocido === null) {
+            $this->guionCerrarSinEnvio();
+            return;
         }
 
         // ── 6. La orden (si ya la tiene, no se le repite entera) ────────────
@@ -633,7 +783,7 @@ trait GuionEnsayado
             $lineas[] = '• *' . $this->bonita($t) . '*' . ($otros ? ' (' . implode(' · ', $otros) . ')' : '') . ($peso ? ' — ' . $peso : '');
         }
 
-        $pregunta = (bool) preg_match('/\?|^\s*(tiene|tienen|hay|venden|manejan)\b/iu', $texto);
+        $pregunta = ! $this->gAntes && (bool) preg_match('/\?|^\s*(tiene|tienen|hay|venden|manejan)\b/iu', $texto);
         $inicio = $primero
             ? ($pregunta ? '¡Hola! Sí, con gusto 😊' : '¡Hola! 😊 Con gusto le ayudo.')
             : 'Con gusto 😊';
@@ -877,16 +1027,11 @@ trait GuionEnsayado
         $this->guionDecir($hola . $resumen . '📦 ¡Tenemos cobertura nacional en nuestros envíos! 🇸🇻' . $depende . ' ¿Desde qué municipio nos escribe?' . ($resumen ? '' : ' 😊'), 'municipio');
     }
 
-    private function guionTotal(): void
+    /** El total con el envío que se le cobró la vez pasada a ese municipio. */
+    private function guionTotal(float $envio): void
     {
         $f = $this->f;
         [$lineas, $subtotal] = $this->resumenCarrito();
-        $envio = $this->envio($subtotal);
-
-        if ($envio === null) {
-            $this->pasarAWil('no hay precio de envío para ' . $f->dato('municipio'));
-            return;
-        }
 
         $f->poner('envio', $envio);
         $mun = (string) $f->dato('municipio');
@@ -898,7 +1043,7 @@ trait GuionEnsayado
         $msg = ($yaDicho
                 ? '¡Perfecto! 😊 Así queda su pedido:'
                 : ($envio > 0
-                    ? '¡Perfecto! 🚚 El envío a *' . $mun . '* es de *$' . number_format($envio, 2) . '* (lleve lo que lleve) y llega en ' . $this->guionEntrega() . '.'
+                    ? '¡Perfecto! 🚚 El envío a *' . $mun . '* es de *$' . number_format($envio, 2) . '*, como la vez pasada, y llega en ' . $this->guionEntrega() . '.'
                     : '¡Perfecto! 🚚 Su pedido a *' . $mun . '* llega en ' . $this->guionEntrega() . '.'))
             . "\n\n🛒 " . implode("\n", array_map(fn ($l) => ltrim($l, '• '), $lineas))
             . "\nEnvío — $" . number_format($envio, 2)
@@ -911,10 +1056,11 @@ trait GuionEnsayado
     private function guionPedirDatos(): void
     {
         $f = $this->f;
-        $pre = $this->gAcepto ? '¡Excelente! 😊 ' : '';
+        $pre = $this->gAcepto ? '¡Excelente! 😊 ' : ($this->gCarritoNuevo ? '¡Con gusto! 😊 ' : '¡Perfecto! 😊 ');
+        $quien = $f->dato('para_otro') ? ' de quien recibe' : '';
 
         if (! $f->dato('nombre') && ! $f->dato('direccion')) {
-            $this->guionDecir($pre . "Para enviarlo me regala por favor:\n\n• Nombre completo\n• Dirección exacta (colonia, calle o pasaje, número de casa y un punto de referencia)", 'datos');
+            $this->guionDecir($pre . "Para enviarlo me regala por favor:\n\n• Nombre completo{$quien}\n• Dirección exacta (colonia, calle o pasaje, número de casa y un punto de referencia)", 'datos');
             return;
         }
 
@@ -1054,6 +1200,11 @@ trait GuionEnsayado
 
         $r['cantidad'] = Entender::cantidad($texto);
 
+        // Ya eligió el producto y escribe "el de noche, 2": el número es la cantidad.
+        if (! $r['cantidad'] && $f->dato('elegido') && preg_match('/(?:^|[\s,])(\d{1,2})\s*(paquetes?|bolsas?)?\s*$/u', $n, $mc)) {
+            $r['cantidad'] = (int) $mc[1];
+        }
+
         // "el de noche, 2": el número que acompaña al producto elegido.
         if ($r['items'] && $r['items'][0]['cantidad'] === null && preg_match('/(?:^|[\s,])(\d{1,2})(?:\s*(paquetes?|bolsas?))?\s*$/u', $n, $mm)) {
             $r['items'][0]['cantidad'] = (int) $mm[1];
@@ -1064,15 +1215,22 @@ trait GuionEnsayado
         } elseif (in_array($ultima, ['municipio', 'muni_ops', 'cantidad'], true) && count(explode(' ', $n)) <= 4 && ! $r['cantidad']
             // Una pregunta ("q vale el envío", "¿cuánto cuesta?") no es un municipio mal escrito.
             && ! str_contains($texto, '?')
-            && ! preg_match('/\b(q|que|cuanto|cuantos|vale|valen|cuesta|cuestan|precio|costo|envio|envios|tienen|hay|como|cuando|donde|sale)\b/', $n)) {
+            && ! preg_match('/\d|\b(q|que|cuanto|cuantos|vale|valen|cuesta|cuestan|precio|costo|envio|envios|tienen|hay|como|cuando|donde|sale|noche|dia|magic|cinta|calzoncito|calzoncitos|paquete|paquetes|jumbo|talla|para|mi|hermana|mama|es)\b/', $n)) {
             $r['municipio'] = preg_replace('/^(de que|de|que|soy de|somos de|para|en|desde)\s+/iu', '', trim($texto, " .,!"));
         }
 
         $r['acepta'] = Entender::siNo($texto);
 
         if ($ultima === 'datos') {
-            if (! $f->dato('nombre') && ($nom = Entender::pareceNombre($texto))) $r['nombre'] = $nom;
-            if (! $f->dato('direccion') && Entender::pareceDireccion($texto)) $r['direccion'] = trim($texto);
+            // "Rosa Martínez, Col. Escalón pasaje 2 casa 5": nombre y dirección juntos.
+            $partes = array_map('trim', explode(',', $texto, 2));
+            if (count($partes) === 2 && ! $f->dato('nombre') && ($nom = Entender::pareceNombre($partes[0])) && Entender::pareceDireccion($partes[1])) {
+                $r['nombre'] = $nom;
+                if (! $f->dato('direccion')) $r['direccion'] = $partes[1];
+            } else {
+                if (! $f->dato('nombre') && ($nom = Entender::pareceNombre($texto))) $r['nombre'] = $nom;
+                if (! $f->dato('direccion') && Entender::pareceDireccion($texto)) $r['direccion'] = trim($texto);
+            }
         }
 
         if ($tel = Entender::telefonoSV($texto)) $r['telefono'] = $tel;
@@ -1086,6 +1244,16 @@ trait GuionEnsayado
      * producto. Vacío si no hay qué comparar.
      */
     private function guionDiferencia(string $pregunta = ''): string
+    {
+        $ops = $this->guionOpcionesVistas();
+
+        if (count($ops) < 1) return '';
+
+        return $this->guionDiferenciaIA($ops, $pregunta) ?: $this->guionDiferenciaReglas($ops);
+    }
+
+    /** Las opciones (fotos) que vio de la talla y tipo que mira, en limpio. */
+    private function guionOpcionesVistas(): array
     {
         $f = $this->f;
         $tallas = array_map('mb_strtoupper', (array) $f->dato('tallas', []));
@@ -1121,9 +1289,7 @@ trait GuionEnsayado
             ];
         }
 
-        if (count($ops) < 1) return '';
-
-        return $this->guionDiferenciaIA($ops, $pregunta) ?: $this->guionDiferenciaReglas($ops);
+        return $ops;
     }
 
     /**
@@ -1230,6 +1396,241 @@ trait GuionEnsayado
         }
 
         return "Con gusto 😊\n\n" . implode("\n", $lineas);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Los casos del ensayo
+    // ════════════════════════════════════════════════════════════════════════
+
+    /** ¿Ya se le mandó alguna orden de envío en este chat? */
+    private function guionYaPidio(): bool
+    {
+        try {
+            return WaMensaje::where('conversacion_id', $this->conv->id)
+                ->where('direccion', 'saliente')
+                ->where('texto', 'like', '%Orden de Env%')
+                ->exists();
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /** La última orden de envío que se le mandó, leída renglón por renglón. */
+    private function guionUltimaOrden(): ?array
+    {
+        try {
+            $t = (string) WaMensaje::where('conversacion_id', $this->conv->id)
+                ->where('direccion', 'saliente')
+                ->where('texto', 'like', '%osto de env%')
+                ->orderByDesc('id')
+                ->value('texto');
+        } catch (\Throwable $e) {
+            return null;
+        }
+        if (trim($t) === '') return null;
+
+        $campos = [
+            'nombre' => 'nombre', 'telefono' => 'tel', 'municipio' => 'municipio', 'direccion' => 'direcci',
+            'productos' => 'producto', 'envio' => 'costo de env', 'total' => 'total',
+        ];
+        $o = array_fill_keys(array_keys($campos), '');
+        $actual = null;
+
+        foreach (preg_split('/\r\n|\n|\r/u', $t) as $linea) {
+            $l = preg_replace('/^[^\p{L}\p{N}]+/u', '', trim($linea));
+            if ($l === '') continue;
+
+            $etq = false;
+            if (str_contains($l, ':')) {
+                [$e, $v] = array_map('trim', explode(':', $l, 2));
+                $e = mb_strtolower($e);
+                foreach ($campos as $k => $pref) {
+                    if (str_starts_with($e, $pref)) { $actual = $k; $o[$k] = $v; $etq = true; break; }
+                }
+            }
+            if (! $etq && $actual === 'productos') $o['productos'] = trim($o['productos'] . "\n" . $l);
+            if (! $etq && $actual !== 'productos') $actual = null;
+        }
+
+        $o['envio'] = preg_match('/(\d+(?:[.,]\d{1,2})?)/', $o['envio'], $m) ? (float) str_replace(',', '.', $m[1]) : 0.0;
+
+        return $o;
+    }
+
+    /**
+     * El envío que se le cobró la vez pasada, si es al mismo municipio. Si es
+     * cliente nueva (o cambió de municipio), null: el envío lo ponés vos.
+     */
+    private function guionEnvioConocido(): ?float
+    {
+        $f = $this->f;
+        $mun = (string) $f->dato('municipio');
+        if ($mun === '' || $this->entregaPropia()) return null;
+
+        $o = $this->guionUltimaOrden();
+        if (! $o || $o['envio'] <= 0 || $o['envio'] > 20) return null;
+
+        $antes = Municipios::buscarEn($o['municipio']) ?: trim(explode(',', $o['municipio'])[0]);
+        if (Municipios::normalizar((string) $antes) !== Municipios::normalizar($mun)) return null;
+
+        return $o['envio'];
+    }
+
+    /** 1 / 11 / 12 / 25 · Para dar precios, unidades o fotos hace falta la talla o el peso. */
+    private function guionPideTallaOPeso(bool $fotos, bool $primero): void
+    {
+        $hola = $primero ? '¡Hola! ' : '';
+        $intro = $fotos
+            ? 'Con gusto 😊 ¿Para qué talla o peso? Así le mando las que le sirven.'
+            : 'Con gusto 😊 Cada talla y presentación tiene precio y cantidad distintos. Si me indica para qué talla o peso lo necesita, le doy una mejor respuesta.';
+
+        $lista = '';
+        if (! $this->f->dato('tallas_vistas')) {
+            $this->f->poner('tallas_vistas', true);
+            $lista = "\n\nEstas son las tallas que tenemos:\n\n" . implode("\n", $this->guionLineasTallas());
+        }
+
+        $this->guionDecir($hola . $intro . $lista, 'talla');
+    }
+
+    /** Las tallas con existencia, con sus otros nombres y las libras. */
+    private function guionLineasTallas(): array
+    {
+        $lineas = [];
+        foreach ($this->tallasDisponibles() as $t) {
+            $lb = $this->guionRangoLb($t);
+            $alias = array_values(array_filter((array) (config('asistente.tallas_alias', [])[mb_strtoupper($t)] ?? []), fn ($x) => mb_strlen($x) <= 4));
+            $nums = array_filter(array_keys(array_filter((array) config('asistente.tallas_numericas', []), fn ($x) => mb_strtoupper($x) === mb_strtoupper($t))), fn ($n) => (int) $n >= 2);
+            $otros = array_merge($alias, $nums ? ['talla ' . implode('-', $nums)] : []);
+
+            $peso = mb_strtoupper($t) === 'RN'
+                ? 'recién nacido, hasta ' . (int) round((float) config('asistente.rn_hasta_kg', 4.5) * 2.2046) . ' libras'
+                : ($lb ? $lb[0] . ' a ' . $lb[1] . ' libras' : '');
+
+            $lineas[] = '• *' . $this->bonita($t) . '*' . ($otros ? ' (' . implode(' · ', $otros) . ')' : '') . ($peso ? ' — ' . $peso : '');
+        }
+        return $lineas;
+    }
+
+    /** Precio y unidades de las opciones que ya vio. */
+    private function guionPreciosVistos(): ?string
+    {
+        $ops = $this->guionOpcionesVistas();
+        if (! $ops) return null;
+
+        $l = array_map(fn ($o) => '• *Opción ' . $o['opcion'] . '* — ' . $o['nombre'] . ': '
+            . ($o['unidades'] ? $o['unidades'] . ' unidades · ' : '') . '$' . number_format($o['precio'], 2), $ops);
+
+        return "Con gusto 😊\n\n" . implode("\n", $l);
+    }
+
+    /** Las ofertas de la talla que mira. null si no hay (y no se dice nada). */
+    private function guionPromosDeTalla(): ?string
+    {
+        $l = [];
+        foreach ($this->presentaciones((array) $this->f->dato('tallas', []), 'ambos') as $s) {
+            if ((int) $s->combo_qty > 1 && (float) $s->combo_price > 0) {
+                $l[] = '• ' . trim((string) $s->product->name) . ' talla ' . trim((string) $s->size) . ': *' . (int) $s->combo_qty . ' por $' . number_format((float) $s->combo_price, 2) . '*';
+            }
+        }
+        return $l ? "🎉 En esa talla tenemos:\n" . implode("\n", array_unique($l)) : null;
+    }
+
+    /** ¿Entre lo que vio hay de día y de noche? */
+    private function guionHayDiaYNoche(): bool
+    {
+        $ops = $this->guionOpcionesVistas();
+        $noche = array_filter($ops, fn ($o) => $o['noche']);
+        return $noche && count($noche) < count($ops);
+    }
+
+    /** 4 · "De los mismos": se le propone su último pedido. */
+    private function guionProponerRecompra(): void
+    {
+        $o = $this->guionUltimaOrden();
+
+        $items = [];
+        if ($o && trim($o['productos']) !== '') {
+            $conStock = $this->consultaBase()->get()->keyBy(fn ($s) => (string) $s->id);
+            foreach (\App\Services\ReconocerProductos::enTexto($o['productos'])['items'] ?? [] as $it) {
+                $id = (string) $it['size_id'];
+                if (! isset($conStock[$id])) { $items = []; break; }   // algo ya no hay: lo ves vos
+                $items[] = ['id' => $id, 'cant' => max(1, (int) $it['cantidad'])];
+            }
+        }
+
+        if (! $items || trim((string) $o['direccion']) === '' || trim((string) $o['municipio']) === '') {
+            $this->pasarAWil('pide lo mismo de la vez pasada');
+            return;
+        }
+
+        $this->f->poner('recompra', [
+            'items' => $items, 'nombre' => $o['nombre'], 'direccion' => $o['direccion'],
+            'municipio' => $o['municipio'], 'telefono' => $o['telefono'], 'envio' => $o['envio'],
+        ]);
+
+        $lineas = [];
+        foreach ($items as $c) {
+            $s = ProductSize::with('product')->find($c['id']);
+            if ($s) $lineas[] = '• ' . $c['cant'] . ' × ' . trim((string) $s->product->name) . ' talla ' . trim((string) $s->size);
+        }
+
+        $this->guionDecir("¡Con gusto! 😊 ¿Le mando lo mismo de la vez pasada?\n\n" . implode("\n", $lineas)
+            . "\n📍 " . trim($o['direccion']) . ', ' . trim($o['municipio']) . "\n\n¿Está bien así?", 'recompra');
+    }
+
+    /** Dijo que sí a "lo mismo de la vez pasada": queda todo puesto. */
+    private function guionAplicarRecompra(): void
+    {
+        $f = $this->f;
+        $r = (array) $f->dato('recompra', []);
+        $f->quitar('recompra');
+
+        $f->poner('carrito', $r['items'] ?? []);
+        $this->gCarritoNuevo = true;
+
+        // La talla de lo que lleva, para que el guion no vuelva a preguntarla.
+        $tallas = [];
+        foreach ((array) ($r['items'] ?? []) as $c) {
+            if ($s = ProductSize::with('product')->find($c['id'])) $tallas[] = mb_strtoupper(trim((string) $s->size));
+        }
+        if ($tallas) $f->poner('tallas', array_values(array_unique($tallas)));
+
+        $mun = Municipios::buscarEn((string) ($r['municipio'] ?? '')) ?: trim(explode(',', (string) ($r['municipio'] ?? ''))[0]);
+        if ($mun !== '') $this->ponerMunicipio($mun);
+
+        if (filled($r['nombre'] ?? null))    $f->poner('nombre', $r['nombre']);
+        if (filled($r['direccion'] ?? null)) $f->poner('direccion', $r['direccion']);
+
+        $tel = Entender::telefonoSV((string) ($r['telefono'] ?? ''));
+        if ($tel) $f->poner('telefono', $tel);
+
+        if ((float) ($r['envio'] ?? 0) > 0) {
+            $f->poner('envio', (float) $r['envio']);
+            $f->poner('envio_ok', true);
+        }
+    }
+
+    /**
+     * 21 · Cliente nueva en ese municipio: el pedido sin envío, y te lo pasa
+     * armado para que pongás el envío y mandés la orden.
+     */
+    private function guionCerrarSinEnvio(): void
+    {
+        $f = $this->f;
+        [$lineas, $subtotal] = $this->resumenCarrito();
+
+        $nombre = trim(strtok((string) $f->dato('nombre'), ' ') ?: '');
+        $mun = (string) $f->dato('municipio');
+        $dep = (string) $f->dato('departamento');
+
+        $this->despedidaWil = '¡Gracias' . ($nombre !== '' ? ', ' . $nombre : '') . "! 😊 Así va su pedido:\n\n"
+            . implode("\n", $lineas)
+            . "\n*Subtotal: $" . number_format($subtotal, 2) . '*'
+            . "\n📍 " . $mun . ($dep && Municipios::normalizar($dep) !== Municipios::normalizar($mun) ? ', ' . $dep : '')
+            . "\n\nEn un momento le confirmamos el costo del envío y le enviamos su orden 😊";
+
+        $this->pasarAWil('pedido listo: falta poner el envío');
     }
 
     /** Cómo va el pedido, para la IA (y lo último que se le preguntó). */
@@ -1354,6 +1755,16 @@ trait GuionEnsayado
      */
     private function guionMunicipioEn(string $texto): ?string
     {
+        // Las colonias, calles y pasajes se llaman a veces como un municipio
+        // ("Col. Las Flores"): esos pedazos no cuentan.
+        $calle = '/^(col|colonia|res|residencial|resid|barrio|bo|urb|urbanizacion|reparto|rpto|lot|lotificacion|pasaje|psje|pje|calle|ca|av|ave|avenida|casa|block|blk|poligono|pol|senda|canton|caserio|condominio|edificio|apto|km|carretera|frente|cerca|contiguo|a la par|\d)/u';
+        $pedazos = array_values(array_filter(
+            array_map('trim', preg_split('/[,;\n]+/u', Municipios::normalizar($texto))),
+            fn ($p) => $p !== '' && ! preg_match($calle, $p)
+        ));
+        if (! $pedazos) return null;
+        $texto = implode(', ', $pedazos);
+
         if ($m = Municipios::buscarEn($texto)) return $m;
 
         $palabras = preg_split('/[^a-z0-9ñ]+/u', Municipios::normalizar($texto), -1, PREG_SPLIT_NO_EMPTY);
@@ -1413,14 +1824,14 @@ trait GuionEnsayado
         $sm = implode(', ', (array) config('asistente.entrega_propia.municipios', []));
 
         $datos = [
-            '- Envío a domicilio a todo El Salvador por $' . number_format((float) \App\Models\Setting::envio(), 2) . ', lleve lo que lleve. Llega en ' . $this->guionEntrega() . ' con Express El Salvador. Los domingos no se despacha.',
+            '- Envío a domicilio a todo El Salvador. El COSTO del envío depende del municipio y lo confirma la tienda: nunca digas un monto de envío. Llega en ' . $this->guionEntrega() . ' con Express El Salvador. No prometas días ni horas de entrega.',
             '- En ' . $sm . ' la entrega la hace la tienda y el costo depende de la colonia. Nunca se dice que es gratis.',
             '- Diferencia: ' . str_replace("\n", ' ', trim((string) config('asistente.textos.diferencia'))),
         ];
 
         foreach ((array) config('asistente.respuestas', []) as $r) {
             $t = (string) ($r['texto'] ?? '');
-            if ($t === '' || str_contains($t, '{envio}')) continue;
+            if ($t === '' || str_contains($t, '{envio}') || str_contains($t, '{promos}')) continue;
             $datos[] = '- ' . str_replace("\n", ' ', $this->rellenar($t));
         }
 
@@ -1447,7 +1858,8 @@ trait GuionEnsayado
     /** Los montos que puede escribir la IA en una respuesta suelta. */
     private function montosPermitidos(): array
     {
-        $ok = [(float) \App\Models\Setting::envio()];
+        // Sin el envío: la IA nunca dice cuánto cuesta (lo confirma la tienda).
+        $ok = [];
 
         foreach ($this->consultaBase()->get() as $s) {
             $ok[] = (float) $s->price;

@@ -44,14 +44,22 @@ class Entender
         if (static::esDelAnuncio($n)) return null;
 
         $reglas = [
-            'pidió hablar con una persona' => '/\b(asesor|asesora|persona|humano|agente|encargad[oa]|vendedor[a]?|hablar con alguien|me atiende alguien|atiendame|llamenme|llameme|me pueden llamar|me puede llamar)\b/',
+            'pidió hablar con una persona' => '/\b(asesor|asesora|(?<!otra )persona|humano|agente|encargad[oa]|vendedor[a]?|hablar con alguien|me atiende alguien|atiendame|llamenme|llameme|me pueden llamar|me puede llamar)\b/',
             'queja o reclamo'              => '/\b(queja|reclamo|estafa|estafador|mal servicio|pesimo|no me ha llegado|no me llego|no ha llegado|no llego|devolucion|devolver|reembolso|venia malo|vino malo|vinieron malos|incompleto)\b/',
             'pregunta por un pedido que ya hizo' => '/\b(donde (esta|va|viene) mi (pedido|paquete)|ya lo enviaron|ya lo mandaron|numero de guia|rastreo|ya hice (mi|el) pedido|ya pedi)\b/',
             'salud del bebé'               => '/\b(rozadura|rozaduras|rosadura|rosaduras|alergia|alergico|alergica|irritacion|irritado|irritada|sarpullido|roncha|ronchas|sangre|herida|hongo|hongos|dermatitis|pediatra|infeccion|quemadura|paspado|paspadura)\b/',
-            'pidió rebaja o precio especial' => '/\b(rebaja|rebajita|descuento|mas barato|mas baratos|por mayor|mayoreo|al mayor|precio especial|credito|fiado|a plazos|factura|credito fiscal|ccf)\b/',
+            'pidió rebaja o precio especial' => '/\b(rebaja|rebajita|descuento|descuentito|mas barato|mas baratos|mas baratito|por mayor|mayoreo|al mayor|precio especial|credito|fiado|a plazos|factura|credito fiscal|ccf|me (lo|la|los|las) deja|(lo|la|los|las) deja en|me (lo|la|los|las) dejas|me hace (un )?precio|me hace (una )?rebaja|me rebaja|en cuanto me (lo|los) deja|ultimo precio)\b/',
             'pregunta por pañal de adulto'  => '/\b(adulto|adultos|adulta|adultas|para (el|la|mi) (abuel[oa]|senor[a]?|mama|papa|esposo|esposa)|anciano|anciana)\b/',
             'pregunta por otro producto'    => '/\b(toallitas|toallas humedas|toalla humeda|wipes|biberon|biberones|viberon|viveron|biveron|pacha|pachas|chupon|chupete|toallas sanitarias|toalla sanitaria)\b/',
             'mensaje ofensivo'             => '/\b(puta|puto|mierda|pendej[oa]|idiota|estupid[oa]|maldit[oa]|hijo de|cerot[oa]|ladron|ladrones)\b/',
+
+            // Lo que se decidió en el ensayo de casos: esto lo ves vos.
+            'quiere pagar por transferencia o tarjeta' => '/\b(numero de cuenta|su cuenta|la cuenta|cuenta bancaria|una cuenta|transferencia|transferir|transferirle|deposito|depositar|depositarle|tarjeta|link de pago|enlace de pago|comprobante|ya (le )?(pague|transferi|deposite))\b/',
+            'pide por mayor o para vender'  => '/\b(para vender|para revender|revender|reventa|distribuir|distribuidor|distribuidora)\b/',
+            'pregunta por otro producto (accesorios)' => '/\b(toallas|toalla|cepillo|protector de pezon|pezonera|bolsas para (la )?leche|leche materna|natacion|comedero|mordedor|panti sanitario|toalla comprimida)\b/',
+            'pregunta por su pedido'        => '/\b((ya viene|como va|cuando (llega|viene|me llega)|a que hora (llega|viene|me llega)|ya salio|ya mandaron|ya despacharon) (mi|el) (pedido|paquete)|ya viene mi|ya lo despacharon|todavia no (me )?llega|aun no (me )?llega)\b/',
+            'quiere cancelar o cambiar su pedido' => '/\b(cancelar (el|mi) pedido|cancelar la orden|anular|ya no lo quiero|ya no los quiero|cambiar (el|mi) pedido|cambiar la orden)\b/',
+            'pregunta cuántos le alcanzan para el mes' => '/\b(para (el|un|todo el) mes|me alcanza|me alcanzan|le alcanza|le alcanzan|cuantos (paquetes )?(ocupo|necesito) (al|por) mes)\b/',
         ];
 
         foreach ($reglas as $motivo => $re) {

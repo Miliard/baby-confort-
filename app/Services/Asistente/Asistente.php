@@ -129,7 +129,9 @@ class Asistente
         }
 
         try {
-            if ($conv->etiquetas()->whereIn('rol', ['pedido', 'procesada', 'entregada', 'sin_cobro'])->exists()) {
+            // "Entregada" ya no frena: ese pedido está cerrado, y si vuelve a
+            // escribir suele ser para pedir otra vez ("de los mismos", caso 4).
+            if ($conv->etiquetas()->whereIn('rol', ['pedido', 'procesada', 'sin_cobro'])->exists()) {
                 return 'tiene un pedido abierto';
             }
         } catch (\Throwable $e) {
@@ -2592,7 +2594,10 @@ class Asistente
         $lugar = $dep && Municipios::normalizar($dep) !== Municipios::normalizar($mun) ? "{$mun}, {$dep}" : $mun;
 
         $t = "\u{1F4E6} Orden de Env\u{ED}o: \u{1F69A}\n"
-            . "\u{2705} Nombre completo: " . $this->f->dato('nombre') . "\n"
+            // Para otra persona: el número de quien PIDE va pegado al nombre y
+            // el de quien recibe en "Teléfono" (así lo lee "Procesar orden").
+            . "\u{2705} Nombre completo: " . $this->f->dato('nombre')
+                . ($this->f->dato('para_otro') && ! $this->conv->esExtranjero() ? ' ' . $this->conv->telefonoLegible() : '') . "\n"
             . "\u{2705} Tel\u{E9}fono: " . $this->f->dato('telefono') . "\n"
             . "\u{2705} Municipio: {$lugar}\n"
             . "\u{2705} Direcci\u{F3}n exacta: " . $this->f->dato('direccion') . "\n"
