@@ -775,8 +775,21 @@ trait GuionEnsayado
 
         if ($opciones->isEmpty()) {
             $this->marcarAgotado();
-            $f->quitar('tallas');
-            $this->guionDecir($hola . 'En este momento no tenemos talla ' . $nombreTallas . ' 😔 Apenas entre le avisamos por aquí. ¿Le muestro otra talla?', 'talla');
+            $f->quitar('tallas', 'sugeridas');
+
+            // Las tallas vecinas comparten pesos: con el peso del bebé se le
+            // puede sugerir la de al lado que sí hay. Si ya lo dijo, se le
+            // sugiere de una; si no, se le pide.
+            if ($f->dato('peso_lb') !== null) {
+                $this->gAntes[] = $hola . 'En este momento no tenemos talla ' . $nombreTallas . ' 😔';
+                if ($this->guionRecomendar((float) $f->dato('peso_lb'), '') && $f->dato('tallas')) {
+                    $this->guionMostrarProductos('');
+                }
+                return;
+            }
+
+            $this->guionDecir($hola . 'En este momento no tenemos talla ' . $nombreTallas . ' 😔 '
+                . 'Pero si gusta, dígame cuánto pesa su bebé y le sugiero la talla que le puede quedar: las tallas vecinas comparten pesos.', 'peso');
             return;
         }
 
