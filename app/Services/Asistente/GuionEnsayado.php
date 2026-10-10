@@ -146,6 +146,7 @@ trait GuionEnsayado
     {
         $f = $this->f;
         $ultima = (string) $f->dato('ultima');
+        $tallasAntes = $f->dato('tallas');
 
         // ── Botones de la orden ──────────────────────────────────────────────
         if ($boton === 'conf:si' && $f->dato('orden_mostrada')) {
@@ -302,7 +303,7 @@ trait GuionEnsayado
         // "Sí" → se le explica. "No, gracias" → se le dice que aquí estamos.
         // Nunca se le insiste en que elija.
         $ofrecio   = $ultima === 'producto' && $f->dato('ofrecio_diferencia');
-        $pideDif   = Entender::tipo($texto) === 'diferencia';
+        $pideDif   = Entender::tipo($texto) === 'diferencia' || $this->guionPideDiferencia($n);
         $eligeAlgo = $r['items'] || $r['cantidad'] || $r['tallas'] || $r['municipio'] || $r['peso'];
 
         // 15 · "¿Cuál me recomienda?": la diferencia día/noche y se le
@@ -574,7 +575,33 @@ trait GuionEnsayado
             $f->poner('fallos', []);
         }
 
+        // Solo contestó una pregunta suelta ("¿son calientes?", "¿cómo se
+        // paga?") y no dijo nada del pedido: se manda SOLO la respuesta, sin
+        // volver a preguntar lo del paso. Contestar lo que pregunta y nada más.
+        $diceAlgoDelPedido = $r['tallas'] || $r['peso'] || $r['edad_meses'] !== null || $r['tipo'] || $r['items']
+            || $r['cantidad'] || $r['quitar'] || $r['municipio'] || $r['nombre'] || $r['direccion'] || $r['telefono']
+            || $r['pregunta_envio'] || $r['acepta'] !== null || $this->gCarritoNuevo
+            || $f->dato('tallas') !== $tallasAntes;
+        if ($this->gAntes && ! $diceAlgoDelPedido) {
+            if ($primero) $this->gAntes[0] = '¡Hola! 😊 ' . $this->gAntes[0];
+            $this->guionDecir('', $ultima ?: 'talla');
+            return;
+        }
+
         $this->guionSiguiente($texto, $primero);
+    }
+
+    /** "cual es la direfencia", "diferenci a": la diferencia, aunque esté mal escrita. */
+    private function guionPideDiferencia(string $n): bool
+    {
+        foreach (preg_split('/\s+/', $n) as $w) {
+            if (mb_strlen($w) >= 8 && (levenshtein($w, 'diferencia') <= 2 || levenshtein($w, 'diferencias') <= 2)) return true;
+        }
+        $junto = str_replace(' ', '', $n);
+        for ($i = 0; $i + 9 <= strlen($junto); $i++) {
+            if (levenshtein(substr($junto, $i, 10), 'diferencia') <= 2) return true;
+        }
+        return false;
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -756,7 +783,7 @@ trait GuionEnsayado
         $this->gAntes = [];
         $this->f->poner('ultima', $ultima);
         $this->f->paso = 'guion · ' . $ultima;
-        $this->texto($antes . $msg);
+        $this->texto(trim($antes . $msg));
     }
 
     private function guionListaTallas(string $texto, bool $primero): void
