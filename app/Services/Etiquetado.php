@@ -152,6 +152,12 @@ class Etiquetado
         '/\b(podria|puede|pueden|podrian)\s+(traermelo|traermelos|mandarmelo|mandarmelos|enviarmelo|enviarmelos)\b/',
         '/\b(ordenare|ordeno|pedire|encargare|me\s+llevare)\b/',
         '/\bquiero\s+de\s+(los|las|la|el)\s+de\b/',
+
+        // Vuelve por algo que estaba agotado: "aún no tienen de estos", "ya
+        // hay de los que pido siempre", "ya les vino de este pamper", "ya
+        // tienen la talla S". Quiere comprarlo apenas haya.
+        '/\b(aun|todavia|ya)\s+(no\s+)?(tienen|tiene|tendran|tendra|hay|ay|habra|habran|les\s+(llego|llegaron|vino|vinieron|entro|entraron)|le\s+(llego|vino|entro))\s+(de\s+)?(estos|esos|este|ese|estas|esas|los|las|el|la|del|pampers?|panpers?|panal\w*|calzon\w*|talla)\b(?!\s+(pedido|paquete\s+que|guia|envio))/',
+        '/\b(ya\s+)?(hay|ay|habra|habran|tienen)\s+(de\s+)?(los|las|lo|el)\s+(que\s+)?(pido|compro|me\s+mandan|llevo)\s+siempre\b/',
         '/^(?!.*(cuanto|precio|\?)).*\b(un|una|dos|tres|cuatro|cinco|\d+)\s+(paquetes?|bolsas?|bolsitas?)\s+(de|del)\s/',
     ];
 

@@ -89,6 +89,7 @@ trait GuionDiagrama
             case 'datos':     $this->dgDatos($texto); return;
             case 'telefono':  $this->dgTelefono($texto); return;
             case 'orden':     $this->dgOrden($texto, $boton); return;
+            case 'cantidad_item': $this->dgCantidadItem($texto); return;
         }
     }
 
@@ -153,7 +154,12 @@ trait GuionDiagrama
     private function dgTalla(string $texto, string $hola): void
     {
         $tallas = $this->dgTallas($texto);
-        if ($tallas) { $this->dgConTalla($tallas[0], $hola); return; }
+        if ($tallas) {
+            // Pidió varias ("la M y también la XXL"): una por una.
+            if (count($tallas) > 1) $this->f->poner('dpendientes', array_slice($tallas, 1));
+            $this->dgConTalla($tallas[0], $hola);
+            return;
+        }
 
         if ($p = Entender::peso($texto)) { $this->dgConPeso($p, $hola); return; }
 
@@ -178,6 +184,12 @@ trait GuionDiagrama
 
         $this->marcarAgotado();
         $f->poner('sin_talla', mb_strtoupper($talla));
+
+        // Ya eligió de otra talla: se le avisa que esta no hay y se sigue.
+        if ($f->dato('carrito')) {
+            $this->dgDespuesDeElegir('En este momento no tenemos talla ' . $this->bonita($talla) . " 😔\n\n");
+            return;
+        }
 
         if ($f->dato('peso_lb') !== null) {
             $this->dgSugerir((float) $f->dato('peso_lb'), $hola . 'En este momento no tenemos talla ' . $this->bonita($talla) . ' 😔 ');
@@ -379,12 +391,8 @@ trait GuionDiagrama
             $id = $vistas[0]['id'];
         }
         $f->quitar('citada');
-        if ($id) {
-            $f->poner('carrito', [['id' => (string) $id, 'cant' => Entender::cantidad($texto) ?: 1]]);
-            $f->poner('cantidad_dicha', Entender::cantidad($texto) !== null);
-            $elegida = ProductSize::with('product')->find($id);
-            $que = $elegida ? '*' . trim((string) $elegida->product->name) . '* talla ' . trim((string) $elegida->size) . ".\n\n" : '';
-            $this->dgDecir('¡Con gusto! 😊 ' . $que . 'Tenemos cobertura nacional con los envíos. ¿Desde cuál municipio nos escribe, disculpe?', 'municipio');
+        if ($id && ($elegida = ProductSize::with('product')->find($id))) {
+            $this->dgElegir($elegida, Entender::cantidad($texto));
             return;
         }
 
@@ -415,9 +423,7 @@ trait GuionDiagrama
             if (count($sirven) === 1 && $explicito) {
                 $s = ProductSize::with('product')->find($this->dgIdDeOpcion($sirven[0]['opcion']));
                 if ($s) {
-                    $f->poner('carrito', [['id' => (string) $s->id, 'cant' => Entender::cantidad($texto) ?: 1]]);
-                    $f->poner('cantidad_dicha', Entender::cantidad($texto) !== null);
-                    $this->dgDecir('¡Con gusto! 😊 *' . $sirven[0]['nombre'] . '* talla ' . trim((string) $s->size) . ".\n\nTenemos cobertura nacional con los envíos. ¿Desde cuál municipio nos escribe, disculpe?", 'municipio');
+                    $this->dgElegir($s, Entender::cantidad($texto));
                     return;
                 }
             }
@@ -454,6 +460,79 @@ trait GuionDiagrama
         if ($t = $this->dgTallas($texto)) { $this->dgConTalla($t[0], ''); return; }
 
         $this->dgNoEntendi('opciones', '¿Cuál de las opciones le interesa? Puede decirme el número 😊');
+    }
+
+    /** Eligió una presentación: al pedido, y sigue con la otra talla o el municipio. */
+    private function dgElegir(ProductSize $s, ?int $cant): void
+    {
+        $f = $this->f;
+        if ($cant && $cant > (int) config('asistente.max_paquetes', 10)) { $this->pasarAWil("pide {$cant} paquetes"); return; }
+
+        $carrito = (array) $f->dato('carrito', []);
+        $carrito = array_values(array_filter($carrito, fn ($c) => (string) $c['id'] !== (string) $s->id));
+        $carrito[] = ['id' => (string) $s->id, 'cant' => $cant ?: 1, 'dicha' => $cant !== null];
+        $f->poner('carrito', $carrito);
+        $f->quitar('dtipo');
+
+        $que = '*' . trim((string) $s->product->name) . '* talla ' . trim((string) $s->size);
+
+        // Quedan tallas por ver y no dijo cuántos de esta: se pregunta ya,
+        // antes de pasar a la otra.
+        if ($f->dato('dpendientes') && $cant === null) {
+            $this->dgDecir('¡Con gusto! 😊 ¿Cuántos paquetes de ' . $que . ' le enviamos?', 'cantidad_item');
+            return;
+        }
+
+        $this->dgDespuesDeElegir('¡Con gusto! 😊 ' . $que . ".\n\n");
+    }
+
+    /** La siguiente talla que pidió, o el municipio si ya no quedan. */
+    private function dgDespuesDeElegir(string $antes): void
+    {
+        $f = $this->f;
+        $pend = (array) $f->dato('dpendientes', []);
+
+        if ($pend) {
+            $sig = array_shift($pend);
+            $pend ? $f->poner('dpendientes', $pend) : $f->quitar('dpendientes');
+            $this->dgConTalla($sig, trim($antes . 'Ahora la talla *' . $this->bonita($sig) . '* 👇') . "\n\n");
+            return;
+        }
+
+        $this->dgDecir($antes . 'Tenemos cobertura nacional con los envíos. ¿Desde cuál municipio nos escribe, disculpe?', 'municipio');
+    }
+
+    private function dgCantidadItem(string $texto): void
+    {
+        $cant = Entender::cantidad($texto) ?? (preg_match('/\b(\d{1,2})\b/u', $texto, $m) ? (int) $m[1] : null);
+        $sin = $this->dgSinCantidad();
+        if (! $cant || ! $sin) { $this->dgNoEntendi('cantidad_item', '¿Cuántos paquetes le enviamos?'); return; }
+        if ($cant > (int) config('asistente.max_paquetes', 10)) { $this->pasarAWil("pide {$cant} paquetes"); return; }
+
+        $this->dgPonerCantidad($sin['i'], $cant);
+        $this->dgDespuesDeElegir('');
+    }
+
+    /** El último producto del pedido al que todavía no se le dijo cuántos. */
+    private function dgSinCantidad(): ?array
+    {
+        $carrito = (array) $this->f->dato('carrito', []);
+        for ($i = count($carrito) - 1; $i >= 0; $i--) {
+            if (empty($carrito[$i]['dicha'])) {
+                $s = ProductSize::with('product')->find($carrito[$i]['id']);
+                return ['i' => $i, 'que' => $s ? trim((string) $s->product->name) . ' talla ' . trim((string) $s->size) : 'ese producto'];
+            }
+        }
+        return null;
+    }
+
+    private function dgPonerCantidad(int $i, int $cant): void
+    {
+        $carrito = (array) $this->f->dato('carrito', []);
+        if (! isset($carrito[$i])) return;
+        $carrito[$i]['cant'] = $cant;
+        $carrito[$i]['dicha'] = true;
+        $this->f->poner('carrito', $carrito);
     }
 
     /** Reenvía solo las fotos de lo que pidió ("calzoncito"), numeradas de nuevo. */
@@ -572,7 +651,7 @@ trait GuionDiagrama
     {
         $f = $this->f;
         $falta = [];
-        if (! $f->dato('cantidad_dicha')) $falta[] = '• ¿Cuántos paquetes le enviamos?';
+        if ($sin = $this->dgSinCantidad()) $falta[] = '• ¿Cuántos paquetes' . (count((array) $f->dato('carrito', [])) > 1 ? ' de *' . $sin['que'] . '*' : '') . ' le enviamos?';
         if (! $f->dato('nombre'))         $falta[] = '• Nombre completo';
         if (! $f->dato('direccion'))      $falta[] = '• Dirección exacta (colonia, calle o pasaje, número de casa y un punto de referencia)';
 
@@ -588,11 +667,9 @@ trait GuionDiagrama
 
         // Cuántos: "2", "2 paquetes", o un número al principio ("2, Ana Pérez…").
         $cant = Entender::cantidad($texto) ?? (preg_match('/^\s*(\d{1,2})\b/u', $texto, $m) ? (int) $m[1] : null);
-        if ($cant && ! $f->dato('cantidad_dicha')) {
+        if ($cant && ($sin = $this->dgSinCantidad())) {
             if ($cant > (int) config('asistente.max_paquetes', 10)) { $this->pasarAWil("pide {$cant} paquetes"); return; }
-            $c = (array) $f->dato('carrito', []);
-            if ($c) { $c[0]['cant'] = $cant; $f->poner('carrito', $c); }
-            $f->poner('cantidad_dicha', true);
+            $this->dgPonerCantidad($sin['i'], $cant);
             $leyo = true;
         }
 
