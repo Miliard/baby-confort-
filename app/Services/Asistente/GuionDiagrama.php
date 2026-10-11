@@ -326,7 +326,9 @@ trait GuionDiagrama
         }
         $f->poner('fotos_enviadas', $enviadas);
 
-        $this->dgDecir('¿Tiene alguna duda sobre las opciones? 😊', 'opciones');
+        // Solo las fotos: no se le pregunta nada. Si tiene dudas, las dice.
+        $f->poner('dpaso', 'opciones');
+        $f->paso = 'diagrama · opciones';
     }
 
     private function dgOpciones(string $texto): void
@@ -348,12 +350,43 @@ trait GuionDiagrama
             return;
         }
 
+        // Dijo el tipo o día/noche ("en calzoncito los quiero", "el de
+        // noche"): si con eso queda UNA sola, esa es la que eligió.
+        $ops = $this->guionOpcionesVistas();
+        $nn = Entender::normalizar($texto);
+        $tipo = Entender::tipo($texto);
+        $quiereNoche = (bool) preg_match('/\bnoche|nocturn|dormir/', $nn);
+        $quiereDia   = (bool) preg_match('/\bde dia\b|\bdiario|para el dia/', $nn);
+        if (in_array($tipo, ['cinta', 'calzoncito'], true) || $quiereNoche || $quiereDia) {
+            $sirven = array_values(array_filter($ops, function ($o) use ($tipo, $quiereNoche, $quiereDia) {
+                if (in_array($tipo, ['cinta', 'calzoncito'], true) && mb_strtolower($o['tipo']) !== $tipo) return false;
+                if ($quiereNoche && ! $o['noche']) return false;
+                if ($quiereDia && $o['noche']) return false;
+                return true;
+            }));
+            if (count($sirven) === 1) {
+                $s = ProductSize::with('product')->find($this->dgIdDeOpcion($sirven[0]['opcion']));
+                if ($s) {
+                    $f->poner('carrito', [['id' => (string) $s->id, 'cant' => Entender::cantidad($texto) ?: 1]]);
+                    $f->poner('cantidad_dicha', Entender::cantidad($texto) !== null);
+                    $this->dgDecir('¡Con gusto! 😊 *' . $sirven[0]['nombre'] . '* talla ' . trim((string) $s->size) . ".
+
+Tenemos cobertura nacional con los envíos. ¿Desde cuál municipio nos escribe, disculpe?", 'municipio');
+                    return;
+                }
+            }
+            if (count($sirven) > 1) {
+                $lista = $this->unir(array_map(fn ($o) => 'la *opción ' . $o['opcion'] . '* (' . $o['nombre'] . ')', $sirven), ' o ');
+                $this->dgDecir('¿Cuál de estas: ' . $lista . '? 😊', 'opciones');
+                return;
+            }
+        }
+
         // ¿Tiene dudas? → se le explica el propósito de cada una.
-        $duda = Entender::tipo($texto) === 'diferencia' || $this->guionPideDiferencia($texto === '' ? '' : Entender::normalizar($texto))
-            || str_contains($texto, '?') || Entender::siNo($texto) === true
-            || preg_match('/\b(cual|diferencia|para que|que es|como es|explique|expliqueme|duda)\b/', Entender::normalizar($texto));
+        $duda = Entender::tipo($texto) === 'diferencia' || $this->guionPideDiferencia($nn)
+            || str_contains($texto, '?')
+            || preg_match('/\b(cual|diferencia|para que|que es|como es|explique|expliqueme|duda)\b/', $nn);
         if ($duda) {
-            $ops = $this->guionOpcionesVistas();
             $txt = $ops ? $this->guionDiferenciaReglas($ops) : '';
             if ($txt !== '') { $this->dgDecir($txt, 'opciones'); return; }
         }
@@ -364,6 +397,14 @@ trait GuionDiagrama
         if ($t = $this->dgTallas($texto)) { $this->dgConTalla($t[0], ''); return; }
 
         $this->dgNoEntendi('opciones', '¿Cuál de las opciones le interesa? Puede decirme el número 😊');
+    }
+
+    private function dgIdDeOpcion(int $nro): ?string
+    {
+        foreach ((array) $this->f->dato('fotos_enviadas', []) as $e) {
+            if ((int) $e['opcion'] === $nro) return (string) $e['id'];
+        }
+        return null;
     }
 
     // ════════════════════════════════════════════════════════════════════════
