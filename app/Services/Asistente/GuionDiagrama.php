@@ -382,7 +382,9 @@ trait GuionDiagrama
         if ($id) {
             $f->poner('carrito', [['id' => (string) $id, 'cant' => Entender::cantidad($texto) ?: 1]]);
             $f->poner('cantidad_dicha', Entender::cantidad($texto) !== null);
-            $this->dgDecir('¡Con gusto! 😊 Tenemos cobertura nacional con los envíos. ¿Desde cuál municipio nos escribe, disculpe?', 'municipio');
+            $elegida = ProductSize::with('product')->find($id);
+            $que = $elegida ? '*' . trim((string) $elegida->product->name) . '* talla ' . trim((string) $elegida->size) . ".\n\n" : '';
+            $this->dgDecir('¡Con gusto! 😊 ' . $que . 'Tenemos cobertura nacional con los envíos. ¿Desde cuál municipio nos escribe, disculpe?', 'municipio');
             return;
         }
 
@@ -404,19 +406,35 @@ trait GuionDiagrama
                 if ($quiereDia && $o['noche']) return false;
                 return true;
             }));
-            if (count($sirven) === 1) {
+            // Si además dice que lo quiere ("quiero 2 de noche"), es una
+            // elección. Si solo dice el tipo ("calzoncito"), se le reenvían
+            // las fotos de ese tipo y nada más: todavía no eligió.
+            $explicito = Entender::cantidad($texto) !== null || Entender::quiereComprar($texto)
+                || (bool) preg_match('/^\s*(quiero|deme|mandeme|me manda|necesito|ocupo|lo quiero|los quiero)\b/u', $nn);
+
+            if (count($sirven) === 1 && $explicito) {
                 $s = ProductSize::with('product')->find($this->dgIdDeOpcion($sirven[0]['opcion']));
                 if ($s) {
                     $f->poner('carrito', [['id' => (string) $s->id, 'cant' => Entender::cantidad($texto) ?: 1]]);
                     $f->poner('cantidad_dicha', Entender::cantidad($texto) !== null);
-                    $this->dgDecir('¡Con gusto! 😊 *' . $sirven[0]['nombre'] . '* talla ' . trim((string) $s->size) . ".
-
-Tenemos cobertura nacional con los envíos. ¿Desde cuál municipio nos escribe, disculpe?", 'municipio');
+                    $this->dgDecir('¡Con gusto! 😊 *' . $sirven[0]['nombre'] . '* talla ' . trim((string) $s->size) . ".\n\nTenemos cobertura nacional con los envíos. ¿Desde cuál municipio nos escribe, disculpe?", 'municipio');
                     return;
                 }
             }
+
+            if ($sirven && count($sirven) < count($ops)) {
+                $this->dgReenviar($sirven);
+                return;
+            }
+
             if (count($sirven) > 1) {
                 $this->dgDecir($this->dgComoLasQuiere($sirven) . ' 😊', 'opciones');
+                return;
+            }
+
+            if (! $sirven) {
+                $que = trim((in_array($tipo, ['cinta', 'calzoncito'], true) ? $tipo : '') . ($quiereNoche ? ' de noche' : ($quiereDia ? ' de día' : '')));
+                $this->dgDecir('En esa talla en este momento no tenemos ' . $que . ' 😔', 'opciones');
                 return;
             }
         }
@@ -436,6 +454,25 @@ Tenemos cobertura nacional con los envíos. ¿Desde cuál municipio nos escribe,
         if ($t = $this->dgTallas($texto)) { $this->dgConTalla($t[0], ''); return; }
 
         $this->dgNoEntendi('opciones', '¿Cuál de las opciones le interesa? Puede decirme el número 😊');
+    }
+
+    /** Reenvía solo las fotos de lo que pidió ("calzoncito"), numeradas de nuevo. */
+    private function dgReenviar(array $sirven): void
+    {
+        $ids = [];
+        foreach ($sirven as $o) if ($id = $this->dgIdDeOpcion($o['opcion'])) $ids[] = $id;
+
+        $enviadas = [];
+        foreach ($ids as $id) {
+            $s = ProductSize::with('product')->find($id);
+            if (! $s) continue;
+            $nro = count($enviadas) + 1;
+            $this->tarjeta($s, $nro);
+            $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];
+        }
+        $this->f->poner('fotos_enviadas', $enviadas);
+
+        $this->dgDecir($this->dgPreguntaDespuesDeFotos($this->guionOpcionesVistas()), 'opciones');
     }
 
     private function dgIdDeOpcion(int $nro): ?string
