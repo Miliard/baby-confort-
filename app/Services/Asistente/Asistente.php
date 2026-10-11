@@ -30,6 +30,7 @@ use Illuminate\Support\Facades\Log;
 class Asistente
 {
     use GuionEnsayado;
+    use GuionDiagrama;
 
     /**
      * Mientras el asistente manda mensajes. El etiquetado automático lo mira
@@ -313,6 +314,12 @@ class Asistente
         ));
 
         // Modo "ejemplos": la IA conversa mirando cómo contestás vos.
+        // Modo "diagrama": el diagrama de Wil, un if y un else por paso.
+        if (config('asistente.modo') === 'diagrama') {
+            $this->correrConDiagrama($mensajes, $turnos);
+            return;
+        }
+
         if (config('asistente.modo') === 'ejemplos') {
             $this->correrConEjemplos($mensajes, $turnos);
             return;

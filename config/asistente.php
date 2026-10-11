@@ -25,6 +25,9 @@ return [
     |                  el catálogo. Botones solo para confirmar (total, teléfono
     |                  y la orden final). Es el que se eligió.
     |   botones      · como antes: menús y listas para tocar.
+    |   diagrama     · el diagrama de Wil (Lucidchart), un if y un else por
+    |                  paso: talla → presentaciones → municipio → envío $2.50
+    |                  → cantidad, nombre y dirección → orden. Sin IA que invente.
     |   ejemplos     · la IA conversa sola mirando cómo contestás VOS en tus
     |                  chats reales (el banco de ejemplos). El sistema solo
     |                  cuida precios, el envío, San Miguel y arma la orden.
