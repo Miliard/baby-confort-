@@ -136,6 +136,23 @@ class Etiquetado
         '/\bpedido\s+de\s+(\d+|dos|tres|cuatro|unos|unas|los|las|un|una)?\s*(paquet\w*|bolsa\w*|panal\w*|pamper\w*|panper\w*|calzon\w*|talla|cinta)/',
         // "para pedir", "puedo pedir", "cómo pido", "le pido"
         '/\b(para|puedo|podria|como)\s+(pedir|pido|encargar|ordenar)\b/',
+
+        // "quería encargar pampers", "queríamos pedir", "quería unos pañales"
+        '/\b(queria|queriamos|quisieramos|quiero|quisiera|deseaba|necesitaba|ocupaba)\s+(encargar|encargarle|pedir|pedirle|comprar|comprarle|ordenar|llevar|apartar)\b(?!\s+(foto|fotos|imagen|imagenes|informacion|info|precio|precios|ubicacion|catalogo|cotizacion|numero|cuenta))/',
+        '/\b(queria|queriamos|deseaba|necesitaba|ocupaba)\s+(unos\s+|unas\s+|un\s+|una\s+|los\s+|las\s+|\d+\s+|dos\s+|tres\s+)?(paquetes?\s+(de\s+)?)?(pampers?|panpers?|pamperes|panal\w*|calzon\w*|pants)\b/',
+
+        // Más formas de los chats reales: "me gustaría comprar dos bolsitas",
+        // "quisiera #3 paquetes", "hoy quisiera el paquete que trae 44",
+        // "así sería mi pedido", "me envía este pedido", "podría traérmelo en
+        // talla M", "ordenaré esos", "pero quiero de los de la bolsa blanca".
+        '/\bme\s+gustaria\s+(comprar|pedir|encargar|ordenar|llevar)\b(?!\s+(informacion|info|precio|precios))/',
+        '/\bquisiera\s+(#?\d+|el\s+paquete|los\s+paquetes|unos|unas|normales|de\s+(dia|noche|cinta|calzon\w*))/',
+        '/\b(asi\s+seria|seria)\s+mi\s+pedido\b|\bmi\s+pedido\s+(seria|es)\b/',
+        '/\bme\s+(envia|manda|mandan|envian)\s+(este|ese|el)\s+pedido\b/',
+        '/\b(podria|puede|pueden|podrian)\s+(traermelo|traermelos|mandarmelo|mandarmelos|enviarmelo|enviarmelos)\b/',
+        '/\b(ordenare|ordeno|pedire|encargare|me\s+llevare)\b/',
+        '/\bquiero\s+de\s+(los|las|la|el)\s+de\b/',
+        '/^(?!.*(cuanto|precio|\?)).*\b(un|una|dos|tres|cuatro|cinco|\d+)\s+(paquetes?|bolsas?|bolsitas?)\s+(de|del)\s/',
     ];
 
     /**

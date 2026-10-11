@@ -184,7 +184,8 @@ trait GuionDiagrama
             return;
         }
 
-        $this->dgDecir($hola . 'En este momento no tenemos talla ' . $this->bonita($talla) . ' 😔 ¿Cuánto pesa su bebé? Así le sugiero la talla que le puede quedar.', 'peso');
+        $quien = in_array(mb_strtoupper($talla), array_map('mb_strtoupper', (array) config('asistente.tallas_nino', [])), true) ? 'el niño o la niña' : 'su bebé';
+        $this->dgDecir($hola . 'En este momento no tenemos talla ' . $this->bonita($talla) . " 😔 ¿Cuánto pesa {$quien}? Así le sugiero la talla que le puede quedar.", 'peso');
     }
 
     private function dgConPeso(array $p, string $hola): void
@@ -326,9 +327,37 @@ trait GuionDiagrama
         }
         $f->poner('fotos_enviadas', $enviadas);
 
-        // Solo las fotos: no se le pregunta nada. Si tiene dudas, las dice.
-        $f->poner('dpaso', 'opciones');
-        $f->paso = 'diagrama · opciones';
+        // Después de las fotos, según lo que hay en esa talla:
+        //  · de cinta Y de calzoncito → "¿Cómo lo desea: de calzoncito o de cinta?"
+        //  · solo de un tipo           → "Solo tenemos estas presentaciones de …"
+        //    y si son varias, cómo las quiere (de día o de noche, o cuál).
+        $this->dgDecir($this->dgPreguntaDespuesDeFotos($this->guionOpcionesVistas()), 'opciones');
+    }
+
+    private function dgPreguntaDespuesDeFotos(array $ops): string
+    {
+        $cintas = array_values(array_filter($ops, fn ($o) => $o['tipo'] === 'Cinta'));
+        $calzon = array_values(array_filter($ops, fn ($o) => $o['tipo'] === 'Calzoncito'));
+
+        if ($cintas && $calzon) {
+            return '¿Cómo lo desea: de calzoncito o de cinta (de pegar a los lados)? 😊';
+        }
+
+        $todas = $cintas ?: $calzon;
+        $tipo = $cintas ? 'cinta (de pegar a los lados)' : 'calzoncito';
+
+        if (count($todas) <= 1) return 'Solo tenemos esta presentación de ' . $tipo . ' 😊';
+
+        return 'Solo tenemos estas presentaciones de ' . $tipo . ' 😊 ' . $this->dgComoLasQuiere($todas);
+    }
+
+    /** Varias del mismo tipo: de día o de noche si hay de las dos; si no, cuál. */
+    private function dgComoLasQuiere(array $ops): string
+    {
+        $noche = array_filter($ops, fn ($o) => $o['noche']);
+        if ($noche && count($noche) < count($ops)) return '¿Cómo los desea: de día o de noche?';
+
+        return '¿Cuál desea: ' . $this->unir(array_map(fn ($o) => 'la *opción ' . $o['opcion'] . '* (' . $o['nombre'] . ')', $ops), ' o ') . '?';
     }
 
     private function dgOpciones(string $texto): void
@@ -342,6 +371,13 @@ trait GuionDiagrama
 
         // ¿Eligió una? (por número, por nombre, o respondiendo a la foto)
         $id = $f->dato('citada') ?: Entender::opcion($texto, $vistas);
+
+        // Hay una sola opción y dice "quiero 2", "sí", "lo quiero": es esa.
+        if (! $id && count($vistas) === 1
+            && (Entender::cantidad($texto) !== null || Entender::siNo($texto) === true || Entender::quiereComprar($texto)
+                || preg_match('/^\s*(quiero|deme|mandeme|me manda|necesito|ocupo)\b/u', Entender::normalizar($texto)))) {
+            $id = $vistas[0]['id'];
+        }
         $f->quitar('citada');
         if ($id) {
             $f->poner('carrito', [['id' => (string) $id, 'cant' => Entender::cantidad($texto) ?: 1]]);
@@ -354,7 +390,11 @@ trait GuionDiagrama
         // noche"): si con eso queda UNA sola, esa es la que eligió.
         $ops = $this->guionOpcionesVistas();
         $nn = Entender::normalizar($texto);
+        // El tipo que dijo antes ("de cinta") sigue valiendo cuando después
+        // dice "de noche".
         $tipo = Entender::tipo($texto);
+        if (in_array($tipo, ['cinta', 'calzoncito'], true)) $f->poner('dtipo', $tipo);
+        elseif ($f->dato('dtipo')) $tipo = (string) $f->dato('dtipo');
         $quiereNoche = (bool) preg_match('/\bnoche|nocturn|dormir/', $nn);
         $quiereDia   = (bool) preg_match('/\bde dia\b|\bdiario|para el dia/', $nn);
         if (in_array($tipo, ['cinta', 'calzoncito'], true) || $quiereNoche || $quiereDia) {
@@ -376,8 +416,7 @@ Tenemos cobertura nacional con los envíos. ¿Desde cuál municipio nos escribe,
                 }
             }
             if (count($sirven) > 1) {
-                $lista = $this->unir(array_map(fn ($o) => 'la *opción ' . $o['opcion'] . '* (' . $o['nombre'] . ')', $sirven), ' o ');
-                $this->dgDecir('¿Cuál de estas: ' . $lista . '? 😊', 'opciones');
+                $this->dgDecir($this->dgComoLasQuiere($sirven) . ' 😊', 'opciones');
                 return;
             }
         }
