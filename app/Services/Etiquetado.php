@@ -127,6 +127,15 @@ class Etiquetado
         '/\b(quiero|quisiera|quiera)\s+(ordenar|encargar)\b/',
         '/\b(necesito|ocupo)\s+(un\s+)?pedido\b/',
         '/\b(necesito|ocupo|quiero)\s+(panpers?|panperes|pamperes|pampers?)\b/',
+
+        // "me ayuda con el pedido de calzoncitos de noche talla L", "ayúdeme
+        // con 2 de noche", "me puede ayudar con unos pampers". Frenado si lo
+        // que sigue es información: "me ayuda con el precio".
+        '/\b(me\s+)?(ayuda|ayude|ayudas|ayudan|ayudeme|ayudame|ayudenme|puede\s+ayudar|podria\s+ayudar|pueden\s+ayudar|podrian\s+ayudar)\s+con\s+(el|un|una|unos|unas|mi|los|las|otro|otra|dos|tres|cuatro|\d+)?\s*(pedido|paquet\w*|bolsa\w*|panal\w*|pamper\w*|panper\w*|calzon\w*|talla|de\s+(noche|dia|cinta))/',
+        // "el pedido de calzoncitos", "un pedido de 3 paquetes"
+        '/\bpedido\s+de\s+(\d+|dos|tres|cuatro|unos|unas|los|las|un|una)?\s*(paquet\w*|bolsa\w*|panal\w*|pamper\w*|panper\w*|calzon\w*|talla|cinta)/',
+        // "para pedir", "puedo pedir", "cómo pido", "le pido"
+        '/\b(para|puedo|podria|como)\s+(pedir|pido|encargar|ordenar)\b/',
     ];
 
     /**
