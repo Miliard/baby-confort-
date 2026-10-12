@@ -395,12 +395,12 @@ trait GuionDiagrama
         return 'Solo tenemos estas presentaciones de ' . $tipo . ' 😊 ' . $this->dgComoLasQuiere($todas);
     }
 
-    /** Varias del mismo tipo: de día o de noche si hay de las dos; si no, cuál. */
+    /**
+     * Varias del mismo tipo: ¿cuál desea? Nunca "¿de día o de noche?": la
+     * clienta cree que la de noche solo se puede usar de noche (y al revés).
+     */
     private function dgComoLasQuiere(array $ops): string
     {
-        $noche = array_filter($ops, fn ($o) => $o['noche']);
-        if ($noche && count($noche) < count($ops)) return '¿Cómo los desea: de día o de noche?';
-
         return '¿Cuál desea: ' . $this->unir(array_map(fn ($o) => 'la *opción ' . $o['opcion'] . '* (' . $o['nombre'] . ')', $ops), ' o ') . '?';
     }
 
