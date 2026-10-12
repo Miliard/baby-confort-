@@ -123,9 +123,10 @@ class Asistente
     /** null si puede arrancar; si no, por qué no. */
     public static function porQueNoEmpieza(WaConversacion $conv, ?AsistenteFicha $f, bool $mirarVentana = true): ?string
     {
-        // Te lo había pasado antes, pero después le mandaste el aviso de "ya
-        // llegó": la guía vuelve a atender lo que conteste.
-        if ($f && $f->estado === 'wil' && static::avisoDespuesDe($conv, $f->updated_at)) {
+        // Te lo había pasado (o estaba apagado), pero después le mandaste el
+        // aviso de "ya llegó" (a mano o con la plantilla): el asistente vuelve
+        // a atender lo que conteste.
+        if ($f && in_array($f->estado, ['wil', 'apagado'], true) && static::avisoDespuesDe($conv, $f->updated_at)) {
             // sigue: el turno lo arranca de cero
         } elseif ($f && in_array($f->estado, ['wil', 'apagado'], true)) {
             return 'está apagado en este chat';
@@ -181,7 +182,6 @@ class Asistente
         if (! $cuando) return false;
         return WaMensaje::where('conversacion_id', $conv->id)
             ->where('direccion', 'saliente')
-            ->where('automatico', false)
             ->where('created_at', '>', $cuando)
             ->get(['id', 'texto'])
             ->contains(fn ($m) => static::esAviso((string) $m->texto));

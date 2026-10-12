@@ -93,6 +93,10 @@ Route::middleware(['web', 'auth'])->group(function () {
     // A quién se le dijo "está agotado", con lo que pidió y su teléfono, para
     // avisarles cuando entre la mercadería.
     Route::get('/chat/descargar-agotados', [\App\Http\Controllers\AgotadosExportController::class, 'descargar'])->name('agotados.descargar');
+
+    // Mandarles la plantilla de "ya llegó" de un solo botón.
+    Route::get('/chat/avisar-agotados', [\App\Http\Controllers\AgotadosExportController::class, 'avisar'])->name('agotados.avisar');
+    Route::post('/chat/avisar-agotados', [\App\Http\Controllers\AgotadosExportController::class, 'enviar'])->name('agotados.enviar');
 });
 
 // Fotos de paquetes (solo con sesión iniciada en el panel)

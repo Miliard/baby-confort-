@@ -26,9 +26,204 @@ class AgotadosExportController extends Controller
     {
         @set_time_limit(300);
 
-        $dias  = max(7, min(365, (int) $request->query('dias', 90)));
-        $desde = now()->subDays($dias);
+        $dias = max(7, min(365, (int) $request->query('dias', 90)));
+        $zona = 'America/El_Salvador';
+        $filas = $this->filas($dias, $zona);
+
+        // 3. Una hoja lista para guardar como PDF (o leer así nomás en el
+        //    teléfono, con el chat de cada uno a un toque). Se abre sola la
+        //    ventana de imprimir: ahí se elige "Guardar como PDF".
+        return response($this->hoja($filas, $dias, $zona))
+            ->header('Content-Type', 'text/html; charset=UTF-8');
+    }
+
+    /**
+     * "Avisar a agotados": la misma lista, con casillas, para mandarles la
+     * plantilla de "ya llegó" de un solo botón (por talla o a todos).
+     */
+    public function avisar(Request $request)
+    {
+        @set_time_limit(300);
+
+        $dias  = max(7, min(365, (int) $request->query('dias', 120)));
         $zona  = 'America/El_Salvador';
+        $filas = $this->filas($dias, $zona);
+        $e = fn ($t) => htmlspecialchars((string) $t, ENT_QUOTES, 'UTF-8');
+
+        $cfg     = (array) config('asistente.plantilla_aviso', []);
+        $nombre  = $e($cfg['nombre'] ?? 'aviso_disponibles');
+        $idioma  = $e($cfg['idioma'] ?? 'es');
+        $texto   = $e($cfg['texto'] ?? '');
+        $precio  = (float) ($cfg['precio'] ?? 0.074);
+        $csrf    = $e(csrf_token());
+        $url     = $e(route('agotados.enviar'));
+
+        $porTalla = [];
+        $filasHtml = '';
+        foreach ($filas as $i => $f) {
+            $tallas = [];
+            if (preg_match('/Talla ([^·]+)/u', $f['pidio'], $m)) $tallas = array_map('trim', explode(',', $m[1]));
+            if (! $tallas) $tallas = ['sin talla'];
+            foreach ($tallas as $t) $porTalla[$t] = ($porTalla[$t] ?? 0) + 1;
+
+            $ya = $f['avisado'] ? 'avisado el ' . $f['avisado']->format('d/m H:i') : '';
+            $filasHtml .= '<tr class="' . ($ya ? 'ya' : '') . '" data-tallas="' . $e('|' . implode('|', $tallas) . '|') . '">'
+                . '<td><input type="checkbox" class="fila" value="' . $f['conv_id'] . '"' . ($ya ? '' : ' checked') . '></td>'
+                . '<td><b>' . $e($f['nombre'] ?: '—') . '</b><br><a href="' . $e($f['enlace']) . '" target="_blank">' . $e($f['telefono']) . '</a></td>'
+                . '<td>' . $e($f['pidio'] ?: '—') . ($f['ya'] ? '<br><small>ya pidió después</small>' : '') . '</td>'
+                . '<td class="estado">' . $e($ya) . '</td>'
+                . '</tr>';
+        }
+        ksort($porTalla);
+        $chips = '';
+        foreach ($porTalla as $t => $n) {
+            $chips .= '<label class="chip"><input type="checkbox" class="talla" value="' . $e($t) . '" checked> ' . $e($t) . ' (' . $n . ')</label> ';
+        }
+        $total = count($filas);
+
+        $html = <<<HTML
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Avisar a agotados</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#111;margin:16px;max-width:1000px}
+  h1{font-size:19px;margin:0 0 6px}
+  .caja{border:1px solid #ccd;border-radius:10px;padding:10px 12px;margin:10px 0;background:#f8fafc}
+  .chip{display:inline-block;border:1px solid #bbb;border-radius:12px;padding:3px 9px;margin:3px 4px 3px 0;background:#fff;cursor:pointer}
+  input[type=text],textarea{width:100%;box-sizing:border-box;padding:6px;border:1px solid #bbb;border-radius:6px;font-size:13px}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  th,td{border:1px solid #ddd;padding:5px 6px;text-align:left;vertical-align:top}
+  th{background:#eef2f7}
+  tr.ya td{color:#999}
+  tr.oculta{display:none}
+  .ok{color:#1e7b34;font-weight:bold} .mal{color:#b3261e;font-weight:bold}
+  button.enviar{font-size:15px;padding:10px 18px;border-radius:8px;border:0;background:#1e7b34;color:#fff;cursor:pointer}
+  button.enviar:disabled{background:#999}
+  #progreso{font-weight:bold;margin-left:10px}
+</style></head>
+<body>
+<h1>📣 Avisar a agotados</h1>
+<div>{$total} clientes de los últimos {$dias} días. Los que ya recibieron el aviso (últimos 30 días) salen en gris y sin marcar.</div>
+
+<div class="caja"><b>1. Tallas que llegaron</b> (desmarcá las que no entraron):<br>{$chips}</div>
+
+<div class="caja"><b>2. Plantilla</b> (tiene que estar <b>aprobada</b> en WhatsApp Manager)<br>
+  Nombre: <input type="text" id="nombre" value="{$nombre}" style="width:220px"> Idioma: <input type="text" id="idioma" value="{$idioma}" style="width:60px"><br><br>
+  Texto que queda en el chat del panel (el mismo de la plantilla):<br><textarea id="texto" rows="4">{$texto}</textarea></div>
+
+<div class="caja"><b>3. Enviar</b><br>
+  <button class="enviar" id="enviar">Enviar</button><span id="progreso"></span>
+  <div style="color:#555;margin-top:6px">Se manda de a 10. No cierres esta pestaña hasta que termine. Si algo falla, se detiene y te dice por qué.</div></div>
+
+<table>
+<thead><tr><th><input type="checkbox" id="todos" checked></th><th>Cliente</th><th>Lo que pidió</th><th>Aviso</th></tr></thead>
+<tbody>{$filasHtml}</tbody>
+</table>
+
+<script>
+const PRECIO = {$precio};
+const filas = () => [...document.querySelectorAll('tbody tr')];
+function aplicarTallas() {
+  const on = [...document.querySelectorAll('.talla:checked')].map(c => '|' + c.value + '|');
+  filas().forEach(tr => {
+    const sirve = on.some(t => tr.dataset.tallas.includes(t));
+    tr.classList.toggle('oculta', !sirve);
+  });
+  contar();
+}
+function marcados() {
+  return filas().filter(tr => !tr.classList.contains('oculta')).map(tr => tr.querySelector('.fila')).filter(c => c.checked).map(c => c.value);
+}
+function contar() {
+  const n = marcados().length;
+  document.getElementById('enviar').textContent = 'Enviar a ' + n + ' clientes (≈ $' + (n * PRECIO).toFixed(2) + ')';
+}
+document.querySelectorAll('.talla').forEach(c => c.addEventListener('change', aplicarTallas));
+document.querySelectorAll('.fila').forEach(c => c.addEventListener('change', contar));
+document.getElementById('todos').addEventListener('change', e => {
+  filas().filter(tr => !tr.classList.contains('oculta') && !tr.classList.contains('ya')).forEach(tr => tr.querySelector('.fila').checked = e.target.checked);
+  contar();
+});
+document.getElementById('enviar').addEventListener('click', async () => {
+  const ids = marcados();
+  const nombre = document.getElementById('nombre').value.trim();
+  const idioma = document.getElementById('idioma').value.trim();
+  const texto  = document.getElementById('texto').value.trim();
+  if (!ids.length) return alert('No hay nadie marcado.');
+  if (!nombre || !texto) return alert('Falta el nombre de la plantilla o el texto.');
+  if (!confirm('¿Mandar la plantilla "' + nombre + '" a ' + ids.length + ' clientes?\\nCosto aproximado: $' + (ids.length * PRECIO).toFixed(2))) return;
+
+  const btn = document.getElementById('enviar'), prog = document.getElementById('progreso');
+  btn.disabled = true;
+  let ok = 0, mal = 0;
+  for (let i = 0; i < ids.length; i += 10) {
+    const lote = ids.slice(i, i + 10);
+    prog.textContent = 'Enviando… ' + Math.min(i + 10, ids.length) + ' de ' + ids.length;
+    let r;
+    try {
+      r = await fetch('{$url}', {method: 'POST', headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': '{$csrf}'},
+        body: JSON.stringify({ids: lote, nombre, idioma, texto})}).then(x => x.json());
+    } catch (e) { prog.innerHTML = '<span class="mal">Se cortó la conexión. Enviados: ' + ok + '. Volvé a cargar la página y seguí (los ya avisados no se repiten).</span>'; btn.disabled = false; return; }
+    let fallosLote = 0, ultimoError = '';
+    for (const [id, res] of Object.entries(r.resultados || {})) {
+      const td = document.querySelector('.fila[value="' + id + '"]').closest('tr').querySelector('.estado');
+      if (res.ok) { ok++; td.innerHTML = '<span class="ok">✓ enviado</span>'; document.querySelector('.fila[value="' + id + '"]').checked = false; }
+      else { mal++; fallosLote++; ultimoError = res.error; td.innerHTML = '<span class="mal">✗ ' + res.error + '</span>'; }
+    }
+    if (fallosLote === lote.length) {
+      prog.innerHTML = '<span class="mal">Se detuvo: ' + ultimoError + '</span>';
+      btn.disabled = false; contar(); return;
+    }
+  }
+  prog.innerHTML = '<span class="ok">Listo: ' + ok + ' enviados' + (mal ? ', ' + mal + ' con error' : '') + '.</span>';
+  btn.disabled = false; contar();
+});
+aplicarTallas();
+</script>
+</body></html>
+HTML;
+
+        return response($html)->header('Content-Type', 'text/html; charset=UTF-8');
+    }
+
+    /** Manda la plantilla a un lote (de a 10) y dice cómo le fue a cada uno. */
+    public function enviar(Request $request)
+    {
+        @set_time_limit(120);
+
+        $ids    = array_slice(array_map('intval', (array) $request->input('ids', [])), 0, 20);
+        $nombre = trim((string) $request->input('nombre'));
+        $idioma = trim((string) $request->input('idioma', 'es')) ?: 'es';
+        $texto  = trim((string) $request->input('texto'));
+
+        if ($nombre === '' || $texto === '' || ! preg_match('/^[a-z0-9_]+$/', $nombre)) {
+            return response()->json(['resultados' => array_fill_keys($ids, ['ok' => false, 'error' => 'Nombre de plantilla inválido (solo minúsculas, números y _).'])]);
+        }
+
+        $res = [];
+        foreach ($ids as $id) {
+            $conv = WaConversacion::find($id);
+            if (! $conv) { $res[$id] = ['ok' => false, 'error' => 'no existe el chat']; continue; }
+
+            // Nunca dos veces al mismo cliente (si se recarga la página a medias).
+            $ya = WaMensaje::where('conversacion_id', $id)->where('tipo', 'template')
+                ->where('estado', '!=', 'fallido')->where('created_at', '>=', now()->subDays(30))->exists();
+            if ($ya) { $res[$id] = ['ok' => true, 'error' => '']; continue; }
+
+            $m = \App\Services\WhatsappApi::enviarPlantilla($conv, $nombre, $idioma, $texto);
+            $res[$id] = $m->estado === 'fallido'
+                ? ['ok' => false, 'error' => (string) ($m->error ?: 'falló')]
+                : ['ok' => true, 'error' => ''];
+        }
+
+        return response()->json(['resultados' => $res]);
+    }
+
+    /** Una fila por cliente al que se le dijo "agotado" en esos días. */
+    private function filas(int $dias, string $zona): array
+    {
+        $desde = now()->subDays($dias);
 
         // 1. Las conversaciones: con la etiqueta, o con un "agotado" en el chat.
         $ids = [];
@@ -89,7 +284,15 @@ class AgotadosExportController extends Controller
 
                 $tel = $conv->esExtranjero() ? $conv->telefonoLegible() : preg_replace('/\D/', '', (string) $conv->telefono ?: substr((string) $conv->wa_id, -8));
 
+                // ¿Ya se le mandó la plantilla de "ya llegó"?
+                $avisado = WaMensaje::where('conversacion_id', $conv->id)
+                    ->where('tipo', 'template')->where('estado', '!=', 'fallido')
+                    ->where('created_at', '>=', now()->subDays(30))
+                    ->max('created_at');
+
                 $filas[] = [
+                    'conv_id'  => (int) $conv->id,
+                    'avisado'  => $avisado ? \Illuminate\Support\Carbon::parse($avisado)->timezone($zona) : null,
                     'fecha'    => $aviso ? $aviso->created_at->timezone($zona) : ($msjs->last()?->created_at?->timezone($zona)),
                     'nombre'   => $conv->comoSeLlama() ?: (string) $conv->nombre,
                     'telefono' => $tel,
@@ -104,11 +307,7 @@ class AgotadosExportController extends Controller
 
         usort($filas, fn ($a, $b) => ($b['fecha']?->timestamp ?? 0) <=> ($a['fecha']?->timestamp ?? 0));
 
-        // 3. Una hoja lista para guardar como PDF (o leer así nomás en el
-        //    teléfono, con el chat de cada uno a un toque). Se abre sola la
-        //    ventana de imprimir: ahí se elige "Guardar como PDF".
-        return response($this->hoja($filas, $dias, $zona))
-            ->header('Content-Type', 'text/html; charset=UTF-8');
+        return $filas;
     }
 
     private function hoja(array $filas, int $dias, string $zona): string

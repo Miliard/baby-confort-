@@ -66,6 +66,16 @@ trait GuionDiagrama
         $n = Entender::normalizar($texto);
         $hola = $primero ? '¡Hola! 😊 ' : '';
 
+        // Lo primero que dice es que no ("no gracias", "ya no lo ocupo", "ya
+        // compré"), típico al contestar el aviso de "ya llegó": no se le
+        // insiste con la lista de tallas. Queda para vos, sin contestarle.
+        if ($primero && ! str_contains($texto, '?') && ! $this->dgTallas($texto)
+            && (Entender::siNo($texto) === false
+                || preg_match('/\b(no me interesa|ya no (lo |los |las )?(necesito|ocupo|quiero|usa|usamos)|ya (compre|consegui)|no por (ahora|el momento)|despues (le )?(escribo|aviso))\b/', $n))) {
+            $this->pasarAWil('dijo que no (al aviso o al empezar)', false);
+            return;
+        }
+
         // ── Una pregunta suelta con respuesta escrita por vos (config) ──────
         // Se contesta eso y nada más. El envío, las promos y "¿llega
         // mañana?" no van por acá.

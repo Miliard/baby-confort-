@@ -46,7 +46,9 @@ class WaMensaje extends Model
 
             // Wil escribió en el chat (panel o teléfono): el asistente se
             // apaga ahí. Wil manda.
-            if ($m->direccion === 'saliente' && ! $m->automatico) {
+            // El aviso de "ya llegó" no cuenta: ahí se quiere que conteste el asistente.
+            if ($m->direccion === 'saliente' && ! $m->automatico
+                && ! \App\Services\Asistente\Asistente::esAviso((string) $m->texto)) {
                 try {
                     \App\Services\Asistente\Asistente::wilEscribio($m->conversacion);
                 } catch (\Throwable $e) {

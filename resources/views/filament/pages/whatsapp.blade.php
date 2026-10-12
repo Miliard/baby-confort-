@@ -1121,6 +1121,13 @@
                    title="PDF con los clientes a los que les dijiste que algo estaba agotado">
                     📋 Agotados
                 </a>
+                {{-- Mandarles la plantilla de "ya llegó" de un solo botón. --}}
+                <a href="{{ route('agotados.avisar') }}" class="wa-fil"
+                   style="--c:#16a34a;text-decoration:none"
+                   target="_blank" rel="noopener"
+                   title="Mandar la plantilla de 'ya llegó' a los clientes de agotados">
+                    📣 Avisar
+                </a>
                 {{-- El banco de ejemplos del asistente: tus respuestas reales,
                      de donde la IA aprende cómo contestás. --}}
                 <button type="button" wire:click="actualizarEjemplos" wire:loading.attr="disabled"

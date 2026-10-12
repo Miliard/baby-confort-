@@ -316,6 +316,50 @@ class WhatsappApi
     }
 
     /** Lo común a botones y listas: guardar, mandar y anotar cómo salió. */
+    /**
+     * Manda una plantilla aprobada en WhatsApp Manager (sirve aunque hayan
+     * pasado las 24 horas). $visible es el texto que queda en el chat del
+     * panel, para que veas qué se le mandó.
+     */
+    public static function enviarPlantilla(WaConversacion $conv, string $nombre, string $idioma, string $visible): WaMensaje
+    {
+        $mensaje = WaMensaje::create([
+            'conversacion_id' => $conv->id,
+            'direccion'  => 'saliente',
+            'tipo'       => 'template',
+            'texto'      => $visible,
+            'estado'     => 'enviando',
+            'user_id'    => null,
+            'automatico' => true,
+        ]);
+
+        if (! static::configurado()) {
+            $mensaje->update(['estado' => 'fallido', 'error' => 'Falta configurar el enlace con Meta.']);
+            return $mensaje;
+        }
+
+        try {
+            $r = static::http()
+                ->timeout(20)
+                ->post(static::url(), [
+                    'messaging_product' => 'whatsapp',
+                    'to'       => $conv->wa_id,
+                    'type'     => 'template',
+                    'template' => ['name' => $nombre, 'language' => ['code' => $idioma]],
+                ]);
+
+            $r->successful()
+                ? $mensaje->update(['estado' => 'enviado', 'wa_message_id' => $r->json('messages.0.id')])
+                : $mensaje->update(['estado' => 'fallido', 'error' => mb_substr((string) $r->json('error.message', $r->body()), 0, 300)]);
+        } catch (\Throwable $e) {
+            $mensaje->update(['estado' => 'fallido', 'error' => mb_substr($e->getMessage(), 0, 300)]);
+        }
+
+        static::refrescarConversacion($conv, strtok($visible, "\n") ?: $visible, $mensaje->estado);
+
+        return $mensaje;
+    }
+
     private static function despacharInteractivo(WaConversacion $conv, string $visible, bool $automatico, array $interactivo): WaMensaje
     {
         $mensaje = WaMensaje::create([

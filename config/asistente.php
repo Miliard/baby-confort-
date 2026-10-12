@@ -84,6 +84,16 @@ return [
         'ya hay existencia',
     ],
 
+    // La plantilla de "ya llegó" para los clientes de agotados (📣 Avisar).
+    // El nombre y el idioma tienen que ser los de WhatsApp Manager; el texto
+    // es lo que queda a la vista en el chat del panel (el mismo de la plantilla).
+    'plantilla_aviso' => [
+        'nombre' => env('ASISTENTE_PLANTILLA_AVISO', 'aviso_disponibles'),
+        'idioma' => env('ASISTENTE_PLANTILLA_IDIOMA', 'es'),
+        'precio' => 0.074,   // por mensaje, aproximado (Meta, Resto de Latinoamérica)
+        'texto'  => "¡Hola! 😊 Le saludamos de Baby-Confort.\n\nLe contamos que ya están disponibles las presentaciones de pañales Aiwibi que nos había consultado 🎉\n\nSi gusta, díganos qué talla necesita y con gusto le enviamos las opciones 👶",
+    ],
+
     // Máximo de respuestas del asistente por chat en una hora (un pedido
     // completo son unas 15). Si se pasa,
     // algo raro está pasando: se lo pasa a Wil.
