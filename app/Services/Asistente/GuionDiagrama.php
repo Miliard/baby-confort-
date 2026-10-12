@@ -179,7 +179,8 @@ trait GuionDiagrama
     {
         $tallas = $this->dgTallas($texto);
         if ($tallas) {
-            if (count($tallas) > 1) { $this->dgConVariasTallas($tallas, $hola); return; }
+            // Pide dos o más tallas: no se contesta nada, te lo pasa a vos.
+            if (count($tallas) > 1) { $this->pasarAWil('pide varias tallas (' . implode(', ', $tallas) . ')', false); return; }
             $this->dgConTalla($tallas[0], $hola);
             return;
         }
@@ -475,7 +476,10 @@ trait GuionDiagrama
         $nn = Entender::normalizar($texto);
         // Pide OTRA talla ("y la talla M"): se suman sus fotos, sin perder las de antes.
         $nuevas = array_values(array_diff($this->dgTallas($texto), (array) $f->dato('tallas', [])));
-        if ($nuevas) { $this->dgAgregarTallas($nuevas); return; }
+        if ($nuevas) {   // pide otra talla más: también te lo pasa, sin contestar
+            $this->pasarAWil('pide varias tallas (' . implode(', ', array_merge((array) $f->dato('tallas', []), $nuevas)) . ')', false);
+            return;
+        }
 
         // El tipo que dijo antes ("de cinta") sigue valiendo cuando después
         // dice "de noche".
