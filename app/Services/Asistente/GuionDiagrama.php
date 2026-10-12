@@ -79,6 +79,7 @@ trait GuionDiagrama
         // ── Tocó un botón o eligió de una lista ─────────────────────────────
         if ($boton && ! str_starts_with($boton, 'conf:')) {
             [$k, $v] = explode(':', $boton, 2) + [1 => ''];
+            if ($k === 'talla' && $v === 'peso') { $this->dgDecir('¿Cuánto pesa su bebé? Por ejemplo: *25 libras* 😊', 'peso'); return; }
             if ($k === 'talla') { $this->dgConTalla($v, $hola); return; }
             if ($k === 'tipo')  { $this->dgOpciones($v); return; }
             if ($k === 'op' && ($s = ProductSize::with('product')->find($v))) { $this->dgElegir($s, null); return; }
@@ -153,14 +154,38 @@ trait GuionDiagrama
         return array_values(array_intersect(array_map('mb_strtoupper', $tallas), array_map('mb_strtoupper', (array) config('asistente.tallas', []))));
     }
 
+    /**
+     * El menú de tallas: una lista de WhatsApp [Ver tallas] con cada talla y
+     * sus libras, para tocar en vez de escribir. Igual puede escribir la
+     * talla o el peso.
+     */
     private function dgPedirTalla(string $hola): void
     {
-        $lista = '';
-        if (! $this->f->dato('tallas_vistas')) {
-            $this->f->poner('tallas_vistas', true);
-            $lista = "Estas son las tallas que tenemos:\n\n" . implode("\n", $this->guionLineasTallas()) . "\n\n";
+        $this->f->poner('tallas_vistas', true);
+        $this->f->poner('dpaso', 'talla');
+        $this->f->paso = 'diagrama · talla';
+
+        $filas = [];
+        foreach ($this->tallasDisponibles() as $t) {
+            $lb = $this->guionRangoLb($t);
+            $alias = array_values(array_filter((array) (config('asistente.tallas_alias', [])[mb_strtoupper($t)] ?? []), fn ($x) => mb_strlen($x) <= 4));
+            $nums = array_filter(array_keys(array_filter((array) config('asistente.tallas_numericas', []), fn ($x) => mb_strtoupper($x) === mb_strtoupper($t))), fn ($n) => (int) $n >= 2);
+            $otros = array_merge($alias, $nums ? ['talla ' . implode('-', $nums)] : []);
+
+            $peso = mb_strtoupper($t) === 'RN'
+                ? 'Recién nacido, hasta ' . (int) round((float) config('asistente.rn_hasta_kg', 4.5) * 2.2046) . ' libras'
+                : ($lb ? $lb[0] . ' a ' . $lb[1] . ' libras' : '');
+
+            $filas[] = [
+                'id'      => 'talla:' . mb_strtoupper($t),
+                'titulo'  => mb_substr('Talla ' . $this->bonita($t), 0, 24),
+                'detalle' => mb_substr(trim($peso . ($otros ? ' · ' . implode(' · ', $otros) : '')), 0, 72),
+            ];
         }
-        $this->dgDecir($hola . $lista . '¿Qué talla usa su bebé o cuánto pesa? 😊', 'talla');
+        $filas = array_slice($filas, 0, 9);
+        $filas[] = ['id' => 'talla:peso', 'titulo' => 'No sé la talla', 'detalle' => 'Le digo cuánto pesa y me recomiendan'];
+
+        $this->lista($hola . '¿Qué talla usa su bebé? Toque *Ver tallas* para elegirla (con las libras de cada una), o escríbame cuánto pesa 😊', 'Ver tallas', $filas);
     }
 
     private function dgTalla(string $texto, string $hola): void
