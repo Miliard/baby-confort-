@@ -154,38 +154,15 @@ trait GuionDiagrama
         return array_values(array_intersect(array_map('mb_strtoupper', $tallas), array_map('mb_strtoupper', (array) config('asistente.tallas', []))));
     }
 
-    /**
-     * El menú de tallas: una lista de WhatsApp [Ver tallas] con cada talla y
-     * sus libras, para tocar en vez de escribir. Igual puede escribir la
-     * talla o el peso.
-     */
+    /** Las tallas que hay, con sus libras, escritas (sin botones). */
     private function dgPedirTalla(string $hola): void
     {
-        $this->f->poner('tallas_vistas', true);
-        $this->f->poner('dpaso', 'talla');
-        $this->f->paso = 'diagrama · talla';
-
-        $filas = [];
-        foreach ($this->tallasDisponibles() as $t) {
-            $lb = $this->guionRangoLb($t);
-            $alias = array_values(array_filter((array) (config('asistente.tallas_alias', [])[mb_strtoupper($t)] ?? []), fn ($x) => mb_strlen($x) <= 4));
-            $nums = array_filter(array_keys(array_filter((array) config('asistente.tallas_numericas', []), fn ($x) => mb_strtoupper($x) === mb_strtoupper($t))), fn ($n) => (int) $n >= 2);
-            $otros = array_merge($alias, $nums ? ['talla ' . implode('-', $nums)] : []);
-
-            $peso = mb_strtoupper($t) === 'RN'
-                ? 'Recién nacido, hasta ' . (int) round((float) config('asistente.rn_hasta_kg', 4.5) * 2.2046) . ' libras'
-                : ($lb ? $lb[0] . ' a ' . $lb[1] . ' libras' : '');
-
-            $filas[] = [
-                'id'      => 'talla:' . mb_strtoupper($t),
-                'titulo'  => mb_substr('Talla ' . $this->bonita($t), 0, 24),
-                'detalle' => mb_substr(trim($peso . ($otros ? ' · ' . implode(' · ', $otros) : '')), 0, 72),
-            ];
+        $lista = '';
+        if (! $this->f->dato('tallas_vistas')) {
+            $this->f->poner('tallas_vistas', true);
+            $lista = "Estas son las tallas que tenemos:\n\n" . implode("\n", $this->guionLineasTallas()) . "\n\n";
         }
-        $filas = array_slice($filas, 0, 9);
-        $filas[] = ['id' => 'talla:peso', 'titulo' => 'No sé la talla', 'detalle' => 'Le digo cuánto pesa y me recomiendan'];
-
-        $this->lista($hola . '¿Qué talla usa su bebé? Toque *Ver tallas* para elegirla (con las libras de cada una), o escríbame cuánto pesa 😊', 'Ver tallas', $filas);
+        $this->dgDecir($hola . $lista . '¿Qué talla usa su bebé o cuánto pesa? 😊', 'talla');
     }
 
     private function dgTalla(string $texto, string $hola): void
@@ -424,10 +401,7 @@ trait GuionDiagrama
         $calzon = array_values(array_filter($ops, fn ($o) => $o['tipo'] === 'Calzoncito'));
 
         if ($cintas && $calzon) {
-            $this->botones('¿Cómo lo desea: de calzoncito o de cinta (de pegar a los lados)? 😊', [
-                'tipo:calzoncito' => 'Calzoncito',
-                'tipo:cinta'      => 'Cinta (de pegar)',
-            ]);
+            $this->texto('¿Cómo lo desea: de calzoncito o de cinta (de pegar a los lados)? 😊');
             return;
         }
 
@@ -439,26 +413,12 @@ trait GuionDiagrama
         $this->dgListaDeOpciones('Solo tenemos estas presentaciones de ' . $tipo . ' 😊 ¿Cuál desea?', $todas);
     }
 
-    /** Una lista de WhatsApp para elegir la presentación (sin escribir). */
+    /** Para elegir la presentación: escrito, con el número de opción (sin botones). */
     private function dgListaDeOpciones(string $cuerpo, array $ops): void
     {
-        $filas = [];
-        foreach (array_slice($ops, 0, 10) as $o) {
-            $id = $this->dgIdDeOpcion($o['opcion']);
-            $s = $id ? ProductSize::with('product')->find($id) : null;
-            if (! $s) continue;
-            $corto = trim(preg_replace('/\s*\(.*$/u', '', $o['nombre']));
-            // WhatsApp deja 24 letras en el título: va el nombre; el número de
-            // opción, la talla, las unidades y el precio, abajo.
-            $filas[] = [
-                'id'      => 'op:' . $s->id,
-                'titulo'  => mb_strlen($corto) > 24 ? rtrim(mb_substr($corto, 0, 23)) . '…' : $corto,
-                'detalle' => mb_substr('Opción ' . $o['opcion'] . ' · Talla ' . trim((string) $s->size) . ($o['unidades'] ? ' · ' . $o['unidades'] . ' unidades' : '') . ' · $' . number_format($o['precio'], 2), 0, 72),
-            ];
-        }
-
-        if (! $filas) { $this->texto($cuerpo); return; }
-        $this->lista($cuerpo, 'Elegir', $filas);
+        $l = array_map(fn ($o) => 'la *opción ' . $o['opcion'] . '* (' . trim(preg_replace('/\s*\(.*$/u', '', $o['nombre'])) . ')', $ops);
+        $cuerpo = preg_replace('/[\s?😊]+$/u', '', $cuerpo);
+        $this->texto(trim($cuerpo . ($l ? ': ' . $this->unir($l, ' o ') . '?' : '?') . ' 😊'));
     }
 
     /**
@@ -771,9 +731,7 @@ trait GuionDiagrama
         }
         if ($leyenda === '') $leyenda = '🚚 Envío: $' . number_format($envio, 2) . ', hasta su casa o lugar de trabajo.';
 
-        $this->f->poner('dpaso', 'envio');
-        $this->f->paso = 'diagrama · envio';
-        $this->botones($leyenda . "\n\n¿Le parece bien? 😊", ['envio:si' => 'Sí, me parece bien', 'envio:no' => 'No, gracias']);
+        $this->dgDecir($leyenda . "\n\n¿Le parece bien? 😊", 'envio');
     }
 
     private function dgColonia(string $texto): void
@@ -889,13 +847,8 @@ trait GuionDiagrama
         $this->f->poner('dpaso', 'orden');
         $this->f->paso = 'diagrama · orden';
 
-        $todo = '¡Gracias' . ($nombre !== '' ? ', ' . $nombre : '') . "! 😊\n\n" . $this->textoOrden()
-            . "\n\n¿Toda la información es correcta? Así evitamos errores 🙏";
-        $botones = ['conf:si' => 'Sí, es correcta', 'conf:corregir' => 'Corregir'];
-
-        if (mb_strlen($todo) <= 1020) { $this->botones($todo, $botones); return; }
-        $this->texto($this->textoOrden());
-        $this->botones('¿Toda la información es correcta? Así evitamos errores 🙏', $botones);
+        $this->texto('¡Gracias' . ($nombre !== '' ? ', ' . $nombre : '') . "! 😊\n\n" . $this->textoOrden()
+            . "\n\n¿Toda la información es correcta? Así evitamos errores 🙏");
     }
 
     private function dgTelefono(string $texto): void
