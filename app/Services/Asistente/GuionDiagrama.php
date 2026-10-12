@@ -116,6 +116,16 @@ trait GuionDiagrama
     }
 
     /** Manda el mensaje y anota en qué paso queda. */
+    /** Cuántos paquetes dijo al elegir: "2 paquetes", "quiero 2 de la 1", "deme dos de cinta". */
+    private function dgCantidadEn(string $texto): ?int
+    {
+        if (($c = Entender::cantidad($texto)) !== null) return $c;
+        if (preg_match('/^\s*(quiero|deme|mandeme|me manda|necesito|ocupo|seria|serian)\s+(\S+)\s+(de|del)\b/u', Entender::normalizar($texto), $m)) {
+            return Entender::cantidad($m[2]);
+        }
+        return null;
+    }
+
     private function dgDecir(string $msg, string $paso): void
     {
         $this->f->poner('dpaso', $paso);
@@ -448,13 +458,13 @@ trait GuionDiagrama
 
         // Hay una sola opción y dice "quiero 2", "sí", "lo quiero": es esa.
         if (! $id && count($vistas) === 1
-            && (Entender::cantidad($texto) !== null || Entender::siNo($texto) === true || Entender::quiereComprar($texto)
+            && ($this->dgCantidadEn($texto) !== null || Entender::siNo($texto) === true || Entender::quiereComprar($texto)
                 || preg_match('/^\s*(quiero|deme|mandeme|me manda|necesito|ocupo)\b/u', Entender::normalizar($texto)))) {
             $id = $vistas[0]['id'];
         }
         $f->quitar('citada');
         if ($id && ($elegida = ProductSize::with('product')->find($id))) {
-            $this->dgElegir($elegida, Entender::cantidad($texto));
+            $this->dgElegir($elegida, $this->dgCantidadEn($texto));
             return;
         }
 
@@ -484,19 +494,25 @@ trait GuionDiagrama
             // Si además dice que lo quiere ("quiero 2 de noche"), es una
             // elección. Si solo dice el tipo ("calzoncito"), se le reenvían
             // las fotos de ese tipo y nada más: todavía no eligió.
-            $explicito = Entender::cantidad($texto) !== null || Entender::quiereComprar($texto)
+            $explicito = $this->dgCantidadEn($texto) !== null || Entender::quiereComprar($texto)
                 || (bool) preg_match('/^\s*(quiero|deme|mandeme|me manda|necesito|ocupo|lo quiero|los quiero)\b/u', $nn);
+
+            // Pidió varias tallas y en alguna no hay de ese tipo ("cinta" y en
+            // M solo hay calzoncito): se le dice, en vez de callarlo.
+            $que = trim((in_array($tipo, ['cinta', 'calzoncito'], true) ? 'de ' . $tipo : '') . ($quiereNoche ? ' de noche' : ($quiereDia ? ' de día' : '')));
+            $nota = $this->dgTallasSinEseTipo($ops, $sirven, $que);
 
             if (count($sirven) === 1 && $explicito) {
                 $s = ProductSize::with('product')->find($this->dgIdDeOpcion($sirven[0]['opcion']));
                 if ($s) {
-                    $this->dgElegir($s, Entender::cantidad($texto));
+                    if ($nota !== '') $this->texto($nota);
+                    $this->dgElegir($s, $this->dgCantidadEn($texto));
                     return;
                 }
             }
 
             if ($sirven && count($sirven) < count($ops)) {
-                $this->dgReenviar($sirven);
+                $this->dgReenviar($sirven, $nota);
                 return;
             }
 
@@ -507,10 +523,17 @@ trait GuionDiagrama
             }
 
             if (! $sirven) {
-                $que = trim((in_array($tipo, ['cinta', 'calzoncito'], true) ? $tipo : '') . ($quiereNoche ? ' de noche' : ($quiereDia ? ' de día' : '')));
-                $this->dgDecir('En esa talla en este momento no tenemos ' . $que . ' 😔', 'opciones');
+                $this->dgDecir($nota !== '' ? $nota : 'En esa talla en este momento no tenemos ' . $que . ' 😔', 'opciones');
                 return;
             }
+        }
+
+        // Ya eligió de una talla y a la otra le dice que no ("no", "así está
+        // bien"): se quita esa talla y sigue.
+        if (Entender::siNo($texto) === false && (array) $f->dato('carrito', []) && ($faltan = $this->dgTallasSinElegir())) {
+            $f->poner('tallas', array_values(array_filter((array) $f->dato('tallas', []), fn ($t) => mb_strtoupper($t) !== mb_strtoupper($faltan[0]))));
+            $this->dgDespuesDeElegir('Con gusto 😊' . "\n\n");
+            return;
         }
 
         // ¿Tiene dudas? → se le explica el propósito de cada una.
@@ -602,6 +625,31 @@ trait GuionDiagrama
                 $s = ProductSize::with('product')->find($this->dgIdDeOpcion($o['opcion']));
                 return $s && mb_strtoupper(trim((string) $s->size)) === mb_strtoupper($faltan[0]);
             }));
+
+            // Sus fotos ya no están entre las enviadas (se reenviaron solo las
+            // de otro tipo): se le vuelven a mandar las de esa talla.
+            if (! $ops) {
+                if (trim($antes) !== '') $this->texto(trim($antes));
+                $antes = '';
+                $enviadas = (array) $this->f->dato('fotos_enviadas', []);
+                $pre = '*Talla ' . $this->bonita($faltan[0]) . '* 👇';
+                foreach ($this->presentaciones([$faltan[0]], 'ambos')->take(max(1, (int) config('asistente.max_fotos', 4))) as $s) {
+                    $nro = count($enviadas) + 1;
+                    $this->tarjeta($s, $nro, $pre);
+                    $pre = '';
+                    $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];
+                }
+                $this->f->poner('fotos_enviadas', $enviadas);
+                $ops = array_values(array_filter($this->guionOpcionesVistas(), function ($o) use ($faltan) {
+                    $s = ProductSize::with('product')->find($this->dgIdDeOpcion($o['opcion']));
+                    return $s && mb_strtoupper(trim((string) $s->size)) === mb_strtoupper($faltan[0]);
+                }));
+                if (! $ops) {   // ya no hay nada de esa talla: se quita y sigue
+                    $this->f->poner('tallas', array_values(array_filter((array) $this->f->dato('tallas', []), fn ($t) => mb_strtoupper($t) !== mb_strtoupper($faltan[0]))));
+                    $this->dgDespuesDeElegir('');
+                    return;
+                }
+            }
             $this->dgListaDeOpciones(trim($antes . '¿Y de la talla *' . $this->bonita($faltan[0]) . '*, cuál desea? 😊'), $ops);
             return;
         }
@@ -653,7 +701,33 @@ trait GuionDiagrama
     }
 
     /** Reenvía solo las fotos de lo que pidió ("calzoncito"), numeradas de nuevo. */
-    private function dgReenviar(array $sirven): void
+    /**
+     * Las tallas pedidas en las que no queda nada de lo que dijo ("cinta"):
+     * "En talla *M* no tenemos de cinta 😔, solo de calzoncito." Vacío si en
+     * todas hay.
+     */
+    private function dgTallasSinEseTipo(array $ops, array $sirven, string $que): string
+    {
+        $talla = function ($o) {
+            $s = ProductSize::with('product')->find($this->dgIdDeOpcion($o['opcion']));
+            return $s ? mb_strtoupper(trim((string) $s->size)) : '';
+        };
+        $porTalla = [];
+        foreach ($ops as $o) if (($t = $talla($o)) !== '') $porTalla[$t][] = $o;
+        $conAlgo = array_unique(array_filter(array_map($talla, $sirven)));
+
+        $lineas = [];
+        foreach ($porTalla as $t => $suyas) {
+            if (in_array($t, $conAlgo, true)) continue;
+            $tipos = array_values(array_unique(array_map(fn ($o) => mb_strtolower($o['tipo']), $suyas)));
+            $solo = (str_starts_with($que, 'de cinta') || str_starts_with($que, 'de calzoncito')) && count($tipos) === 1
+                ? ', solo de ' . $tipos[0] : '';
+            $lineas[] = 'En talla *' . $this->bonita($t) . '* en este momento no tenemos ' . $que . ' 😔' . ($solo ? $solo . '.' : '');
+        }
+        return implode("\n", $lineas);
+    }
+
+    private function dgReenviar(array $sirven, string $antes = ''): void
     {
         $ids = [];
         foreach ($sirven as $o) if ($id = $this->dgIdDeOpcion($o['opcion'])) $ids[] = $id;
@@ -663,7 +737,8 @@ trait GuionDiagrama
             $s = ProductSize::with('product')->find($id);
             if (! $s) continue;
             $nro = count($enviadas) + 1;
-            $this->tarjeta($s, $nro);
+            $this->tarjeta($s, $nro, $antes);
+            $antes = '';
             $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];
         }
         $this->f->poner('fotos_enviadas', $enviadas);
