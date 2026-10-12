@@ -125,6 +125,16 @@ class Entender
                 if (isset($pos[$talla])) continue;
                 if (preg_match($re, $n, $m, PREG_OFFSET_CAPTURE)) $pos[$talla] = $m[0][1];
             }
+        } elseif ($pos && ! $estricto) {
+            // En una lista con otra talla ("tiene en M y en XL", "quiero M y
+            // 2XL para mis gemelos"), la letra suelta también es talla.
+            $letras = ['L' => 'l|g', 'M' => 'm', 'S' => 's|p'];
+            foreach ($letras as $talla => $l) {
+                if (isset($pos[$talla])) continue;
+                if (preg_match('/(?:^|\s|,)(?:en\s+|la\s+|el\s+|de\s+)?(' . $l . ')(?=\s*(?:,|\s+y\s|\s+o\s|\s+e\s))|(?:,|\sy|\so|\se)\s+(?:en\s+|la\s+|el\s+|de\s+)?(' . $l . ')\b/', $n, $m, PREG_OFFSET_CAPTURE)) {
+                    $pos[$talla] = ($m[1][1] ?? -1) >= 0 ? $m[1][1] : $m[2][1];
+                }
+            }
         }
 
         // En el orden en que las escribió: "la M o la L" → M, L.

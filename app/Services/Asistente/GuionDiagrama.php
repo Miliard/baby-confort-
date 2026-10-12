@@ -155,8 +155,7 @@ trait GuionDiagrama
     {
         $tallas = $this->dgTallas($texto);
         if ($tallas) {
-            // Pidió varias ("la M y también la XXL"): una por una.
-            if (count($tallas) > 1) $this->f->poner('dpendientes', array_slice($tallas, 1));
+            if (count($tallas) > 1) { $this->dgConVariasTallas($tallas, $hola); return; }
             $this->dgConTalla($tallas[0], $hola);
             return;
         }
@@ -168,6 +167,28 @@ trait GuionDiagrama
 
         if (Entender::esCortesia($texto)) return;
         $this->dgNoEntendi('talla', '¿Qué talla usa su bebé o cuánto pesa? 😊');
+    }
+
+    /**
+     * Pidió varias ("M y XL"): se le mandan las presentaciones de TODAS las
+     * que hay, cada grupo con su talla arriba. Las que no hay, se le avisa.
+     */
+    private function dgConVariasTallas(array $tallas, string $hola): void
+    {
+        $disp = array_map('mb_strtoupper', $this->tallasDisponibles());
+        $hay = array_values(array_filter($tallas, fn ($t) => in_array(mb_strtoupper($t), $disp, true)));
+        $no  = array_values(array_diff($tallas, $hay));
+
+        if (! $hay) { $this->dgConTalla($tallas[0], $hola); return; }
+
+        $antes = $hola;
+        if ($no) {
+            $this->marcarAgotado();
+            $antes .= 'En este momento no tenemos talla ' . $this->unir(array_map(fn ($t) => $this->bonita($t), $no)) . " 😔\n\n";
+        }
+
+        $this->f->poner('tallas', array_map('mb_strtoupper', $hay));
+        $this->dgMostrar($antes);
     }
 
     /** Dijo una talla: si hay, las presentaciones; si no, el peso para sugerir. */
@@ -327,15 +348,26 @@ trait GuionDiagrama
     private function dgMostrar(string $antes): void
     {
         $f = $this->f;
-        $opciones = $this->presentaciones((array) $f->dato('tallas', []), 'ambos');
+        $tallas = (array) $f->dato('tallas', []);
+        $varias = count($tallas) > 1;
+        $max = max(1, (int) config('asistente.max_fotos', 4)) * max(1, count($tallas));
         $enviadas = [];
 
-        $primera = true;
-        foreach ($opciones->take(max(1, (int) config('asistente.max_fotos', 4))) as $s) {
-            $nro = count($enviadas) + 1;
-            $this->tarjeta($s, $nro, $primera ? trim($antes) : '');
-            $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];
-            $primera = false;
+        foreach ($tallas as $t) {
+            $primeraDeTalla = true;
+            foreach ($this->presentaciones([$t], 'ambos') as $s) {
+                if (count($enviadas) >= $max) break 2;
+                $nro = count($enviadas) + 1;
+
+                // Arriba de la primera foto de cada talla: "Talla M 👇".
+                $pre = '';
+                if (! $enviadas) $pre = trim($antes);
+                if ($varias && $primeraDeTalla) $pre = trim($pre . "\n\n" . '*Talla ' . $this->bonita($t) . '* 👇');
+
+                $this->tarjeta($s, $nro, $pre);
+                $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];
+                $primeraDeTalla = false;
+            }
         }
         $f->poner('fotos_enviadas', $enviadas);
 
@@ -375,10 +407,14 @@ trait GuionDiagrama
     private function dgOpciones(string $texto): void
     {
         $f = $this->f;
+        // Con varias tallas, cuenta solo lo de las que faltan elegir.
+        $faltan = array_map('mb_strtoupper', $this->dgTallasSinElegir() ?: (array) $f->dato('tallas', []));
         $vistas = [];
         foreach ((array) $f->dato('fotos_enviadas', []) as $e) {
             $s = ProductSize::with('product')->find($e['id']);
-            if ($s) $vistas[] = ['id' => (string) $s->id, 'nombre' => trim((string) $s->product->name), 'unidades' => (int) $s->unidades, 'precio' => (float) $s->price];
+            if ($s && in_array(mb_strtoupper(trim((string) $s->size)), $faltan, true)) {
+                $vistas[] = ['id' => (string) $s->id, 'nombre' => trim((string) $s->product->name), 'unidades' => (int) $s->unidades, 'precio' => (float) $s->price];
+            }
         }
 
         // ¿Eligió una? (por número, por nombre, o respondiendo a la foto)
@@ -398,7 +434,8 @@ trait GuionDiagrama
 
         // Dijo el tipo o día/noche ("en calzoncito los quiero", "el de
         // noche"): si con eso queda UNA sola, esa es la que eligió.
-        $ops = $this->guionOpcionesVistas();
+        $idsVistas = array_column($vistas, 'id');
+        $ops = array_values(array_filter($this->guionOpcionesVistas(), fn ($o) => in_array($this->dgIdDeOpcion($o['opcion']), $idsVistas, true)));
         $nn = Entender::normalizar($texto);
         // El tipo que dijo antes ("de cinta") sigue valiendo cuando después
         // dice "de noche".
@@ -476,9 +513,9 @@ trait GuionDiagrama
 
         $que = '*' . trim((string) $s->product->name) . '* talla ' . trim((string) $s->size);
 
-        // Quedan tallas por ver y no dijo cuántos de esta: se pregunta ya,
+        // Quedan tallas por elegir y no dijo cuántos de esta: se pregunta ya,
         // antes de pasar a la otra.
-        if ($f->dato('dpendientes') && $cant === null) {
+        if ($this->dgTallasSinElegir() && $cant === null) {
             $this->dgDecir('¡Con gusto! 😊 ¿Cuántos paquetes de ' . $que . ' le enviamos?', 'cantidad_item');
             return;
         }
@@ -489,17 +526,22 @@ trait GuionDiagrama
     /** La siguiente talla que pidió, o el municipio si ya no quedan. */
     private function dgDespuesDeElegir(string $antes): void
     {
-        $f = $this->f;
-        $pend = (array) $f->dato('dpendientes', []);
-
-        if ($pend) {
-            $sig = array_shift($pend);
-            $pend ? $f->poner('dpendientes', $pend) : $f->quitar('dpendientes');
-            $this->dgConTalla($sig, trim($antes . 'Ahora la talla *' . $this->bonita($sig) . '* 👇') . "\n\n");
+        if ($faltan = $this->dgTallasSinElegir()) {
+            $this->dgDecir($antes . '¿Y de la talla *' . $this->bonita($faltan[0]) . '*, cuál desea? 😊', 'opciones');
             return;
         }
 
         $this->dgDecir($antes . 'Tenemos cobertura nacional con los envíos. ¿Desde cuál municipio nos escribe, disculpe?', 'municipio');
+    }
+
+    /** Las tallas que pidió y de las que todavía no eligió nada. */
+    private function dgTallasSinElegir(): array
+    {
+        $elegidas = [];
+        foreach ((array) $this->f->dato('carrito', []) as $c) {
+            if ($s = ProductSize::with('product')->find($c['id'])) $elegidas[] = mb_strtoupper(trim((string) $s->size));
+        }
+        return array_values(array_filter((array) $this->f->dato('tallas', []), fn ($t) => ! in_array(mb_strtoupper($t), $elegidas, true)));
     }
 
     private function dgCantidadItem(string $texto): void
