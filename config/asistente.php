@@ -68,6 +68,22 @@ return [
     // Si Wil escribió en el chat en estas horas, el asistente no arranca.
     'silencio_si_wil_horas' => 12,
 
+    // El aviso de "ya llegó" que Wil manda desde el teléfono a los clientes
+    // de agotados NO cuenta como "Wil está atendiendo": si el cliente
+    // contesta, la guía le responde. Se reconoce por estas frases (sin
+    // tildes, en minúscula). Ej.: "Ya están disponibles las presentaciones".
+    'aviso_frases' => [
+        'ya estan disponible',
+        'ya esta disponible',
+        'ya nos llego',
+        'ya nos llegaron',
+        'ya llego',
+        'ya llegaron',
+        'ya tenemos disponible',
+        'ya hay disponible',
+        'ya hay existencia',
+    ],
+
     // Máximo de respuestas del asistente por chat en una hora (un pedido
     // completo son unas 15). Si se pasa,
     // algo raro está pasando: se lo pasa a Wil.

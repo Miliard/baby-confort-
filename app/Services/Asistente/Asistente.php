@@ -123,7 +123,13 @@ class Asistente
     /** null si puede arrancar; si no, por qué no. */
     public static function porQueNoEmpieza(WaConversacion $conv, ?AsistenteFicha $f, bool $mirarVentana = true): ?string
     {
-        if ($f && in_array($f->estado, ['wil', 'apagado'], true)) return 'está apagado en este chat';
+        // Te lo había pasado antes, pero después le mandaste el aviso de "ya
+        // llegó": la guía vuelve a atender lo que conteste.
+        if ($f && $f->estado === 'wil' && static::avisoDespuesDe($conv, $f->updated_at)) {
+            // sigue: el turno lo arranca de cero
+        } elseif ($f && in_array($f->estado, ['wil', 'apagado'], true)) {
+            return 'está apagado en este chat';
+        }
 
         if ($f && $f->estado === 'terminado' && $f->updated_at && $f->updated_at->gt(now()->subDay())) {
             return 'acaba de cerrar un pedido';
@@ -142,17 +148,43 @@ class Asistente
         $desde = now()->subHours((int) config('asistente.silencio_si_wil_horas', 12));
         if ($f && $f->desde && $f->desde->gt($desde)) $desde = $f->desde;
 
+        // Lo que escribiste a mano en ese rato, sin contar el aviso de "ya llegó".
         $wilEscribio = WaMensaje::where('conversacion_id', $conv->id)
             ->where('direccion', 'saliente')
             ->where('automatico', false)
             ->where('created_at', '>=', $desde)
-            ->exists();
+            ->get(['id', 'texto'])
+            ->contains(fn ($m) => ! static::esAviso((string) $m->texto));
 
         if ($wilEscribio) return 'Wil está atendiendo';
 
         if ($mirarVentana && ! $conv->ventanaAbierta()) return 'la ventana de 24 horas está cerrada';
 
         return null;
+    }
+
+    /** ¿Es el aviso de "ya llegó" que mandás a los de agotados? */
+    public static function esAviso(string $texto): bool
+    {
+        $n = Entender::normalizar($texto);
+        if ($n === '') return false;
+        foreach ((array) config('asistente.aviso_frases', []) as $frase) {
+            $frase = Entender::normalizar((string) $frase);
+            if ($frase !== '' && str_contains($n, $frase)) return true;
+        }
+        return false;
+    }
+
+    /** ¿Le mandaste el aviso después de que la guía te pasó el chat? */
+    private static function avisoDespuesDe(WaConversacion $conv, $cuando): bool
+    {
+        if (! $cuando) return false;
+        return WaMensaje::where('conversacion_id', $conv->id)
+            ->where('direccion', 'saliente')
+            ->where('automatico', false)
+            ->where('created_at', '>', $cuando)
+            ->get(['id', 'texto'])
+            ->contains(fn ($m) => static::esAviso((string) $m->texto));
     }
 
     // ════════════════════════════════════════════════════════════════════════
