@@ -76,6 +76,15 @@ trait GuionDiagrama
             return;
         }
 
+        // ── Tocó un botón o eligió de una lista ─────────────────────────────
+        if ($boton && ! str_starts_with($boton, 'conf:')) {
+            [$k, $v] = explode(':', $boton, 2) + [1 => ''];
+            if ($k === 'talla') { $this->dgConTalla($v, $hola); return; }
+            if ($k === 'tipo')  { $this->dgOpciones($v); return; }
+            if ($k === 'op' && ($s = ProductSize::with('product')->find($v))) { $this->dgElegir($s, null); return; }
+            if ($k === 'envio') { $this->dgEnvio($v === 'si' ? 'si' : 'no'); return; }
+        }
+
         switch ($paso) {
             case 'talla':     $this->dgTalla($texto, $hola); return;
             case 'peso':      $this->dgPeso($texto, $hola); return;
@@ -133,6 +142,9 @@ trait GuionDiagrama
 
     private function dgTallas(string $texto): array
     {
+        // "XLyM", "xl/m", "M-XL": tallas pegadas.
+        $t = '(xxxl|xxl|2xl|3xl|xl|rn|l|m|s|g|xg|xxg)';
+        $texto = preg_replace('/\b' . $t . '(y|\/|-|\+)' . $t . '\b/iu', '$1 y $3', $texto);
         $tallas = Entender::tallas($texto);
         if (! $tallas && ($num = Entender::numeroDeTalla($texto)) !== null) {
             $t = config('asistente.tallas_numericas', [])[$num] ?? null;
@@ -372,27 +384,56 @@ trait GuionDiagrama
         $f->poner('fotos_enviadas', $enviadas);
 
         // Después de las fotos, según lo que hay en esa talla:
-        //  · de cinta Y de calzoncito → "¿Cómo lo desea: de calzoncito o de cinta?"
+        //  · de cinta Y de calzoncito → botones [Calzoncito] [Cinta]
         //  · solo de un tipo           → "Solo tenemos estas presentaciones de …"
-        //    y si son varias, cómo las quiere (de día o de noche, o cuál).
-        $this->dgDecir($this->dgPreguntaDespuesDeFotos($this->guionOpcionesVistas()), 'opciones');
+        //    y si son varias, una lista para elegir cuál.
+        $this->dgPreguntarDespuesDeFotos($this->guionOpcionesVistas());
     }
 
-    private function dgPreguntaDespuesDeFotos(array $ops): string
+    private function dgPreguntarDespuesDeFotos(array $ops): void
     {
+        $this->f->poner('dpaso', 'opciones');
+        $this->f->paso = 'diagrama · opciones';
+
         $cintas = array_values(array_filter($ops, fn ($o) => $o['tipo'] === 'Cinta'));
         $calzon = array_values(array_filter($ops, fn ($o) => $o['tipo'] === 'Calzoncito'));
 
         if ($cintas && $calzon) {
-            return '¿Cómo lo desea: de calzoncito o de cinta (de pegar a los lados)? 😊';
+            $this->botones('¿Cómo lo desea: de calzoncito o de cinta (de pegar a los lados)? 😊', [
+                'tipo:calzoncito' => 'Calzoncito',
+                'tipo:cinta'      => 'Cinta (de pegar)',
+            ]);
+            return;
         }
 
         $todas = $cintas ?: $calzon;
         $tipo = $cintas ? 'cinta (de pegar a los lados)' : 'calzoncito';
 
-        if (count($todas) <= 1) return 'Solo tenemos esta presentación de ' . $tipo . ' 😊';
+        if (count($todas) <= 1) { $this->texto('Solo tenemos esta presentación de ' . $tipo . ' 😊'); return; }
 
-        return 'Solo tenemos estas presentaciones de ' . $tipo . ' 😊 ' . $this->dgComoLasQuiere($todas);
+        $this->dgListaDeOpciones('Solo tenemos estas presentaciones de ' . $tipo . ' 😊 ¿Cuál desea?', $todas);
+    }
+
+    /** Una lista de WhatsApp para elegir la presentación (sin escribir). */
+    private function dgListaDeOpciones(string $cuerpo, array $ops): void
+    {
+        $filas = [];
+        foreach (array_slice($ops, 0, 10) as $o) {
+            $id = $this->dgIdDeOpcion($o['opcion']);
+            $s = $id ? ProductSize::with('product')->find($id) : null;
+            if (! $s) continue;
+            $corto = trim(preg_replace('/\s*\(.*$/u', '', $o['nombre']));
+            // WhatsApp deja 24 letras en el título: va el nombre; el número de
+            // opción, la talla, las unidades y el precio, abajo.
+            $filas[] = [
+                'id'      => 'op:' . $s->id,
+                'titulo'  => mb_strlen($corto) > 24 ? rtrim(mb_substr($corto, 0, 23)) . '…' : $corto,
+                'detalle' => mb_substr('Opción ' . $o['opcion'] . ' · Talla ' . trim((string) $s->size) . ($o['unidades'] ? ' · ' . $o['unidades'] . ' unidades' : '') . ' · $' . number_format($o['precio'], 2), 0, 72),
+            ];
+        }
+
+        if (! $filas) { $this->texto($cuerpo); return; }
+        $this->lista($cuerpo, 'Elegir', $filas);
     }
 
     /**
@@ -437,13 +478,17 @@ trait GuionDiagrama
         $idsVistas = array_column($vistas, 'id');
         $ops = array_values(array_filter($this->guionOpcionesVistas(), fn ($o) => in_array($this->dgIdDeOpcion($o['opcion']), $idsVistas, true)));
         $nn = Entender::normalizar($texto);
+        // Pide OTRA talla ("y la talla M"): se suman sus fotos, sin perder las de antes.
+        $nuevas = array_values(array_diff($this->dgTallas($texto), (array) $f->dato('tallas', [])));
+        if ($nuevas) { $this->dgAgregarTallas($nuevas); return; }
+
         // El tipo que dijo antes ("de cinta") sigue valiendo cuando después
         // dice "de noche".
-        $tipo = Entender::tipo($texto);
-        if (in_array($tipo, ['cinta', 'calzoncito'], true)) $f->poner('dtipo', $tipo);
-        elseif ($f->dato('dtipo')) $tipo = (string) $f->dato('dtipo');
         $quiereNoche = (bool) preg_match('/\bnoche|nocturn|dormir/', $nn);
         $quiereDia   = (bool) preg_match('/\bde dia\b|\bdiario|para el dia/', $nn);
+        $tipo = Entender::tipo($texto);
+        if (in_array($tipo, ['cinta', 'calzoncito'], true)) $f->poner('dtipo', $tipo);
+        elseif ($f->dato('dtipo') && ($quiereNoche || $quiereDia)) $tipo = (string) $f->dato('dtipo');
         if (in_array($tipo, ['cinta', 'calzoncito'], true) || $quiereNoche || $quiereDia) {
             $sirven = array_values(array_filter($ops, function ($o) use ($tipo, $quiereNoche, $quiereDia) {
                 if (in_array($tipo, ['cinta', 'calzoncito'], true) && mb_strtolower($o['tipo']) !== $tipo) return false;
@@ -471,7 +516,8 @@ trait GuionDiagrama
             }
 
             if (count($sirven) > 1) {
-                $this->dgDecir($this->dgComoLasQuiere($sirven) . ' 😊', 'opciones');
+                $f->poner('dpaso', 'opciones');
+                $this->dgListaDeOpciones('¿Cuál desea? 😊', $sirven);
                 return;
             }
 
@@ -497,6 +543,45 @@ trait GuionDiagrama
         if ($t = $this->dgTallas($texto)) { $this->dgConTalla($t[0], ''); return; }
 
         $this->dgNoEntendi('opciones', '¿Cuál de las opciones le interesa? Puede decirme el número 😊');
+    }
+
+    /** Pide otra talla después de ver las fotos: se suman sus fotos, numeradas a continuación. */
+    private function dgAgregarTallas(array $nuevas): void
+    {
+        $f = $this->f;
+        $disp = array_map('mb_strtoupper', $this->tallasDisponibles());
+        $hay = array_values(array_filter($nuevas, fn ($t) => in_array(mb_strtoupper($t), $disp, true)));
+        $no  = array_values(array_diff($nuevas, $hay));
+
+        $antes = '';
+        if ($no) {
+            $this->marcarAgotado();
+            $antes = 'En este momento no tenemos talla ' . $this->unir(array_map(fn ($t) => $this->bonita($t), $no)) . ' 😔';
+        }
+        if (! $hay) { $this->dgDecir($antes, 'opciones'); return; }
+
+        $f->poner('tallas', array_values(array_unique(array_merge((array) $f->dato('tallas', []), array_map('mb_strtoupper', $hay)))));
+        $enviadas = (array) $f->dato('fotos_enviadas', []);
+
+        foreach ($hay as $t) {
+            $primera = true;
+            foreach ($this->presentaciones([$t], 'ambos')->take(max(1, (int) config('asistente.max_fotos', 4))) as $s) {
+                $nro = count($enviadas) + 1;
+                $pre = $primera ? trim($antes . "\n\n*Talla " . $this->bonita($t) . '* 👇') : '';
+                $this->tarjeta($s, $nro, $pre);
+                $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];
+                $primera = false; $antes = '';
+            }
+        }
+        $f->poner('fotos_enviadas', $enviadas);
+
+        // La pregunta, solo con lo de la talla nueva.
+        $nuevasUp = array_map('mb_strtoupper', $hay);
+        $ops = array_values(array_filter($this->guionOpcionesVistas(), function ($o) use ($nuevasUp) {
+            $s = ProductSize::with('product')->find($this->dgIdDeOpcion($o['opcion']));
+            return $s && in_array(mb_strtoupper(trim((string) $s->size)), $nuevasUp, true);
+        }));
+        $this->dgPreguntarDespuesDeFotos($ops);
     }
 
     /** Eligió una presentación: al pedido, y sigue con la otra talla o el municipio. */
@@ -527,7 +612,12 @@ trait GuionDiagrama
     private function dgDespuesDeElegir(string $antes): void
     {
         if ($faltan = $this->dgTallasSinElegir()) {
-            $this->dgDecir($antes . '¿Y de la talla *' . $this->bonita($faltan[0]) . '*, cuál desea? 😊', 'opciones');
+            $this->f->poner('dpaso', 'opciones');
+            $ops = array_values(array_filter($this->guionOpcionesVistas(), function ($o) use ($faltan) {
+                $s = ProductSize::with('product')->find($this->dgIdDeOpcion($o['opcion']));
+                return $s && mb_strtoupper(trim((string) $s->size)) === mb_strtoupper($faltan[0]);
+            }));
+            $this->dgListaDeOpciones(trim($antes . '¿Y de la talla *' . $this->bonita($faltan[0]) . '*, cuál desea? 😊'), $ops);
             return;
         }
 
@@ -593,7 +683,7 @@ trait GuionDiagrama
         }
         $this->f->poner('fotos_enviadas', $enviadas);
 
-        $this->dgDecir($this->dgPreguntaDespuesDeFotos($this->guionOpcionesVistas()), 'opciones');
+        $this->dgPreguntarDespuesDeFotos($this->guionOpcionesVistas());
     }
 
     private function dgIdDeOpcion(int $nro): ?string
@@ -656,7 +746,9 @@ trait GuionDiagrama
         }
         if ($leyenda === '') $leyenda = '🚚 Envío: $' . number_format($envio, 2) . ', hasta su casa o lugar de trabajo.';
 
-        $this->dgDecir($leyenda . "\n\n¿Le parece bien? 😊", 'envio');
+        $this->f->poner('dpaso', 'envio');
+        $this->f->paso = 'diagrama · envio';
+        $this->botones($leyenda . "\n\n¿Le parece bien? 😊", ['envio:si' => 'Sí, me parece bien', 'envio:no' => 'No, gracias']);
     }
 
     private function dgColonia(string $texto): void
