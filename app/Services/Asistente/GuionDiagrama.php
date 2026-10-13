@@ -471,16 +471,16 @@ trait GuionDiagrama
                 if ($meses >= $d && $meses <= $h) { $pista = $txt; break; }
             }
             if ($meses === 0) {
-                // Recién nacido: RN o S. Si hay, sus fotos; si no, se le dice y se anota.
+                // Recién nacido: siempre la talla RN, y solo esa (la S le queda
+                // grande). Si hay, sus fotos. Si no hay, no se le dice "no hay"
+                // ni se le ofrece otra: te lo pasa a vos sin contestar.
                 $disp = array_map('mb_strtoupper', $this->tallasDisponibles());
-                $hay = array_values(array_intersect(['RN', 'S'], $disp));
-                if ($hay) {
-                    $this->dgConTalla($hay[0], $hola . '¡Felicidades! 🎉 Para recién nacido se usa talla *' . $this->bonita($hay[0]) . "* 👇\n\n");
+                if (in_array('RN', $disp, true)) {
+                    $this->dgConTalla('RN', $hola . "¡Felicidades! 🎉 Para recién nacido es la talla *RN* 👇\n\n");
                     return true;
                 }
                 $this->marcarAgotado();
-                $this->f->poner('sin_talla', 'RN');
-                $this->dgDecir($hola . '¡Felicidades! 🎉 Para recién nacido se usa talla *RN* o *S*, y en este momento no tenemos 😔 Apenas entren le avisamos por aquí 😊', 'peso');
+                $this->pasarAWil('recién nacido: no hay talla RN', false);
                 return true;
             }
             $this->dgDecir($hola . ($pista ? "Con {$edad} la mayoría usa talla {$pista}, pero lo que manda es el peso 😊 " : 'Lo que manda es el peso 😊 ')
