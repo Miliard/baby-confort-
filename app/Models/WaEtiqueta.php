@@ -38,6 +38,10 @@ class WaEtiqueta extends Model
         // cuando entre la mercadería. Se saca a mano después de avisarle.
         'agotado'   => 'Se pone sola cuando le decís a un cliente que algo está agotado. '
                      . 'Quitala a mano cuando ya le ofreciste de nuevo.',
+        // Lo que el asistente dejó para una persona. Se quita sola cuando
+        // alguien del equipo contesta en ese chat.
+        'asistente' => 'Se pone sola cuando el asistente pasa el chat a una persona. '
+                     . 'Se quita sola cuando alguien del equipo contesta.',
     ];
 
     /** La etiqueta que juega ese papel, si alguna lo tiene asignado. */

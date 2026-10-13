@@ -230,6 +230,13 @@ class Asistente
         } catch (\Throwable $e) {
             Log::warning('Asistente al escribir Wil: ' . $e->getMessage());
         }
+
+        // Alguien del equipo ya contestó: sale de "🤖 Revisar".
+        try {
+            $rev = \App\Models\WaEtiqueta::porRol('asistente');
+            if ($rev) $conv->etiquetas()->detach($rev->id);
+        } catch (\Throwable $e) {
+        }
     }
 
     /** Corre después de responderle a Meta. */
@@ -2693,6 +2700,17 @@ class Asistente
         $this->f->estado = 'wil';
         $this->f->motivo = mb_substr($motivo, 0, 190);
         $this->f->save();
+
+        // A la pestaña "🤖 Revisar", para que alguien del equipo lo atienda
+        // (salvo que haya dicho que no: ahí no hay nada que hacer).
+        $dijoNo = str_starts_with($motivo, 'dijo que no') || str_starts_with($motivo, 'no aceptó');
+        if (! $dijoNo) {
+            try {
+                $rev = \App\Models\WaEtiqueta::porRol('asistente');
+                if ($rev) $this->conv->etiquetas()->syncWithoutDetaching([$rev->id]);
+            } catch (\Throwable $e) {
+            }
+        }
 
         // Si ya había elegido algo, va a Pedidos para que no se pierda. Y si
         // está contestando al aviso de "ya llegó" (de la última semana),
