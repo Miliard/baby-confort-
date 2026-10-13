@@ -119,6 +119,12 @@ trait GuionDiagrama
             return;
         }
 
+        // ── "¿Cuánto sería ya con el envío?": el total ─────────────────────
+        if ($this->dgPideTotal($n) && ! in_array($paso, ['datos', 'telefono', 'orden', 'colonia'], true)) {
+            if (! $f->dato('municipio') && ($muni = Municipios::buscarEn($texto))) $this->ponerMunicipio($muni);
+            if ($this->dgTotal($paso, $hola)) return;
+        }
+
         // ── "¿Cuánto vale el envío a Soyapango?" (antes de elegir) ──────────
         // Ya dio el municipio: se le contesta la leyenda del envío y el
         // municipio queda guardado (no se le vuelve a preguntar).
@@ -438,7 +444,7 @@ trait GuionDiagrama
             && ($m[2] !== 'm' || preg_match('/\b(tiene|bebe|nino|nina|edad)\b/', $n))) {
             $meses = ($meses ?? 0) + ($num[$m[1]] ?? (int) $m[1]);
         }
-        if ($meses === null && preg_match('/\b(recien nacid[oa]|no ha nacido|va a nacer|por nacer)\b/', $n)) $meses = 0;
+        if ($meses === null && preg_match('/\b(recien nacid[oa]s?|no ha nacido|no a nacido|todavia no nace|aun no nace|no ha nacido|no nace|va a nacer|por nacer|cuando nazca|esta por nacer|embarazada|estoy embarazada|para (mi|un|el) bebe que viene|nacimiento)\b/', $n)) $meses = 0;
         return $meses;
     }
 
@@ -446,7 +452,7 @@ trait GuionDiagrama
      * Lo que dice fuera de lo que se le preguntó, pero que tiene respuesta
      * clara (sacado de los chats reales). True si lo atendió.
      */
-    private function dgSuelto(string $texto, string $paso): bool
+    private function dgSuelto(string $texto, string $paso, string $hola = ''): bool
     {
         $f = $this->f;
         $n = Entender::normalizar($texto);
@@ -465,10 +471,19 @@ trait GuionDiagrama
                 if ($meses >= $d && $meses <= $h) { $pista = $txt; break; }
             }
             if ($meses === 0) {
-                $this->dgDecir('Para recién nacido la mayoría usa talla ' . ($pista ?: '*RN* o *S*') . ' 😊 Cuando sepa cuánto pesa, con gusto le digo la talla exacta.', 'peso');
+                // Recién nacido: RN o S. Si hay, sus fotos; si no, se le dice y se anota.
+                $disp = array_map('mb_strtoupper', $this->tallasDisponibles());
+                $hay = array_values(array_intersect(['RN', 'S'], $disp));
+                if ($hay) {
+                    $this->dgConTalla($hay[0], $hola . '¡Felicidades! 🎉 Para recién nacido se usa talla *' . $this->bonita($hay[0]) . "* 👇\n\n");
+                    return true;
+                }
+                $this->marcarAgotado();
+                $this->f->poner('sin_talla', 'RN');
+                $this->dgDecir($hola . '¡Felicidades! 🎉 Para recién nacido se usa talla *RN* o *S*, y en este momento no tenemos 😔 Apenas entren le avisamos por aquí 😊', 'peso');
                 return true;
             }
-            $this->dgDecir(($pista ? "Con {$edad} la mayoría usa talla {$pista}, pero lo que manda es el peso 😊 " : 'Lo que manda es el peso 😊 ')
+            $this->dgDecir($hola . ($pista ? "Con {$edad} la mayoría usa talla {$pista}, pero lo que manda es el peso 😊 " : 'Lo que manda es el peso 😊 ')
                 . '¿Sabe más o menos cuánto pesa?', 'peso');
             return true;
         }
@@ -501,6 +516,69 @@ trait GuionDiagrama
             return true;
         }
         return false;
+    }
+
+    /** "¿Cuánto sería ya con el envío?", "con envío incluido", "total con el envío". */
+    private function dgPideTotal(string $n): bool
+    {
+        return (bool) preg_match('/\benvio\b/', $n)
+            && (bool) preg_match('/\b(ya con|con el envio|con envio|incluido|incluyendo|en total|total|todo junto|mas el envio|con todo)\b/', $n);
+    }
+
+    /**
+     * El total con el envío. Si no se sabe de dónde es, primero se pregunta el
+     * municipio (y el total se le da después). En San Miguel el envío lo
+     * confirmás vos. True si contestó.
+     */
+    private function dgTotal(string $paso, string $hola): bool
+    {
+        $f = $this->f;
+
+        // Sin talla todavía: depende de la talla.
+        $carrito = (array) $f->dato('carrito', []);
+        $ops = $carrito ? [] : $this->guionOpcionesVistas();
+        if (! $carrito && ! $ops) return false;
+
+        if (! $f->dato('municipio')) {
+            $f->poner('volver_a', $paso);
+            $f->poner('pend_total', true);
+            $this->dgDecir(trim($hola . 'Con gusto 😊 Tenemos cobertura nacional con los envíos. ¿Desde cuál municipio nos escribe, disculpe?'), 'muni_envio');
+            return true;
+        }
+        if ($this->entregaPropia()) {
+            $this->dgDecir(trim($hola . '¿De qué colonia nos escribe, para confirmarle el costo del envío? 🚚'), 'colonia');
+            return true;
+        }
+
+        $envio = (float) \App\Models\Setting::envio();
+        $f->poner('envio', $envio);
+        $f->poner('envio_dicho', true);
+        $m = fn ($x) => '$' . number_format($x, 2);
+
+        if ($carrito) {
+            $lineas = []; $sub = 0;
+            foreach ($carrito as $c) {
+                $s = ProductSize::with('product')->find($c['id']);
+                if (! $s) continue;
+                $cant = max(1, (int) ($c['cant'] ?? 1));
+                $sub += $cant * (float) $s->price;
+                $lineas[] = '• ' . $cant . ' × *' . trim(preg_replace('/\s*\(.*$/u', '', (string) $s->product->name)) . '* talla ' . trim((string) $s->size) . ': ' . $m($cant * (float) $s->price);
+            }
+            $nota = array_filter($carrito, fn ($c) => empty($c['dicha'])) ? "\n(por 1 paquete; si lleva más, me dice cuántos)" : '';
+            $txt = trim($hola !== '' ? $hola : 'Con gusto 😊') . "\n\n" . implode("\n", $lineas) . "\n• Envío: " . $m($envio) . "\n\n*Total: " . $m($sub + $envio) . '*' . $nota;
+            // Ya eligió: después del total, lo del envío ("¿le parece bien?").
+            if (in_array($paso, ['envio', 'municipio', 'muni_envio', 'depto'], true)) {
+                $txt .= "\n\n¿Le parece bien? 😊";
+                $paso = 'envio';
+            }
+            $this->dgDecir($txt, $paso);
+            return true;
+        }
+
+        $l = array_map(fn ($o) => '• *Opción ' . $o['opcion'] . '* (' . trim(preg_replace('/\s*\(.*$/u', '', $o['nombre'])) . '): '
+            . $m($o['precio']) . ' + ' . $m($envio) . ' de envío = *' . $m($o['precio'] + $envio) . '*', $ops);
+        $this->dgDecir(trim($hola !== '' ? $hola : 'Con gusto 😊') . " Con el envío, por un paquete:\n\n" . implode("\n", $l), $paso);
+        return true;
     }
 
     /** Al chat le pone la etiqueta de pedido (pestaña Pedidos). */
@@ -554,6 +632,9 @@ trait GuionDiagrama
         }
 
         if ($p = Entender::peso($texto)) { $this->dgConPeso($p, $hola); return; }
+
+        // Dice la edad (o que no ha nacido), aunque sea el primer mensaje.
+        if ($this->dgEdadEnMeses(Entender::normalizar($texto)) !== null && $this->dgSuelto($texto, 'talla', $hola)) return;
 
         // Primer mensaje (saludo, "información", "¿tiene pampers?"): se pide la talla.
         if ($hola !== '' || Entender::esSaludo($texto) || ! $this->f->dato('tallas_vistas')) { $this->dgPedirTalla($hola); return; }
@@ -1243,6 +1324,12 @@ trait GuionDiagrama
         $pend = (string) $f->dato('pend_texto', '');
         $f->quitar('volver_a', 'pend_texto');
         $f->poner('dpaso', $volver);
+
+        // Había preguntado cuánto sería con el envío: ahora sí, el total.
+        if ($f->dato('pend_total')) {
+            $f->quitar('pend_total');
+            if ($this->dgTotal($volver, '¡Gracias! 😊 ')) return;
+        }
 
         if ($volver === 'talla') {
             // Había pedido talla en el mismo mensaje del envío.
