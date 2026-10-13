@@ -2750,7 +2750,11 @@ class Asistente
     private function pasarAWil(string $motivo, bool $avisarAlCliente = true): void
     {
         if ($avisarAlCliente && $this->conv->ventanaAbierta()) {
-            $this->texto($this->despedidaWil ?: trim((string) config('asistente.textos.asesor')));
+            // Sin "Le comunico con un asesor": la plática sigue fluida y la
+            // retomás vos. Solo se manda un cierre propio del caso (San Miguel,
+            // corregir la orden).
+            $cierre = trim((string) ($this->despedidaWil ?? ''));
+            if ($cierre !== '') $this->texto($cierre);
         }
 
         // San Miguel (o donde entregues vos): la etiqueta, para encontrarlos.
