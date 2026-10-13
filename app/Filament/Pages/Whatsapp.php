@@ -1073,11 +1073,24 @@ class Whatsapp extends Page
         if (! $conv || ! \App\Models\AsistenteFicha::hayTabla()) return null;
 
         try {
-            if (! \App\Services\Asistente\Asistente::numeroPermitido($conv)) return null;
+            if (! config('asistente.activo')) return null;
 
             $f = \App\Models\AsistenteFicha::de($conv);
 
-            $estado = $f ? $f->estadoLegible() : 'Esperando';
+            // Apagado en general (o fuera de los números de prueba): igual se
+            // puede encender en este chat.
+            if (! \App\Services\Asistente\Asistente::numeroPermitido($conv)) {
+                return [
+                    'estado'    => 'Apagado (el botón general está apagado)',
+                    'paso'      => null,
+                    'motivo'    => null,
+                    'encendido' => false,
+                    'prueba'    => false,
+                    'clase'     => 'off',
+                ];
+            }
+
+            $estado = ($f ? $f->estadoLegible() : 'Esperando') . ($f && $f->a_mano && ! \App\Services\Asistente\Asistente::encendidoGeneral() ? ' (encendido solo en este chat)' : '');
             $encendido = ! $f || in_array($f->estado, ['listo', 'activo', 'terminado'], true);
 
             if (! $f || $f->estado === 'listo') {
@@ -1107,7 +1120,7 @@ class Whatsapp extends Page
         \App\Models\AsistenteFicha::updateOrCreate(
             ['conversacion_id' => $conv->id],
             [
-                'estado' => 'listo', 'paso' => null, 'datos' => [], 'motivo' => null,
+                'estado' => 'listo', 'paso' => null, 'datos' => [], 'motivo' => null, 'a_mano' => true,
                 // Lo que ya se habló no se vuelve a leer, y lo que escribiste
                 // antes de encenderlo no lo frena.
                 'ultimo_mensaje_id' => \App\Models\WaMensaje::where('conversacion_id', $conv->id)->max('id'),
@@ -1115,8 +1128,15 @@ class Whatsapp extends Page
             ]
         );
 
+        // Ya no es pendiente del equipo: sale de "🤖 Revisar".
+        try {
+            $rev = \App\Models\WaEtiqueta::porRol('asistente');
+            if ($rev) $conv->etiquetas()->detach($rev->id);
+        } catch (\Throwable $e) {
+        }
+
         Notification::make()->title('Asistente encendido en este chat')
-            ->body('Arranca cuando el cliente escriba.')->success()->send();
+            ->body('Arranca cuando el cliente escriba, aunque el botón general esté apagado.')->success()->send();
     }
 
     // ── El botón general: encender o apagar el asistente para todos ─────────
@@ -1157,7 +1177,7 @@ class Whatsapp extends Page
 
         \App\Models\AsistenteFicha::updateOrCreate(
             ['conversacion_id' => $conv->id],
-            ['estado' => 'apagado', 'motivo' => 'lo apagaste']
+            ['estado' => 'apagado', 'motivo' => 'lo apagaste', 'a_mano' => false]
         );
 
         Notification::make()->title('Asistente apagado en este chat')->success()->send();

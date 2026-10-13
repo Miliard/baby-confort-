@@ -94,6 +94,16 @@ class Asistente
         return $v === null ? null : ((string) $v === '1');
     }
 
+    /** ¿Lo encendiste a mano en este chat? */
+    public static function encendidoAMano(WaConversacion $conv): bool
+    {
+        try {
+            return (bool) AsistenteFicha::where('conversacion_id', $conv->id)->value('a_mano');
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
     /** ¿Está atendiendo a los clientes ahora? (lo que muestra el botón) */
     public static function encendidoGeneral(): bool
     {
@@ -110,7 +120,9 @@ class Asistente
         $n = 0;
         try {
             $rev = \App\Models\WaEtiqueta::porRol('asistente');
-            $fichas = AsistenteFicha::where('estado', 'activo')->where('updated_at', '>=', now()->subDay())->get();
+            $q = AsistenteFicha::where('estado', 'activo')->where('updated_at', '>=', now()->subDay());
+            if (\Illuminate\Support\Facades\Schema::hasColumn('asistente_fichas', 'a_mano')) $q->where('a_mano', false);   // los encendidos a mano siguen
+            $fichas = $q->get();
             foreach ($fichas as $f) {
                 $f->estado = 'wil';
                 $f->motivo = 'apagaste el asistente a mitad del pedido';
@@ -131,17 +143,19 @@ class Asistente
         if (! config('asistente.activo')) return false;
 
         // El botón general del panel manda: apagado = nadie, encendido = todos.
+        // Salvo los chats donde lo encendiste a mano: esos, siempre.
         $sw = static::interruptor();
-        if ($sw === false) return false;
+        if ($sw === false) return static::encendidoAMano($conv);
         if ($sw === true) return true;
 
         $lista = (array) config('asistente.solo_numeros', []);
 
         if ($lista) {
-            return in_array(WaConversacion::telefonoCorto((string) $conv->wa_id), $lista, true);
+            return in_array(WaConversacion::telefonoCorto((string) $conv->wa_id), $lista, true)
+                || static::encendidoAMano($conv);
         }
 
-        return (bool) config('asistente.para_todos', false);
+        return (bool) config('asistente.para_todos', false) || static::encendidoAMano($conv);
     }
 
     /** ¿Está en modo prueba? (lista de números y todavía no para todos) */

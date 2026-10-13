@@ -15,18 +15,22 @@ use Illuminate\Support\Facades\Schema;
  *   wil       · se lo pasó a Wil (y no vuelve solo)
  *   apagado   · Wil escribió en el chat o lo apagó a mano
  *   terminado · cerró un pedido
+ *
+ * a_mano: lo encendiste vos en este chat; atiende aunque el botón general
+ * esté apagado.
  */
 class AsistenteFicha extends Model
 {
     protected $table = 'asistente_fichas';
 
     protected $fillable = [
-        'conversacion_id', 'estado', 'paso', 'datos', 'motivo', 'ultimo_mensaje_id', 'desde',
+        'conversacion_id', 'estado', 'a_mano', 'paso', 'datos', 'motivo', 'ultimo_mensaje_id', 'desde',
     ];
 
     protected $casts = [
         'datos' => 'array',
         'desde' => 'datetime',
+        'a_mano' => 'boolean',
     ];
 
     public function conversacion(): BelongsTo
