@@ -2694,8 +2694,12 @@ class Asistente
         $this->f->motivo = mb_substr($motivo, 0, 190);
         $this->f->save();
 
-        // Si ya había elegido algo, va a Pedidos para que no se pierda.
-        if ($this->f->dato('carrito') || $this->f->dato('tallas')) {
+        // Si ya había elegido algo, va a Pedidos para que no se pierda. Y si
+        // está contestando al aviso de "ya llegó" (de la última semana),
+        // también: es un cliente que quiere comprar. Salvo que haya dicho que no.
+        $dijoQueNo = str_starts_with($motivo, 'dijo que no') || str_starts_with($motivo, 'no aceptó');
+        $respondeAviso = ! $dijoQueNo && static::avisoDespuesDe($this->conv, now()->subDays(7));
+        if ($this->f->dato('carrito') || $this->f->dato('tallas') || $respondeAviso) {
             static::$hablando = false;
             try {
                 Etiquetado::marcarIntencion($this->conv);
