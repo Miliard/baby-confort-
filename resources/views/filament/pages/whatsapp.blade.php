@@ -1087,6 +1087,17 @@
                   data-ult="{{ $this->ultimoEntranteId() }}"
                   style="display:none"></span>
 
+            {{-- El botón general del asistente: encendido contesta a todos los
+                 clientes que escriban; apagado no contesta a nadie. Al apagarlo,
+                 lo que tenía a medias pasa a la pestaña 🤖 Revisar. --}}
+            @php $botOn = $this->asistenteGeneralEncendido(); @endphp
+            <button type="button" wire:click="asistenteGeneralAlternar" wire:loading.attr="disabled"
+                    wire:confirm="{{ $botOn ? '¿Apagar el asistente? Deja de contestar a todos, y los chats que tenía a medias pasan a 🤖 Revisar.' : '¿Encender el asistente? Va a contestar a los clientes que escriban (no entra en chats que el equipo esté atendiendo).' }}"
+                    class="wa-fil on" style="--c:{{ $botOn ? '#16a34a' : '#e5695f' }};margin-top:8px;font-weight:700"
+                    aria-pressed="{{ $botOn ? 'true' : 'false' }}">
+                🤖 Asistente: {{ $botOn ? 'ENCENDIDO' : 'APAGADO' }}
+            </button>
+
             {{-- Probar el sonido, siempre a la vista y no solo cuando falta dar
                  permiso. Sin esto no hay cómo saber si el problema es que el
                  sonido no funciona o que el aviso no se está disparando: son

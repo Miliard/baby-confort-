@@ -80,9 +80,60 @@ class Asistente
     // ¿A quién le contesta?
     // ════════════════════════════════════════════════════════════════════════
 
+    /**
+     * El botón general del panel (🤖 Asistente encendido / apagado).
+     * true o false si se tocó; null si nunca se tocó (manda la configuración).
+     */
+    public static function interruptor(): ?bool
+    {
+        try {
+            $v = \App\Models\Setting::get('asistente_encendido');
+        } catch (\Throwable $e) {
+            return null;
+        }
+        return $v === null ? null : ((string) $v === '1');
+    }
+
+    /** ¿Está atendiendo a los clientes ahora? (lo que muestra el botón) */
+    public static function encendidoGeneral(): bool
+    {
+        if (! config('asistente.activo')) return false;
+        return static::interruptor() ?? (bool) config('asistente.para_todos', false);
+    }
+
+    /**
+     * Se apagó con el botón: los chats que tenía a mitad de pedido (de las
+     * últimas 24 horas) quedan para el equipo, en "🤖 Revisar".
+     */
+    public static function apagarTodo(): int
+    {
+        $n = 0;
+        try {
+            $rev = \App\Models\WaEtiqueta::porRol('asistente');
+            $fichas = AsistenteFicha::where('estado', 'activo')->where('updated_at', '>=', now()->subDay())->get();
+            foreach ($fichas as $f) {
+                $f->estado = 'wil';
+                $f->motivo = 'apagaste el asistente a mitad del pedido';
+                $f->save();
+                if ($rev && ($conv = WaConversacion::find($f->conversacion_id))) {
+                    $conv->etiquetas()->syncWithoutDetaching([$rev->id]);
+                }
+                $n++;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Apagando el asistente: ' . $e->getMessage());
+        }
+        return $n;
+    }
+
     public static function numeroPermitido(WaConversacion $conv): bool
     {
         if (! config('asistente.activo')) return false;
+
+        // El botón general del panel manda: apagado = nadie, encendido = todos.
+        $sw = static::interruptor();
+        if ($sw === false) return false;
+        if ($sw === true) return true;
 
         $lista = (array) config('asistente.solo_numeros', []);
 
@@ -96,6 +147,7 @@ class Asistente
     /** ¿Está en modo prueba? (lista de números y todavía no para todos) */
     public static function enPrueba(): bool
     {
+        if (static::interruptor() === true) return false;
         return (bool) config('asistente.solo_numeros') && ! config('asistente.para_todos');
     }
 

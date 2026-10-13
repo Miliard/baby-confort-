@@ -1119,6 +1119,37 @@ class Whatsapp extends Page
             ->body('Arranca cuando el cliente escriba.')->success()->send();
     }
 
+    // ── El botón general: encender o apagar el asistente para todos ─────────
+
+    public function asistenteGeneralEncendido(): bool
+    {
+        return \App\Services\Asistente\Asistente::encendidoGeneral();
+    }
+
+    public function asistenteGeneralAlternar(): void
+    {
+        if (! config('asistente.activo')) {
+            Notification::make()->title('El asistente está desactivado en Railway')
+                ->body('Falta la variable ASISTENTE=true.')->danger()->send();
+            return;
+        }
+
+        $encender = ! $this->asistenteGeneralEncendido();
+        \App\Models\Setting::put('asistente_encendido', $encender ? '1' : '0');
+
+        if ($encender) {
+            Notification::make()->title('🤖 Asistente encendido')
+                ->body('Contesta a los clientes que escriban. No entra en chats que el equipo esté atendiendo.')
+                ->success()->send();
+            return;
+        }
+
+        $n = \App\Services\Asistente\Asistente::apagarTodo();
+        Notification::make()->title('Asistente apagado')
+            ->body($n > 0 ? "{$n} chats que tenía a medias quedaron en 🤖 Revisar." : 'No tenía chats a medias.')
+            ->success()->send();
+    }
+
     public function asistenteApagar(): void
     {
         $conv = $this->conversacion();
