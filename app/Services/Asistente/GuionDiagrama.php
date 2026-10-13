@@ -431,10 +431,11 @@ trait GuionDiagrama
         if (preg_match('/\b\d+\s*(a|-)\s*\d+\s*anos\b/', $n)) return null;   // talla de niño
         $num = ['un' => 1, 'una' => 1, 'dos' => 2, 'tres' => 3, 'cuatro' => 4, 'cinco' => 5, 'seis' => 6, 'siete' => 7, 'ocho' => 8, 'nueve' => 9, 'diez' => 10, 'once' => 11];
         $meses = null;
-        if (preg_match('/\b(\d{1,2}|un|una|dos|tres|cuatro|cinco|seis|siete|ocho)\s*(ano|anos|anito|anitos)\b/', $n, $m)) {
+        if (preg_match('/\b(\d{1,2}|un|una|dos|tres|cuatro|cinco|seis|siete|ocho)\s*(ano|anos|anio|anios|anito|anitos|anitoa|anyos)\b/', $n, $m)) {
             $meses = (($num[$m[1]] ?? (int) $m[1])) * 12;
         }
-        if (preg_match('/\b(\d{1,2}|un|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once)\s*(mes|meses|mesecito|mesecitos)\b/', $n, $m)) {
+        if (preg_match('/\b(\d{1,2}|un|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once)\s*(mes|meses|mese|mece|meces|mesesitos|mesecito|mesecitos|mesesito|m)\b/', $n, $m)
+            && ($m[2] !== 'm' || preg_match('/\b(tiene|bebe|nino|nina|edad)\b/', $n))) {
             $meses = ($meses ?? 0) + ($num[$m[1]] ?? (int) $m[1]);
         }
         if ($meses === null && preg_match('/\b(recien nacid[oa]|no ha nacido|va a nacer|por nacer)\b/', $n)) $meses = 0;
@@ -485,6 +486,11 @@ trait GuionDiagrama
         $tipo = Entender::tipo($texto);
         $cant = $this->dgCantidadEn($texto) ?? Entender::cantidad($texto, true);
         if ($cant !== null) $f->poner('cant_pend', $cant);
+        // "¿Cuántos trae?" (también mal escrito: "cusntos trae", "cuatos vienen").
+        if (preg_match('/\bc\w{0,4}t[oa]s?\s+(trae|traen|vienen|viene|unidades|panales|pampers?)\b|\bcuantas unidades\b|\bde cuant[oa]s?\b/', $n)) {
+            $this->dgDecir('Con gusto 😊 La cantidad y el precio dependen de la talla. ' . $pregunta, $paso);
+            return true;
+        }
         if (Entender::preguntaPrecio($texto) || preg_match('/\b(precio|promo|promocion|oferta|3 x|3x)\b/', $n)) {
             $this->dgDecir('Con gusto 😊 El precio depende de la talla. ' . $pregunta, $paso);
             return true;
