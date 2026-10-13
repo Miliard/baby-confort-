@@ -276,7 +276,7 @@ class Entender
 
         if (preg_match('/\b(diferencias?|cual es mejor|cual me recomienda|cual recomienda|que diferencia|como son|en que se diferencian|que tienen de diferente|cual conviene)\b/', $n)) return 'diferencia';
 
-        $calzon = (bool) preg_match('/\b(calzoncitos?|calzon|calzones|pants?|pantis?|de subir|tipo calzon|braga|bragas|training)\b/', $n);
+        $calzon = (bool) preg_match('/\b(calzoncitos?|calzon|calzones|pants?|pantis?|de subir|tipo calzon|braga|bragas|training|cal[sdz]on[cs]?it[oa]s?|calson(es)?|blumer|bloomer)\b/', $n);
         $cinta  = (bool) preg_match('/\b(cintas?|de pegar|pegar|broches?|de broche|pegadit[oa]s?|adhesiv[oa]s?|velcro|normal|normales|tradicional|de los normales)\b/', $n);
 
         if ($calzon && $cinta) return 'ambos';

@@ -290,7 +290,7 @@ return [
             'texto'    => 'Puede pagar al recibir o por transferencia, como usted prefiera 😊',
         ],
         [
-            'palabras' => ['cuanto cuesta el envio', 'cuanto es el envio', 'cuanto sale el envio', 'costo de envio', 'costo del envio', 'precio del envio', 'cobran envio', 'el envio', 'envios', 'envio nacional', 'envios nacionales', 'acen envios', 'asen envios', 'hacen entregas', 'y el envio', 'entregas en', 'entregan en', 'hacen envios', 'hace envios', 'hacen envio', 'envian a', 'llegan a', 'mandan a', 'a domicilio', 'todo el pais'],
+            'palabras' => ['cuanto cuesta el envio', 'cuanto es el envio', 'de envio', 'vale el envio', 'cobran el envio', 'cuanto sale el envio', 'costo de envio', 'costo del envio', 'precio del envio', 'cobran envio', 'el envio', 'envios', 'envio nacional', 'envios nacionales', 'acen envios', 'asen envios', 'hacen entregas', 'y el envio', 'entregas en', 'entregan en', 'hacen envios', 'hace envios', 'hacen envio', 'envian a', 'llegan a', 'mandan a', 'a domicilio', 'todo el pais'],
             'texto'    => "⚡ ¡El envío más barato del mercado! 🚚\n💲 Solo \${envio} (¡lleve lo que lleve!)\n⏱️ Entrega rápida en 24 horas (en la mayoría de pedidos)\n🏠 Hasta su casa o lugar de trabajo",
         ],
         [
