@@ -80,9 +80,20 @@ trait GuionDiagrama
                 $this->pasarAWil('pegó una orden de envío (pedido repetido)', false);
                 return;
             }
-            if (preg_match('/\b(l[oa]s? de siempre|el de siempre|lo de siempre|(el )?mismo pedido|pedido de siempre|similar al (pasado|anterior)|(de )?l[oa]s mism[oa]s (de|que|k)|de l[oa]s mism[oa]s( entonces)?$|otro paquete (de este|igual|de los mismos)|como la (otra|ultima) vez|lo mismo de la (otra|ultima) vez|lo que me (manda|envia|trae) siempre|la que me manda siempre|que siempre me (envian|mandan|traen))\b/', $n)) {
+            if (preg_match('/\b(l[oa]s? de siempre|el de siempre|lo de siempre|(el )?mismo pedido|pedido de siempre|similar al (pasado|anterior)|(de )?l[oa]s mism[oa]s (de|que|k)|de l[oa]s mism[oa]s( entonces)?$|otro paquete (de este|igual|de los mismos)|como la (otra|ultima) vez|lo mismo de la (otra|ultima) vez|lo que me (manda|envia|trae) siempre|la que me manda siempre|que siempre me (envian|mandan|traen)|quiero lo mismo|lo mismo( por favor| porfa)?$|igual que la (vez|ultima))\b/', $n)) {
+                // Cliente activo y se sabe qué llevó: se le atiende con eso.
+                if (($u = $f->dato('conocido.ultima')) && $this->dgRecompra($u, $texto)) return;
                 $this->dgAPedidos();
                 $this->pasarAWil('pide lo mismo de antes (recompra)', false);
+                return;
+            }
+
+            // "Una talla más grande", "una talla antes", "la que sigue": desde la
+            // talla que llevó la vez pasada.
+            if (($u = $f->dato('conocido.ultima')) && ($nueva = $this->dgTallaRelativa($n, (string) $u['talla']))) {
+                $this->dgFiltroDeLoQueLlevo($u);
+                $f->poner('tallas_vistas', true);
+                $this->dgConTalla($nueva, 'Con gusto 😊 Le paso la talla *' . $this->bonita($nueva) . "* 👇\n\n");
                 return;
             }
         }
@@ -225,6 +236,11 @@ trait GuionDiagrama
             && $this->dgSeArrepiente($n)) {
             if (preg_match('/\b(cuando (tenga|haya|tengan|les? (llegue|entre))|que no sea|no sea de|de los otros|otro tipo)\b/', $n)) $this->marcarAgotado();
             $this->pasarAWil('cambió de idea o quiere otra cosa: "' . mb_substr(trim($texto), 0, 80) . '"', false);
+            return;
+        }
+
+        if (in_array($paso, ['municipio', 'muni_envio', 'envio', 'cantidad_item', 'sugerencia'], true) && $this->dgPideMasUnidades($n)) {
+            $this->dgMasUnidades();
             return;
         }
 
@@ -661,7 +677,11 @@ trait GuionDiagrama
         if ($nombre === '' || mb_strlen($dir) < 6) return;
 
         $muni = $muniTx !== '' ? (Municipios::buscarEn($muniTx) ?: Municipios::buscarEn($dir)) : Municipios::buscarEn($dir);
-        $f->poner('conocido', ['nombre' => $nombre, 'direccion' => $dir, 'municipio' => (string) $muni]);
+        $f->poner('conocido', [
+            'nombre' => $nombre, 'direccion' => $dir, 'municipio' => (string) $muni,
+            // Lo que llevó la vez pasada (de la última orden del chat o de la guía).
+            'ultima' => $this->dgUltimaCompra((string) ($o['productos'] ?? '') ?: $this->dgProductosDeLaGuia()),
+        ]);
 
         // El municipio ya se sabe: no se le pregunta.
         if ($muni && ! $f->dato('municipio') && $this->ponerMunicipio($muni)) {
@@ -670,7 +690,103 @@ trait GuionDiagrama
                     if (Municipios::normalizar($d) === Municipios::normalizar($depto)) { $this->ponerDepartamento($d); break; }
                 }
             }
+            // Cliente activo: el envío no se le vuelve a explicar. En San Miguel
+            // vale el que se le cobró la vez pasada (si se sabe).
+            $envAntes = (float) ($o['envio'] ?? 0);
+            if (! $this->entregaPropia()) {
+                $f->poner('envio', (float) \App\Models\Setting::envio());
+                $f->poner('envio_dicho', true);
+            } elseif ($envAntes > 0 && $envAntes <= 20) {
+                $f->poner('envio', $envAntes);
+                $f->poner('envio_dicho', true);
+            }
         }
+    }
+
+    /** Lo que dice la última guía de este número ("2 Calzoncito de noche talla M"). */
+    private function dgProductosDeLaGuia(): string
+    {
+        try {
+            $d = substr(preg_replace('/\D/', '', (string) $this->conv->telefono), -8);
+            if (strlen($d) < 8) return '';
+            $g = \App\Models\GuiaBorrador::whereRaw("REPLACE(REPLACE(REPLACE(COALESCE(telefono,''),' ',''),'-',''),'+','') LIKE ?", ['%' . $d])
+                ->orderByDesc('id')->first();
+            return $g ? (string) $g->descripcion : '';
+        } catch (\Throwable $e) {
+            return '';
+        }
+    }
+
+    /**
+     * De "2 Calzoncito de noche talla M $20.00": la talla, la presentación
+     * (si hoy hay), el tipo, si era de noche y cuántos. Null si no se entiende.
+     */
+    private function dgUltimaCompra(string $productos): ?array
+    {
+        foreach (preg_split('/\n+|;/', trim($productos)) as $l) {
+            $l = trim($l);
+            if ($l === '' || ! ($tallas = $this->dgTallas($l))) continue;
+            $nl = Entender::normalizar($l);
+
+            $mejor = null; $pts = 0;
+            foreach ($this->presentaciones([$tallas[0]], 'ambos') as $s) {
+                $nom = Entender::normalizar(preg_replace('/\(.*$/u', '', (string) $s->product->name));
+                $hit = count(array_filter(explode(' ', $nom), fn ($w) => mb_strlen($w) >= 4 && str_contains($nl, $w)));
+                if ($hit > $pts) { $pts = $hit; $mejor = $s; }
+            }
+            $tipo = Entender::tipo($l);
+            return [
+                'talla'   => $tallas[0],
+                'size_id' => $mejor ? (string) $mejor->id : null,
+                'texto'   => mb_substr($l, 0, 120),
+                'tipo'    => in_array($tipo, ['cinta', 'calzoncito'], true) ? $tipo : null,
+                'noche'   => (bool) preg_match('/\bnoche|nocturn/', $nl),
+                'cant'    => preg_match('/^\s*(\d{1,2})\b/', $l, $m) ? (int) $m[1] : null,
+            ];
+        }
+        return null;
+    }
+
+    /** "Quiero lo mismo": la misma presentación y talla, si hay; si no, lo que hay de esa talla. */
+    private function dgRecompra(array $u, string $texto): bool
+    {
+        $f = $this->f;
+        $f->poner('tallas', [mb_strtoupper((string) $u['talla'])]);
+        $f->poner('tallas_vistas', true);
+
+        if (! empty($u['size_id']) && ($s = ProductSize::with('product')->find($u['size_id']))) {
+            $f->poner('fotos_enviadas', [['opcion' => 1, 'id' => (string) $s->id]]);
+            $this->dgElegir($s, $this->dgCantidadEn($texto));
+            return true;
+        }
+
+        // Esa presentación hoy no está: lo que hay en su talla, del mismo tipo.
+        $disp = array_map('mb_strtoupper', $this->tallasDisponibles());
+        if (! in_array(mb_strtoupper((string) $u['talla']), $disp, true)) return false;   // ni la talla: a una persona
+        $this->dgFiltroDeLoQueLlevo($u);
+        $this->dgConTalla((string) $u['talla'], 'Con gusto 😊 ');
+        return true;
+    }
+
+    /** Para mostrarle primero lo del mismo tipo que llevó (cinta o calzoncito, de noche). */
+    private function dgFiltroDeLoQueLlevo(array $u): void
+    {
+        if (! empty($u['tipo'])) $this->f->poner('tipo_pedido', $u['tipo']);
+        if (! empty($u['noche'])) $this->f->poner('noche_pedido', true);
+    }
+
+    /** "Una talla más grande", "una talla antes", "la que sigue": la talla vecina de la que llevó. */
+    private function dgTallaRelativa(string $n, string $talla): ?string
+    {
+        $mas   = preg_match('/\b(una talla (mas|despues|arriba|mayor|siguiente)|talla mas grande|la (talla )?(que sigue|siguiente)|la otra talla mas grande|subir(le)? (de|una) talla|una mas grande)\b/', $n);
+        $menos = preg_match('/\b(una talla (antes|menos|abajo|menor|anterior|mas pequena|mas chica)|talla mas (pequena|chica)|la (talla )?anterior|bajar(le)? (de|una) talla|una mas (pequena|chica))\b/', $n);
+        if (! $mas && ! $menos) return null;
+
+        $orden = array_map('mb_strtoupper', (array) config('asistente.tallas', []));
+        $i = array_search(mb_strtoupper($talla), $orden, true);
+        if ($i === false) return null;
+        $j = $mas ? $i + 1 : $i - 1;
+        return $orden[$j] ?? null;
     }
 
     /** Contesta a "¿Se lo enviamos a nombre de…, en…?". */
@@ -773,6 +889,51 @@ trait GuionDiagrama
         return null;
     }
 
+    /** "¿Más unidades?", "¿paquete más grande?", "¿vienen con más pañales?" */
+    private function dgPideMasUnidades(string $n): bool
+    {
+        return (bool) preg_match('/\b(mas unidades|mas panales|mas pampers|mas cantidad de panales|(paquete|paquetes|bolsa|bolsas|presentacion|presentaciones) (mas grande|de mas)|traen? mas|vengan? con mas|venga con mas|con mas unidades|de mas unidades|mas de \d+ (unidades|panales))\b/', $n);
+    }
+
+    /** Las presentaciones de su talla con más unidades que las que vio; si no hay, se le dice cuál trae más. */
+    private function dgMasUnidades(): void
+    {
+        $f = $this->f;
+        $tallas = $this->dgTallasSinElegir() ?: (array) $f->dato('tallas', []);
+        if (! $tallas) { $this->pasarAWil('pregunta por paquetes con más unidades', false); return; }
+        $t = $tallas[0];
+
+        $todas = $this->presentaciones([$t], 'ambos');
+        $vistos = array_column((array) $f->dato('fotos_enviadas', []), 'id');
+        $maxVisto = (int) $todas->filter(fn ($s) => in_array((string) $s->id, $vistos, true))->max('unidades');
+        $mas = $todas->filter(fn ($s) => (int) $s->unidades > $maxVisto)->sortByDesc('unidades')->values();
+
+        if ($mas->isNotEmpty()) {
+            $enviadas = [];
+            $pre = 'Con gusto 😊 Estas traen más unidades en talla *' . $this->bonita($t) . '* 👇';
+            foreach ($mas->take(max(1, (int) config('asistente.max_fotos', 4))) as $s) {
+                $nro = count($enviadas) + 1;
+                $this->tarjeta($s, $nro, $pre);
+                $pre = '';
+                $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];
+            }
+            $f->poner('fotos_enviadas', $enviadas);
+            $f->poner('dpaso', 'opciones');
+            $this->dgPreguntarDespuesDeFotos($this->guionOpcionesVistas());
+            return;
+        }
+
+        $mayor = $todas->sortByDesc('unidades')->first();
+        if (! $mayor) { $this->pasarAWil('pregunta por paquetes con más unidades', false); return; }
+        $paso = (string) ($f->dato('dpaso') ?: 'opciones');
+        $nro = null;
+        foreach ((array) $f->dato('fotos_enviadas', []) as $e) if ((string) $e['id'] === (string) $mayor->id) $nro = $e['opcion'];
+        $cual = $todas->count() > 1 && $nro
+            ? 'la *opción ' . $nro . '* (' . trim(preg_replace('/\s*\(.*$/u', '', (string) $mayor->product->name)) . '), de *' . (int) $mayor->unidades . ' unidades*'
+            : 'la de *' . (int) $mayor->unidades . ' unidades*';
+        $this->dgDecir('En talla *' . $this->bonita($t) . '* por el momento la presentación que trae más es ' . $cual . ' 😊', $paso);
+    }
+
     /** Al chat le pone la etiqueta de pedido (pestaña Pedidos). */
     private function dgAPedidos(): void
     {
@@ -841,6 +1002,13 @@ trait GuionDiagrama
 
         // Dice la edad (o que no ha nacido), aunque sea el primer mensaje.
         if ($this->dgEdadEnMeses(Entender::normalizar($texto)) !== null && $this->dgSuelto($texto, 'talla', $hola)) return;
+
+        // Cliente activo (ya compró): sin tabla ni envío. Solo el saludo; él
+        // dice qué quiere ("lo mismo", "una talla más grande", "talla M"…).
+        if ($hola !== '' && $this->f->dato('conocido')) {
+            $this->dgDecir('¡Hola, buenas! 😊 ¿En qué le podemos servir?', 'talla');
+            return;
+        }
 
         // Primer mensaje (saludo, "información", "¿tiene pampers?"): se pide la talla.
         if ($hola !== '' || Entender::esSaludo($texto) || ! $this->f->dato('tallas_vistas')) { $this->dgPedirTalla($hola); return; }
@@ -1130,14 +1298,22 @@ trait GuionDiagrama
         }
 
         // ¿Eligió una? (por número, por nombre, o respondiendo a la foto)
-        $id = $f->dato('citada') ?: Entender::opcion($texto, $vistas);
+        // Una pregunta ("¿tendrán de más unidades?") no es elegir, aunque
+        // responda citando la foto o nombre algo de la opción.
+        $esPregunta = (str_contains($texto, '?') || preg_match('/^\s*(tendran|tendra|tiene|tienen|hay|habra|cual|cuales|que|como|cuanto|cuantos|cuantas|de cuantos|vienen|traen|son|es)\b/', $nn ?? Entender::normalizar($texto)))
+            && ! preg_match('/\b(quiero|deme|mandeme|me manda|envieme|la opcion|opcion \d)\b/', Entender::normalizar($texto));
+
+        // "¿Tendrán de más unidades?", "¿paquete más grande?"
+        if ($this->dgPideMasUnidades(Entender::normalizar($texto))) { $f->quitar('citada'); $this->dgMasUnidades(); return; }
+
+        $id = $esPregunta ? null : ($f->dato('citada') ?: Entender::opcion($texto, $vistas));
 
         // Hay una sola opción y dice "quiero 2", "sí", "lo quiero": es esa.
         // "Bueno gracias", "ok gracias" es despedirse, no elegir.
         $soloGracias = (bool) preg_match('/\bgracias\b/', Entender::normalizar($texto))
             && $this->dgCantidadEn($texto) === null && ! Entender::quiereComprar($texto)
             && ! preg_match('/\b(quiero|deme|mandeme|me manda|envieme|necesito|ocupo)\b/u', Entender::normalizar($texto));
-        if (! $id && count($vistas) === 1 && ! $soloGracias
+        if (! $id && count($vistas) === 1 && ! $soloGracias && ! $esPregunta
             && ($this->dgCantidadEn($texto) !== null || Entender::siNo($texto) === true || Entender::quiereComprar($texto)
                 || preg_match('/^\s*(quiero|deme|mandeme|me manda|necesito|ocupo)\b/u', Entender::normalizar($texto)))) {
             $id = $vistas[0]['id'];
@@ -1656,6 +1832,12 @@ trait GuionDiagrama
         if (! $f->dato('direccion'))      $falta[] = '• Dirección exacta (colonia, calle o pasaje, número de casa y un punto de referencia)';
 
         if (! $falta) { $this->dgDespuesDeDatos(); return; }
+
+        // Solo falta cuántos: la pregunta sola, sin lista.
+        if (count($falta) === 1 && $this->dgSinCantidad()) {
+            $this->dgDecir($antes . '¿Cuántos paquetes le enviamos? 😊', 'datos');
+            return;
+        }
 
         $this->dgDecir($antes . "Para enviarlo me regala por favor:\n\n" . implode("\n", $falta), 'datos');
     }
