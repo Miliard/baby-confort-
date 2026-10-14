@@ -757,6 +757,22 @@ trait GuionDiagrama
         return (bool) preg_match('/\b(cuando (tenga|haya|tengan|les? (llegue|entre))|que no sea|no sea de|mejor no|ya no (lo |los |la |las )?(quiero|ocupo|necesito)|no por ahora|por ahora no|ahorita no|despues (le )?(escribo|aviso|confirmo)|lo voy a pensar|lo pienso|no seria|no lo quiero|no los quiero|cancel)\b/', $n);
     }
 
+    /**
+     * La imagen de la tabla de tallas: una dirección (https://…) o un archivo
+     * dentro de public/ (por defecto public/img/tabla-tallas.jpg). Null si no está.
+     */
+    private function dgImagenTallas(): ?string
+    {
+        $img = trim((string) config('asistente.imagen_tallas', ''));
+        if ($img === '') return null;
+        if (preg_match('#^https?://#i', $img)) return $img;
+        try {
+            if (function_exists('public_path') && is_file(public_path(ltrim($img, '/')))) return url('/' . ltrim($img, '/'));
+        } catch (\Throwable $e) {
+        }
+        return null;
+    }
+
     /** Al chat le pone la etiqueta de pedido (pestaña Pedidos). */
     private function dgAPedidos(): void
     {
@@ -788,6 +804,20 @@ trait GuionDiagrama
     /** Las tallas que hay, con sus libras, escritas (sin botones). */
     private function dgPedirTalla(string $hola): void
     {
+        // Primera vez: la imagen con la tabla de tallas (si está puesta), con la
+        // pregunta de pie. Si no hay imagen, la lista escrita de siempre.
+        if (! $this->f->dato('tallas_vistas') && ($img = $this->dgImagenTallas())) {
+            $this->f->poner('tallas_vistas', true);
+            try {
+                \App\Services\WhatsappApi::enviarImagen($this->conv, $img, trim($hola . '¿Qué talla usa su bebé o cuánto pesa? 😊'), null, true);
+                $this->f->poner('dpaso', 'talla');
+                $this->f->paso = 'diagrama · talla';
+                return;
+            } catch (\Throwable $e) {
+                // Si la imagen no sale, va la lista escrita.
+            }
+        }
+
         $lista = '';
         if (! $this->f->dato('tallas_vistas')) {
             $this->f->poner('tallas_vistas', true);

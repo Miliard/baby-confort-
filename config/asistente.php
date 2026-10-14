@@ -84,6 +84,11 @@ return [
         'ya hay existencia',
     ],
 
+    // La imagen con la tabla de tallas que se manda en el primer mensaje (en
+    // vez de la lista escrita). Un archivo dentro de public/ o una dirección
+    // https://. Si no existe, se manda la lista escrita.
+    'imagen_tallas' => env('ASISTENTE_IMAGEN_TALLAS', '/img/tabla-tallas.jpg'),
+
     // El día de entrega que va en la orden, como lo dice Wil. Hora de corte:
     // lo pedido antes sale hoy; lo de después, mañana.
     'entrega_corte_hora' => 14,
