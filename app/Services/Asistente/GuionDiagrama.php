@@ -934,6 +934,23 @@ trait GuionDiagrama
         $this->dgDecir('En talla *' . $this->bonita($t) . '* por el momento la presentación que trae más es ' . $cual . ' 😊', $paso);
     }
 
+    /**
+     * Tu texto de "Día vs Noche" (config/asistente.php), el de calzoncito o el
+     * de cinta según lo que está viendo. Null si no aplica (no hay de día y de
+     * noche del mismo tipo entre lo que vio).
+     */
+    private function dgTextoDiaNoche(array $ops): ?string
+    {
+        $textos = (array) config('asistente.dia_noche_textos', []);
+        if (! $textos || ! $ops) return null;
+        $tipos = array_values(array_unique(array_map(fn ($o) => mb_strtolower($o['tipo']), $ops)));
+        $hayNoche = (bool) array_filter($ops, fn ($o) => $o['noche']);
+        $hayDia   = (bool) array_filter($ops, fn ($o) => ! $o['noche']);
+        if (count($tipos) !== 1 || ! $hayNoche || ! $hayDia) return null;
+        $t = trim((string) ($textos[$tipos[0]] ?? ''));
+        return $t !== '' ? $t : null;
+    }
+
     /** Al chat le pone la etiqueta de pedido (pestaña Pedidos). */
     private function dgAPedidos(): void
     {
@@ -1334,6 +1351,14 @@ trait GuionDiagrama
         if ($nuevas) {   // pide otra talla más: también te lo pasa, sin contestar
             $this->pasarAWil('pide varias tallas (' . implode(', ', array_merge((array) $f->dato('tallas', []), $nuevas)) . ')', false);
             return;
+        }
+
+        // "¿Cuál es la diferencia entre el de noche y el de día?": es una
+        // pregunta, no un filtro. Se contesta y no se reenvían fotos.
+        if (Entender::tipo($texto) === 'diferencia' || $this->guionPideDiferencia($nn)
+            || preg_match('/\b(diferencia|en que se diferencian|que tiene de diferente|cual es mejor|cual me conviene|entre (el|la|los|las)? ?(de )?(noche|dia).*(y|o) (el|la|los|las)? ?(de |d )?(noche|dia))\b/', $nn)) {
+            $txt = $this->dgTextoDiaNoche($ops) ?? ($ops ? $this->guionDiferenciaReglas($ops) : '');
+            if ($txt !== '') { $this->dgDecir($txt, 'opciones'); return; }
         }
 
         // El tipo que dijo antes ("de cinta") sigue valiendo cuando después

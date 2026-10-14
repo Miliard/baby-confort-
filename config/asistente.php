@@ -340,6 +340,13 @@ return [
         'dia'   => 'más ligero, soporta hasta *1.5 litros*. Para bebés en constante movimiento y cambios frecuentes: fresco, cómodo y con buena absorción',
     ],
 
+    // "¿Cuál es la diferencia entre el de día y el de noche?": tu texto, tal
+    // cual, para calzoncito y para cinta.
+    'dia_noche_textos' => [
+        'calzoncito' => "🩷 Calzoncito de Día vs Calzoncito de Noche 🩷\n\nCalzoncito de Día:\n✔️ Más ligero y para bebés en constante movimiento\n✔️ Diseñado para cambios frecuentes\n✔️ Ideal para mantener frescura y comodidad durante el día\n✔️ Buena absorción para bebés activos\n\nCalzoncito de Noche:\n💤 Más grueso y absorbente\n💤 Diseñado para uso prolongado, como durante el sueño\n💤 Mayor capacidad de retención para evitar fugas nocturnas\n💤 Mantiene al bebé seco hasta la mañana\n\n📌 Ambos son tipo pants, fáciles de colocar y cómodos para el bebé.",
+        'cinta' => "🩷 Cinta de Día vs Cinta de Noche 🩷\n\nCinta de Día:\n✔️ Más ligera y para bebés en constante movimiento\n✔️ Diseñada para cambios frecuentes\n✔️ Ideal para mantener frescura y comodidad durante el día\n✔️ Buena absorción para bebés activos\n\nCinta de Noche:\n💤 Más gruesa y absorbente\n💤 Diseñada para uso prolongado, como durante el sueño\n💤 Mayor capacidad de retención para evitar fugas nocturnas\n💤 Mantiene al bebé seco hasta la mañana\n\n📌 Ambas son de cinta, se pegan a los lados y son cómodas para el bebé.",
+    ],
+
     'textos' => [
         'saludo'     => '¡Hola! 😊 Con gusto le ayudamos.',
         'diferencia' => "La de *cinta* se pega a los lados: ideal para bebés que todavía no caminan.\n"
