@@ -198,6 +198,12 @@ class Asistente
             return 'está apagado en este chat';
         }
 
+        // Contactos a los que les pusiste nombre en el panel: son de San Miguel
+        // y los atendés vos. Salvo que enciendas el asistente a mano en ese chat.
+        if (trim((string) ($conv->alias ?? '')) !== '' && ! ($f && $f->a_mano)) {
+            return 'tiene nombre puesto (lo atendés vos)';
+        }
+
         if ($f && $f->estado === 'terminado' && $f->updated_at && $f->updated_at->gt(now()->subDay())) {
             return 'acaba de cerrar un pedido';
         }
@@ -267,6 +273,9 @@ class Asistente
         if (! static::numeroPermitido($conv) || ! AsistenteFicha::hayTabla()) return false;
 
         $f = AsistenteFicha::de($conv);
+
+        // Con nombre puesto (San Miguel): lo atendés vos, aunque estuviera a medias.
+        if (trim((string) ($conv->alias ?? '')) !== '' && ! ($f && $f->a_mano)) return false;
 
         if (! ($f && $f->activa()) && static::porQueNoEmpieza($conv, $f) !== null) return false;
 
