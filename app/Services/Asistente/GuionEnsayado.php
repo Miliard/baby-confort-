@@ -130,7 +130,15 @@ trait GuionEnsayado
 
         if ($texto === '') return null;
 
-        if ($motivo = Entender::motivoParaWil($texto)) {
+        // Dando los datos de envío, "es para mi mamá" es quien recibe, no un
+        // pañal de adulto.
+        $motivo = Entender::motivoParaWil($texto);
+        if ($motivo === 'pregunta por pañal de adulto'
+            && in_array((string) $this->f->dato('dpaso'), ['datos', 'datos_conf', 'telefono', 'orden', 'envio'], true)
+            && ! preg_match('/\badult/', Entender::normalizar($texto))) {
+            $motivo = null;
+        }
+        if ($motivo) {
             $this->paraWil = $motivo;
             return null;
         }

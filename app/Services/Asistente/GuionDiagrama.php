@@ -68,6 +68,9 @@ trait GuionDiagrama
         $n = Entender::normalizar($texto);
         $hola = $primero ? '¡Hola! 😊 ' : '';
 
+        // ── ¿Quién es? Si ya compró, se cargan sus datos (no se le piden de nuevo).
+        $this->dgCargarConocido();
+
         // Pega una orden de envío (la de un pedido anterior, con sus datos) o
         // pide "lo de siempre": es un pedido; te lo pasa a vos sin contestar,
         // y el chat va a la pestaña Pedidos.
@@ -166,6 +169,23 @@ trait GuionDiagrama
             if (! $this->dgTallas($texto) && ! Entender::peso($texto) && $f->dato('tallas_vistas')) return;
         }
 
+        // ── "¿Cuánto vale el envío?" y ya se sabe de dónde es (cliente conocido) ─
+        elseif (in_array($paso, ['talla', 'peso', 'unidad', 'sugerencia', 'opciones', 'cantidad_item'], true)
+            && $f->dato('municipio') && $f->dato('departamento')
+            && ($faq = Entender::respuesta($texto, (array) config('asistente.respuestas', []))) !== null
+            && str_contains($faq, '{envio}')) {
+            if ($this->entregaPropia()) {
+                $this->dgDecir($hola . '¿De qué colonia nos escribe, para confirmarle el costo del envío? 🚚', 'colonia');
+                return;
+            }
+            $f->poner('envio', (float) \App\Models\Setting::envio());
+            $f->poner('envio_dicho', true);
+            $this->texto(trim($hola . $this->rellenar($faq)));
+            if ($paso !== 'talla') return;
+            if (! $this->dgTallas($texto) && ! Entender::peso($texto) && $f->dato('tallas_vistas')) return;
+            $hola = '';
+        }
+
         // ── "¿Cuánto vale el envío?" sin decir de dónde ─────────────────────
         // La leyenda y, como el municipio es imprescindible, se le pregunta.
         // Con la respuesta se sigue donde iba.
@@ -213,6 +233,7 @@ trait GuionDiagrama
             case 'orden':     $this->dgOrden($texto, $boton); return;
             case 'cantidad_item': $this->dgCantidadItem($texto); return;
             case 'muni_envio':    $this->dgMuniEnvio($texto); return;
+            case 'datos_conf':    $this->dgDatosConf($texto); return;
         }
     }
 
@@ -224,6 +245,7 @@ trait GuionDiagrama
             'municipio', 'muni_envio' => (bool) Municipios::buscarEn($texto),
             'envio', 'orden', 'sugerencia' => Entender::siNo($texto) !== null,
             'datos'         => Entender::pareceDireccion($texto) || Entender::cantidad($texto) !== null,
+            'datos_conf'    => Entender::siNo($texto) !== null || Entender::pareceDireccion($texto) || Entender::cantidad($texto) !== null,
             default         => false,
         };
     }
@@ -371,17 +393,14 @@ trait GuionDiagrama
     }
 
     /** No entendió: una vez se le repite, la segunda te lo pasa. */
+    /**
+     * No entendió lo que escribió: NO se le dice "no le entendí" (suena
+     * ilógico). No se le contesta nada y el chat queda para una persona, en
+     * 🤖 Revisar, con lo que escribió como motivo.
+     */
     private function dgNoEntendi(string $paso, string $repetir): void
     {
-        $fallos = (array) $this->f->dato('fallos', []);
-        $fallos[$paso] = ($fallos[$paso] ?? 0) + 1;
-        $this->f->poner('fallos', $fallos);
-
-        if ($fallos[$paso] >= 2) {
-            $this->pasarAWil('no le entendí (' . $paso . ')');
-            return;
-        }
-        $this->dgDecir("Disculpe, no le entendí 🙏\n\n" . $repetir, $paso);
+        $this->pasarAWil('no entendió (' . $paso . ')', false);
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -579,6 +598,147 @@ trait GuionDiagrama
             . $m($o['precio']) . ' + ' . $m($envio) . ' de envío = *' . $m($o['precio'] + $envio) . '*', $ops);
         $this->dgDecir(trim($hola !== '' ? $hola : 'Con gusto 😊') . " Con el envío, por un paquete:\n\n" . implode("\n", $l), $paso);
         return true;
+    }
+
+    /** "Los otros": las presentaciones de su talla que todavía no vio, o a una persona. */
+    private function dgLosOtros(): void
+    {
+        $f = $this->f;
+        $vistos = array_column((array) $f->dato('fotos_enviadas', []), 'id');
+        $tallas = $this->dgTallasSinElegir() ?: (array) $f->dato('tallas', []);
+        $otras = $tallas ? $this->presentaciones([$tallas[0]], 'ambos')
+            ->filter(fn ($s) => ! in_array((string) $s->id, $vistos, true))->values() : collect();
+
+        if ($otras->isEmpty()) {
+            $this->pasarAWil('quiere "los otros" (otro producto: uno que no hay o que llevó antes)', false);
+            return;
+        }
+
+        $enviadas = [];
+        $pre = 'Con gusto 😊 Estas son las otras de talla *' . $this->bonita($tallas[0]) . '* 👇';
+        foreach ($otras->take(max(1, (int) config('asistente.max_fotos', 4))) as $s) {
+            $nro = count($enviadas) + 1;
+            $this->tarjeta($s, $nro, $pre);
+            $pre = '';
+            $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];
+        }
+        $f->poner('fotos_enviadas', $enviadas);
+        $this->dgPreguntarDespuesDeFotos($this->guionOpcionesVistas());
+    }
+
+    /**
+     * ¿Ya compró antes? Con su número se buscan sus datos: la última orden de
+     * envío del chat y, si no hay, la libreta (de las guías). Se guardan para
+     * no volver a preguntarle el municipio, el nombre ni la dirección.
+     */
+    private function dgCargarConocido(): void
+    {
+        $f = $this->f;
+        if ($f->dato('conocido_visto')) return;
+        $f->poner('conocido_visto', true);
+        if ($this->conv->esExtranjero()) return;
+
+        $o = null; $c = null;
+        try { $o = $this->guionUltimaOrden(); } catch (\Throwable $e) {}
+        try { $c = \App\Models\Cliente::buscar((string) $this->conv->telefono); } catch (\Throwable $e) {}
+
+        $nombre = trim((string) ($o['nombre'] ?? '')) ?: trim((string) ($c['nombre'] ?? ''));
+        $dir    = trim((string) ($o['direccion'] ?? '')) ?: trim((string) ($c['direccion'] ?? ''));
+        $muniTx = trim((string) ($o['municipio'] ?? '')) ?: trim((string) ($c['municipio'] ?? ''));
+        $depto  = trim((string) ($c['departamento'] ?? ''));
+
+        $nombre = trim(preg_replace('/(?<!\d)[267]\d{3}[\s.\-]?\d{4}(?!\d)/u', '', $nombre), " ,.-");
+        if ($nombre === '' || mb_strlen($dir) < 6) return;
+
+        $muni = $muniTx !== '' ? (Municipios::buscarEn($muniTx) ?: Municipios::buscarEn($dir)) : Municipios::buscarEn($dir);
+        $f->poner('conocido', ['nombre' => $nombre, 'direccion' => $dir, 'municipio' => (string) $muni]);
+
+        // El municipio ya se sabe: no se le pregunta.
+        if ($muni && ! $f->dato('municipio') && $this->ponerMunicipio($muni)) {
+            if (! $f->dato('departamento') && $depto !== '') {
+                foreach ((array) $f->dato('deptos', []) as $d) {
+                    if (Municipios::normalizar($d) === Municipios::normalizar($depto)) { $this->ponerDepartamento($d); break; }
+                }
+            }
+        }
+    }
+
+    /** Contesta a "¿Se lo enviamos a nombre de…, en…?". */
+    private function dgDatosConf(string $texto): void
+    {
+        $f = $this->f;
+        $c = (array) $f->dato('conocido', []);
+        $n = Entender::normalizar($texto);
+
+        // Cuántos, si lo dijo ("sí, 2").
+        $cant = $this->dgCantidadEn($texto) ?? (preg_match('/\b(\d{1,2})\b/', $n, $m) ? (int) $m[1] : null);
+        if ($cant && ($sin = $this->dgSinCantidad())) {
+            if ($cant > (int) config('asistente.max_paquetes', 10)) { $this->pasarAWil("pide {$cant} paquetes"); return; }
+            $this->dgPonerCantidad($sin['i'], $cant);
+        }
+
+        $si = Entender::siNo($texto);
+        $igual = (bool) preg_match('/\b(la misma|el mismo|misma direccion|mismos datos|igual|correcto|asi es|exacto|ahi mismo|alli mismo|si a esa|a esa misma)\b/', $n);
+        $cambia = (bool) preg_match('/\b(otra direccion|otro lugar|otra persona|a nombre de|ya no vivo|me cambie|cambie de|es otra|no es ahi|no ahi)\b/', $n);
+
+        // Cambió: los datos nuevos (si ya los mandó, se leen; si no, se piden).
+        if ($si === false || $cambia || (Entender::pareceDireccion($texto) && ! $igual)) {
+            $f->poner('conocido_respondido', true);
+            // Cambió solo la dirección: el nombre sigue siendo el mismo.
+            if (! preg_match('/\b(persona|a nombre|nombre|recibe|mi (mama|hermana|esposo|esposa|suegra|hija|hijo))\b/', $n)) {
+                $f->poner('nombre', $c['nombre']);
+            }
+            // ¿Ya mandó los datos nuevos? (lo que queda sin el "no, a otra dirección")
+            $resto = trim(preg_replace('/\b(no|si|es|para|a|otra direccion|otro lugar|otra persona|a nombre de|ya no vivo ahi|me cambie|cambie de casa|es otra|no es ahi|no ahi|mi (mama|papa|hermana|hermano|esposo|esposa|suegra|hija|hijo))\b[\s,.:]*/u', ' ', $n));
+            $primero = trim((string) strtok(preg_replace('/^.*?(?:para mi \w+|a nombre de)\s*,?\s*/iu', '', $texto), "\n,"));
+            $nom = Entender::pareceNombre($primero);
+            if ((mb_strlen($resto) >= 12 && Entender::pareceDireccion($resto)) || ($nom && count(preg_split('/\s+/', trim($nom))) >= 2)) {
+                $this->dgDatos(preg_replace('/^.*?(?:para mi \w+|a nombre de)\s*,?\s*/iu', '', $texto));
+                return;
+            }
+            $this->dgPedirDatos('Con gusto 😊 ');
+            return;
+        }
+
+        // Sí: los de la vez pasada.
+        if ($si === true || $igual || $cant) {
+            if (! $si && ! $igual && $cant) {   // solo dijo cuántos: falta que confirme los datos
+                $this->dgDecir('¿Se lo enviamos a nombre de *' . $c['nombre'] . '*, en *' . $c['direccion'] . '*? 😊', 'datos_conf');
+                return;
+            }
+            $f->poner('conocido_respondido', true);
+            $f->poner('nombre', $c['nombre']);
+            $f->poner('direccion', $c['direccion']);
+            $this->dgPedirDatos('');
+            return;
+        }
+
+        if (Entender::esCortesia($texto)) return;
+        $this->dgNoEntendi('datos_conf', '');
+    }
+
+    /**
+     * El día de entrega, como lo decís vos. Antes de las 2 p.m. sale hoy;
+     * después, mañana. El domingo no se envía; lo del sábado llega el lunes.
+     * (Los asuetos no los sabe: ahí lo ajustás vos.)
+     */
+    private function dgTextoEntrega(): string
+    {
+        $t = (array) config('asistente.entrega_textos', []);
+        if (! $t) return '';
+        try {
+            $ahora = now('America/El_Salvador');
+        } catch (\Throwable $e) {
+            return '';
+        }
+        $corte = (int) config('asistente.entrega_corte_hora', 14);
+        $dia = (int) $ahora->dayOfWeek;   // 0 domingo … 6 sábado
+        $temprano = (int) $ahora->hour < $corte;
+
+        if ($dia === 0) return (string) ($t['domingo'] ?? '');
+        if ($dia === 6) return (string) ($temprano ? ($t['sabado_temprano'] ?? '') : ($t['sabado_tarde'] ?? ''));
+        if ($dia === 5 && ! $temprano) return (string) ($t['viernes_tarde'] ?? '');
+        return (string) ($temprano ? ($t['temprano'] ?? '') : ($t['tarde'] ?? ''));
     }
 
     /** Al chat le pone la etiqueta de pedido (pestaña Pedidos). */
@@ -1044,6 +1204,14 @@ trait GuionDiagrama
 
         if ($this->dgSuelto($texto, 'opciones')) return;
 
+        // "Yo quería de los otros", "el otro", "esos no": si de esa talla hay
+        // presentaciones que no vio, se le mandan; si ya vio todas, es otro
+        // producto (uno que no hay o que llevó antes): a una persona.
+        if (preg_match('/\b(l[oa]s otr[oa]s|el otro|la otra|de otr[oa]s?|otro tipo|otra marca|otra presentacion|esos no|esas no|no son esos|no de esos|los de antes|los que (me )?(lleve|compre|mandaron))\b/', $nn)) {
+            $this->dgLosOtros();
+            return;
+        }
+
         $this->dgNoEntendi('opciones', '¿Cuál de las opciones le interesa? Puede decirme el número 😊');
     }
 
@@ -1418,6 +1586,20 @@ trait GuionDiagrama
     private function dgPedirDatos(string $antes): void
     {
         $f = $this->f;
+
+        // Cliente conocido: se le confirman los datos de la vez pasada en vez
+        // de pedírselos todos ("¿Se lo enviamos a nombre de…, en…?").
+        $c = (array) $f->dato('conocido', []);
+        if ($c && ! $f->dato('nombre') && ! $f->dato('direccion') && ! $f->dato('conocido_respondido')) {
+            $donde = trim($c['direccion'] . ($c['municipio'] && ! str_contains(Entender::normalizar($c['direccion']), Entender::normalizar($c['municipio'])) ? ', ' . $c['municipio'] : ''));
+            $conf = 'se lo enviamos a nombre de *' . $c['nombre'] . '*, en *' . $donde . '*';
+            $msg = ($sin = $this->dgSinCantidad())
+                ? '¿Cuántos paquetes le enviamos? Y ' . $conf . ', ¿verdad? 😊'
+                : '¿' . mb_strtoupper(mb_substr($conf, 0, 1)) . mb_substr($conf, 1) . '? 😊';
+            $this->dgDecir($antes . $msg, 'datos_conf');
+            return;
+        }
+
         $falta = [];
         if ($sin = $this->dgSinCantidad()) $falta[] = '• ¿Cuántos paquetes' . (count((array) $f->dato('carrito', [])) > 1 ? ' de *' . $sin['que'] . '*' : '') . ' le enviamos?';
         if (! $f->dato('nombre'))         $falta[] = '• Nombre completo';
@@ -1478,6 +1660,20 @@ trait GuionDiagrama
             return;
         }
 
+        // La dirección nueva dice otro municipio (lo manda a otra casa): ese manda.
+        if (($dir = (string) $f->dato('direccion')) !== '' && ($m = Municipios::buscarEn($dir))
+            && Municipios::normalizar($m) !== Municipios::normalizar((string) $f->dato('municipio'))) {
+            $this->ponerMunicipio($m);
+            if ($this->entregaPropia()) {
+                $this->dgDecir('¿De qué colonia es, para confirmarle el costo del envío? 🚚', 'colonia');
+                return;
+            }
+            if (! $f->dato('departamento') && $f->dato('deptos')) {
+                $this->pasarAWil('dirección nueva: falta aclarar el departamento de ' . $m, false);
+                return;
+            }
+        }
+
         $this->dgPedirDatos('');
     }
 
@@ -1498,7 +1694,9 @@ trait GuionDiagrama
         $this->f->poner('dpaso', 'orden');
         $this->f->paso = 'diagrama · orden';
 
+        $entrega = $this->entregaPropia() ? '' : $this->dgTextoEntrega();
         $this->texto('¡Gracias' . ($nombre !== '' ? ', ' . $nombre : '') . "! 😊\n\n" . $this->textoOrden()
+            . ($entrega !== '' ? "\n\n" . $entrega : '')
             . "\n\n¿Toda la información es correcta? Así evitamos errores 🙏");
     }
 

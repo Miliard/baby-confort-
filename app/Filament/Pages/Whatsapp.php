@@ -2140,7 +2140,9 @@ class Whatsapp extends Page
         // teléfono de acá, y la guía necesita el de quien recibe en El Salvador,
         // que viene en la orden.
         $this->pedTelefono = $conv->esExtranjero() ? '' : ($conv->telefono ?: '');
-        $this->pedNombre   = $this->limpiarNombre($conv->comoSeLlama() ?: '');
+        // El nombre del perfil de WhatsApp no sirve para la guía: en blanco
+        // hasta que salga de la orden o de la libreta.
+        $this->pedNombre   = '';
 
         // Que el segundo teléfono de un pedido no se cuele en el siguiente.
         $this->pedTelefonoRecibe = '';
@@ -2349,7 +2351,9 @@ class Whatsapp extends Page
         // Base: lo que ya sabemos de la libreta, de entregas anteriores.
         $cliente = $conv->cliente();
 
-        $nombre    = $cliente['nombre'] ?? ($conv->comoSeLlama() ?: '');
+        // El nombre del perfil de WhatsApp NO: suele ser un apodo, un emoji o el
+        // de otra persona. Si no se sabe, queda en blanco para escribirlo.
+        $nombre    = $cliente['nombre'] ?? '';
         $telefono  = $conv->esExtranjero() ? '' : $conv->telefono;
         $municipio = $cliente['municipio'] ?? '';
         $direccion = $cliente['direccion'] ?? '';
@@ -2386,7 +2390,9 @@ class Whatsapp extends Page
                     if (filled($ia[$c] ?? null)) $leyo = true;
                 }
 
-                $nombre    = filled($ia['nombre'])    ? $ia['nombre']    : $nombre;
+                // Si la IA devolvió el nombre del perfil (y el cliente nunca lo
+                // escribió en el chat), no cuenta.
+                if (filled($ia['nombre']) && ! $this->esNombreDelPerfil($conv, (string) $ia['nombre'])) $nombre = $ia['nombre'];
                 $municipio = filled($ia['municipio']) ? $ia['municipio'] : $municipio;
                 $direccion = filled($ia['direccion']) ? $ia['direccion'] : $direccion;
                 // Con dos decimales, como se escribe la plata. montoDe()
@@ -2442,6 +2448,14 @@ class Whatsapp extends Page
                 $$c = $delChat[$c];
                 $leyo = true;
             }
+        }
+
+        // El nombre que dio en el chat sin "Nombre:" delante: el que anotó el
+        // asistente, o lo que contestó cuando se le pidió el nombre. Manda
+        // sobre la IA y la libreta (la libreta es de una entrega anterior).
+        if (blank($delChat['nombre'] ?? null) && ($dicho = $this->nombreDichoEnChat($conv)) !== '') {
+            $nombre = $dicho;
+            $leyo = true;
         }
 
         $this->texto = "\u{1F4E6} Orden de Env\u{ED}o: \u{1F69A}\n"
@@ -3039,6 +3053,72 @@ class Whatsapp extends Page
         }
 
         return '';
+    }
+
+    /** ¿Ese nombre es el del perfil de WhatsApp y el cliente nunca lo escribió? */
+    private function esNombreDelPerfil(WaConversacion $conv, string $nombre): bool
+    {
+        $perfil = \App\Services\Asistente\Entender::normalizar((string) $conv->nombre);
+        $n = \App\Services\Asistente\Entender::normalizar($nombre);
+        if ($perfil === '' || $n === '' || ! (str_contains($perfil, $n) || str_contains($n, $perfil))) return false;
+
+        try {
+            $lo = WaMensaje::where('conversacion_id', $conv->id)->where('direccion', 'entrante')
+                ->whereNotNull('texto')->orderByDesc('id')->limit(60)->pluck('texto');
+            foreach ($lo as $t) {
+                if (str_contains(\App\Services\Asistente\Entender::normalizar((string) $t), $n)) return false;
+            }
+        } catch (\Throwable $e) {
+        }
+        return true;
+    }
+
+    /**
+     * El nombre que el cliente escribió en el chat sin etiqueta: primero el que
+     * anotó el asistente; si no, lo que contestó justo después de que se le
+     * pidió el nombre ("Wilfredo Herrera", aunque venga con la dirección abajo).
+     */
+    private function nombreDichoEnChat(WaConversacion $conv): string
+    {
+        try {
+            $f = \App\Models\AsistenteFicha::de($conv);
+            if ($f && filled($f->dato('nombre'))) return $this->limpiarNombre((string) $f->dato('nombre'));
+        } catch (\Throwable $e) {
+        }
+
+        try {
+            $msjs = WaMensaje::where('conversacion_id', $conv->id)->whereNotNull('texto')
+                ->orderByDesc('id')->limit(40)->get(['id', 'direccion', 'texto'])->sortBy('id')->values();
+        } catch (\Throwable $e) {
+            return '';
+        }
+
+        $noNombre = '/\b(hola|buenas|gracias|si|ok|talla|calzoncito|cinta|pampers?|panales|paquete|colonia|casa|calle|pasaje|avenida|barrio|canton|municipio|departamento|frente|cerca|por favor|quiero|envio)\b/';
+        $encontrado = '';
+        $pidio = false;
+        foreach ($msjs as $m) {
+            $t = (string) $m->texto;
+            if ($m->direccion === 'saliente') {
+                $pidio = (bool) preg_match('/nombre/iu', $t);
+                continue;
+            }
+            if (! $pidio) continue;
+            foreach (preg_split('/\n+/', $t) as $linea) {
+                $linea = trim(preg_replace('/^(mi nombre es|me llamo|soy|a nombre de|nombre)\s*:?\s*/iu', '', trim($linea)));
+                $linea = $this->limpiarNombre($linea);   // sin el teléfono pegado
+                $nom = \App\Services\Asistente\Entender::pareceNombre($linea);
+                $norm = \App\Services\Asistente\Entender::normalizar((string) $nom);
+                // Que no sea solo un municipio ("San Miguel"); un nombre puede
+                // llevar uno adentro ("Karla Guadalupe Mejía").
+                $mun = \App\Services\Municipios::buscarEn($linea);
+                $soloMunicipio = $mun && \App\Services\Asistente\Entender::normalizar($mun) === $norm;
+                if ($nom && count(preg_split('/\s+/', $norm)) >= 2 && ! preg_match($noNombre, $norm) && ! $soloMunicipio) {
+                    $encontrado = $this->limpiarNombre($nom);
+                    break;
+                }
+            }
+        }
+        return $encontrado;
     }
 
     private function limpiarNombre(string $crudo): string

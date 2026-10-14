@@ -84,6 +84,18 @@ return [
         'ya hay existencia',
     ],
 
+    // El día de entrega que va en la orden, como lo dice Wil. Hora de corte:
+    // lo pedido antes sale hoy; lo de después, mañana.
+    'entrega_corte_hora' => 14,
+    'entrega_textos' => [
+        'temprano'        => 'Le envío hoy mismo su pedido para que lo reciba mañana 🚚',
+        'tarde'           => 'Por la hora ⏰, se los estaría enviando mañana para que le lleguen al siguiente día 🚚📦, ya que los pedidos de hoy con entrega para mañana salieron a las 2:00 p.m. 😊',
+        'viernes_tarde'   => 'Por la hora ⏰, se los estaría enviando mañana sábado para que le lleguen el lunes 🚚📦, ya que los pedidos de hoy salieron a las 2:00 p.m. 😊',
+        'sabado_temprano' => 'Le envío hoy sábado su pedido para que lo reciba el lunes 🚚',
+        'sabado_tarde'    => 'Por la hora ⏰, se los estaría enviando el lunes para que le lleguen el martes 🚚📦 😊',
+        'domingo'         => 'Dado que hoy es domingo, no sería posible enviarlos. Los enviaría mañana para que le lleguen al día siguiente.',
+    ],
+
     // La plantilla de "ya llegó" para los clientes de agotados (📣 Avisar).
     // El nombre y el idioma tienen que ser los de WhatsApp Manager; el texto
     // es lo que queda a la vista en el chat del panel (el mismo de la plantilla).
