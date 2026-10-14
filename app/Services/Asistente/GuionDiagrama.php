@@ -218,6 +218,16 @@ trait GuionDiagrama
             if ($k === 'envio') { $this->dgEnvio($v === 'si' ? 'si' : 'no'); return; }
         }
 
+        // "No sería, cuando tenga", "que no sea calzoncito", "mejor no": cambió
+        // de idea o quiere otra cosa que no hay. No se insiste: a una persona
+        // (y si quiere algo que no hay, queda en Agotados para avisarle).
+        if (in_array($paso, ['opciones', 'cantidad_item', 'municipio', 'muni_envio', 'envio', 'datos', 'datos_conf', 'telefono', 'orden'], true)
+            && $this->dgSeArrepiente($n)) {
+            if (preg_match('/\b(cuando (tenga|haya|tengan|les? (llegue|entre))|que no sea|no sea de|de los otros|otro tipo)\b/', $n)) $this->marcarAgotado();
+            $this->pasarAWil('cambió de idea o quiere otra cosa: "' . mb_substr(trim($texto), 0, 80) . '"', false);
+            return;
+        }
+
         switch ($paso) {
             case 'talla':     $this->dgTalla($texto, $hola); return;
             case 'peso':      $this->dgPeso($texto, $hola); return;
@@ -741,6 +751,12 @@ trait GuionDiagrama
         return (string) ($temprano ? ($t['temprano'] ?? '') : ($t['tarde'] ?? ''));
     }
 
+    /** ¿Se echó para atrás o pide algo distinto a lo que se le está armando? */
+    private function dgSeArrepiente(string $n): bool
+    {
+        return (bool) preg_match('/\b(cuando (tenga|haya|tengan|les? (llegue|entre))|que no sea|no sea de|mejor no|ya no (lo |los |la |las )?(quiero|ocupo|necesito)|no por ahora|por ahora no|ahorita no|despues (le )?(escribo|aviso|confirmo)|lo voy a pensar|lo pienso|no seria|no lo quiero|no los quiero|cancel)\b/', $n);
+    }
+
     /** Al chat le pone la etiqueta de pedido (pestaña Pedidos). */
     private function dgAPedidos(): void
     {
@@ -1087,7 +1103,11 @@ trait GuionDiagrama
         $id = $f->dato('citada') ?: Entender::opcion($texto, $vistas);
 
         // Hay una sola opción y dice "quiero 2", "sí", "lo quiero": es esa.
-        if (! $id && count($vistas) === 1
+        // "Bueno gracias", "ok gracias" es despedirse, no elegir.
+        $soloGracias = (bool) preg_match('/\bgracias\b/', Entender::normalizar($texto))
+            && $this->dgCantidadEn($texto) === null && ! Entender::quiereComprar($texto)
+            && ! preg_match('/\b(quiero|deme|mandeme|me manda|envieme|necesito|ocupo)\b/u', Entender::normalizar($texto));
+        if (! $id && count($vistas) === 1 && ! $soloGracias
             && ($this->dgCantidadEn($texto) !== null || Entender::siNo($texto) === true || Entender::quiereComprar($texto)
                 || preg_match('/^\s*(quiero|deme|mandeme|me manda|necesito|ocupo)\b/u', Entender::normalizar($texto)))) {
             $id = $vistas[0]['id'];
@@ -1269,7 +1289,7 @@ trait GuionDiagrama
         $f->poner('carrito', $carrito);
         $f->quitar('dtipo');
 
-        $que = '*' . trim((string) $s->product->name) . '* talla ' . trim((string) $s->size);
+        $que = '*' . trim((string) $s->product->name) . '* talla ' . $this->bonita(trim((string) $s->size));
 
         // Quedan tallas por elegir y no dijo cuántos de esta: se pregunta ya,
         // antes de pasar a la otra.

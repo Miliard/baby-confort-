@@ -2787,7 +2787,8 @@ class Asistente
         // también: es un cliente que quiere comprar. Salvo que haya dicho que no.
         $dijoQueNo = str_starts_with($motivo, 'dijo que no') || str_starts_with($motivo, 'no aceptó');
         $respondeAviso = ! $dijoQueNo && static::avisoDespuesDe($this->conv, now()->subDays(7));
-        if ($this->f->dato('carrito') || $this->f->dato('tallas') || $respondeAviso) {
+        $seEchoAtras = str_starts_with($motivo, 'cambió de idea');
+        if (! $seEchoAtras && ($this->f->dato('carrito') || $this->f->dato('tallas') || $respondeAviso)) {
             static::$hablando = false;
             try {
                 Etiquetado::marcarIntencion($this->conv);
