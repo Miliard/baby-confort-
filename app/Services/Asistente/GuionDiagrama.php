@@ -1877,7 +1877,12 @@ trait GuionDiagrama
         $sinNumero = trim(preg_replace('/^\s*\d{1,2}\s*(paquetes?)?\s*[,.\-]?\s*/u', '', $texto));
         foreach (preg_split('/\n+/', $sinNumero) as $renglon) {
             $partes = array_map('trim', explode(',', $renglon, 2));
-            if (! $f->dato('nombre') && ($nom = Entender::pareceNombre($partes[0]))) {
+            $nom = Entender::pareceNombre($partes[0]);
+            // "Quiero", "Sí", "Gracias", "2 paquetes"… no son nombres.
+            if ($nom && preg_match('/\b(quiero|quisiera|deme|mandeme|envieme|si|no|ok|gracias|hola|buenas|buenos|dias|tardes|noches|paquetes?|bolsas?|talla|calzoncitos?|cinta|panales|pampers?|por favor|porfa|listo|bueno|claro|perfecto|seria|son|es|para|el|la|los)\b/', Entender::normalizar($nom))
+                && count(preg_split('/\s+/', trim($nom))) < 2) $nom = null;
+            if ($nom && preg_match('/^(quiero|quisiera|deme|mandeme|envieme|gracias|hola|buenas|buenos|si |ok )/', Entender::normalizar($nom))) $nom = null;
+            if (! $f->dato('nombre') && $nom) {
                 $f->poner('nombre', $nom);
                 $leyo = true;
                 if (count($partes) === 2 && ! $f->dato('direccion') && Entender::pareceDireccion($partes[1])) {
@@ -1910,9 +1915,15 @@ trait GuionDiagrama
             return;
         }
 
-        // La dirección nueva dice otro municipio (lo manda a otra casa): ese manda.
+        // La dirección nueva dice otro municipio (lo manda a otra casa): ese
+        // manda, pero solo si el municipio que había era el de la vez pasada
+        // (no el que dijo hoy) y no es el nombre de un barrio o colonia
+        // ("Barrio Las Flores" no es el municipio Las Flores).
         if (($dir = (string) $f->dato('direccion')) !== '' && ($m = Municipios::buscarEn($dir))
-            && Municipios::normalizar($m) !== Municipios::normalizar((string) $f->dato('municipio'))) {
+            && Municipios::normalizar($m) !== Municipios::normalizar((string) $f->dato('municipio'))
+            && (! $f->dato('municipio') || ($f->dato('conocido.municipio')
+                && Municipios::normalizar((string) $f->dato('municipio')) === Municipios::normalizar((string) $f->dato('conocido.municipio'))))
+            && ! preg_match('/\b(barrio|bo|colonia|col|residencial|res|reparto|urbanizacion|urb|lotificacion|lot|canton|caserio|comunidad|calle|pasaje|pje|avenida|av|hacienda|finca)\.?\s+(de\s+|la\s+|las\s+|el\s+|los\s+)*' . preg_quote(Municipios::normalizar($m), '/') . '\b/', Municipios::normalizar($dir))) {
             $this->ponerMunicipio($m);
             if ($this->entregaPropia()) {
                 $this->dgDecir('¿De qué colonia es, para confirmarle el costo del envío? 🚚', 'colonia');
@@ -1969,6 +1980,29 @@ trait GuionDiagrama
         if ($boton === 'conf:corregir' || Entender::siNo($texto) === false || preg_match('/\b(corregir|cambiar|esta mal|no es|equivocad)/', Entender::normalizar($texto))) {
             $this->despedidaWil = 'Con gusto 😊 En un momento le ayudamos a corregirlo.';
             $this->pasarAWil('quiere corregir la orden');
+            return;
+        }
+
+        // Corrige el municipio ("San José la Fuente, La Unión") o la dirección
+        // después de ver la orden: se cambia y se le vuelve a mostrar.
+        if (($m = Municipios::buscarEn($texto)) && $this->ponerMunicipio($m)) {
+            if ($this->entregaPropia()) {
+                $this->dgDecir('¿De qué colonia es, para confirmarle el costo del envío? 🚚', 'colonia');
+                return;
+            }
+            if (! $this->f->dato('departamento') && $this->f->dato('deptos')) {
+                $this->dgDecir('Hay un ' . $this->f->dato('municipio') . ' en varios departamentos. ¿Cuál es el suyo: ' . $this->unir((array) $this->f->dato('deptos', []), ' o ') . '?', 'depto');
+                return;
+            }
+            // Si además mandó una dirección más completa, también.
+            if (mb_strlen(trim($texto)) > mb_strlen($m) + 12 && Entender::pareceDireccion($texto)) $this->f->poner('direccion', trim($texto));
+            $this->f->poner('envio', (float) \App\Models\Setting::envio());
+            $this->dgDespuesDeDatos();
+            return;
+        }
+        if (Entender::pareceDireccion($texto) && mb_strlen(trim($texto)) >= 15) {
+            $this->f->poner('direccion', trim($texto));
+            $this->dgDespuesDeDatos();
             return;
         }
 

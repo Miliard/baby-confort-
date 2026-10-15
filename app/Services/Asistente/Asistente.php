@@ -2737,6 +2737,21 @@ class Asistente
     {
         $this->texto(trim((string) config('asistente.textos.gracias')));
 
+        // A la libreta: nombre, dirección, municipio y departamento de este
+        // número, para que la próxima vez ya se sepan (cliente activo).
+        try {
+            if (! $this->conv->esExtranjero()) {
+                \App\Models\Cliente::recordar([
+                    'telefono'     => (string) $this->conv->telefono,
+                    'nombre'       => (string) $this->f->dato('nombre'),
+                    'direccion'    => (string) $this->f->dato('direccion'),
+                    'municipio'    => (string) $this->f->dato('municipio'),
+                    'departamento' => (string) $this->f->dato('departamento'),
+                ]);
+            }
+        } catch (\Throwable $e) {
+        }
+
         $this->f->estado = 'terminado';
         $this->f->motivo = null;
 
