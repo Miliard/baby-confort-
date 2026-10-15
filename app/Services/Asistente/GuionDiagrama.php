@@ -206,7 +206,9 @@ trait GuionDiagrama
             && str_contains($faq, '{envio}')) {
             $f->poner('volver_a', $paso);
             $f->poner('pend_texto', mb_substr($texto, 0, 300));   // por si también pidió talla
-            $this->dgDecir(trim($hola . $this->rellenar($faq)) . "\n\nTenemos cobertura nacional con los envíos. ¿Desde cuál municipio nos escribe, disculpe?", 'muni_envio');
+            // Primero el municipio (es imprescindible); la leyenda va después,
+            // cuando contesta de dónde es.
+            $this->dgDecir(trim($hola . 'Tenemos cobertura nacional con los envíos. ¿Desde cuál municipio nos escribe, disculpe?'), 'muni_envio');
             return;
         }
 
@@ -1750,25 +1752,16 @@ trait GuionDiagrama
             if ($this->dgTotal($volver, '¡Gracias! 😊 ')) return;
         }
 
-        if ($volver === 'talla') {
-            // Había pedido talla en el mismo mensaje del envío.
-            if ($this->dgTallas($pend) || Entender::peso($pend)) { $this->dgTalla($pend, ''); return; }
-            // Contesta al aviso: lo que había pedido.
-            if (! $f->dato('aviso_visto')) {
-                $f->poner('aviso_visto', true);
-                if (($ctx = $this->dgContextoDelAviso()) && $this->dgDesdeAviso($ctx, '', '¡Gracias! 😊 ')) return;
-            }
-            $this->dgPedirTalla('¡Gracias! 😊 ');
-            return;
+        // Ya dijo de dónde es: la leyenda del envío, y se espera lo que conteste.
+        $leyenda = '';
+        foreach ((array) config('asistente.respuestas', []) as $r) {
+            if (str_contains((string) ($r['texto'] ?? ''), '{envio}')) { $leyenda = $this->rellenar((string) $r['texto']); break; }
         }
+        if ($leyenda === '') $leyenda = '🚚 Envío: $' . number_format((float) $f->dato('envio'), 2) . ', hasta su casa o lugar de trabajo.';
+        $this->dgDecir($leyenda, $volver);
 
-        if ($volver === 'opciones' && $this->guionOpcionesVistas()) {
-            $this->texto('¡Gracias! 😊');
-            $this->dgPreguntarDespuesDeFotos($this->guionOpcionesVistas());
-            return;
-        }
-
-        $this->dgDecir('¡Gracias! 😊', $volver);
+        // Si en el mismo mensaje del envío había pedido una talla, sus fotos.
+        if ($volver === 'talla' && ($this->dgTallas($pend) || Entender::peso($pend))) $this->dgTalla($pend, '');
     }
 
     private function dgDepto(string $texto): void

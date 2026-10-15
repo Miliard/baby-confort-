@@ -283,8 +283,12 @@ return [
     */
     'respuestas' => [
         [
-            'palabras' => ['calientes', 'caliente', 'calor', 'acaloran', 'sudan', 'sudor', 'sofocan', 'transpiran', 'respiran', 'frescos', 'frescas',
-                           'piel sensible', 'pieles sensibles', 'delicada', 'delicado', 'hipoalergenico', 'hipoalergenicos', 'dermatest', 'certificado', 'certificacion', 'son buenos', 'son buenas', 'calidad'],
+            // "¿No es muy caliente?": tu respuesta de los chats (son transpirables).
+            'palabras' => ['calientes', 'caliente', 'caluroso', 'calurosos', 'calor', 'acaloran', 'acalora', 'sudan', 'sudor', 'sofocan', 'transpiran', 'transpirable', 'respiran', 'frescos', 'frescas', 'muy gruesos', 'muy grueso'],
+            'texto'    => 'No 😊 Son transpirables: tienen perforaciones que dejan pasar el aire, así que no son calurosos. Los de noche son más dobles, pero respiran igual que los de día 👶✨',
+        ],
+        [
+            'palabras' => ['piel sensible', 'pieles sensibles', 'delicada', 'delicado', 'hipoalergenico', 'hipoalergenicos', 'dermatest', 'certificado', 'certificacion', 'son buenos', 'son buenas', 'calidad'],
             'texto'    => 'Nuestros productos cuentan con certificación *Dermatest de Alemania*, lo que significa que han sido evaluados en pruebas relacionadas con la seguridad y compatibilidad con la piel, obteniendo una calificación de excelencia. Es un respaldo de calidad que brinda mayor confianza al elegir el cuidado para su bebé 👶✨',
         ],
         [
