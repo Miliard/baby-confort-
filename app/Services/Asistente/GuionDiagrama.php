@@ -57,6 +57,18 @@ trait GuionDiagrama
         $turnos[] = now()->timestamp;
         $this->f->poner('turnos', $turnos);
 
+        // Dijo que quiere comprar ("¿me podría mandar 2 paquetes…?"): a la
+        // pestaña Pedidos desde ya, aunque lo siga atendiendo el asistente.
+        if (! $this->f->dato('en_pedidos')) {
+            foreach ($textos as $t) {
+                if (\App\Services\Etiquetado::quierePedir($t)) {
+                    $this->f->poner('en_pedidos', true);
+                    $this->dgAPedidos();
+                    break;
+                }
+            }
+        }
+
         $this->dg(implode("\n", $textos), $boton, $primero);
         $this->f->save();
     }
@@ -1009,6 +1021,8 @@ trait GuionDiagrama
     private function dgTalla(string $texto, string $hola): void
     {
         $this->dgAnotarTipo($texto);
+        // "Mándeme 2 paquetes de … talla XL": los 2 se guardan para cuando elija.
+        if (($c = $this->dgCantidadEn($texto) ?? Entender::cantidad($texto, true)) !== null && $this->dgTallas($texto)) $this->f->poner('cant_pend', $c);
         $tallas = $this->dgTallas($texto);
         if ($tallas) {
             // Pide dos o más tallas: no se contesta nada, te lo pasa a vos.
@@ -1380,7 +1394,7 @@ trait GuionDiagrama
             // Si además dice que lo quiere ("quiero 2 de noche"), es una
             // elección. Si solo dice el tipo ("calzoncito"), se le reenvían
             // las fotos de ese tipo y nada más: todavía no eligió.
-            $explicito = $this->dgCantidadEn($texto) !== null || Entender::quiereComprar($texto)
+            $explicito = $this->dgCantidadEn($texto) !== null || Entender::quiereComprar($texto) || (bool) $f->dato('cant_pend')
                 || (bool) preg_match('/^\s*(quiero|deme|mandeme|me manda|necesito|ocupo|lo quiero|los quiero)\b/u', $nn);
 
             // Pidió varias tallas y en alguna no hay de ese tipo ("cinta" y en
