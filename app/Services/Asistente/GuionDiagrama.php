@@ -1297,7 +1297,8 @@ trait GuionDiagrama
 
         if (count($todas) <= 1) { $this->texto('Solo tenemos esta presentación de ' . $tipo . ' 😊'); return; }
 
-        $this->dgListaDeOpciones('Solo tenemos estas presentaciones de ' . $tipo . ' 😊 ¿Cuál desea?', $todas);
+        // Sin "¿Cuál desea?": no se presiona. El cliente elige cuando quiera.
+        $this->texto('Solo tenemos estas presentaciones de ' . $tipo . ' 😊');
     }
 
     /** Para elegir la presentación: escrito, con el número de opción (sin botones). */
@@ -1417,8 +1418,10 @@ trait GuionDiagrama
             }
 
             if (count($sirven) > 1) {
+                // Todas las que vio son de lo que pidió: se le dice, sin preguntarle cuál.
                 $f->poner('dpaso', 'opciones');
-                $this->dgListaDeOpciones('¿Cuál desea? 😊', $sirven);
+                $que = trim((in_array($tipo, ['cinta', 'calzoncito'], true) ? 'de ' . $tipo : '') . ($quiereNoche ? ' de noche' : ($quiereDia ? ' de día' : '')));
+                $this->texto((count($sirven) === 2 ? 'Las dos son ' : 'Todas son ') . $que . ' 😊');
                 return;
             }
 
@@ -1465,7 +1468,7 @@ trait GuionDiagrama
         if (count($ops) > 1 && ($this->dgCantidadEn($texto) !== null || Entender::quiereComprar($texto)
                 || preg_match('/^\s*(quiero|deme|mandeme|me manda|envieme|necesito|ocupo)\b/u', $nn))) {
             if (($c = $this->dgCantidadEn($texto)) !== null) $f->poner('cant_pend', $c);
-            $this->dgListaDeOpciones('¿Cuál desea? 😊', $ops);
+            $this->dgListaDeOpciones('Con gusto 😊 ¿De cuál le enviamos?', $ops);
             return;
         }
 
