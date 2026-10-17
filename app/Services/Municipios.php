@@ -242,6 +242,34 @@ class Municipios
     }
 
     /**
+     * Cuando buscarEn() no lo encuentra: lo escribió a medias ("San Salva") o
+     * con un error ("Soyapngo", "Ilopnago"). Solo si queda UNO claro; si no, null.
+     */
+    public static function aproximado(?string $texto): ?string
+    {
+        $t = static::normalizar($texto);
+        $t = trim(preg_replace('/^(de|desde|soy de|somos de|vivo en|en|del)\s+/u', '', $t));
+        if (mb_strlen($t) < 5 || substr_count($t, ' ') > 3) return null;
+
+        $tabla = static::tabla();
+
+        // A medias: "san salva" → "san salvador".
+        $prefijo = array_values(array_filter(array_keys($tabla), fn ($c) => str_starts_with($c, $t)));
+        if (count($prefijo) === 1) return $tabla[$prefijo[0]]['nombre'];
+
+        // Con un error de una o dos letras.
+        $mejor = null; $dist = 99; $empate = false;
+        foreach (array_keys($tabla) as $c) {
+            if (abs(mb_strlen($c) - mb_strlen($t)) > 2) continue;
+            $d = levenshtein($t, $c);
+            if ($d < $dist) { $dist = $d; $mejor = $c; $empate = false; }
+            elseif ($d === $dist) $empate = true;
+        }
+        $tope = mb_strlen($t) >= 8 ? 2 : 1;
+        return ($mejor !== null && $dist <= $tope && ! $empate) ? $tabla[$mejor]['nombre'] : null;
+    }
+
+    /**
      * Los municipios de un departamento, en orden alfabético.
      *
      * Sirve para el desplegable: eligiendo primero el departamento, la lista de

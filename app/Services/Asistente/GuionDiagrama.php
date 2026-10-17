@@ -1340,7 +1340,15 @@ trait GuionDiagrama
         // "¿Tendrán de más unidades?", "¿paquete más grande?"
         if ($this->dgPideMasUnidades(Entender::normalizar($texto))) { $f->quitar('citada'); $this->dgMasUnidades(); return; }
 
-        $id = $esPregunta ? null : ($f->dato('citada') ?: Entender::opcion($texto, $vistas));
+        // Decir solo el tipo ("de pegar a los lados", "calzoncito") contesta
+        // "¿cómo lo desea?": no es elegir una presentación, aunque esas
+        // palabras estén en el nombre del producto.
+        $nt = Entender::normalizar($texto);
+        $soloTipo = in_array(Entender::tipo($texto), ['cinta', 'calzoncito'], true)
+            && ! preg_match('/\b(quiero|quisiera|deme|mandeme|me manda|envieme|necesito|ocupo|opcion|la \d|el \d|\d+ paquetes?)\b/', $nt)
+            && $this->dgCantidadEn($texto) === null && ! $this->dgProductoNombrado($texto);
+        $id = ($esPregunta || $soloTipo) ? null : ($f->dato('citada') ?: Entender::opcion($texto, $vistas));
+        if ($soloTipo) $f->quitar('citada');
 
         // Hay una sola opción y dice "quiero 2", "sí", "lo quiero": es esa.
         // "Bueno gracias", "ok gracias" es despedirse, no elegir.
@@ -1392,6 +1400,34 @@ trait GuionDiagrama
                 if ($quiereDia && $o['noche']) return false;
                 return true;
             }));
+            // "Quiero 2 de cinta": los 2 se guardan para cuando elija cuál.
+            if (($c = $this->dgCantidadEn($texto)) !== null) $f->poner('cant_pend', $c);
+
+            // Del catálogo hay más de ese tipo que las que vio ("tenemos varios
+            // de pegar a los lados"): se le mandan todas las de su talla.
+            $tallasVer = $this->dgTallasSinElegir() ?: (array) $f->dato('tallas', []);
+            if ($tallasVer && count($tallasVer) === 1) {
+                $cat = $this->presentaciones([$tallasVer[0]], 'ambos')->filter(function ($s) use ($tipo, $quiereNoche, $quiereDia) {
+                    $nom = (string) $s->product->name;
+                    if (in_array($tipo, ['cinta', 'calzoncito'], true) && mb_strtolower($this->tipoDe($nom)) !== $tipo) return false;
+                    $esNoche = (bool) preg_match('/noche|nocturn/iu', $nom);
+                    if ($quiereNoche && ! $esNoche) return false;
+                    if ($quiereDia && $esNoche) return false;
+                    return true;
+                })->values();
+                if ($cat->count() > count($sirven) && ! ($this->dgCantidadEn($texto) !== null && $cat->count() === 1)) {
+                    $enviadas = [];
+                    foreach ($cat->take(max(1, (int) config('asistente.max_fotos', 4))) as $s) {
+                        $nro = count($enviadas) + 1;
+                        $this->tarjeta($s, $nro, '');
+                        $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];
+                    }
+                    $f->poner('fotos_enviadas', $enviadas);
+                    $this->dgPreguntarDespuesDeFotos($this->guionOpcionesVistas());
+                    return;
+                }
+            }
+
             // Si además dice que lo quiere ("quiero 2 de noche"), es una
             // elección. Si solo dice el tipo ("calzoncito"), se le reenvían
             // las fotos de ese tipo y nada más: todavía no eligió.
@@ -1453,8 +1489,21 @@ trait GuionDiagrama
         // Otra talla en vez de elegir.
         if ($t = $this->dgTallas($texto)) { $this->dgConTalla($t[0], ''); return; }
 
-        // Dice el peso viendo las fotos: se le dice qué talla le queda.
-        if ($p = Entender::peso($texto)) { $this->dgConPeso($p, ''); return; }
+        // Dice el peso viendo las fotos: si la talla que está viendo le queda,
+        // se le confirma y sigue eligiendo; si no, se busca la que le queda.
+        if ($p = Entender::peso($texto)) {
+            $lb = ! empty($p['kg']) ? (str_ends_with((string) ($p['dicho'] ?? ''), 'lb') ? (float) $p['dicho'] : round($p['kg'] * 2.2046, 1)) : (float) ($p['valor'] ?? 0);
+            $actual = mb_strtoupper((string) (((array) $f->dato('tallas', []))[0] ?? ''));
+            if ($lb > 25 || ! empty($p['kg'])) {
+                if ($actual !== '' && in_array($actual, $this->dgTallasPorPeso($lb), true)) {
+                    $v = rtrim(rtrim(number_format($lb, 1), '0'), '.');
+                    $this->dgDecir('Con ' . $v . ' libras le queda bien la talla *' . $this->bonita($actual) . '* 😊', 'opciones');
+                    return;
+                }
+            }
+            $this->dgConPeso($p, '');
+            return;
+        }
 
         // Pregunta el precio o cuántos trae: el de cada opción, y nada más.
         if ($ops && (Entender::preguntaPrecio($texto) || preg_match('/\b(precio|cuanto (me )?sale|en total|cuantos trae)\b/', $nn))) {
@@ -1713,7 +1762,7 @@ trait GuionDiagrama
     private function dgMunicipio(string $texto): void
     {
         $f = $this->f;
-        $m = Municipios::buscarEn($texto);
+        $m = Municipios::buscarEn($texto) ?: Municipios::aproximado($texto);
 
         if (! $m) {
             if ((Entender::esCortesia($texto) || Entender::siNo($texto) === true) && ! $f->dato('muni_repetido')) {
@@ -1738,7 +1787,7 @@ trait GuionDiagrama
     {
         $f = $this->f;
         $volver = (string) ($f->dato('volver_a') ?: 'talla');
-        $m = Municipios::buscarEn($texto);
+        $m = Municipios::buscarEn($texto) ?: Municipios::aproximado($texto);
 
         if (! $m || ! $this->ponerMunicipio($m)) {
             // En vez del municipio dijo la talla o el peso: se sigue con eso.
