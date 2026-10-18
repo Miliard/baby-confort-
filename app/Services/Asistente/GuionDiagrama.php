@@ -253,6 +253,22 @@ trait GuionDiagrama
             return;
         }
 
+        // Ya había quedado una presentación y ahora dice el otro tipo ("De
+        // cinta" cuando se le anotó calzoncito): cambia; se vuelve a elegir.
+        if (in_array($paso, ['cantidad_item', 'municipio', 'muni_envio', 'envio', 'datos', 'datos_conf'], true)
+            && in_array($t = Entender::tipo($texto), ['cinta', 'calzoncito'], true)
+            && ($carrito = (array) $f->dato('carrito', []))) {
+            $ult = end($carrito);
+            $s = ProductSize::with('product')->find($ult['id'] ?? null);
+            if ($s && mb_strtolower($this->tipoDe((string) $s->product->name)) !== $t) {
+                array_pop($carrito);
+                $f->poner('carrito', array_values($carrito));
+                $f->poner('dpaso', 'opciones');
+                $this->dgOpciones($texto);
+                return;
+            }
+        }
+
         if (in_array($paso, ['municipio', 'muni_envio', 'envio', 'cantidad_item', 'sugerencia'], true) && $this->dgPideMasUnidades($n)) {
             $this->dgMasUnidades();
             return;
@@ -1347,6 +1363,14 @@ trait GuionDiagrama
         $soloTipo = in_array(Entender::tipo($texto), ['cinta', 'calzoncito'], true)
             && ! preg_match('/\b(quiero|quisiera|deme|mandeme|me manda|envieme|necesito|ocupo|opcion|la \d|el \d|\d+ paquetes?)\b/', $nt)
             && $this->dgCantidadEn($texto) === null && ! $this->dgProductoNombrado($texto);
+        // "De estas tengo por el momento", "todavía me quedan", "casi se me
+        // terminan": cuenta lo que tiene, no está pidiendo. No se elige nada.
+        if (preg_match('/\b(de (estas|estos|esas|esos|esta|este) (tengo|todavia tengo|aun tengo)|todavia (tengo|me quedan)|aun (tengo|me quedan)|ya tengo|tengo (todavia|aun|por el momento)|por el momento tengo|me quedan|se me (estan )?(terminando|acabando)|casi se me (terminan|acaban)|ya casi se me)\b/', $nt)
+            && ! preg_match('/\b(quiero|quisiera|deme|mandeme|me manda|envieme|necesito|ocupo|\d+ paquetes?)\b/', $nt)) {
+            $f->quitar('citada');
+            return;
+        }
+
         $id = ($esPregunta || $soloTipo) ? null : ($f->dato('citada') ?: Entender::opcion($texto, $vistas));
         if ($soloTipo) $f->quitar('citada');
 
@@ -1462,6 +1486,7 @@ trait GuionDiagrama
             }
 
             if (! $sirven) {
+                $this->marcarAgotado();   // para avisarle cuando entre
                 $this->dgDecir($nota !== '' ? $nota : 'En esa talla en este momento no tenemos ' . $que . ' 😔', 'opciones');
                 return;
             }
@@ -1476,11 +1501,12 @@ trait GuionDiagrama
         }
 
         // ¿Tiene dudas? → se le explica el propósito de cada una.
+        // Solo si pregunta por la diferencia o para qué es cada una (un "?"
+        // suelto no basta: "¿De sinta?" es otra cosa).
         $duda = Entender::tipo($texto) === 'diferencia' || $this->guionPideDiferencia($nn)
-            || str_contains($texto, '?')
-            || preg_match('/\b(cual|diferencia|para que|que es|como es|explique|expliqueme|duda)\b/', $nn);
+            || preg_match('/\b(cual es (la )?(mejor|diferencia)|diferencia|para que (es|son|sirve)|que es|como es|como son|explique|expliqueme|duda)\b/', $nn);
         if ($duda) {
-            $txt = $ops ? $this->guionDiferenciaReglas($ops) : '';
+            $txt = $ops ? ($this->dgTextoDiaNoche($ops) ?? $this->guionDiferenciaReglas($ops)) : '';
             if ($txt !== '') { $this->dgDecir($txt, 'opciones'); return; }
         }
 
