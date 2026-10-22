@@ -56,6 +56,19 @@ class Whatsapp extends Page
      */
     public ?string $filtroDia = null;
 
+    /** Rango de horas a mano ("de 20:00 a 06:00"), hora de El Salvador. */
+    public string $horaDesde = '';
+    public string $horaHasta = '';
+
+    public function filtrarRangoHoras(): void
+    {
+        if (! preg_match('/^\d{1,2}:\d{2}$/', $this->horaDesde) || ! preg_match('/^\d{1,2}:\d{2}$/', $this->horaHasta)) {
+            Notification::make()->title('Poné la hora de inicio y la de fin')->warning()->send();
+            return;
+        }
+        $this->filtroDia = 'rango';
+    }
+
     public function filtrarDia(string $cual): void
     {
         // Tocar el que ya está puesto lo quita: el mismo botón sirve para las
@@ -79,6 +92,32 @@ class Whatsapp extends Page
     private function rangoDelDia(?string $cual): ?array
     {
         if (! $cual) return null;
+
+        // Las últimas 2, 6 o 12 horas.
+        if (preg_match('/^(\d{1,2})h$/', $cual, $m)) {
+            return [now()->subHours((int) $m[1])->utc(), now()->utc()];
+        }
+
+        // De una hora a otra (hora de El Salvador). Si el fin es antes que el
+        // inicio, cruza la medianoche: "de 20:00 a 06:00" es de anoche a hoy.
+        if ($cual === 'rango') {
+            try {
+                $zona = 'America/El_Salvador';
+                $ahora = now($zona);
+                $hasta = $ahora->copy()->setTimeFromTimeString($this->horaHasta);
+                $desde = $hasta->copy()->setTimeFromTimeString($this->horaDesde);
+                if ($desde->gte($hasta)) $desde->subDay();          // cruza la medianoche
+                if ($hasta->gt($ahora)) {
+                    // Todavía no llegó la hora de fin: si el inicio ya pasó, es
+                    // de hoy hasta ahora; si no, el mismo rango de ayer.
+                    if ($desde->lte($ahora)) $hasta = $ahora->copy();
+                    else { $desde->subDay(); $hasta->subDay(); }
+                }
+                return [$desde->utc(), $hasta->utc()];
+            } catch (\Throwable $e) {
+                return null;
+            }
+        }
 
         $atras = ['hoy' => 0, 'ayer' => 1, 'anteayer' => 2][$cual] ?? null;
         if ($atras === null) return null;

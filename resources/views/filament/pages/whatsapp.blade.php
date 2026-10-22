@@ -1046,7 +1046,7 @@
                     <span class="wa-dias-t">Con movimiento…</span>
                     {{-- Por horas hacia atrás, no por día del calendario: "24 h"
                          a las 7 de la mañana incluye lo de anoche. --}}
-                    @foreach(['hoy' => 'Últimas 24 h', 'ayer' => '24 a 48 h', 'anteayer' => '48 a 72 h'] as $clave => $texto)
+                    @foreach(['2h' => 'Últimas 2 h', '6h' => 'Últimas 6 h', '12h' => 'Últimas 12 h', 'hoy' => 'Últimas 24 h', 'ayer' => '24 a 48 h', 'anteayer' => '48 a 72 h'] as $clave => $texto)
                         <button type="button" wire:click="filtrarDia('{{ $clave }}')"
                                 wire:key="dia-{{ $clave }}"
                                 class="wa-fil {{ $filtroDia === $clave ? 'on' : '' }}"
@@ -1056,6 +1056,21 @@
                             {{ $texto }}
                         </button>
                     @endforeach
+
+                    {{-- De una hora a otra, hora de El Salvador. "De 20:00 a
+                         06:00" es de anoche a hoy (lo de la madrugada). --}}
+                    <span class="wa-dias-t" style="display:block;margin-top:6px">De una hora a otra:</span>
+                    <span style="display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap">
+                        <input type="time" wire:model="horaDesde" class="wa-fil" style="--c:#4aa3df;padding:2px 6px" aria-label="Desde la hora">
+                        <span style="font-size:12px">a</span>
+                        <input type="time" wire:model="horaHasta" class="wa-fil" style="--c:#4aa3df;padding:2px 6px" aria-label="Hasta la hora">
+                        <button type="button" wire:click="filtrarRangoHoras"
+                                class="wa-fil {{ $filtroDia === 'rango' ? 'on' : '' }}" style="--c:#4aa3df"
+                                aria-pressed="{{ $filtroDia === 'rango' ? 'true' : 'false' }}">Ver</button>
+                        @if($filtroDia === 'rango')
+                            <button type="button" wire:click="filtrarDia('rango')" class="wa-fil" style="--c:#94a3b8" aria-label="Quitar el rango de horas">✕</button>
+                        @endif
+                    </span>
                 </div>
             </div>
 

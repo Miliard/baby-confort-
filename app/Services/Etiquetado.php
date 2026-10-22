@@ -56,6 +56,9 @@ class Etiquetado
      * pestaña se llenaría de gente que solo estaba averiguando.
      */
     private const QUIERE_PEDIR = [
+        // "De la talla de 4 a 7 por favor para el día sábado", "talla M porfa",
+        // "la XL para mañana": nombra la talla y lo pide (no es pregunta).
+        '/^(?!.*(\?|cuanto|precio|tiene|tienen|hay|tendra|tendran|informacion|info|foto|fotos|disponible)).*\b(talla|tallas|4\s*a\s*7|8\s*a\s*1[45]|(de\s+)?la\s+(s|m|l|g|xl|xg|xxl|xxg|xxxl|rn))\b.*\b(por\s*favor|porfa|porfis|xfa|xfavor|para\s+el\s+(dia\s+)?(lunes|martes|miercoles|jueves|viernes|sabado|domingo)|para\s+(hoy|manana|el\s+fin\s+de\s+semana))\b/',
         // "voy a querer uno y uno", "voy a llevar dos", "me va a mandar 2"
         '/\bvoy\s+a\s+(querer|llevar|pedir|ocupar|necesitar|comprar)\b/',
         '/\b(me\s+va\s+a\s+(mandar|enviar|traer)|me\s+lo\s+(manda|envia|trae)|me\s+los\s+(manda|envia|trae))\b/',
