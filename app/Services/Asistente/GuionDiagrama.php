@@ -672,7 +672,7 @@ trait GuionDiagrama
 
         $enviadas = [];
         $pre = 'Con gusto 😊 Estas son las otras de talla *' . $this->bonita($tallas[0]) . '* 👇';
-        foreach ($otras->take(max(1, (int) config('asistente.max_fotos', 4))) as $s) {
+        foreach ($this->dgVariadas($otras, max(1, (int) config('asistente.max_fotos', 4))) as $s) {
             $nro = count($enviadas) + 1;
             $this->tarjeta($s, $nro, $pre);
             $pre = '';
@@ -981,6 +981,33 @@ trait GuionDiagrama
         return $t !== '' ? $t : null;
     }
 
+    /**
+     * Hasta $max presentaciones, sin dejar afuera ningún tipo: primero una de
+     * cada combinación (cinta / calzoncito, de día / de noche), después las
+     * demás. Siempre en el orden del catálogo.
+     */
+    private function dgVariadas($lista, int $max)
+    {
+        $lista = collect($lista)->values();
+        if ($lista->count() <= $max) return $lista;
+
+        $clave = fn ($s) => mb_strtolower($this->tipoDe((string) $s->product->name)) . '|'
+            . (preg_match('/noche|nocturn/iu', (string) $s->product->name) ? 'noche' : 'dia');
+
+        $elegidos = [];
+        $vistos = [];
+        foreach ($lista as $i => $s) {
+            $k = $clave($s);
+            if (! isset($vistos[$k])) { $vistos[$k] = true; $elegidos[$i] = true; }
+        }
+        foreach ($lista as $i => $s) {
+            if (count($elegidos) >= $max) break;
+            $elegidos[$i] = true;
+        }
+        ksort($elegidos);
+        return $lista->only(array_slice(array_keys($elegidos), 0, max($max, count($vistos))))->values();
+    }
+
     /** Al chat le pone la etiqueta de pedido (pestaña Pedidos). */
     private function dgAPedidos(): void
     {
@@ -1272,6 +1299,10 @@ trait GuionDiagrama
                 })->values();
                 if ($suyas->isNotEmpty()) $lista = $suyas;
             }
+            // Si hay más de las que se mandan, que no falte ningún tipo (cinta,
+            // calzoncito, de día, de noche): antes salían solo las primeras y
+            // el calzoncito de noche se quedaba afuera.
+            $lista = $this->dgVariadas($lista, max(1, (int) config('asistente.max_fotos', 4)));
             foreach ($lista as $s) {
                 if (count($enviadas) >= $max) break 2;
                 $nro = count($enviadas) + 1;
@@ -1441,7 +1472,7 @@ trait GuionDiagrama
                 })->values();
                 if ($cat->count() > count($sirven) && ! ($this->dgCantidadEn($texto) !== null && $cat->count() === 1)) {
                     $enviadas = [];
-                    foreach ($cat->take(max(1, (int) config('asistente.max_fotos', 4))) as $s) {
+                    foreach ($this->dgVariadas($cat, max(1, (int) config('asistente.max_fotos', 4))) as $s) {
                         $nro = count($enviadas) + 1;
                         $this->tarjeta($s, $nro, '');
                         $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];

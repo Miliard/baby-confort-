@@ -56,6 +56,13 @@ class Etiquetado
      * pestaña se llenaría de gente que solo estaba averiguando.
      */
     private const QUIERE_PEDIR = [
+        // "voy a querer uno y uno", "voy a llevar dos", "me va a mandar 2"
+        '/\bvoy\s+a\s+(querer|llevar|pedir|ocupar|necesitar|comprar)\b/',
+        '/\b(me\s+va\s+a\s+(mandar|enviar|traer)|me\s+lo\s+(manda|envia|trae)|me\s+los\s+(manda|envia|trae))\b/',
+        // "uno y uno", "uno de cada uno", "dos y dos"
+        '/^(?!.*(\?|cuanto|precio)).*\b(uno|una|dos|tres)\s+y\s+(uno|una|dos|tres)\b(?!\s+(anos|ano|meses|mes|horas|de\s+la))/',
+        // "a la misma dirección (de siempre)", "a donde siempre", "lo mismo que pido siempre"
+        '/\b(a|para)\s+la\s+misma\s+direccion\b|\bque\s+pido\s+siempre\b|\ba\s+donde\s+siempre\b/',
         // "quiero otro paquete", "quiero 2", "quiero pedir", "quiero la talla L"
         '/\bquiero\s+(otro|otra|un|una|dos|tres|cuatro|cinco|\d+|mas|pedir|encargar|comprar|llevar|hacer\s+(un|mi|el)?\s*pedido)\b(?!\s+(foto|fotos|imagen|imagenes|informacion|info|precio|precios|ubicacion|captura|video|audio|lista|catalogo|cotizacion|numero|cuenta|mensaje))/',
         '/\bquiero\s+(el|la|los|las)\s+(de\s+)?(talla|paquete|paquetes|panales|calzoncito)/',
