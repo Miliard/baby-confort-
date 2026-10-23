@@ -229,16 +229,16 @@ class OrderResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkAction::make('exportar_sistrack')
-                    ->label('📤 Exportar Excel para Sistrack')
+                    ->label('📤 Exportar Excel de guías (T&T)')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('info')
                     ->action(function (\Illuminate\Database\Eloquent\Collection $records) {
-                        $nombre = 'sistrack_' . now()->format('Y-m-d_Hi') . '.xlsx';
+                        $nombre = \App\Services\SistrackExcel::prefijo() . '_' . now()->format('Y-m-d_Hi') . '.xlsx';
                         $path = storage_path('app/' . $nombre);
                         \App\Services\SistrackExcel::generar($records, $path);
                         \Filament\Notifications\Notification::make()
                             ->title('Excel generado con ' . $records->count() . ' pedido(s)')
-                            ->body('Súbelo en Sistrack → Importar órdenes. Cada fila lleva "Pedido #N" en observaciones para identificar la guía.')
+                            ->body('Súbelo en T&T → carga masiva de órdenes. Cada fila lleva "Pedido #N" en observaciones para identificar la guía.')
                             ->success()->send();
                         return response()->download($path, $nombre)->deleteFileAfterSend();
                     })

@@ -1001,7 +1001,7 @@ class CrearGuia extends Page implements HasForms
 
         $numero = \App\Models\GuiaBorrador::proximoNumero();
 
-        $nombre = 'sistrack_lote' . $numero . '_' . now()->format('Y-m-d_Hi') . '.xlsx';
+        $nombre = SistrackExcel::prefijo() . $numero . '_' . now()->format('Y-m-d_Hi') . '.xlsx';
         $path   = storage_path('app/' . $nombre);
 
         // En pantalla el último va arriba; en el Excel se exporta en el orden en que
@@ -1052,7 +1052,7 @@ class CrearGuia extends Page implements HasForms
             return null;
         }
 
-        $nombre = 'sistrack_lote' . $numero . '.xlsx';
+        $nombre = SistrackExcel::prefijo() . $numero . '.xlsx';
         $path   = storage_path('app/' . $nombre);
 
         SistrackExcel::generarDesdeLista($filas, $path);

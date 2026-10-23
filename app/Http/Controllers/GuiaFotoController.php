@@ -706,6 +706,7 @@ class GuiaFotoController extends Controller
             'guias.*.direccion'  => ['nullable', 'string', 'max:400'],
             'guias.*.municipio'  => ['nullable', 'string', 'max:80'],
             'guias.*.departamento' => ['nullable', 'string', 'max:80'],
+            'guias.*.para'       => ['nullable', 'string', 'max:400'],
             'lote'               => ['nullable', 'string', 'max:40'],
         ]);
 
@@ -722,6 +723,14 @@ class GuiaFotoController extends Controller
             $cobrar    = isset($g['cobrar']) && $g['cobrar'] !== '' ? (float) $g['cobrar'] : null;
 
             $registro = GuiaFoto::where('guia', $guia)->first();
+
+            // Etiquetas del sistema nuevo de Express: el nombre viene pegado a la
+            // dirección y no se sabe dónde termina. Se usa el nombre exacto con el
+            // que se armó la guía (mismo teléfono).
+            $para = trim((string) ($g['para'] ?? ''));
+            if (! $nombre && $para !== '') {
+                $nombre = $this->nombreDeLaGuiaArmada($telefono, $para);
+            }
 
             // Si no existe con ese número, puede ser el pedido que ya se armó
             // y quedó esperando su guía. Se le rellena en vez de duplicarlo.
@@ -771,6 +780,41 @@ class GuiaFotoController extends Controller
             'actualizadas' => $actualizadas,
             'emparejadas'  => $emparejadas,
         ]);
+    }
+
+    /**
+     * Nombre con el que se armó la guía (Crear guías), buscado por teléfono.
+     * Se confirma que el texto de la etiqueta empiece con ese nombre; si no hay
+     * guía armada, se toman las primeras palabras como aproximación.
+     */
+    private function nombreDeLaGuiaArmada(?string $telefono, string $para): ?string
+    {
+        $corto = \App\Models\GuiaFoto::telefonoCorto($telefono);
+        $normal = fn ($t) => mb_strtolower(trim(preg_replace('/\s+/u', ' ', (string) $t)));
+
+        if ($corto && strlen($corto) === 8) {
+            try {
+                $limpio = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(telefono,''),' ',''),'-',''),'(',''),')',''),'+','')";
+                $nombres = \App\Models\GuiaBorrador::whereRaw("$limpio LIKE ?", ['%' . $corto])
+                    ->orderByDesc('id')->limit(5)->pluck('nombre');
+
+                foreach ($nombres as $n) {
+                    $n = trim(preg_replace('/^\s*(?:\+?503[\s-]*)?\d{4}[\s.-]?\d{4}\s*/', '', (string) $n));
+                    if ($n !== '' && str_starts_with($normal($para), $normal($n))) {
+                        return $n;
+                    }
+                }
+                if ($nombres->isNotEmpty() && trim((string) $nombres->first()) !== '') {
+                    return trim((string) $nombres->first());
+                }
+            } catch (\Throwable $e) {
+                // sigue con la aproximación
+            }
+        }
+
+        // Sin guía armada: las primeras palabras antes de la dirección.
+        $palabras = preg_split('/\s+/u', trim(preg_replace('/,.*$/u', '', $para)));
+        return implode(' ', array_slice($palabras, 0, 3)) ?: null;
     }
 
     /**

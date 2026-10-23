@@ -423,21 +423,38 @@
 
         // Saca los datos de una etiqueta a partir de su texto.
         function leerEtiqueta(t) {
-            const g = t.match(/Orden\s*#\s*(\d+)/i);
+            // Sistrack: "Orden # 6072671". Sistema nuevo de Express: "Orden # XPS · 7506030".
+            const g = t.match(/Orden\s*#\s*(?:[A-Za-z]{2,5}\s*[·.\-:]?\s*)?(\d{4,})/i);
             if (!g) return null;
 
             const para = t.match(/Para:\s*(.+)/i);
-            let telefono = null, nombre = null, direccion = null;
+            let telefono = null, nombre = null, direccion = null, paraTexto = null;
+
+            // Todo lo que va de "Para:" hasta "Contenido del paquete", en una línea.
+            const todo = t.match(/Para:\s*([\s\S]*?)\n\s*Contenido del paquete/i);
+            const completo = todo ? todo[1].replace(/\s+/g, ' ').trim() : null;
+
+            // En el sistema nuevo el nombre y la dirección vienen pegados
+            // ("7758 7069 María Bercian Cantón primavera…, Quezaltepeque, La Libertad, El Salvador")
+            // y no se puede saber dónde termina el nombre: se manda el texto
+            // completo y el servidor toma el nombre exacto de la guía que se armó.
+            const nuevo = completo && /,\s*El Salvador\s*$/i.test(completo);
 
             if (para) {
-                const linea = para[1].trim();
+                const linea = (nuevo ? completo : para[1]).trim();
                 const m = linea.match(/^(?:\+?503[\s-]*)?([267]\d{3})[\s.-]?(\d{4})\s*(.*)$/);
                 if (m) { telefono = m[1] + ' ' + m[2]; nombre = m[3].trim(); }
                 else   { nombre = linea; }
             }
 
-            const bloque = t.match(/Para:\s*.+\n([\s\S]*?)\nContenido del paquete/i);
-            if (bloque) direccion = bloque[1].replace(/\s+/g, ' ').trim();
+            if (nuevo) {
+                paraTexto = (nombre || '').slice(0, 400);
+                nombre = null;
+                direccion = paraTexto.replace(/,\s*El Salvador\s*$/i, '');
+            } else {
+                const bloque = t.match(/Para:\s*.+\n([\s\S]*?)\nContenido del paquete/i);
+                if (bloque) direccion = bloque[1].replace(/\s+/g, ' ').trim();
+            }
 
             let municipio = null, departamento = null;
             const md = t.match(/^\s*([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ .'-]{2,40})\s*\|\s*([A-Za-zÁÉÍÓÚÑáéíóúñ .'-]{3,30})\s*$/m);
@@ -451,7 +468,9 @@
             const co = t.match(/COBRAR AL ENTREGAR:\s*\$?\s*([\d.,]+)/i);
             if (co) cobrar = parseFloat(co[1].replace(/,/g, ''));
 
-            return { guia: g[1], nombre, telefono, direccion, municipio, departamento, contenido, cobrar };
+            if (direccion) direccion = direccion.slice(0, 400);
+
+            return { guia: g[1], nombre, telefono, direccion, municipio, departamento, contenido, cobrar, para: paraTexto };
         }
 
         input.addEventListener('change', async () => {
@@ -493,7 +512,7 @@
                 }
 
                 if (!guias.length) {
-                    salida.innerHTML = '<div class="rounded-xl border border-danger-300 bg-danger-50 p-4 text-sm text-danger-700 dark:border-danger-500/50 dark:bg-danger-500/10 dark:text-danger-400">No se encontraron guías en ese PDF. ¿Es el archivo de etiquetas de Sistrack?</div>';
+                    salida.innerHTML = '<div class="rounded-xl border border-danger-300 bg-danger-50 p-4 text-sm text-danger-700 dark:border-danger-500/50 dark:bg-danger-500/10 dark:text-danger-400">No se encontraron guías en ese PDF. ¿Es el archivo de etiquetas de Express?</div>';
                     texto.textContent = 'Sin resultados';
                     input.value = '';
                     return;
@@ -518,7 +537,7 @@
                         '<tr class="border-t border-gray-100 dark:border-white/5">'
                         + '<td class="py-1.5 pr-3 font-semibold">' + g.guia + '</td>'
                         + '<td class="py-1.5 pr-3 text-gray-500 dark:text-gray-400">' + (g.telefono || '—') + '</td>'
-                        + '<td class="py-1.5 text-gray-500 dark:text-gray-400">' + (g.nombre || '—').slice(0, 26) + '</td>'
+                        + '<td class="py-1.5 text-gray-500 dark:text-gray-400">' + (g.nombre || g.para || '—').slice(0, 26) + '</td>'
                         + '</tr>').join('');
 
                     salida.innerHTML =
