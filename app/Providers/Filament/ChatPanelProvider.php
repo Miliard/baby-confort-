@@ -55,6 +55,7 @@ class ChatPanelProvider extends PanelProvider
             ->pages([
                 Whatsapp::class,
                 CrearGuia::class,
+                \App\Filament\Pages\SeguimientoExpress::class,
                 WhatsappConectar::class,
             ])
             // Las respuestas rápidas también viven acá: se crean desde el
