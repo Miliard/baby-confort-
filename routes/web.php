@@ -130,6 +130,15 @@ Route::middleware('auth')->group(function () {
     Route::delete('/fotos-paquete/{foto}', [\App\Http\Controllers\GuiaFotoController::class, 'eliminar'])->name('fotos.eliminar');
 });
 
+// Puente con el sistema nuevo de Express: el botón "📦 Actualizar guías" corre
+// en la página de Express y llama aquí. Protegido con la clave del botón.
+Route::post('/express/pendientes', [\App\Http\Controllers\ExpressPuenteController::class, 'pendientes'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class, \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class])
+    ->middleware('throttle:30,1');
+Route::post('/express/estados', [\App\Http\Controllers\ExpressPuenteController::class, 'estados'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class, \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class])
+    ->middleware('throttle:30,1');
+
 // Valida un cupón (devuelve el % de descuento si es válido).
 // throttle: máx. 30 intentos por minuto por IP (evita adivinar códigos por fuerza bruta).
 Route::get('/cupon/validar', [StoreController::class, 'validarCupon'])

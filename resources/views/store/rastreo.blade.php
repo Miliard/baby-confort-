@@ -88,7 +88,9 @@
         </div>
         @if($order->guia)
             <div style="margin-top:12px;font-size:13px;color:var(--gris)">Nº de guía: <b style="color:var(--texto)">{{ $order->guia }}</b>
+                @if($order->urlRastreoExpress())
                 · <a href="{{ $order->urlRastreoExpress() }}" target="_blank" rel="noopener" style="color:var(--azul-osc);font-weight:700">Ver detalle del courier ↗</a>
+                @endif
             </div>
         @endif
     </div>

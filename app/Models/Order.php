@@ -54,6 +54,11 @@ class Order extends Model
             return 1;
         }
 
+        // Sistema nuevo de Express: el estado lo trae el botón "📦 Actualizar guías".
+        if ($nuevo = \App\Models\GuiaEstado::de($guia)) {
+            if ($nuevo->estado) return max(1, min(4, (int) $nuevo->etapa));
+        }
+
         return Cache::remember('track_' . $guia, 120, function () use ($guia) {
             try {
                 $raw = Http::timeout(8)->get('https://expresselsalvador.sistrack.net/track/' . $guia)->body();
@@ -77,7 +82,21 @@ class Order extends Model
 
     public function urlRastreoExpress(): ?string
     {
-        return $this->guia ? 'https://expresselsalvador.sistrack.net/track/' . $this->guia : null;
+        return static::urlCourier($this->guia);
+    }
+
+    /**
+     * Página del courier para ver el detalle. Las guías del sistema nuevo de
+     * Express no tienen página pública: se devuelve null y no se muestra el link.
+     */
+    public static function urlCourier(?string $guia): ?string
+    {
+        if (empty($guia)) return null;
+
+        $nuevo = \App\Models\GuiaEstado::de($guia);
+        if ($nuevo && $nuevo->estado) return null;
+
+        return 'https://expresselsalvador.sistrack.net/track/' . $guia;
     }
 
     // Lee el historial de actualizaciones (estado + fecha/hora) de Express. Con caché.
@@ -86,6 +105,10 @@ class Order extends Model
     {
         if (empty($guia)) {
             return [];
+        }
+
+        if ($nuevo = \App\Models\GuiaEstado::de($guia)) {
+            if ($nuevo->estado) return $nuevo->historialParaCliente();
         }
 
         return Cache::remember('trackhist_' . $guia, 120, function () use ($guia) {

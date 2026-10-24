@@ -174,7 +174,9 @@
                 @else ¡Tu pedido fue entregado! Gracias por tu compra. 🎉 @endif
             </div>
             <div style="margin-top:10px;font-size:12.5px;color:var(--gris)">Guía: <b style="color:var(--texto)">{{ $guia }}</b>
-                · <a href="https://expresselsalvador.sistrack.net/track/{{ $guia }}" target="_blank" rel="noopener" style="color:var(--azul-osc);font-weight:700">Detalle del courier ↗</a>
+                @if($urlCourier = \App\Models\Order::urlCourier($guia))
+                · <a href="{{ $urlCourier }}" target="_blank" rel="noopener" style="color:var(--azul-osc);font-weight:700">Detalle del courier ↗</a>
+                @endif
             </div>
         </div>
 
