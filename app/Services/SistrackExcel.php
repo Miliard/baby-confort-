@@ -75,10 +75,10 @@ class SistrackExcel
         return trim($tel . ' ' . $nom);
     }
 
-    /** Encabezados exactos de la plantilla de T&T (template-ordenes-tnt.xlsx, hoja ORDENES). */
+    /** Encabezados exactos de la plantilla de T&T (hoja ORDENES). Sin valor_declarado desde el 24/10/2026. */
     public const TNT_ENCABEZADOS = [
         'nombre*', 'telefono*', 'email', 'direccion*', 'referencia', 'departamento*', 'municipio*',
-        'contenido*', 'cantidad_bultos', 'valor_declarado*', 'observaciones', 'monto_cod',
+        'contenido*', 'cantidad_bultos', 'observaciones', 'monto_cod',
         'id_comercio', 'tipo_envio', 'agencia_origen', 'agencia_destino', 'lugar_encuentro',
     ];
 
@@ -156,9 +156,7 @@ class SistrackExcel
         $cobrar = round((float) ($g['cobrar'] ?? 0), 2);
         [$depto, $muni] = self::ubicacionTnt($g['departamento'] ?? '', $g['municipio'] ?? '');
 
-        // valor_declarado es obligatorio: el monto del pedido; si ya está pagado y no
-        // se conoce, un valor fijo configurable.
-        $valor = (float) ($g['valor'] ?? 0) ?: ($cobrar > 0 ? $cobrar : (float) env('GUIAS_VALOR_PAGADO', 10));
+        // T&T quitó la columna valor_declarado (24/10/2026): el precio va en monto_cod.
 
         $obs = $cobrar > 0
             ? 'COBRAR AL ENTREGAR: $' . number_format($cobrar, 2)
@@ -177,7 +175,6 @@ class SistrackExcel
             $muni,                                                             // municipio*
             self::limpiar($g['descripcion'] ?? '') ?: 'Productos para bebe',   // contenido*
             1,                                                                 // cantidad_bultos
-            round($valor, 2),                                                  // valor_declarado*
             self::limpiar($obs),                                               // observaciones
             $cobrar > 0 ? $cobrar : '',                                        // monto_cod
             '',                                                                // id_comercio
