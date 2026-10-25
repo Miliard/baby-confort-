@@ -956,6 +956,161 @@ class CrearGuia extends Page implements HasForms
      * que repetir el archivo— y la segunda bajada traía otra vez las primeras.
      * Sistrack las habría recibido dos veces.
      */
+    /**
+     * "📤 Enviar a Express": crea las órdenes por la API oficial, sin Excel.
+     *
+     * Cada guía queda con el número que devolvió Express, amarrada a su
+     * cliente y a su pedido, y lista para el seguimiento. Si Express rechaza
+     * una, se detiene ahí y se muestra el motivo: las que ya salieron quedan
+     * guardadas y no se vuelven a mandar.
+     *
+     * $soloUna: manda solo la más vieja (para probar).
+     */
+    public function enviarAExpress(bool $soloUna = false): void
+    {
+        if (! \App\Services\ExpressApi::configurada()) {
+            Notification::make()->title('Falta la key de Express (TNT_API_KEY) en Railway')->danger()->send();
+            return;
+        }
+        if (! \Illuminate\Support\Facades\Schema::hasColumn('guias_borrador', 'guia')) {
+            Notification::make()->title('Falta actualizar la base de datos (migración). Vuelva a desplegar.')->danger()->send();
+            return;
+        }
+
+        $pendientes = \App\Models\GuiaBorrador::whereNull('lote')->whereNull('guia')->whereNull('express_at')
+            ->orderBy('id')->get();
+
+        if ($pendientes->isEmpty()) {
+            Notification::make()->title('No hay guías esperando para enviar')->warning()->send();
+            return;
+        }
+
+        // Mismo control que antes de bajar el Excel.
+        $malas = $pendientes->filter(fn ($g) => \App\Services\RevisarGuia::tieneError($g->aFila()))
+            ->map(fn ($g) => $g->nombre ?: 'sin nombre')->values();
+        if ($malas->isNotEmpty()) {
+            Notification::make()
+                ->title('⚠️ Corrija primero: ' . $malas->take(4)->implode(' · '))
+                ->body('Hay datos en rojo debajo de cada una. No se envió nada.')
+                ->danger()->persistent()->send();
+            return;
+        }
+
+        if ($soloUna) $pendientes = $pendientes->take(1);
+
+        // Por si un envío anterior se cortó a medias: las que ya están en Express
+        // con nuestro número interno se amarran sin crearlas otra vez.
+        $yaEstan = \App\Services\ExpressApi::ordenesNuestras();
+
+        $lote = \App\Models\GuiaBorrador::proximoNumero();
+        $enviadas = [];
+        $problema = null;
+
+        foreach ($pendientes as $g) {
+            $fila = $g->aFila();
+            $previa = $yaEstan['BC-' . $g->id] ?? null;
+
+            if ($previa) {
+                $r = ['ok' => true, 'guia' => preg_replace('/\D/', '', (string) $previa['tracking_code']), 'id' => $previa['id'] ?? null,
+                      'url' => $previa['tracking_url'] ?? null, 'cod' => isset($previa['cod_amount']) ? (float) $previa['cod_amount'] : null,
+                      'orden' => $previa, 'error' => null];
+            } else {
+                $r = \App\Services\ExpressApi::crearOrden($fila, $g->id);
+            }
+
+            if (! $r['ok']) {
+                $g->express_error = mb_substr((string) $r['error'], 0, 1000);
+                // Aceptó sin devolver número: puede haberse creado. No se reintenta sola.
+                if (str_starts_with((string) $r['error'], 'Express aceptó')) $g->express_at = now();
+                $g->save();
+                $problema = ($g->nombre ?: 'Una guía') . ': ' . $r['error'];
+                break;
+            }
+
+            $g->guia = $r['guia'];
+            $g->express_error = null;
+            $g->express_at = now();
+            $g->lote = $lote;
+            $g->descargado_at = now();
+            $g->save();
+
+            $this->amarrarGuia($fila, $r);
+            $enviadas[] = $g->nombre;
+
+            // Revisa que Express haya guardado bien el cobro.
+            $cobrar = round((float) $g->cobrar, 2);
+            if ($r['cod'] !== null && abs($r['cod'] - $cobrar) > 0.009) {
+                $problema = '⚠️ ' . $g->nombre . ': Express guardó cobro $' . number_format($r['cod'], 2)
+                    . ' y debía ser $' . number_format($cobrar, 2) . '. Corríjalo en Express. Se detuvo el envío.';
+                break;
+            }
+        }
+
+        $this->recargarLista();
+
+        if ($enviadas) {
+            Notification::make()
+                ->title('📤 ' . count($enviadas) . (count($enviadas) === 1 ? ' guía creada' : ' guías creadas') . ' en Express (lote ' . $lote . ')')
+                ->body('Ya tienen número de guía y seguimiento. Descargue las etiquetas en Express para imprimir.')
+                ->success()->persistent()->send();
+        }
+        if ($problema) {
+            Notification::make()->title('Express no aceptó una guía')->body($problema)->danger()->persistent()->send();
+        }
+    }
+
+    /**
+     * Amarra la guía que devolvió Express al cliente (para el rastreo y las
+     * fotos) y al pedido de la tienda, igual que al importar el PDF.
+     */
+    protected function amarrarGuia(array $fila, array $r): void
+    {
+        $guia = $r['guia'];
+
+        try {
+            $reg = \App\Models\GuiaFoto::where('guia', $guia)->first()
+                ?? \App\Models\GuiaFoto::pendientePorTelefono($fila['telefono'] ?? '')
+                ?? new \App\Models\GuiaFoto();
+            $reg->guia      = $guia;
+            $reg->nombre    = $fila['nombre'] ?: $reg->nombre;
+            $reg->telefono  = $fila['telefono'] ?: $reg->telefono;
+            $reg->contenido = $fila['descripcion'] ?: $reg->contenido;
+            $reg->cobrar    = (float) ($fila['cobrar'] ?? 0);
+            $reg->lote      = $reg->lote ?: now()->format('Y-m-d H:i:s');
+            $reg->save();
+        } catch (\Throwable $e) {
+        }
+
+        try {
+            if (is_array($r['orden'])) {
+                $o = $r['orden'];
+                \App\Models\GuiaEstado::registrar([
+                    'guia' => $guia, 'express_id' => $o['id'] ?? null, 'estado' => $o['status'] ?? 'CREATED',
+                    'entregado' => $o['delivered_at'] ?? null, 'cambio' => $o['updated_at'] ?? null,
+                    'repartidor' => $o['driver']['name'] ?? null, 'pago' => $o['payment_status'] ?? null,
+                    'url' => $o['tracking_url'] ?? null,
+                ]);
+            }
+        } catch (\Throwable $e) {
+        }
+
+        // Pedido de la tienda con ese teléfono que aún no tenga guía.
+        try {
+            $corto = \App\Models\GuiaFoto::telefonoCorto($fila['telefono'] ?? '');
+            if ($corto && strlen($corto) === 8) {
+                $limpio = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone,''),' ',''),'-',''),'(',''),')',''),'+','')";
+                $pedido = \App\Models\Order::whereRaw("$limpio LIKE ?", ['%' . $corto])
+                    ->where(fn ($q) => $q->whereNull('guia')->orWhere('guia', ''))
+                    ->orderByDesc('id')->first();
+                if ($pedido) {
+                    $pedido->guia = $guia;
+                    $pedido->save();
+                }
+            }
+        } catch (\Throwable $e) {
+        }
+    }
+
     public function descargar(bool $aunAsi = false)
     {
         $pendientes = collect($this->lista)->filter(fn ($g) => $g['pendiente'] ?? true)->values();

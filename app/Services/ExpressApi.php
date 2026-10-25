@@ -207,4 +207,97 @@ class ExpressApi
             // el rastreo se muestra igual con lo último guardado
         }
     }
+
+    /**
+     * Arma la orden para Express con los datos de una guía de "Crear guías".
+     * Mismos nombres de campos que devuelve la API al consultar órdenes.
+     */
+    public static function datosOrden(array $g, int $id): array
+    {
+        [$depto, $muni] = SistrackExcel::ubicacionTnt($g['departamento'] ?? '', $g['municipio'] ?? '');
+
+        $telContacto = trim((string) ($g['telefono_recibe'] ?? '')) !== '' ? $g['telefono_recibe'] : ($g['telefono'] ?? '');
+        $tel = preg_replace('/\D/', '', (string) $telContacto);
+        if (strlen($tel) === 11 && str_starts_with($tel, '503')) $tel = substr($tel, 3);
+
+        $cobrar = round((float) ($g['cobrar'] ?? 0), 2);
+
+        return [
+            'merchant_order_id' => 'BC-' . $id,
+            'delivery_type'     => 'DOOR_TO_DOOR',
+            'package_count'     => 1,
+            'contents'          => SistrackExcel::limpiar($g['descripcion'] ?? '') ?: 'Productos para bebe',
+            'cod_amount'        => $cobrar,
+            'notes'             => $cobrar > 0 ? 'COBRAR AL ENTREGAR: $' . number_format($cobrar, 2) : 'PAGADO - no cobrar',
+            'fragile'           => false,
+            'recipient'         => [
+                'name'         => SistrackExcel::nombreConTelefono($g['telefono'] ?? '', $g['nombre'] ?? ''),
+                'phone'        => $tel,
+                'address'      => SistrackExcel::limpiar($g['direccion'] ?? ''),
+                'department'   => $depto,
+                'municipality' => $muni,
+            ],
+        ];
+    }
+
+    /**
+     * Crea UNA orden en Express.
+     *
+     * @return array{ok:bool, guia:?string, id:?int, url:?string, cod:?float, orden:?array, error:?string}
+     */
+    public static function crearOrden(array $g, int $id): array
+    {
+        $r = self::llamar('POST', 'orders', self::datosOrden($g, $id));
+        $json = is_array($r['json']) ? $r['json'] : [];
+        $orden = $json['data']['order'] ?? $json['data'] ?? $json['order'] ?? null;
+        if (is_array($orden) && isset($orden['items'][0])) $orden = $orden['items'][0];
+
+        $guia = is_array($orden) ? ($orden['tracking_code'] ?? $orden['trackingCode'] ?? null) : null;
+
+        if ($r['status'] >= 200 && $r['status'] < 300 && $guia) {
+            return [
+                'ok'    => true,
+                'guia'  => preg_replace('/\D/', '', (string) $guia),
+                'id'    => isset($orden['id']) ? (int) $orden['id'] : null,
+                'url'   => $orden['tracking_url'] ?? null,
+                'cod'   => isset($orden['cod_amount']) ? (float) $orden['cod_amount'] : null,
+                'orden' => $orden,
+                'error' => null,
+            ];
+        }
+
+        // Mensaje de Express tal cual, con el detalle de campos si lo manda.
+        $msg = $json['message'] ?? ('Express respondió ' . $r['status']);
+        if (! empty($json['errors'])) {
+            $msg .= ' — ' . mb_substr(json_encode($json['errors'], JSON_UNESCAPED_UNICODE), 0, 400);
+        } elseif ($r['json'] === null && $r['texto'] !== '') {
+            $msg .= ' — ' . mb_substr($r['texto'], 0, 200);
+        } elseif ($r['status'] >= 200 && $r['status'] < 300) {
+            $msg = 'Express aceptó, pero no devolvió número de guía. Revise en Express antes de reintentar.';
+        }
+
+        return ['ok' => false, 'guia' => null, 'id' => null, 'url' => null, 'cod' => null, 'orden' => null, 'error' => $msg];
+    }
+
+    /**
+     * Órdenes que ya están en Express con nuestro número interno (BC-123).
+     * Sirve para no crear dos veces la misma si un envío anterior se cortó.
+     *
+     * @return array<string, array> merchant_order_id => orden
+     */
+    public static function ordenesNuestras(int $paginas = 2): array
+    {
+        $map = [];
+        for ($p = 1; $p <= $paginas; $p++) {
+            $r = self::llamar('GET', 'orders', ['page' => $p, 'limit' => 50]);
+            $items = is_array($r['json']) ? ($r['json']['data']['items'] ?? []) : [];
+            foreach ($items as $o) {
+                $m = (string) ($o['merchant_order_id'] ?? '');
+                if (str_starts_with($m, 'BC-')) $map[$m] = $o;
+            }
+            if (count($items) < 50) break;
+        }
+
+        return $map;
+    }
 }

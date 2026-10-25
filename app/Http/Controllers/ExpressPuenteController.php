@@ -136,6 +136,8 @@ class ExpressPuenteController extends Controller
             'GET orders/lookup'        => ['GET', 'orders/lookup', ['codes' => $guia]],
             'GET orders/status'        => ['GET', 'orders/status', ['codes' => $guia]],
             'GET agencies'             => ['GET', 'agencies', []],
+            // Orden VACÍA: Express la rechaza y dice qué campos exige. No crea nada.
+            'POST orders (vacía, solo para ver qué pide)' => ['POST', 'orders', []],
         ];
 
         $out = ['ok' => true, 'base' => \App\Services\ExpressApi::base(), 'guia_probada' => $guia,

@@ -161,17 +161,51 @@
                      lo que está esperando lote es lo primero que se ve, y el
                      botón está justo encima de eso. --}}
                 @if($porSalir->count())
+                    @php
+                        $nPorSalir   = $porSalir->count();
+                        $totalCobrar = number_format($porSalir->sum(fn ($g) => (float) ($g['cobrar'] ?? 0)), 2);
+                        $hayApi      = \App\Services\ExpressApi::configurada();
+                    @endphp
                     <div class="mb-3 rounded-xl border border-primary-300 bg-primary-50/60 p-3 dark:border-primary-500/50 dark:bg-primary-500/10">
-                        <x-filament::button wire:click="descargar" size="lg" icon="heroicon-m-arrow-down-tray"
-                            class="w-full justify-center">
-                            Bajar lote {{ \App\Models\GuiaBorrador::proximoNumero() }} ({{ $porSalir->count() }})
-                        </x-filament::button>
+                        @if($hayApi)
+                            {{-- Lo principal: crear las órdenes directo en Express, sin Excel. --}}
+                            <x-filament::button wire:click="enviarAExpress" size="lg" icon="heroicon-m-paper-airplane"
+                                wire:loading.attr="disabled" wire:target="enviarAExpress"
+                                wire:confirm="¿Crear {{ $nPorSalir }} {{ $nPorSalir === 1 ? 'orden' : 'órdenes' }} en Express?&#10;&#10;Total a cobrar: ${{ $totalCobrar }}&#10;&#10;Se crean de verdad en Express. Revise que los datos estén bien."
+                                class="w-full justify-center">
+                                <span wire:loading.remove wire:target="enviarAExpress">📤 Enviar {{ $nPorSalir }} a Express</span>
+                                <span wire:loading wire:target="enviarAExpress">Creando órdenes en Express…</span>
+                            </x-filament::button>
 
-                        <p class="mt-2 text-center text-xs text-gray-600 dark:text-gray-400">
-                            Subí este archivo en Sistrack → <span class="font-semibold">Importación masiva</span>.
-                            Al bajarlo, {{ $porSalir->count() === 1 ? 'esta queda marcada' : 'estas quedan marcadas' }}
-                            y lo que agregues después arranca el lote siguiente.
-                        </p>
+                            <div class="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs">
+                                @if($nPorSalir > 1)
+                                    <button type="button" class="font-semibold text-primary-600 hover:underline"
+                                        wire:click="enviarAExpress(true)"
+                                        wire:confirm="¿Crear SOLO la primera orden en Express, para probar?">
+                                        Enviar solo 1 de prueba
+                                    </button>
+                                @endif
+                                <button type="button" class="text-gray-500 hover:underline dark:text-gray-400" wire:click="descargar">
+                                    o bajar el Excel (lote {{ \App\Models\GuiaBorrador::proximoNumero() }})
+                                </button>
+                            </div>
+
+                            <p class="mt-2 text-center text-xs text-gray-600 dark:text-gray-400">
+                                Cada guía vuelve con su número de Express y queda lista para el seguimiento.
+                                Las etiquetas para imprimir se descargan en Express.
+                            </p>
+                        @else
+                            <x-filament::button wire:click="descargar" size="lg" icon="heroicon-m-arrow-down-tray"
+                                class="w-full justify-center">
+                                Bajar lote {{ \App\Models\GuiaBorrador::proximoNumero() }} ({{ $nPorSalir }})
+                            </x-filament::button>
+
+                            <p class="mt-2 text-center text-xs text-gray-600 dark:text-gray-400">
+                                Subí este archivo en Express → <span class="font-semibold">Importación masiva</span>.
+                                Al bajarlo, {{ $nPorSalir === 1 ? 'esta queda marcada' : 'estas quedan marcadas' }}
+                                y lo que agregues después arranca el lote siguiente.
+                            </p>
+                        @endif
                     </div>
                 @elseif(count($lista))
                     <p class="mb-3 rounded-xl border border-dashed border-gray-300 p-4 text-center text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">
