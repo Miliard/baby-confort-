@@ -155,6 +155,17 @@ class ExpressApi
                         'url'        => $o['tracking_url'] ?? null,
                     ]);
 
+                    // Guía nueva sin amarrar: se busca por teléfono la guía que se armó
+                    // en el panel y se le pone el número (lo mismo que hacía el PDF).
+                    // El nombre va como "7777 7777 Juan": ese es el teléfono del cliente
+                    // (el de la columna teléfono puede ser el de quien recibe).
+                    if ($reg) {
+                        $telNombre = preg_match('/^\s*(\d{4})[\s.-]?(\d{4})\b/', (string) ($o['recipient']['name'] ?? ''), $mm) ? $mm[1] . $mm[2] : '';
+                        foreach (array_unique(array_filter([$telNombre, (string) ($o['recipient']['phone'] ?? '')])) as $tel) {
+                            self::amarrarPorTelefono((string) $o['tracking_code'], $tel, $o['created_at'] ?? null);
+                        }
+                    }
+
                     if ($reg) {
                         $cuenta['revisadas']++;
                         match ((int) $reg->etapa) {
@@ -299,5 +310,47 @@ class ExpressApi
         }
 
         return $map;
+    }
+
+    /**
+     * Le pone el número de guía de Express a la guía armada en el panel que
+     * espera número, buscándola por teléfono. Solo para órdenes de los últimos
+     * 3 días y armadas antes que la orden de Express, para no amarrar una
+     * orden vieja a un pedido nuevo del mismo cliente.
+     */
+    public static function amarrarPorTelefono(string $guia, string $telefono, ?string $creada): void
+    {
+        $guia = preg_replace('/\D/', '', $guia);
+        if ($guia === '') return;
+
+        try {
+            if (\App\Models\GuiaFoto::where('guia', $guia)->exists()) return;
+
+            $cuando = $creada ? \Illuminate\Support\Carbon::parse($creada) : null;
+            if (! $cuando || $cuando->lt(now()->subDays(3))) return;
+
+            $pendiente = \App\Models\GuiaFoto::pendientePorTelefono($telefono);
+            if (! $pendiente || ($pendiente->created_at && $pendiente->created_at->gt($cuando->copy()->addMinutes(5)))) return;
+
+            $pendiente->guia = $guia;
+            $pendiente->lote = $pendiente->lote ?: $cuando->format('Y-m-d H:i:s');
+            $pendiente->save();
+
+            // Y al pedido de la tienda con ese teléfono que aún no tenga guía.
+            $corto = \App\Models\GuiaFoto::telefonoCorto($telefono);
+            if ($corto && strlen($corto) === 8) {
+                $limpio = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone,''),' ',''),'-',''),'(',''),')',''),'+','')";
+                $pedido = \App\Models\Order::whereRaw("$limpio LIKE ?", ['%' . $corto])
+                    ->where(fn ($q) => $q->whereNull('guia')->orWhere('guia', ''))
+                    ->where('created_at', '<=', $cuando->copy()->addMinutes(5))
+                    ->orderByDesc('id')->first();
+                if ($pedido) {
+                    $pedido->guia = $guia;
+                    $pedido->save();
+                }
+            }
+        } catch (\Throwable $e) {
+            // no impide el resto de la actualización
+        }
     }
 }
