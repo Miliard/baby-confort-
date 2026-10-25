@@ -65,7 +65,7 @@ class ExpressApi
             $req = Http::timeout(20)->acceptJson()->withHeaders(self::cabeceras($modo));
 
             $url = self::base() . '/' . ltrim($ruta, '/');
-            $res = strtoupper($metodo) === 'GET' ? $req->get($url, $datos) : $req->send(strtoupper($metodo), $url, ['json' => $datos]);
+            $res = strtoupper($metodo) === 'GET' ? $req->get($url, $datos) : $req->send(strtoupper($metodo), $url, ['json' => $datos ?: new \stdClass()]);
 
             return ['status' => $res->status(), 'json' => $res->json(), 'texto' => mb_substr($res->body(), 0, 2000)];
         } catch (\Throwable $e) {
