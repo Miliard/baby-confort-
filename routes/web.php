@@ -127,6 +127,9 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/fotos-paquete', [\App\Http\Controllers\GuiaFotoController::class, 'subir'])->name('fotos.subir');
     Route::post('/guias-pdf', [\App\Http\Controllers\GuiaFotoController::class, 'importarPdf'])->name('guias.pdf');
+
+    // Prueba de la API oficial de Express (muestra la forma de las respuestas, datos tapados).
+    Route::get('/express/prueba-api', [\App\Http\Controllers\ExpressPuenteController::class, 'pruebaApi'])->name('express.prueba');
     Route::delete('/fotos-paquete/{foto}', [\App\Http\Controllers\GuiaFotoController::class, 'eliminar'])->name('fotos.eliminar');
 });
 

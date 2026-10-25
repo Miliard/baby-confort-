@@ -111,6 +111,46 @@ class ExpressPuenteController extends Controller
         return $this->responder(['ok' => true] + $cuenta);
     }
 
+    /**
+     * Prueba la API oficial de Express con la key de Railway (TNT_API_KEY) y
+     * muestra la FORMA de las respuestas, con los datos personales tapados.
+     * Solo con sesión iniciada en el panel.
+     */
+    public function pruebaApi()
+    {
+        if (! \App\Services\ExpressApi::configurada()) {
+            return response()->json(['ok' => false, 'error' => 'Falta la variable TNT_API_KEY en Railway']);
+        }
+
+        $guia = null;
+        try {
+            $guia = GuiaFoto::whereNotNull('guia')->where('guia', '!=', '')->orderByDesc('id')->value('guia');
+        } catch (\Throwable $e) {
+        }
+        $guia = preg_replace('/\D/', '', (string) $guia) ?: '7506030';
+
+        $pruebas = [
+            'GET orders'               => ['GET', 'orders', ['limit' => 2, 'per_page' => 2]],
+            'GET orders/{guia}'        => ['GET', 'orders/' . $guia, []],
+            'GET orders?tracking'      => ['GET', 'orders', ['tracking' => $guia, 'trackingCode' => $guia, 'code' => $guia, 'q' => $guia]],
+            'GET orders/lookup'        => ['GET', 'orders/lookup', ['codes' => $guia]],
+            'GET orders/status'        => ['GET', 'orders/status', ['codes' => $guia]],
+            'GET agencies'             => ['GET', 'agencies', []],
+        ];
+
+        $out = ['ok' => true, 'base' => \App\Services\ExpressApi::base(), 'guia_probada' => $guia];
+        foreach ($pruebas as $nombre => [$m, $ruta, $datos]) {
+            $r = \App\Services\ExpressApi::llamar($m, $ruta, $datos);
+            $out[$nombre] = [
+                'status' => $r['status'],
+                'json'   => \App\Services\ExpressApi::tapar($r['json']),
+                'texto'  => $r['json'] === null ? mb_substr($r['texto'], 0, 300) : null,
+            ];
+        }
+
+        return response()->json($out, 200, [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
     /** Lee el cuerpo (JSON en texto plano) y valida la clave. Null si no vale. */
     private function leer(Request $request): ?array
     {

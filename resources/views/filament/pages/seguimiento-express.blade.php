@@ -34,6 +34,18 @@
             </p>
         </x-filament::section>
 
+        <x-filament::section>
+            <x-slot name="heading">API oficial de Express</x-slot>
+            <p class="text-sm text-gray-600 dark:text-gray-300">
+                @if(\App\Services\ExpressApi::configurada())
+                    ✅ La key está puesta en Railway.
+                    <a href="{{ route('express.prueba') }}" target="_blank" class="font-semibold text-primary-600 hover:underline">Probar conexión con la API ↗</a>
+                @else
+                    Falta la variable <b>TNT_API_KEY</b> en Railway.
+                @endif
+            </p>
+        </x-filament::section>
+
         {{-- ─────────── RESUMEN ─────────── --}}
         @if(! $hayTabla)
             <x-filament::section>
