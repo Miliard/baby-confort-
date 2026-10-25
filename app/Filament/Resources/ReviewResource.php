@@ -15,6 +15,7 @@ class ReviewResource extends Resource
     protected static ?string $model = Review::class;
     protected static ?string $navigationIcon = 'heroicon-o-star';
     protected static ?string $navigationLabel = 'Reseñas';
+    protected static ?string $navigationGroup = 'Tienda';
     protected static ?string $modelLabel = 'Reseña';
     protected static ?string $pluralModelLabel = 'Reseñas';
 

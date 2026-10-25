@@ -17,6 +17,7 @@ class CierreDelDia extends Page
 {
     protected static ?string $navigationIcon  = 'heroicon-o-calculator';
     protected static ?string $navigationLabel = 'Cierre del día';
+    protected static ?string $navigationGroup = 'Ventas';
     protected static ?string $title           = 'Cierre del día';
     protected static ?int    $navigationSort  = 3;
 

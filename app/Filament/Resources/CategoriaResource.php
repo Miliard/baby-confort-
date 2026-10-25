@@ -15,6 +15,7 @@ class CategoriaResource extends Resource
     protected static ?string $model = Categoria::class;
     protected static ?string $navigationIcon = 'heroicon-o-tag';
     protected static ?string $navigationLabel = 'Categorías';
+    protected static ?string $navigationGroup = 'Tienda';
     protected static ?string $modelLabel = 'Categoría';
     protected static ?string $pluralModelLabel = 'Categorías';
 

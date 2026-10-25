@@ -21,6 +21,13 @@ class Whatsapp extends Page
 
     protected static ?string $navigationIcon = 'heroicon-o-chat-bubble-left-right';
     protected static ?string $navigationLabel = 'WhatsApp';
+
+    /** Grupo del menú solo en el panel admin (en Mensajes la barra va sin grupos). */
+    public static function getNavigationGroup(): ?string
+    {
+        return \Filament\Facades\Filament::getCurrentPanel()?->getId() === 'admin' ? 'Ventas' : null;
+    }
+
     protected static ?string $title = 'WhatsApp';
     protected static ?int $navigationSort = 1;
 

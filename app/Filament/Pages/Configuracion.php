@@ -16,6 +16,7 @@ class Configuracion extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
     protected static ?string $navigationLabel = 'Configuración';
+    protected static ?string $navigationGroup = 'Ajustes';
     protected static ?string $title = 'Configuración';
     protected static string $view = 'filament.pages.configuracion';
 
@@ -30,9 +31,6 @@ class Configuracion extends Page implements HasForms
             'fb_pixel' => Setting::get('fb_pixel', ''),
             'telegram_token' => Setting::get('telegram_token', ''),
             'telegram_chat' => Setting::get('telegram_chat', ''),
-            'sistrack_token' => Setting::get('sistrack_token', ''),
-            'sistrack_sender_id' => Setting::get('sistrack_sender_id', ''),
-            'sistrack_dominio' => Setting::get('sistrack_dominio', 'expresselsalvador'),
         ]);
     }
 
@@ -61,19 +59,6 @@ class Configuracion extends Page implements HasForms
                         ->placeholder('Ej: 987654321'),
                 ])->columns(2),
 
-            \Filament\Forms\Components\Section::make('🚚 Guías Express El Salvador (Sistrack)')
-                ->description('Con esto el botón "⚡ Crear guía" de los pedidos crea la guía automáticamente en Sistrack. Pídele a Express El Salvador tu token de API y tu ID de remitente. Deja los campos vacíos para desactivarlo.')
-                ->schema([
-                    TextInput::make('sistrack_token')->label('Token de API')
-                        ->helperText('Token Bearer de tu cuenta de Sistrack.')
-                        ->placeholder('Pega aquí tu token'),
-                    TextInput::make('sistrack_sender_id')->label('ID de remitente (tu negocio)')
-                        ->helperText('El ID de Baby-Confort como remitente dentro de Sistrack.')
-                        ->placeholder('Ej: 5'),
-                    TextInput::make('sistrack_dominio')->label('Subdominio del courier')
-                        ->helperText('Normalmente no se cambia.')
-                        ->placeholder('expresselsalvador'),
-                ])->columns(3),
         ])->statePath('data');
     }
 
@@ -86,9 +71,6 @@ class Configuracion extends Page implements HasForms
         Setting::put('fb_pixel', trim($data['fb_pixel'] ?? ''));
         Setting::put('telegram_token', trim($data['telegram_token'] ?? ''));
         Setting::put('telegram_chat', trim($data['telegram_chat'] ?? ''));
-        Setting::put('sistrack_token', trim($data['sistrack_token'] ?? ''));
-        Setting::put('sistrack_sender_id', trim($data['sistrack_sender_id'] ?? ''));
-        Setting::put('sistrack_dominio', trim($data['sistrack_dominio'] ?? '') ?: 'expresselsalvador');
         Notification::make()->title('Configuración guardada')->success()->send();
     }
 }

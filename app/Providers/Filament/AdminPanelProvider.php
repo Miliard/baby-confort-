@@ -34,13 +34,15 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
-            ->pages([
-                Pages\Dashboard::class,
-            ])
-            ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
-            ->widgets([
-                Widgets\AccountWidget::class,
-                Widgets\FilamentInfoWidget::class,
+            // Sin el escritorio de bienvenida (estaba vacío): al entrar abre Pedidos.
+            ->homeUrl(fn () => \App\Filament\Resources\OrderResource::getUrl('index'))
+            // El menú en 4 grupos (más los de WhatsApp). Tienda y Ajustes se tocan poco: plegados.
+            ->navigationGroups([
+                \Filament\Navigation\NavigationGroup::make('Ventas'),
+                \Filament\Navigation\NavigationGroup::make('Envíos'),
+                \Filament\Navigation\NavigationGroup::make('WhatsApp'),
+                \Filament\Navigation\NavigationGroup::make('Tienda')->collapsed(),
+                \Filament\Navigation\NavigationGroup::make('Ajustes')->collapsed(),
             ])
             ->middleware([
                 EncryptCookies::class,

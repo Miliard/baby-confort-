@@ -24,6 +24,7 @@ class EquivalenciaResource extends Resource
     protected static ?string $model = Equivalencia::class;
     protected static ?string $navigationIcon = 'heroicon-o-language';
     protected static ?string $navigationLabel = 'Equivalencias';
+    protected static ?string $navigationGroup = 'Ajustes';
     protected static ?string $modelLabel = 'equivalencia';
     protected static ?string $pluralModelLabel = 'Equivalencias';
     protected static ?int $navigationSort = 5;

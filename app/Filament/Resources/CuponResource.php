@@ -15,6 +15,7 @@ class CuponResource extends Resource
     protected static ?string $model = Cupon::class;
     protected static ?string $navigationIcon = 'heroicon-o-ticket';
     protected static ?string $navigationLabel = 'Cupones';
+    protected static ?string $navigationGroup = 'Tienda';
     protected static ?string $modelLabel = 'Cupón';
     protected static ?string $pluralModelLabel = 'Cupones';
 

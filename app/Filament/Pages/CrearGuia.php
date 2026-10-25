@@ -25,6 +25,13 @@ class CrearGuia extends Page implements HasForms
 
     protected static ?string $navigationIcon = 'heroicon-o-bolt';
     protected static ?string $navigationLabel = 'Guías';
+
+    /** En el menú solo del panel de Mensajes (en admin estaba repetida). */
+    public static function shouldRegisterNavigation(): bool
+    {
+        return \Filament\Facades\Filament::getCurrentPanel()?->getId() !== 'admin';
+    }
+
     protected static ?string $title = 'Guías';
     protected static ?int $navigationSort = 1;
 
@@ -358,49 +365,6 @@ class CrearGuia extends Page implements HasForms
             ->title('📲 Pedido traído del chat')
             ->body('Revisá los datos y corregí lo que haga falta antes de agregarlo a la lista.')
             ->success()->send();
-    }
-
-    /** Botón para traer la libreta de clientes exportada de Sistrack. */
-    protected function getHeaderActions(): array
-    {
-        return [
-            \Filament\Actions\Action::make('importar_clientes')
-                ->label('Importar clientes')
-                ->icon('heroicon-o-arrow-up-tray')
-                ->color('gray')
-                ->modalHeading('Importar clientes desde Sistrack')
-                ->modalDescription('Subí el Excel de contactos que descargaste de Sistrack. Los que ya estén guardados no se duplican.')
-                ->modalSubmitActionLabel('Importar')
-                ->form([
-                    Forms\Components\FileUpload::make('archivo')
-                        ->label('Archivo de contactos (.xlsx)')
-                        ->acceptedFileTypes([
-                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                        ])
-                        ->required()
-                        ->disk('local')
-                        ->directory('importaciones'),
-                ])
-                ->action(function (array $data) {
-                    $ruta = \Illuminate\Support\Facades\Storage::disk('local')->path($data['archivo']);
-
-                    try {
-                        $r = \App\Services\ImportadorClientes::importar($ruta);
-
-                        Notification::make()
-                            ->title('✅ Clientes importados')
-                            ->body("Nuevos: {$r['nuevos']} · Actualizados: {$r['actualizados']} · Sin teléfono: {$r['sin_telefono']}")
-                            ->success()->persistent()->send();
-                    } catch (\Throwable $e) {
-                        Notification::make()
-                            ->title('No se pudo importar')
-                            ->body($e->getMessage())
-                            ->danger()->persistent()->send();
-                    } finally {
-                        try { \Illuminate\Support\Facades\Storage::disk('local')->delete($data['archivo']); } catch (\Throwable $e) {}
-                    }
-                }),
-        ];
     }
 
     /** Clientes de la libreta (filtrados por el buscador). */

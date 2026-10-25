@@ -20,6 +20,7 @@ class Buscar extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-magnifying-glass';
     protected static ?string $navigationLabel = 'Buscar';
+    protected static ?string $navigationGroup = 'Ventas';
     protected static ?string $title = 'Buscar';
     protected static ?int $navigationSort = 0;
 

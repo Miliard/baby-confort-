@@ -19,6 +19,7 @@ class TablaPrecios extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-table-cells';
     protected static ?string $navigationLabel = 'Tabla de precios';
+    protected static ?string $navigationGroup = 'Tienda';
     protected static ?string $title = 'Tabla de precios';
     protected static ?int $navigationSort = 4;
 

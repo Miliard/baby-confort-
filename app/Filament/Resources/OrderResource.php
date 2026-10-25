@@ -15,13 +15,9 @@ class OrderResource extends Resource
     protected static ?string $model = Order::class;
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
     protected static ?string $navigationLabel = 'Pedidos';
+    protected static ?string $navigationGroup = 'Ventas';
     protected static ?string $modelLabel = 'Pedido';
     protected static ?string $pluralModelLabel = 'Pedidos';
-
-    public static function getNavigationBadge(): ?string
-    {
-        return (string) static::getModel()::where('status', 'nuevo')->count() ?: null;
-    }
 
     public static function form(Form $form): Form
     {
@@ -128,28 +124,6 @@ class OrderResource extends Resource
             Forms\Components\Section::make('Envío y seguimiento')
                 ->visible(fn (string $operation) => $operation === 'edit')
                 ->schema([
-                Forms\Components\Actions::make([
-                    Forms\Components\Actions\Action::make('crear_guia_form')
-                        ->label('⚡ Crear guía en Express (automático)')
-                        ->color('warning')
-                        ->visible(fn (?Order $record) => $record && empty($record->guia) && \App\Services\SistrackService::configurado())
-                        ->form(fn (?Order $record) => [
-                            Forms\Components\Textarea::make('descripcion')->label('Descripción del paquete')->rows(2)->required()
-                                ->default($record ? \App\Services\SistrackService::descripcionDe($record) : ''),
-                            Forms\Components\TextInput::make('cobrar')->label('Monto a cobrar al entregar (COD)')->numeric()->prefix('$')
-                                ->default($record && $record->payment === 'efectivo' ? (string) $record->total : '0')
-                                ->helperText('Pon 0 si ya está pagado (transferencia o link).'),
-                        ])
-                        ->action(function (?Order $record, array $data) {
-                            if (! $record) return;
-                            $res = app(\App\Services\SistrackService::class)->crearGuia($record, $data['descripcion'], (float) $data['cobrar']);
-                            if ($res['ok']) {
-                                \Filament\Notifications\Notification::make()->title('✅ Guía creada: ' . $res['guia'])->success()->send();
-                            } else {
-                                \Filament\Notifications\Notification::make()->title('No se pudo crear la guía')->body($res['error'])->danger()->send();
-                            }
-                        }),
-                ])->columnSpanFull(),
                 Forms\Components\TextInput::make('guia')->label('Número de guía (Express)')
                     ->helperText('Pega la guía que te da Express. La barra de seguimiento se actualiza sola leyendo su estado.')
                     ->placeholder('Ej: 5009506'),
@@ -245,28 +219,6 @@ class OrderResource extends Resource
                     ->deselectRecordsAfterCompletion(),
             ])
             ->actions([
-                Tables\Actions\Action::make('crear_guia')
-                    ->label('⚡ Crear guía')->icon('heroicon-o-bolt')->color('warning')
-                    ->visible(fn (Order $record) => empty($record->guia) && \App\Services\SistrackService::configurado())
-                    ->form(fn (Order $record) => [
-                        Forms\Components\Textarea::make('descripcion')->label('Descripción del paquete')->rows(2)->required()
-                            ->default(\App\Services\SistrackService::descripcionDe($record)),
-                        Forms\Components\TextInput::make('cobrar')->label('Monto a cobrar al entregar (COD)')->numeric()->prefix('$')
-                            ->default($record->payment === 'efectivo' ? (string) $record->total : '0')
-                            ->helperText('Pon 0 si ya está pagado (transferencia o link).'),
-                    ])
-                    ->modalHeading('Crear guía en Express El Salvador')
-                    ->modalDescription(fn (Order $record) => "Se creará la guía para {$record->customer_name} · {$record->municipio}")
-                    ->modalSubmitActionLabel('Crear guía')
-                    ->action(function (Order $record, array $data) {
-                        $res = app(\App\Services\SistrackService::class)->crearGuia($record, $data['descripcion'], (float) $data['cobrar']);
-                        if ($res['ok']) {
-                            \Filament\Notifications\Notification::make()->title('✅ Guía creada: ' . $res['guia'])
-                                ->body('Ya puedes enviarle el seguimiento al cliente.')->success()->send();
-                        } else {
-                            \Filament\Notifications\Notification::make()->title('No se pudo crear la guía')->body($res['error'])->danger()->send();
-                        }
-                    }),
                 Tables\Actions\Action::make('guia')
                     ->label('Guía')->icon('heroicon-o-truck')->color('info')
                     ->form([

@@ -23,6 +23,13 @@ class WhatsappConectar extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-link';
     protected static ?string $navigationLabel = 'Conectar WhatsApp';
+
+    /** Grupo del menú solo en el panel admin (en Mensajes la barra va sin grupos). */
+    public static function getNavigationGroup(): ?string
+    {
+        return \Filament\Facades\Filament::getCurrentPanel()?->getId() === 'admin' ? 'Ajustes' : null;
+    }
+
     protected static ?string $title = 'Conectar WhatsApp';
     protected static ?int $navigationSort = 9;
 

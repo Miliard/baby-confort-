@@ -2,7 +2,6 @@
 
 namespace App\Filament\Pages;
 
-use App\Http\Controllers\ExpressPuenteController;
 use App\Models\GuiaEstado;
 use App\Models\GuiaFoto;
 use App\Models\Setting;
@@ -12,13 +11,19 @@ use Illuminate\Support\Carbon;
 /**
  * Seguimiento de paquetes con el sistema nuevo de Express (Facilito / T&T).
  *
- * Aquí está el botón "📦 Actualizar guías" para arrastrar a la barra de
- * marcadores, y el resumen de en qué va cada guía.
+ * Consulta la API oficial de Express y muestra en qué va cada guía.
  */
 class SeguimientoExpress extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-truck';
     protected static ?string $navigationLabel = 'Seguimiento Express';
+
+    /** Grupo del menú solo en el panel admin (en Mensajes la barra va sin grupos). */
+    public static function getNavigationGroup(): ?string
+    {
+        return \Filament\Facades\Filament::getCurrentPanel()?->getId() === 'admin' ? 'Envíos' : null;
+    }
+
     protected static ?string $title = '📦 Seguimiento de paquetes';
     protected static ?int $navigationSort = 3;
 
@@ -44,7 +49,6 @@ class SeguimientoExpress extends Page
 
     public function getViewData(): array
     {
-        $ultima = Setting::get('express_puente_ultima');
         $filas = collect();
         $resumen = [1 => 0, 2 => 0, 3 => 0, 4 => 0];
 
@@ -79,9 +83,6 @@ class SeguimientoExpress extends Page
         return [
             'ultimaApi' => $ultimaApi ? Carbon::parse($ultimaApi)->setTimezone('America/El_Salvador')->format('d/m/Y g:i A') : null,
             'apiLista'  => \App\Services\ExpressApi::configurada(),
-            'clave'   => ExpressPuenteController::clave(),
-            'base'    => request()->getSchemeAndHttpHost(),
-            'ultima'  => $ultima ? Carbon::parse($ultima)->setTimezone('America/El_Salvador')->format('d/m/Y g:i A') : null,
             'filas'   => $filas,
             'resumen' => $resumen,
             'hayTabla'=> GuiaEstado::hayTabla(),

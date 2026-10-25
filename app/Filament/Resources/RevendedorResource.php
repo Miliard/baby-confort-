@@ -15,6 +15,8 @@ class RevendedorResource extends Resource
     protected static ?string $model = Revendedor::class;
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
     protected static ?string $navigationLabel = 'Revendedores';
+    // Sin uso (0 registros): fuera del menú. La tabla y el código quedan.
+    protected static bool $shouldRegisterNavigation = false;
     protected static ?string $modelLabel = 'Revendedor';
     protected static ?string $pluralModelLabel = 'Revendedores';
 

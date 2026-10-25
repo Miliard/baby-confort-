@@ -18,6 +18,7 @@ class GuiaFotoResource extends Resource
     protected static ?string $model = GuiaFoto::class;
     protected static ?string $navigationIcon = 'heroicon-o-photo';
     protected static ?string $navigationLabel = 'Guías con foto';
+    protected static ?string $navigationGroup = 'Envíos';
     protected static ?string $modelLabel = 'Guía con foto';
     protected static ?string $pluralModelLabel = 'Guías con foto';
     protected static ?int $navigationSort = 3;
