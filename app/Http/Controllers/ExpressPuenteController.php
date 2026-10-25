@@ -138,7 +138,20 @@ class ExpressPuenteController extends Controller
             'GET agencies'             => ['GET', 'agencies', []],
         ];
 
-        $out = ['ok' => true, 'base' => \App\Services\ExpressApi::base(), 'guia_probada' => $guia];
+        $out = ['ok' => true, 'base' => \App\Services\ExpressApi::base(), 'guia_probada' => $guia,
+            'key' => \App\Services\ExpressApi::diagnosticoKey()];
+
+        // ¿Cómo quiere Express la key? Se prueba cada forma y se guarda la que sirva.
+        $modos = [];
+        foreach (\App\Services\ExpressApi::MODOS as $modo) {
+            $r = \App\Services\ExpressApi::llamar('GET', 'agencies', [], $modo);
+            $modos[$modo] = $r['status'] . ' ' . (is_array($r['json']) ? ($r['json']['message'] ?? 'ok') : '');
+            if ($r['status'] >= 200 && $r['status'] < 300) {
+                \App\Models\Setting::put('tnt_api_modo', $modo);
+                break;
+            }
+        }
+        $out['formas_de_mandar_la_key'] = $modos;
         foreach ($pruebas as $nombre => [$m, $ruta, $datos]) {
             $r = \App\Services\ExpressApi::llamar($m, $ruta, $datos);
             $out[$nombre] = [

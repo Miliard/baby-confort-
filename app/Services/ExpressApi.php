@@ -19,19 +19,50 @@ class ExpressApi
 
     public static function configurada(): bool
     {
-        return strlen((string) env('TNT_API_KEY', '')) > 10;
+        return strlen(self::key()) > 10;
+    }
+
+    /** La key de Railway, sin espacios ni comillas que se cuelan al pegar. */
+    public static function key(): string
+    {
+        return trim((string) env('TNT_API_KEY', ''), " \t\n\r\0\x0B\"'");
+    }
+
+    /** Cómo se manda la key. Se prueba cuál acepta Express y se recuerda. */
+    public const MODOS = ['bearer', 'x-api-key', 'raw'];
+
+    public static function cabeceras(string $modo): array
+    {
+        $key = self::key();
+
+        return match ($modo) {
+            'x-api-key' => ['X-API-Key' => $key],
+            'raw'       => ['Authorization' => $key],
+            default     => ['Authorization' => 'Bearer ' . $key],
+        };
+    }
+
+    /** Datos de la key que se pueden mostrar sin riesgo (no la key). */
+    public static function diagnosticoKey(): array
+    {
+        $k = self::key();
+        $crudo = (string) env('TNT_API_KEY', '');
+
+        return [
+            'largo'              => strlen($k),
+            'empieza_con'        => substr($k, 0, 16),
+            'tiene_puntos_…'     => str_contains($k, '…') || str_contains($k, '...'),
+            'tenia_espacios_o_comillas' => $crudo !== $k,
+        ];
     }
 
     /** @return array{status:int, json:mixed, texto:string} */
-    public static function llamar(string $metodo, string $ruta, array $datos = []): array
+    public static function llamar(string $metodo, string $ruta, array $datos = [], ?string $modo = null): array
     {
-        $key = (string) env('TNT_API_KEY', '');
+        $modo = $modo ?: (string) \App\Models\Setting::get('tnt_api_modo', 'bearer');
 
         try {
-            $req = Http::timeout(20)->acceptJson()->withHeaders([
-                'Authorization' => 'Bearer ' . $key,
-                'X-API-Key'     => $key,
-            ]);
+            $req = Http::timeout(20)->acceptJson()->withHeaders(self::cabeceras($modo));
 
             $url = self::base() . '/' . ltrim($ruta, '/');
             $res = strtoupper($metodo) === 'GET' ? $req->get($url, $datos) : $req->send(strtoupper($metodo), $url, ['json' => $datos]);
