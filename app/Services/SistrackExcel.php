@@ -182,16 +182,13 @@ class SistrackExcel
     }
 
     /**
-     * Observaciones de la etiqueta: el cobro primero (en la etiqueta de Express
-     * es el único lugar donde sale el monto) y después los artículos, que en el
-     * campo "contenido" no caben. Ej: "COBRAR $42.50 · 2 Calzoncito de noche XL".
+     * Observaciones de la etiqueta: solo los artículos, que en "contenido" no
+     * caben. El cobro no va: puede cambiar después (transferencias) y el monto
+     * real se consulta en el sistema al final del día.
      */
     public static function observaciones(float $cobrar, ?string $articulos): string
     {
-        $cobro = $cobrar > 0 ? 'COBRAR $' . number_format($cobrar, 2) : 'PAGADO - NO COBRAR';
-        $art = self::limpiar((string) $articulos, 400);
-
-        return self::limpiar($art !== '' ? $cobro . ' · ' . $art : $cobro, 480);
+        return self::limpiar((string) $articulos, 480) ?: 'Productos para bebe';
     }
 
     /** Fila para el sistema anterior (Sistrack). */
