@@ -330,11 +330,32 @@ class ExpressApi
             if (! $cuando || $cuando->lt(now()->subDays(3))) return;
 
             $pendiente = \App\Models\GuiaFoto::pendientePorTelefono($telefono);
-            if (! $pendiente || ($pendiente->created_at && $pendiente->created_at->gt($cuando->copy()->addMinutes(5)))) return;
+            if ($pendiente && $pendiente->created_at && $pendiente->created_at->gt($cuando->copy()->addMinutes(5))) {
+                $pendiente = null;
+            }
+
+            $borrador = null;
+            if (! $pendiente) {
+                // Las guías armadas desde el panel de WhatsApp no dejan registro
+                // pendiente: se toman de la cola de guías (Crear guías).
+                $borrador = self::borradorDe($telefono, $cuando);
+                if (! $borrador) return;
+
+                $pendiente = new \App\Models\GuiaFoto();
+                $pendiente->nombre    = $borrador->nombre;
+                $pendiente->telefono  = $borrador->telefono;
+                $pendiente->contenido = $borrador->descripcion;
+                $pendiente->cobrar    = (float) $borrador->cobrar;
+            }
 
             $pendiente->guia = $guia;
             $pendiente->lote = $pendiente->lote ?: $cuando->format('Y-m-d H:i:s');
             $pendiente->save();
+
+            if ($borrador && \Illuminate\Support\Facades\Schema::hasColumn('guias_borrador', 'guia')) {
+                $borrador->guia = $guia;
+                $borrador->save();
+            }
 
             // Y al pedido de la tienda con ese teléfono que aún no tenga guía.
             $corto = \App\Models\GuiaFoto::telefonoCorto($telefono);
@@ -351,6 +372,31 @@ class ExpressApi
             }
         } catch (\Throwable $e) {
             // no impide el resto de la actualización
+        }
+    }
+
+    /**
+     * La guía de la cola (guias_borrador) de ese teléfono, armada antes que la
+     * orden de Express y en los últimos días, que todavía no tenga número.
+     */
+    protected static function borradorDe(string $telefono, \Illuminate\Support\Carbon $cuando): ?\App\Models\GuiaBorrador
+    {
+        $corto = \App\Models\GuiaFoto::telefonoCorto($telefono);
+        if (! $corto || strlen($corto) !== 8) return null;
+
+        try {
+            $limpio = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(telefono,''),' ',''),'-',''),'(',''),')',''),'+','')";
+            $q = \App\Models\GuiaBorrador::whereRaw("$limpio LIKE ?", ['%' . $corto])
+                ->where('created_at', '<=', $cuando->copy()->addMinutes(5))
+                ->where('created_at', '>=', $cuando->copy()->subDays(4))
+                ->orderByDesc('id');
+            if (\Illuminate\Support\Facades\Schema::hasColumn('guias_borrador', 'guia')) {
+                $q->where(fn ($x) => $x->whereNull('guia')->orWhere('guia', ''));
+            }
+
+            return $q->first();
+        } catch (\Throwable $e) {
+            return null;
         }
     }
 }
