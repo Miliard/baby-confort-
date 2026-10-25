@@ -158,9 +158,7 @@ class SistrackExcel
 
         // T&T quitó la columna valor_declarado (24/10/2026): el precio va en monto_cod.
 
-        $obs = $cobrar > 0
-            ? 'COBRAR AL ENTREGAR: $' . number_format($cobrar, 2)
-            : 'PAGADO - no cobrar';
+        $obs = self::observaciones($cobrar, $g['descripcion'] ?? '');
         if (! empty($g['pedido'])) {
             $obs .= ' - Pedido #' . $g['pedido'];
         }
@@ -181,6 +179,19 @@ class SistrackExcel
             'puerta a puerta',                                                 // tipo_envio
             '', '', '',                                                        // agencia_origen, agencia_destino, lugar_encuentro
         ];
+    }
+
+    /**
+     * Observaciones de la etiqueta: el cobro primero (en la etiqueta de Express
+     * es el único lugar donde sale el monto) y después los artículos, que en el
+     * campo "contenido" no caben. Ej: "COBRAR $42.50 · 2 Calzoncito de noche XL".
+     */
+    public static function observaciones(float $cobrar, ?string $articulos): string
+    {
+        $cobro = $cobrar > 0 ? 'COBRAR $' . number_format($cobrar, 2) : 'PAGADO - NO COBRAR';
+        $art = self::limpiar((string) $articulos, 400);
+
+        return self::limpiar($art !== '' ? $cobro . ' · ' . $art : $cobro, 480);
     }
 
     /** Fila para el sistema anterior (Sistrack). */

@@ -242,7 +242,9 @@ class ExpressApi
             'package_count'     => 1,
             'contents'          => SistrackExcel::limpiar($g['descripcion'] ?? '') ?: 'Productos para bebe',
             'cod_amount'        => $cobrar,
-            'notes'             => $cobrar > 0 ? 'COBRAR AL ENTREGAR: $' . number_format($cobrar, 2) : 'PAGADO - no cobrar',
+            // En la etiqueta, el monto a cobrar SOLO sale aquí (abajo dice "COD" sin cantidad),
+            // así que va primero y corto; después, los artículos, que en "contenido" no caben.
+            'notes'             => SistrackExcel::observaciones($cobrar, $g['descripcion'] ?? ''),
             'fragile'           => false,
             'recipient'         => [
                 'name'         => SistrackExcel::nombreConTelefono($g['telefono'] ?? '', $g['nombre'] ?? ''),
