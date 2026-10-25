@@ -3323,7 +3323,7 @@ class Whatsapp extends Page
         if ($conv && $conv->ventanaAbierta()) {
             $m = WhatsappApi::enviarTexto(
                 $conv,
-                \App\Models\GuiaBorrador::mensajeCliente($fila),
+                \App\Models\GuiaBorrador::mensajeCliente($fila + ['id' => $guia->id]),
                 auth()->id()
             );
 
@@ -3343,7 +3343,7 @@ class Whatsapp extends Page
              * cliente vuelva a escribir. (El paso a Preparados ya se hizo
              * arriba, al guardar.)
              */
-            $this->texto = \App\Models\GuiaBorrador::mensajeCliente($fila);
+            $this->texto = \App\Models\GuiaBorrador::mensajeCliente($fila + ['id' => $guia->id]);
 
             $aviso = ' Ventana cerrada: el rastreo quedó en el cuadro, mandalo cuando escriba.';
         }

@@ -356,6 +356,9 @@ class ExpressApi
             $pendiente->lote = $pendiente->lote ?: $cuando->format('Y-m-d H:i:s');
             $pendiente->save();
 
+            // La guía de la cola también queda con su número: así el enlace de
+            // ese envío muestra ESTE paquete.
+            $borrador = $borrador ?: self::borradorDe($telefono, $cuando);
             if ($borrador && \Illuminate\Support\Facades\Schema::hasColumn('guias_borrador', 'guia')) {
                 $borrador->guia = $guia;
                 $borrador->save();

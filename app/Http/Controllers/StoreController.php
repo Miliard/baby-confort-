@@ -109,6 +109,17 @@ class StoreController extends Controller
         $opciones  = collect();   // varios paquetes del mismo teléfono
         $sinGuia   = null;        // pedido confirmado que todavía no tiene guía
 
+        // ?e= viene del enlace de UN envío (el que se le mandó al armar la guía).
+        // Muestra ese paquete y no el último entregado al mismo teléfono.
+        if (filled($request->query('e'))) {
+            $envio = \App\Models\GuiaBorrador::deCodigo($request->query('e'));
+            if ($envio) {
+                [$guia, $sinGuia] = $this->guiaDeEnvio($envio);
+                $busqueda = $busqueda ?: (string) $envio->telefono;
+                $digitos = '';
+            }
+        }
+
         if ($digitos !== '') {
             $esGuia = false;
             try {
@@ -137,7 +148,14 @@ class StoreController extends Controller
                     // historial.
                     $pendiente = \App\Models\GuiaFoto::pendientePorTelefono($digitos);
 
-                    if ($pendiente && $pendiente->id > $opciones->first()->id) {
+                    // Guías armadas desde WhatsApp no dejan registro pendiente:
+                    // si en la cola hay una más nueva que la última con número y
+                    // todavía sin número propio, el pedido actual es ESA.
+                    $deCola = $this->envioSinNumero($digitos, $opciones->first()->created_at);
+                    if ($deCola && ! $pendiente) {
+                        $sinGuia  = $deCola;
+                        $opciones = collect();
+                    } elseif ($pendiente && $pendiente->id > $opciones->first()->id) {
                         $sinGuia  = $pendiente;
                         $opciones = collect();
                     } else {
@@ -177,6 +195,71 @@ class StoreController extends Controller
         $historial = $guia ? \App\Models\Order::historialDeGuia($guia) : [];
 
         return view('store.rastreo-guia', compact('guia', 'etapa', 'historial', 'busqueda', 'opciones', 'sinGuia'));
+    }
+
+    /**
+     * Guía y estado de UN envío de la cola (guias_borrador).
+     *
+     * @return array{0:string, 1:mixed} [número de guía o '', pedido sin guía o null]
+     */
+    protected function guiaDeEnvio(\App\Models\GuiaBorrador $envio): array
+    {
+        // Por si Express ya le dio número y aún no se consultó.
+        \App\Services\ExpressApi::sincronizarSiHaceFalta();
+        $envio->refresh();
+
+        if (\Illuminate\Support\Facades\Schema::hasColumn('guias_borrador', 'guia') && filled($envio->guia) && ctype_digit((string) $envio->guia)) {
+            return [(string) $envio->guia, null];
+        }
+
+        // Armada en "Crear guías": su registro de rastreo nació junto con ella.
+        try {
+            $corto = \App\Models\GuiaFoto::telefonoCorto($envio->telefono);
+            if ($corto && strlen($corto) === 8) {
+                $limpio = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(telefono,''),' ',''),'-',''),'(',''),')',''),'+','')";
+                $reg = \App\Models\GuiaFoto::whereRaw("$limpio LIKE ?", ['%' . $corto])
+                    ->whereNotNull('guia')->where('guia', '!=', '')
+                    ->where('created_at', '>=', $envio->created_at->copy()->subMinutes(10))
+                    ->orderBy('id')->first();
+                if ($reg) return [(string) $reg->guia, null];
+            }
+        } catch (\Throwable $e) {
+        }
+
+        return ['', $this->comoPendiente($envio)];
+    }
+
+    /** Guía de la cola de ese teléfono, más nueva que $despuesDe y sin número todavía. */
+    protected function envioSinNumero(string $telefono, $despuesDe): ?object
+    {
+        try {
+            $corto = \App\Models\GuiaFoto::telefonoCorto($telefono);
+            if (! $corto || strlen($corto) !== 8 || ! $despuesDe) return null;
+
+            $limpio = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(telefono,''),' ',''),'-',''),'(',''),')',''),'+','')";
+            $q = \App\Models\GuiaBorrador::whereRaw("$limpio LIKE ?", ['%' . $corto])
+                ->where('created_at', '>', $despuesDe)
+                ->where('created_at', '>=', now()->subDays(10))
+                ->orderByDesc('id');
+            if (\Illuminate\Support\Facades\Schema::hasColumn('guias_borrador', 'guia')) {
+                $q->where(fn ($x) => $x->whereNull('guia')->orWhere('guia', ''));
+            }
+            $b = $q->first();
+
+            return $b ? $this->comoPendiente($b) : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /** Lo que muestra la tarjeta de "pedido confirmado". */
+    protected function comoPendiente(\App\Models\GuiaBorrador $b): object
+    {
+        return (object) [
+            'nombre'    => $b->nombre,
+            'contenido' => $b->descripcion,
+            'cobrar'    => (float) $b->cobrar,
+        ];
     }
 
     public function sitemap()

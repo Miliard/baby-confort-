@@ -191,7 +191,7 @@ class GuiaBorrador extends Model
 
         // El enlace va solo en su renglón: si lleva emoji pegado, WhatsApp lo parte feo.
         $t .= "*Segu\u{ED} tu paquete aqu\u{ED}:*\n"
-            . static::enlaceRastreo($fila['telefono'] ?? null) . "\n\n"
+            . static::enlaceRastreo($fila['telefono'] ?? null, isset($fila['id']) ? (int) $fila['id'] : null) . "\n\n"
             . "Guard\u{E1} este enlace, te sirve para este pedido y para los que vengan \u{1F499}";
 
         return $t;
@@ -234,14 +234,39 @@ class GuiaBorrador extends Model
         return $partes;
     }
 
-    /** Enlace de rastreo con el teléfono ya puesto (no hay nada que escribir). */
-    public static function enlaceRastreo(?string $telefono): string
+    /**
+     * Enlace de rastreo de ESTE envío. Con el id de la guía, el cliente ve este
+     * paquete y no el último que se le entregó (con solo el teléfono, un cliente
+     * que repite veía su pedido anterior). Sin id, cae al teléfono.
+     */
+    public static function enlaceRastreo(?string $telefono, ?int $id = null): string
     {
         $base = route('store.rastreo.guia');
+        if ($id) return $base . '?e=' . static::codigoEnvio($id);
+
         $d = preg_replace('/\D/', '', (string) $telefono);
         if (strlen($d) >= 8) $d = substr($d, -8);
 
         return strlen($d) === 8 ? $base . '?tel=' . $d : $base;
+    }
+
+    /** Código del enlace de un envío: "123-a1b2c3d4" (id + firma, para que no se adivine). */
+    public static function codigoEnvio(int $id): string
+    {
+        return $id . '-' . substr(hash_hmac('sha256', 'envio-' . $id, (string) config('app.key')), 0, 8);
+    }
+
+    /** Lee el código del enlace. Devuelve la guía de la cola, o null si no vale. */
+    public static function deCodigo(?string $codigo): ?self
+    {
+        if (! preg_match('/^(\d+)-([a-f0-9]{8})$/', trim((string) $codigo), $m)) return null;
+        if (! hash_equals(static::codigoEnvio((int) $m[1]), $m[0])) return null;
+
+        try {
+            return static::find((int) $m[1]);
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     /** Convierte a arreglo simple, como lo espera el generador de Excel. */
