@@ -234,6 +234,9 @@ class ExpressApi
         $cobrar = round((float) ($g['cobrar'] ?? 0), 2);
 
         return [
+            // Express exige esta llave: con la misma llave nunca crea dos órdenes,
+            // aunque el botón se toque dos veces o se corte la conexión.
+            'idempotency_key'   => 'baby-confort-guia-' . $id,
             'merchant_order_id' => 'BC-' . $id,
             'delivery_type'     => 'DOOR_TO_DOOR',
             'package_count'     => 1,
