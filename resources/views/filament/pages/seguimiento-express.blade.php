@@ -1,9 +1,31 @@
 <x-filament-panels::page>
     <div class="space-y-6">
 
+        {{-- ─────────── API OFICIAL (lo principal) ─────────── --}}
+        <x-filament::section>
+            <x-slot name="heading">Seguimiento automático con Express</x-slot>
+            @if($apiLista)
+                <p class="text-sm text-gray-600 dark:text-gray-300">
+                    ✅ Conectado a la API de Express. Las guías se actualizan solas cuando un cliente abre su rastreo
+                    (como máximo cada 10 minutos). También puede actualizarlas ahora:
+                </p>
+                <div class="mt-3 flex flex-wrap items-center gap-3">
+                    <x-filament::button wire:click="actualizarAhora" wire:loading.attr="disabled" icon="heroicon-m-arrow-path">
+                        <span wire:loading.remove wire:target="actualizarAhora">🔄 Actualizar ahora</span>
+                        <span wire:loading wire:target="actualizarAhora">Consultando a Express…</span>
+                    </x-filament::button>
+                    <span class="text-sm text-gray-500 dark:text-gray-400">Última consulta: <b class="text-gray-950 dark:text-white">{{ $ultimaApi ?? 'todavía ninguna' }}</b></span>
+                    <a href="{{ route('express.prueba') }}" target="_blank" class="text-xs text-gray-400 hover:underline">prueba técnica ↗</a>
+                </div>
+            @else
+                <p class="text-sm text-gray-600 dark:text-gray-300">Falta la variable <b>TNT_API_KEY</b> en Railway. Mientras tanto, use el botón del marcador (abajo).</p>
+            @endif
+        </x-filament::section>
+
+
         {{-- ─────────── EL BOTÓN ─────────── --}}
         <x-filament::section>
-            <x-slot name="heading">1. Instalar el botón (una sola vez)</x-slot>
+            <x-slot name="heading">Plan B: botón del marcador (solo si la API falla) — 1. Instalarlo</x-slot>
 
             <p class="text-sm text-gray-600 dark:text-gray-300">
                 <b>Arrastre</b> este botón a la <b>barra de marcadores</b> de su navegador
@@ -23,7 +45,7 @@
         </x-filament::section>
 
         <x-filament::section>
-            <x-slot name="heading">2. Usarlo (cuando quiera actualizar)</x-slot>
+            <x-slot name="heading">Plan B — 2. Usarlo</x-slot>
             <ol class="list-decimal space-y-1 pl-5 text-sm text-gray-600 dark:text-gray-300">
                 <li>Abra <a href="https://xpress.facilitoerp.com/tnt" target="_blank" rel="noopener" class="font-semibold text-primary-600 hover:underline">el sistema de Express</a> con su usuario.</li>
                 <li>Toque <b>📦 Actualizar guías</b> en la barra de marcadores.</li>
@@ -31,18 +53,6 @@
             </ol>
             <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">
                 Última actualización: <b class="text-gray-950 dark:text-white">{{ $ultima ?? 'todavía ninguna' }}</b>
-            </p>
-        </x-filament::section>
-
-        <x-filament::section>
-            <x-slot name="heading">API oficial de Express</x-slot>
-            <p class="text-sm text-gray-600 dark:text-gray-300">
-                @if(\App\Services\ExpressApi::configurada())
-                    ✅ La key está puesta en Railway.
-                    <a href="{{ route('express.prueba') }}" target="_blank" class="font-semibold text-primary-600 hover:underline">Probar conexión con la API ↗</a>
-                @else
-                    Falta la variable <b>TNT_API_KEY</b> en Railway.
-                @endif
             </p>
         </x-filament::section>
 

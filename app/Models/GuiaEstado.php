@@ -17,7 +17,7 @@ class GuiaEstado extends Model
     protected $table = 'guia_estados';
 
     protected $fillable = [
-        'guia', 'estado', 'etapa', 'repartidor', 'pago',
+        'guia', 'express_id', 'estado', 'etapa', 'repartidor', 'pago', 'url_publica',
         'entregado_at', 'cambio_at', 'historial', 'faltas',
     ];
 
@@ -59,6 +59,20 @@ class GuiaEstado extends Model
         } catch (\Throwable $e) {
             return false;
         }
+    }
+
+    public static function tieneColumna(string $c): bool
+    {
+        static $cache = [];
+        if (! array_key_exists($c, $cache)) {
+            try {
+                $cache[$c] = Schema::hasColumn('guia_estados', $c);
+            } catch (\Throwable $e) {
+                $cache[$c] = false;
+            }
+        }
+
+        return $cache[$c];
     }
 
     public static function de(?string $guia): ?self
@@ -113,6 +127,13 @@ class GuiaEstado extends Model
         $reg->estado = $codigo ?: $reg->estado;
         $reg->repartidor = $repartidor ? mb_substr($repartidor, 0, 120) : $reg->repartidor;
         $reg->pago = mb_substr((string) ($fila['pago'] ?? ''), 0, 40) ?: $reg->pago;
+        $url = trim((string) ($fila['url'] ?? ''));
+        if ($url !== '' && str_starts_with($url, 'https://') && static::tieneColumna('url_publica')) {
+            $reg->url_publica = mb_substr($url, 0, 255);
+        }
+        if (! empty($fila['express_id']) && static::tieneColumna('express_id')) {
+            $reg->express_id = (int) $fila['express_id'];
+        }
         $reg->entregado_at = $entregado;
         $reg->cambio_at = $cambio;
         $reg->faltas = 0;

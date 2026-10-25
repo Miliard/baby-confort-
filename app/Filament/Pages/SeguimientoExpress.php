@@ -24,6 +24,24 @@ class SeguimientoExpress extends Page
 
     protected static string $view = 'filament.pages.seguimiento-express';
 
+    /** Botón "🔄 Actualizar ahora": consulta la API oficial de Express. */
+    public function actualizarAhora(): void
+    {
+        $r = \App\Services\ExpressApi::sincronizar(10);
+
+        if ($r['ok']) {
+            \Filament\Notifications\Notification::make()
+                ->title('✅ ' . $r['revisadas'] . ' guías actualizadas desde Express')
+                ->body('Entregadas: ' . $r['entregadas'] . ' · En ruta: ' . $r['en_ruta'] . ' · En bodega: ' . $r['bodega'])
+                ->success()->send();
+        } else {
+            \Filament\Notifications\Notification::make()
+                ->title('No se pudo actualizar')
+                ->body($r['error'] ?? 'Error desconocido')
+                ->danger()->send();
+        }
+    }
+
     public function getViewData(): array
     {
         $ultima = Setting::get('express_puente_ultima');
@@ -56,7 +74,11 @@ class SeguimientoExpress extends Page
             }
         }
 
+        $ultimaApi = Setting::get('express_api_ultima');
+
         return [
+            'ultimaApi' => $ultimaApi ? Carbon::parse($ultimaApi)->setTimezone('America/El_Salvador')->format('d/m/Y g:i A') : null,
+            'apiLista'  => \App\Services\ExpressApi::configurada(),
             'clave'   => ExpressPuenteController::clave(),
             'base'    => request()->getSchemeAndHttpHost(),
             'ultima'  => $ultima ? Carbon::parse($ultima)->setTimezone('America/El_Salvador')->format('d/m/Y g:i A') : null,

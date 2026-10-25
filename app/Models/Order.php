@@ -54,7 +54,9 @@ class Order extends Model
             return 1;
         }
 
-        // Sistema nuevo de Express: el estado lo trae el botón "📦 Actualizar guías".
+        // Sistema nuevo de Express: el estado llega por la API (o por el botón
+        // "📦 Actualizar guías"). Si hace rato que no se consulta, se consulta ya.
+        \App\Services\ExpressApi::sincronizarSiHaceFalta();
         if ($nuevo = \App\Models\GuiaEstado::de($guia)) {
             if ($nuevo->estado) return max(1, min(4, (int) $nuevo->etapa));
         }
@@ -94,7 +96,8 @@ class Order extends Model
         if (empty($guia)) return null;
 
         $nuevo = \App\Models\GuiaEstado::de($guia);
-        if ($nuevo && $nuevo->estado) return null;
+        // Guías del sistema nuevo: el link público de rastreo que da Express.
+        if ($nuevo && $nuevo->estado) return $nuevo->url_publica ?: null;
 
         return 'https://expresselsalvador.sistrack.net/track/' . $guia;
     }
