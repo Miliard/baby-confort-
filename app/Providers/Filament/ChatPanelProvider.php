@@ -68,6 +68,48 @@ class ChatPanelProvider extends PanelProvider
             // Con esto Android y iPhone ofrecen "Agregar a pantalla de inicio",
             // y al abrirlo desde ahí arranca sin barras del navegador: ocupa
             // toda la pantalla, como una aplicación de verdad.
+            // En el teléfono, las secciones van en el menú de la "A" (arriba a la
+            // derecha) y el ☰ abre la lista de chats. Así, dentro de un chat, se
+            // salta a otro sin volver atrás.
+            ->userMenuItems([
+                'nav-whatsapp' => \Filament\Navigation\MenuItem::make()->label('WhatsApp')
+                    ->icon('heroicon-o-chat-bubble-left-right')->sort(1)
+                    ->url(fn () => Whatsapp::getUrl()),
+                'nav-guias' => \Filament\Navigation\MenuItem::make()->label('Guías')
+                    ->icon('heroicon-o-bolt')->sort(2)
+                    ->url(fn () => CrearGuia::getUrl()),
+                'nav-seguimiento' => \Filament\Navigation\MenuItem::make()->label('Seguimiento Express')
+                    ->icon('heroicon-o-truck')->sort(3)
+                    ->url(fn () => \App\Filament\Pages\SeguimientoExpress::getUrl()),
+                'nav-respuestas' => \Filament\Navigation\MenuItem::make()->label('Respuestas rápidas')
+                    ->icon('heroicon-o-chat-bubble-bottom-center-text')->sort(4)
+                    ->visible(fn () => \App\Filament\Resources\RespuestaRapidaResource::canAccess())
+                    ->url(fn () => \App\Filament\Resources\RespuestaRapidaResource::getUrl('index')),
+                'nav-etiquetas' => \Filament\Navigation\MenuItem::make()->label('Etiquetas')
+                    ->icon('heroicon-o-tag')->sort(5)
+                    ->visible(fn () => \App\Filament\Resources\WaEtiquetaResource::canAccess())
+                    ->url(fn () => \App\Filament\Resources\WaEtiquetaResource::getUrl('index')),
+                'nav-conectar' => \Filament\Navigation\MenuItem::make()->label('Conectar WhatsApp')
+                    ->icon('heroicon-o-link')->sort(6)
+                    ->visible(fn () => WhatsappConectar::shouldRegisterNavigation())
+                    ->url(fn () => WhatsappConectar::getUrl()),
+            ])
+            // ☰ propio: abre los chats. El de Filament (que abría las secciones) se esconde.
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::TOPBAR_START,
+                fn (): string => '<style>.fi-topbar-open-sidebar-btn,.fi-topbar-close-sidebar-btn{display:none !important}'
+                    . '.bc-chats-btn{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;'
+                    . 'margin-inline-start:-8px;border:none;background:transparent;color:inherit;border-radius:10px;cursor:pointer}'
+                    . '.bc-chats-btn:active{background:rgba(120,140,170,.18)}'
+                    . '@media(min-width:1024px){.bc-chats-btn{display:none}}</style>'
+                    . '<button type="button" class="bc-chats-btn" aria-label="Ver los chats" onclick="bcAbrirChats()">'
+                    . '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" width="26" height="26"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>'
+                    . '</button>'
+                    . '<script>function bcAbrirChats(){var h=document.documentElement,w=document.querySelector(".wa");'
+                    . 'if(!w){location.href=' . json_encode(Whatsapp::getUrl()) . ';return;}'
+                    . 'if(w.classList.contains("wa--abierta")&&matchMedia("(max-width:900px)").matches){h.classList.toggle("wa--cajon");return;}'
+                    . 'var l=document.querySelector(".wa-lista");if(l)l.scrollTo({top:0,behavior:"smooth"});}</script>'
+            )
             ->renderHook(
                 'panels::head.end',
                 // interactive-widget=resizes-content es la clave del teclado:

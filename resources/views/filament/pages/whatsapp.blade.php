@@ -167,6 +167,18 @@
         html.wa--teclado body{overflow:hidden;overscroll-behavior:none}
         .wa--abierta .wa-izq{display:none}
         .wa:not(.wa--abierta) .wa-der{display:none}
+
+        /* ☰ dentro de un chat: la lista de chats sale como cajón por la
+           izquierda, encima de la conversación, sin salir de ella. */
+        html.wa--cajon .wa--abierta .wa-izq{
+            display:flex !important;position:fixed;z-index:40;left:0;
+            top:var(--bc-top, 44px);bottom:0;width:min(90vw,420px);height:auto;
+            box-shadow:8px 0 28px rgba(0,0,0,.45);
+            animation:waCajon .18s ease-out}
+        @keyframes waCajon{from{transform:translateX(-100%)}to{transform:none}}
+        .bc-velo{display:none}
+        html.wa--cajon .bc-velo{display:block;position:fixed;inset:0;z-index:39;
+            top:var(--bc-top, 44px);background:rgba(0,0,0,.45)}
         /* De borde a borde, sin esquinas ni marco. Cualquier curva o borde deja
            ver el fondo negro y vuelve a parecer que hay una franja. En el
            teléfono el panel ES la pantalla: no tiene que parecer una tarjeta
@@ -985,6 +997,7 @@
      wa-despachar es la segunda mitad del envío: el servidor anota el mensaje,
      el navegador lo dibuja, y recién entonces se pide la llamada a Meta. Por
      eso el globo aparece al instante en vez de después de la espera. --}}
+<div class="bc-velo" wire:ignore onclick="document.documentElement.classList.remove('wa--cajon')"></div>
 <div class="wa {{ $abierta ? 'wa--abierta' : '' }}" wire:poll.3s="latir"
      x-on:wa-despachar.window="$wire.despachar($event.detail.id)">
 
@@ -3474,6 +3487,33 @@
         }
     }
 
+</script>
+
+<script>
+    /* ☰ en el teléfono: el cajón con la lista de chats. Se cierra al elegir un
+       chat (no al tocar el buscador, las pestañas o el chinche de fijar). */
+    (function () {
+        if (window.__bcCajon) return;
+        window.__bcCajon = true;
+
+        function medirArriba() {
+            var t = document.querySelector('.fi-topbar');
+            if (t) document.documentElement.style.setProperty('--bc-top', Math.round(t.getBoundingClientRect().bottom) + 'px');
+        }
+        window.addEventListener('resize', medirArriba);
+        document.addEventListener('livewire:navigated', medirArriba);
+        medirArriba();
+
+        document.addEventListener('click', function (e) {
+            if (! document.documentElement.classList.contains('wa--cajon')) return;
+            if (e.target.closest && e.target.closest('.wa-item')) {
+                document.documentElement.classList.remove('wa--cajon');
+            }
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') document.documentElement.classList.remove('wa--cajon');
+        });
+    })();
 </script>
 
 </x-filament-panels::page>
