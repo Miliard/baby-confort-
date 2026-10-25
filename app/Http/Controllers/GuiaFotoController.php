@@ -427,6 +427,36 @@ class GuiaFotoController extends Controller
         } catch (\Throwable $e) {
         }
 
+        // Las que YA se mandaron al chat del cliente no hace falta guardarlas:
+        // la foto queda en su WhatsApp. Se dejan 2 días (por si hay que
+        // reenviarla) y se borran, aunque no hayan cumplido los días normales.
+        try {
+            $tieneMarca = $tieneMarca ?? \Illuminate\Support\Facades\Schema::hasColumn('guia_fotos', 'foto_borrada_at');
+            $horas = max(1, (int) \App\Models\Setting::get('fotos_horas_tras_chat', 48));
+            $tope  = now()->subHours($horas);
+
+            GuiaFoto::whereNotNull('ruta')->where('ruta', '!=', '')
+                ->where(function ($q) use ($tope) {
+                    $q->where('chat_enviada_at', '<', $tope);
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('guia_fotos', 'chat_manual_at')) {
+                        $q->orWhere('chat_manual_at', '<', $tope);
+                    }
+                })
+                ->chunkById(200, function ($enviadas) use (&$borradas, $tieneMarca) {
+                    foreach ($enviadas as $f) {
+                        try {
+                            \Illuminate\Support\Facades\Storage::disk('public')->delete($f->ruta);
+                        } catch (\Throwable $e) {
+                        }
+                        $f->ruta = null;
+                        if ($tieneMarca) $f->foto_borrada_at = now();
+                        $f->save();
+                        $borradas++;
+                    }
+                });
+        } catch (\Throwable $e) {
+        }
+
         return $borradas;
     }
 
