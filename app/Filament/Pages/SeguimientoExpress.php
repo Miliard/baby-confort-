@@ -57,6 +57,7 @@ class SeguimientoExpress extends Page
         'ASSIGNED'    => ['👤', 'Asignadas'],
         'PICKED_UP'   => ['📦', 'Recolectadas'],
         'IN_TRANSIT'  => ['🚚', 'En ruta'],
+        'POR_RECOGER' => ['🙋', 'Por recolectar'],
         'INCIDENT'    => ['⚠️', 'Incidencias'],
         'HOY'         => ['✅', 'Entregadas hoy'],
     ];
@@ -66,7 +67,8 @@ class SeguimientoExpress extends Page
     {
         $e = strtoupper((string) $estado);
         return match (true) {
-            in_array($e, ['CREATED', 'PENDING', 'READY_FOR_PICKUP', 'PENDING_PICKUP']) => 'CREATED',
+            in_array($e, ['CREATED', 'PENDING'])                                    => 'CREATED',
+            in_array($e, ['READY_FOR_PICKUP', 'PENDING_PICKUP'])                    => 'POR_RECOGER',
             in_array($e, ['IN_WAREHOUSE', 'RECEIVED'])                              => 'IN_WAREHOUSE',
             $e === 'ASSIGNED'                                                       => 'ASSIGNED',
             in_array($e, ['PICKED_UP', 'COLLECTED'])                                => 'PICKED_UP',

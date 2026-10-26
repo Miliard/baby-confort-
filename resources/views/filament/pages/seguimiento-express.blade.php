@@ -28,24 +28,64 @@
                 <p class="text-sm text-danger-600">Falta crear la tabla de estados. Se crea sola al desplegar (migración).</p>
             </x-filament::section>
         @elseif($filas->isNotEmpty())
+            <style>
+                .se-tarjetas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+                @media(min-width:900px){.se-tarjetas{grid-template-columns:repeat(4,minmax(0,1fr));gap:20px}}
+                .se-t{background:#fff;border-radius:10px;padding:18px 20px;min-height:112px;
+                      box-shadow:0 1px 3px rgba(15,23,42,.08);border:1px solid rgba(15,23,42,.05)}
+                .dark .se-t{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.10);box-shadow:none}
+                .se-t-l{font-size:14px;font-weight:600;color:#6b7280}
+                .dark .se-t-l{color:#9ca3af}
+                .se-t-n{font-size:34px;font-weight:300;line-height:1.2;margin-top:10px;color:#1f2937}
+                .dark .se-t-n{color:#f3f4f6}
+                .se-t-s{font-size:12px;color:#9ca3af;margin-top:4px}
+                .se-t.hay .se-t-n{font-weight:500}
+                /* Las guías: tabla en la computadora, tarjetas en el teléfono */
+                .se-lista-t{display:none}
+                @media(max-width:899px){.se-tabla{display:none}.se-lista-t{display:grid;gap:10px}}
+                .se-g{background:#fff;border-radius:10px;padding:12px 14px;border:1px solid rgba(15,23,42,.06)}
+                .dark .se-g{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.10)}
+                .se-g-1{display:flex;justify-content:space-between;align-items:center;gap:8px}
+                .se-g-n{font-weight:700;font-size:15px}
+                .se-g-c{font-size:13.5px;margin-top:4px}
+                .se-g-r{font-size:12px;color:#9ca3af;margin-top:3px}
+                .se-est{border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700;white-space:nowrap}
+                .se-e4{background:#dcfce7;color:#15803d}.se-e3{background:#dbeafe;color:#1d4ed8}.se-e2{background:#fef3c7;color:#b45309}
+            </style>
+
             {{-- Mismas tarjetas que el Panel de Control de Express. --}}
-            <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div class="se-tarjetas">
                 @foreach($tarjetas as $clave => [$ico, $txt])
-                    <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-white/5">
-                        <div class="text-sm text-gray-500 dark:text-gray-400">{{ $ico }} {{ $txt }}</div>
-                        <div class="mt-1 text-2xl font-bold text-gray-950 dark:text-white">{{ $resumen[$clave] }}</div>
+                    <div @class(['se-t', 'hay' => $resumen[$clave] > 0])>
+                        <div class="se-t-l">{{ $txt }}</div>
+                        <div class="se-t-n">{{ $resumen[$clave] }}</div>
+                        @if($clave === 'POR_RECOGER')<div class="se-t-s">Marcadas como listas</div>@endif
                     </div>
                 @endforeach
-                <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-white/5">
-                    <div class="text-sm text-gray-500 dark:text-gray-400">📊 Activas</div>
-                    <div class="mt-1 text-2xl font-bold text-gray-950 dark:text-white">{{ $activas }}</div>
-                    <div class="text-xs text-gray-400">Entregadas en 30 días: {{ $entregadas30 }}</div>
-                </div>
             </div>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                Activas: <b class="text-gray-950 dark:text-white">{{ $activas }}</b> · Entregadas en 30 días: <b class="text-gray-950 dark:text-white">{{ $entregadas30 }}</b>
+            </p>
 
             <x-filament::section>
                 <x-slot name="heading">Guías de los últimos 30 días</x-slot>
-                <div class="overflow-x-auto">
+
+                {{-- Teléfono: una tarjeta por guía --}}
+                <div class="se-lista-t">
+                    @foreach($filas as $f)
+                        <div class="se-g">
+                            <div class="se-g-1">
+                                <span class="se-g-n">{{ $f['guia'] }}</span>
+                                <span class="se-est se-e{{ min(4, max(2, $f['etapa'])) }}">{{ $f['estado'] }}</span>
+                            </div>
+                            @if($f['cliente'])<div class="se-g-c">{{ $f['cliente'] }}</div>@endif
+                            <div class="se-g-r">{{ $f['repartidor'] ?: 'Sin repartidor' }} · {{ $f['cuando'] }}</div>
+                        </div>
+                    @endforeach
+                </div>
+
+                {{-- Computadora: la tabla --}}
+                <div class="se-tabla overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="text-left text-xs uppercase text-gray-500 dark:text-gray-400">
@@ -58,14 +98,7 @@
                                 <tr class="border-t border-gray-100 dark:border-white/5">
                                     <td class="py-1.5 pr-3 font-semibold">{{ $f['guia'] }}</td>
                                     <td class="py-1.5 pr-3 text-gray-600 dark:text-gray-300">{{ \Illuminate\Support\Str::limit($f['cliente'], 34) }}</td>
-                                    <td class="py-1.5 pr-3">
-                                        <span @class([
-                                            'rounded-full px-2 py-0.5 text-xs font-bold',
-                                            'bg-success-100 text-success-700' => $f['etapa'] === 4,
-                                            'bg-info-100 text-info-700'       => $f['etapa'] === 3,
-                                            'bg-warning-100 text-warning-700' => $f['etapa'] <= 2,
-                                        ])>{{ $f['estado'] }}</span>
-                                    </td>
+                                    <td class="py-1.5 pr-3"><span class="se-est se-e{{ min(4, max(2, $f['etapa'])) }}">{{ $f['estado'] }}</span></td>
                                     <td class="py-1.5 pr-3 text-gray-500 dark:text-gray-400">{{ $f['repartidor'] ?: '—' }}</td>
                                     <td class="py-1.5 text-gray-500 dark:text-gray-400">{{ $f['cuando'] }}</td>
                                 </tr>
