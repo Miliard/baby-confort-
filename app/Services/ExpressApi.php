@@ -128,6 +128,8 @@ class ExpressApi
 
         try {
             $limite = now()->subDays($dias);
+            $vistas = [];
+            $completo = false;
 
             for ($pagina = 1; $pagina <= $paginas; $pagina++) {
                 $r = self::llamar('GET', 'orders', ['page' => $pagina, 'limit' => 50]);
@@ -138,11 +140,12 @@ class ExpressApi
 
                 $data  = $r['json']['data'] ?? [];
                 $items = $data['items'] ?? [];
-                if (! $items) break;
+                if (! $items) { $completo = true; break; }
 
                 $viejas = false;
                 foreach ($items as $o) {
                     if (! is_array($o) || empty($o['tracking_code'])) continue;
+                    $vistas[] = preg_replace('/\D/', '', (string) $o['tracking_code']);
 
                     $reg = \App\Models\GuiaEstado::registrar([
                         'guia'       => $o['tracking_code'],
@@ -185,7 +188,20 @@ class ExpressApi
                 }
 
                 $total = (int) ($data['total'] ?? 0);
-                if ($viejas || ($total && $pagina * 50 >= $total)) break;
+                if ($viejas || ($total && $pagina * 50 >= $total) || count($items) < 50) { $completo = true; break; }
+            }
+
+            // Órdenes que Express ya no devuelve (se borraron allá): se marcan
+            // anuladas para que no sigan contando. Solo si se recorrió la lista
+            // completa y solo las que vinieron de la API (tienen express_id).
+            if ($completo && $cuenta['error'] === null && $vistas && \App\Models\GuiaEstado::tieneColumna('express_id')) {
+                \App\Models\GuiaEstado::whereNotNull('express_id')
+                    ->where('cambio_at', '>=', now()->subDays(min($dias, 30)))
+                    ->where('etapa', '<', 4)
+                    ->whereNotIn('estado', ['CANCELLED', 'CANCELED', 'DELETED'])
+                    ->whereNotIn('guia', array_unique($vistas))
+                    ->get()
+                    ->each(fn ($g) => \App\Models\GuiaEstado::registrar(['guia' => $g->guia, 'estado' => 'CANCELLED']));
             }
 
             $cuenta['ok'] = $cuenta['error'] === null;

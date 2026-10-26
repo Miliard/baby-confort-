@@ -28,13 +28,19 @@
                 <p class="text-sm text-danger-600">Falta crear la tabla de estados. Se crea sola al desplegar (migración).</p>
             </x-filament::section>
         @elseif($filas->isNotEmpty())
+            {{-- Mismas tarjetas que el Panel de Control de Express. --}}
             <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
-                @foreach([1 => ['📝','Creadas'], 2 => ['🏬','En bodega'], 3 => ['🚚','En ruta'], 4 => ['✅','Entregadas']] as $n => [$ico, $txt])
+                @foreach($tarjetas as $clave => [$ico, $txt])
                     <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-white/5">
                         <div class="text-sm text-gray-500 dark:text-gray-400">{{ $ico }} {{ $txt }}</div>
-                        <div class="mt-1 text-2xl font-bold text-gray-950 dark:text-white">{{ $resumen[$n] }}</div>
+                        <div class="mt-1 text-2xl font-bold text-gray-950 dark:text-white">{{ $resumen[$clave] }}</div>
                     </div>
                 @endforeach
+                <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-white/5">
+                    <div class="text-sm text-gray-500 dark:text-gray-400">📊 Activas</div>
+                    <div class="mt-1 text-2xl font-bold text-gray-950 dark:text-white">{{ $activas }}</div>
+                    <div class="text-xs text-gray-400">Entregadas en 30 días: {{ $entregadas30 }}</div>
+                </div>
             </div>
 
             <x-filament::section>

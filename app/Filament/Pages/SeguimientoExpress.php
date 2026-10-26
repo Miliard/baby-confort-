@@ -47,22 +47,64 @@ class SeguimientoExpress extends Page
         }
     }
 
+    /**
+     * Tarjetas iguales a las del Panel de Control de Express: cada estado en
+     * su tarjeta (no juntados) y "Entregadas" solo las de HOY.
+     */
+    public const TARJETAS = [
+        'CREATED'     => ['📝', 'Creadas'],
+        'IN_WAREHOUSE'=> ['🏬', 'En bodega'],
+        'ASSIGNED'    => ['👤', 'Asignadas'],
+        'PICKED_UP'   => ['📦', 'Recolectadas'],
+        'IN_TRANSIT'  => ['🚚', 'En ruta'],
+        'INCIDENT'    => ['⚠️', 'Incidencias'],
+        'HOY'         => ['✅', 'Entregadas hoy'],
+    ];
+
+    /** Estado de Express → tarjeta. */
+    protected static function tarjetaDe(?string $estado): ?string
+    {
+        $e = strtoupper((string) $estado);
+        return match (true) {
+            in_array($e, ['CREATED', 'PENDING', 'READY_FOR_PICKUP', 'PENDING_PICKUP']) => 'CREATED',
+            in_array($e, ['IN_WAREHOUSE', 'RECEIVED'])                              => 'IN_WAREHOUSE',
+            $e === 'ASSIGNED'                                                       => 'ASSIGNED',
+            in_array($e, ['PICKED_UP', 'COLLECTED'])                                => 'PICKED_UP',
+            in_array($e, ['IN_TRANSIT', 'OUT_FOR_DELIVERY', 'ON_ROUTE'])            => 'IN_TRANSIT',
+            in_array($e, ['INCIDENT', 'FAILED'])                                    => 'INCIDENT',
+            default                                                                 => null,
+        };
+    }
+
     public function getViewData(): array
     {
         $filas = collect();
-        $resumen = [1 => 0, 2 => 0, 3 => 0, 4 => 0];
+        $resumen = array_fill_keys(array_keys(self::TARJETAS), 0);
+        $entregadas30 = 0;
+        $tz = 'America/El_Salvador';
+        $hoy = now($tz)->toDateString();
 
         if (GuiaEstado::hayTabla()) {
             try {
+                // Las borradas/anuladas en Express no se cuentan ni se listan.
                 $estados = GuiaEstado::where('updated_at', '>=', now()->subDays(30))
                     ->whereNotNull('estado')
-                    ->orderByDesc('cambio_at')->limit(200)->get();
+                    ->whereNotIn('estado', ['CANCELLED', 'CANCELED', 'DELETED'])
+                    ->orderByDesc('cambio_at')->limit(300)->get();
 
                 $nombres = GuiaFoto::whereIn('guia', $estados->pluck('guia')->all())
                     ->orderByDesc('id')->get(['guia', 'nombre', 'telefono'])->unique('guia')->keyBy('guia');
 
                 foreach ($estados as $e) {
-                    $resumen[max(1, min(4, (int) $e->etapa))]++;
+                    if ((int) $e->etapa >= 4) {
+                        $entregadas30++;
+                        if ($e->entregado_at && $e->entregado_at->copy()->setTimezone($tz)->toDateString() === $hoy) {
+                            $resumen['HOY']++;
+                        }
+                    } elseif ($t = self::tarjetaDe($e->estado)) {
+                        $resumen[$t]++;
+                    }
+
                     $g = $nombres->get($e->guia);
                     $filas->push([
                         'guia'       => $e->guia,
@@ -70,9 +112,12 @@ class SeguimientoExpress extends Page
                         'estado'     => GuiaEstado::traducir($e->estado)[1],
                         'etapa'      => (int) $e->etapa,
                         'repartidor' => $e->repartidor,
-                        'cuando'     => $e->cambio_at?->setTimezone('America/El_Salvador')->format('d/m g:i A'),
+                        'cuando'     => $e->cambio_at?->copy()->setTimezone($tz)->format('d/m g:i A'),
                     ]);
                 }
+
+                // Primero lo que está en camino; las entregadas, al final.
+                $filas = $filas->sortBy(fn ($f) => $f['etapa'] >= 4 ? 1 : 0)->values();
             } catch (\Throwable $e) {
                 // sin datos todavía
             }
@@ -81,11 +126,14 @@ class SeguimientoExpress extends Page
         $ultimaApi = Setting::get('express_api_ultima');
 
         return [
-            'ultimaApi' => $ultimaApi ? Carbon::parse($ultimaApi)->setTimezone('America/El_Salvador')->format('d/m/Y g:i A') : null,
-            'apiLista'  => \App\Services\ExpressApi::configurada(),
-            'filas'   => $filas,
-            'resumen' => $resumen,
-            'hayTabla'=> GuiaEstado::hayTabla(),
+            'ultimaApi'    => $ultimaApi ? Carbon::parse($ultimaApi)->setTimezone($tz)->format('d/m/Y g:i A') : null,
+            'apiLista'     => \App\Services\ExpressApi::configurada(),
+            'filas'        => $filas,
+            'resumen'      => $resumen,
+            'tarjetas'     => self::TARJETAS,
+            'activas'      => array_sum($resumen) - $resumen['HOY'],
+            'entregadas30' => $entregadas30,
+            'hayTabla'     => GuiaEstado::hayTabla(),
         ];
     }
 }
