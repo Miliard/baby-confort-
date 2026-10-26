@@ -244,6 +244,60 @@ class CierreDelDia extends Page
             ->success()->send();
     }
 
+    /**
+     * "📥 Traer de Express": carga las entregas del período desde la API de
+     * Express, igual que antes se pegaba el Excel. Ya no hay Excel.
+     *
+     * Ojo: el monto es lo que se DEBÍA cobrar (COD). Si el repartidor no cobró
+     * (sale "Sin cobro" en la pantalla COD de Express), se marca a mano.
+     */
+    public function traerDeExpress(): void
+    {
+        if (! ExpressEntrega::hayTabla()) {
+            Notification::make()->title('Falta correr las migraciones')->danger()->send();
+            return;
+        }
+
+        [$d, $h] = $this->rango();
+        $r = \App\Services\ExpressApi::entregadas($d, $h);
+
+        if (! $r['ok'] && ! $r['filas']) {
+            Notification::make()->title('No se pudo consultar a Express')->body($r['error'])->danger()->send();
+            return;
+        }
+
+        $nuevas = 0; $yaEstaban = 0; $aiwibi = 0;
+        foreach ($r['filas'] as $f) {
+            // Ya cargada (por la API o por un Excel pegado antes): no se repite.
+            if (ExpressEntrega::where('orden', $f['orden'])->exists()) { $yaEstaban++; continue; }
+
+            ExpressEntrega::create([
+                'fecha'    => $f['fecha'],
+                'orden'    => $f['orden'],
+                'nombre'   => $f['nombre'],
+                'zona'     => $f['zona'],
+                'monto'    => $f['monto'],
+                'comision' => 0,
+                'total'    => $f['monto'],
+                'nota'     => mb_substr(trim($f['nota']), 0, 250) ?: null,
+                'aiwibi'   => $f['aiwibi'],
+                'duplicado'=> false,
+                'huella'   => md5('api|' . $f['orden']),
+            ]);
+            $nuevas++;
+            if ($f['aiwibi']) $aiwibi++;
+        }
+
+        $this->cargarCampos();
+
+        Notification::make()
+            ->title($nuevas . ' entregas traídas de Express')
+            ->body('Del ' . \Illuminate\Support\Carbon::parse($d)->format('d/m') . ' al ' . \Illuminate\Support\Carbon::parse($h)->format('d/m')
+                . ' · AIWIBI: ' . $aiwibi . ($yaEstaban ? ' · ' . $yaEstaban . ' ya estaban cargadas' : '')
+                . ($r['error'] ? ' · Ojo: ' . $r['error'] : ''))
+            ->success()->send();
+    }
+
     // ---------------- Datos del día ----------------
 
     public function guardarDia(): void

@@ -83,7 +83,9 @@ class ExpressPegado
 
     public static function esAiwibi(string $nombre): bool
     {
-        return (bool) preg_match('/AIWIB[IY]\s*\.?\s*$/iu', trim($nombre));
+        // Antes iba al final ("Juan Pérez AIWIBI"); ahora a veces va adelante
+        // ("7815 7877 AIWIBI Alexandra"). Cuenta en cualquier lugar del nombre.
+        return (bool) preg_match('/\bAIWIB[IY]\b/iu', trim($nombre));
     }
 
     /**

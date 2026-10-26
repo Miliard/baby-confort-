@@ -253,8 +253,21 @@
         {{-- Izquierda: meter datos --}}
         <div style="display:flex;flex-direction:column;gap:12px">
 
-            <x-filament::section compact collapsible :collapsed="count($this->fechas) > 0">
-                <x-slot name="heading">1 · Pegar liquidación</x-slot>
+            {{-- Express ya no manda Excel: las entregas se traen por la API. --}}
+            <x-filament::section compact>
+                <x-slot name="heading">1 · Traer entregas de Express</x-slot>
+                <x-slot name="description">Del período que estás viendo: {{ $this->etiquetaPeriodo }}</x-slot>
+                <x-filament::button size="sm" wire:click="traerDeExpress" wire:loading.attr="disabled" wire:target="traerDeExpress" icon="heroicon-o-cloud-arrow-down">
+                    <span wire:loading.remove wire:target="traerDeExpress">📥 Traer de Express</span>
+                    <span wire:loading wire:target="traerDeExpress">Consultando a Express…</span>
+                </x-filament::button>
+                <p style="font-size:11.5px;color:#9ca3af;margin-top:6px">
+                    Trae las guías entregadas con el monto a cobrar. Si alguna salió "Sin cobro" en Express, márcala abajo.
+                </p>
+            </x-filament::section>
+
+            <x-filament::section compact collapsible :collapsed="true">
+                <x-slot name="heading">Pegar liquidación (Excel viejo)</x-slot>
 
                 <textarea wire:model="pegado" rows="3" class="bc-campo"
                     style="font-family:ui-monospace,Consolas,monospace;font-size:11px;resize:vertical"

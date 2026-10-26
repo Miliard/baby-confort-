@@ -422,4 +422,63 @@ class ExpressApi
             return null;
         }
     }
+
+    /**
+     * Órdenes ENTREGADAS en un rango de fechas (hora de El Salvador), para
+     * cargarlas en el Cierre del día como antes se pegaba el Excel de Express.
+     *
+     * @return array{ok:bool, filas:array, error:?string}
+     */
+    public static function entregadas(string $desde, string $hasta, int $paginas = 30): array
+    {
+        if (! self::configurada()) return ['ok' => false, 'filas' => [], 'error' => 'Falta la variable TNT_API_KEY en Railway'];
+
+        $tz = 'America/El_Salvador';
+        $inicio = \Illuminate\Support\Carbon::parse($desde, $tz)->startOfDay();
+        $fin    = \Illuminate\Support\Carbon::parse($hasta, $tz)->endOfDay();
+        $filas  = [];
+
+        for ($p = 1; $p <= $paginas; $p++) {
+            $r = self::llamar('GET', 'orders', ['page' => $p, 'limit' => 50]);
+            if ($r['status'] < 200 || $r['status'] >= 300 || ! is_array($r['json'])) {
+                return ['ok' => false, 'filas' => $filas, 'error' => 'Express respondió ' . $r['status'] . ': ' . (is_array($r['json']) ? ($r['json']['message'] ?? '') : '')];
+            }
+
+            $items = $r['json']['data']['items'] ?? [];
+            if (! $items) break;
+
+            $todasViejas = true;
+            foreach ($items as $o) {
+                try {
+                    $creada = ! empty($o['created_at']) ? \Illuminate\Support\Carbon::parse($o['created_at']) : null;
+                } catch (\Throwable $e) {
+                    $creada = null;
+                }
+                // Una orden se entrega días después de creada: se sigue buscando
+                // hasta 20 días antes del inicio del rango.
+                if (! $creada || $creada->gte($inicio->copy()->subDays(20))) $todasViejas = false;
+
+                if (strtoupper((string) ($o['status'] ?? '')) !== 'DELIVERED' || empty($o['delivered_at'])) continue;
+
+                $entregada = \Illuminate\Support\Carbon::parse($o['delivered_at'])->setTimezone($tz);
+                if ($entregada->lt($inicio) || $entregada->gt($fin)) continue;
+
+                $nombre = trim((string) ($o['recipient']['name'] ?? ''));
+                $filas[] = [
+                    'fecha'    => $entregada->toDateString(),
+                    'orden'    => preg_replace('/\D/', '', (string) $o['tracking_code']),
+                    'nombre'   => $nombre,
+                    'zona'     => (string) ($o['recipient']['municipality'] ?? ''),
+                    'monto'    => round((float) ($o['cod_amount'] ?? 0), 2),
+                    'contenido'=> (string) ($o['contents'] ?? ''),
+                    'nota'     => (string) ($o['notes'] ?? ''),
+                    'aiwibi'   => (bool) preg_match('/AIWIB[IY]/iu', $nombre . ' ' . ($o['contents'] ?? '')),
+                ];
+            }
+
+            if ($todasViejas || count($items) < 50) break;
+        }
+
+        return ['ok' => true, 'filas' => $filas, 'error' => null];
+    }
 }
