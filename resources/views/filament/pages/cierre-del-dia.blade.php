@@ -118,7 +118,11 @@
              la cuenta de cabeza para llegar del número de Express al que te
              queda; acá se sigue con el dedo, renglón por renglón. --}}
         @php
-            $liquidado = $entro + ($r['aiwibiDepositado'] ?? 0);
+            // Lo que liquidó Express es SOLO lo que depositó: lo tuyo + lo de AIWIBI.
+            // Lo que el cliente te transfirió directo (p. ej. "DEPOSITO A TIENDA")
+            // no pasó por Express: se suma después, aparte. Antes se sumaba aquí
+            // y el número no cuadraba con el total del Excel de Express.
+            $liquidado = $r['depositado'] + ($r['aiwibiDepositado'] ?? 0);
         @endphp
 
         <div class="bc-caja bc-viaje">
@@ -136,6 +140,19 @@
                         <i>{{ $r['aiwibiBultos'] }} {{ $r['aiwibiBultos'] === 1 ? 'bulto' : 'bultos' }}</i>
                     </span>
                     <b>−${{ number_format($r['aiwibiDepositado'], 2) }}</b>
+                </div>
+            @endif
+
+            @if($r['transferido'] > 0)
+                <div class="bc-v bc-v-corte">
+                    <span>Te depositó Express (lo tuyo)</span>
+                    <b>${{ number_format($r['depositado'], 2) }}</b>
+                </div>
+                <div class="bc-v">
+                    <span>Te transfirieron directo
+                        <i>no pasó por Express</i>
+                    </span>
+                    <b>+${{ number_format($r['transferido'], 2) }}</b>
                 </div>
             @endif
 
@@ -207,7 +224,7 @@
                             ({{ $r['aiwibiBultos'] }} {{ $r['aiwibiBultos'] === 1 ? 'bulto' : 'bultos' }}), aparte
                         </span>
                         <span style="display:block;font-weight:700">
-                            Express liquidó ${{ number_format($entro + $r['aiwibiDepositado'], 2) }} en total
+                            Express liquidó ${{ number_format($r['depositado'] + $r['aiwibiDepositado'], 2) }} en total
                         </span>
                     @endif
                 </div>
