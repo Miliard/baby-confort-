@@ -971,41 +971,17 @@ class CrearGuia extends Page implements HasForms
         $problema = null;
 
         foreach ($pendientes as $g) {
-            $fila = $g->aFila();
-            $previa = $yaEstan['BC-' . $g->id] ?? null;
-
-            if ($previa) {
-                $r = ['ok' => true, 'guia' => preg_replace('/\D/', '', (string) $previa['tracking_code']), 'id' => $previa['id'] ?? null,
-                      'url' => $previa['tracking_url'] ?? null, 'cod' => isset($previa['cod_amount']) ? (float) $previa['cod_amount'] : null,
-                      'orden' => $previa, 'error' => null];
-            } else {
-                $r = \App\Services\ExpressApi::crearOrden($fila, $g->id);
-            }
+            $r = \App\Services\ExpressEnvio::enviarUna($g, $lote, $yaEstan);
 
             if (! $r['ok']) {
-                $g->express_error = mb_substr((string) $r['error'], 0, 1000);
-                // Aceptó sin devolver número: puede haberse creado. No se reintenta sola.
-                if (str_starts_with((string) $r['error'], 'Express aceptó')) $g->express_at = now();
-                $g->save();
                 $problema = ($g->nombre ?: 'Una guía') . ': ' . $r['error'];
                 break;
             }
 
-            $g->guia = $r['guia'];
-            $g->express_error = null;
-            $g->express_at = now();
-            $g->lote = $lote;
-            $g->descargado_at = now();
-            $g->save();
-
-            $this->amarrarGuia($fila, $r);
             $enviadas[] = $g->nombre;
 
-            // Revisa que Express haya guardado bien el cobro.
-            $cobrar = round((float) $g->cobrar, 2);
-            if ($r['cod'] !== null && abs($r['cod'] - $cobrar) > 0.009) {
-                $problema = '⚠️ ' . $g->nombre . ': Express guardó cobro $' . number_format($r['cod'], 2)
-                    . ' y debía ser $' . number_format($cobrar, 2) . '. Corríjalo en Express. Se detuvo el envío.';
+            if ($r['cobroMal']) {
+                $problema = '⚠️ ' . $g->nombre . ': ' . $r['cobroMal'] . ' Se detuvo el envío.';
                 break;
             }
         }
@@ -1029,50 +1005,7 @@ class CrearGuia extends Page implements HasForms
      */
     protected function amarrarGuia(array $fila, array $r): void
     {
-        $guia = $r['guia'];
-
-        try {
-            $reg = \App\Models\GuiaFoto::where('guia', $guia)->first()
-                ?? \App\Models\GuiaFoto::pendientePorTelefono($fila['telefono'] ?? '')
-                ?? new \App\Models\GuiaFoto();
-            $reg->guia      = $guia;
-            $reg->nombre    = $fila['nombre'] ?: $reg->nombre;
-            $reg->telefono  = $fila['telefono'] ?: $reg->telefono;
-            $reg->contenido = $fila['descripcion'] ?: $reg->contenido;
-            $reg->cobrar    = (float) ($fila['cobrar'] ?? 0);
-            $reg->lote      = $reg->lote ?: now()->format('Y-m-d H:i:s');
-            $reg->save();
-        } catch (\Throwable $e) {
-        }
-
-        try {
-            if (is_array($r['orden'])) {
-                $o = $r['orden'];
-                \App\Models\GuiaEstado::registrar([
-                    'guia' => $guia, 'express_id' => $o['id'] ?? null, 'estado' => $o['status'] ?? 'CREATED',
-                    'entregado' => $o['delivered_at'] ?? null, 'cambio' => $o['updated_at'] ?? null,
-                    'repartidor' => $o['driver']['name'] ?? null, 'pago' => $o['payment_status'] ?? null,
-                    'url' => $o['tracking_url'] ?? null,
-                ]);
-            }
-        } catch (\Throwable $e) {
-        }
-
-        // Pedido de la tienda con ese teléfono que aún no tenga guía.
-        try {
-            $corto = \App\Models\GuiaFoto::telefonoCorto($fila['telefono'] ?? '');
-            if ($corto && strlen($corto) === 8) {
-                $limpio = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone,''),' ',''),'-',''),'(',''),')',''),'+','')";
-                $pedido = \App\Models\Order::whereRaw("$limpio LIKE ?", ['%' . $corto])
-                    ->where(fn ($q) => $q->whereNull('guia')->orWhere('guia', ''))
-                    ->orderByDesc('id')->first();
-                if ($pedido) {
-                    $pedido->guia = $guia;
-                    $pedido->save();
-                }
-            }
-        } catch (\Throwable $e) {
-        }
+        \App\Services\ExpressEnvio::amarrar($fila, $r);
     }
 
     public function descargar(bool $aunAsi = false)

@@ -2258,10 +2258,23 @@
                            placeholder="Sale de la orden">
                 </div>
 
-                <div class="wa-btns" style="margin-top:16px">
-                    <x-filament::button wire:click="guardarPedido" icon="heroicon-m-check-circle">
-                        Guardar en la cola de guías
-                    </x-filament::button>
+                <div class="wa-btns" style="margin-top:16px;display:flex;flex-wrap:wrap;gap:8px">
+                    @if(\App\Services\ExpressApi::configurada())
+                        {{-- Lo normal: guardar y crearla en Express de una vez. --}}
+                        <x-filament::button wire:click="guardarYEnviarPedido" icon="heroicon-m-paper-airplane"
+                            wire:loading.attr="disabled" wire:target="guardarYEnviarPedido,guardarPedido">
+                            <span wire:loading.remove wire:target="guardarYEnviarPedido">📤 Guardar y enviar a Express</span>
+                            <span wire:loading wire:target="guardarYEnviarPedido">Creando en Express…</span>
+                        </x-filament::button>
+                        <x-filament::button color="gray" wire:click="guardarPedido" icon="heroicon-m-check-circle"
+                            wire:loading.attr="disabled" wire:target="guardarYEnviarPedido,guardarPedido">
+                            Solo guardar en la cola
+                        </x-filament::button>
+                    @else
+                        <x-filament::button wire:click="guardarPedido" icon="heroicon-m-check-circle">
+                            Guardar en la cola de guías
+                        </x-filament::button>
+                    @endif
                 </div>
 
                 {{-- Que se vea adónde va lo que se guarda, sin tener que
@@ -2269,10 +2282,9 @@
                 @php $enCola = $this->enCola(); @endphp
                 <div class="wa-cola">
                     <b>¿Y después?</b>
-                    Al guardar, esta guía se suma a la cola. Hoy hay
-                    <b>{{ $enCola }} {{ $enCola == 1 ? 'guía esperando' : 'guías esperando' }}</b>.
-                    Cuando las tengas todas, entrás a <b>Crear guías</b> y bajás el Excel
-                    para subirlo al sistema.
+                    <b>📤 Guardar y enviar</b> la crea en Express ya, con su número de guía: solo falta imprimir la etiqueta en Express.
+                    <b>Solo guardar</b> la deja en la cola (hoy hay
+                    <b>{{ $enCola }} {{ $enCola == 1 ? 'guía esperando' : 'guías esperando' }}</b>) para enviarlas juntas desde <b>Crear guías</b>.
 
                     @if($this->enlaceCola())
                         <div style="margin-top:9px">

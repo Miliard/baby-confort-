@@ -3200,7 +3200,13 @@ class Whatsapp extends Page
     }
 
     /** Guarda el pedido en la cola de guías, lista para el Excel. */
-    public function guardarPedido(): void
+    /** "📤 Guardar y enviar a Express": lo mismo que guardar, y la crea en Express de una vez. */
+    public function guardarYEnviarPedido(): void
+    {
+        $this->guardarPedido(true);
+    }
+
+    public function guardarPedido(bool $enviarExpress = false): void
     {
         $faltan = [];
         if (trim($this->pedNombre) === '')    $faltan[] = 'el nombre';
@@ -3357,6 +3363,35 @@ class Whatsapp extends Page
 
         $this->limpiarPedido();
         $this->pestana = 'chat';
+
+        // Directo a Express: la orden se crea ya y vuelve con su número de guía.
+        // Si Express la rechaza, la guía igual quedó en la cola (no se pierde).
+        if ($enviarExpress && \App\Services\ExpressApi::configurada()) {
+            $r = ['ok' => false, 'error' => 'Hay datos por corregir (míralos en Crear guías).', 'guia' => null, 'cobroMal' => null];
+            try {
+                if (! \App\Services\RevisarGuia::tieneError($guia->aFila())) {
+                    $r = \App\Services\ExpressEnvio::enviarUna($guia, \App\Services\ExpressEnvio::loteDelDia());
+                }
+            } catch (\Throwable $e) {
+                $r = ['ok' => false, 'error' => $e->getMessage(), 'guia' => null, 'cobroMal' => null];
+            }
+
+            if ($r['ok']) {
+                Notification::make()
+                    ->title('📤 Guía ' . $r['guia'] . ' creada en Express')
+                    ->body(($r['cobroMal'] ? '⚠️ ' . $r['cobroMal'] . ' ' : '')
+                        . 'Ya tiene seguimiento.' . $avisoCobro . $aviso . ' Imprima la etiqueta en Express.')
+                    ->{$r['cobroMal'] || $avisoCobro || $aviso ? 'warning' : 'success'}()
+                    ->duration(9000)->send();
+            } else {
+                Notification::make()
+                    ->title('Se guardó en la cola, pero Express no la aceptó')
+                    ->body($r['error'] . ' Corrígela en Crear guías y envíala desde ahí.' . $avisoCobro . $aviso)
+                    ->danger()->persistent()->send();
+            }
+
+            return;
+        }
 
         $cola = $this->enCola();
 
