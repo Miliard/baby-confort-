@@ -29,6 +29,14 @@ class SeguimientoExpress extends Page
 
     protected static string $view = 'filament.pages.seguimiento-express';
 
+    /** Tarjeta elegida: filtra la lista (null = todas). */
+    public ?string $filtro = null;
+
+    public function filtrar(string $clave): void
+    {
+        $this->filtro = $this->filtro === $clave ? null : $clave;
+    }
+
     /** Botón "🔄 Actualizar ahora": consulta la API oficial de Express. */
     public function actualizarAhora(): void
     {
@@ -97,7 +105,41 @@ class SeguimientoExpress extends Page
                 $nombres = GuiaFoto::whereIn('guia', $estados->pluck('guia')->all())
                     ->orderByDesc('id')->get(['guia', 'nombre', 'telefono'])->unique('guia')->keyBy('guia');
 
+                $aiwibi = 0; $aiwibiCobro = 0.0;
+
                 foreach ($estados as $e) {
+                    $g = $nombres->get($e->guia);
+                    $nombre = $e->nombre ?: ($g ? trim(($g->telefono ? $g->telefono . ' ' : '') . $g->nombre) : '');
+                    $esAiwibi = (bool) preg_match('/AIWIB[IY]/iu', $nombre . ' ' . (string) $e->contenido);
+                    $entregadaHoy = (int) $e->etapa >= 4 && $e->entregado_at
+                        && $e->entregado_at->copy()->setTimezone($tz)->toDateString() === $hoy;
+                    $tarjeta = (int) $e->etapa >= 4 ? ($entregadaHoy ? 'HOY' : 'ENTREGADA') : self::tarjetaDe($e->estado);
+
+                    if ($esAiwibi) {
+                        $aiwibi++;
+                        $aiwibiCobro += (float) $e->cod;
+                    }
+
+                    // La lista muestra solo lo de la tarjeta elegida.
+                    $pasa = match ($this->filtro) {
+                        null     => true,
+                        'AIWIBI' => $esAiwibi,
+                        default  => $tarjeta === $this->filtro,
+                    };
+
+                    if ($pasa) {
+                        $filas->push([
+                            'guia'       => $e->guia,
+                            'cliente'    => $nombre,
+                            'estado'     => GuiaEstado::traducir($e->estado)[1],
+                            'etapa'      => (int) $e->etapa,
+                            'repartidor' => $e->repartidor,
+                            'cuando'     => $e->cambio_at?->copy()->setTimezone($tz)->format('d/m g:i A'),
+                            'cod'        => $e->cod !== null ? (float) $e->cod : null,
+                            'aiwibi'     => $esAiwibi,
+                        ]);
+                    }
+
                     if ((int) $e->etapa >= 4) {
                         $entregadas30++;
                         if ($e->entregado_at && $e->entregado_at->copy()->setTimezone($tz)->toDateString() === $hoy) {
@@ -107,15 +149,6 @@ class SeguimientoExpress extends Page
                         $resumen[$t]++;
                     }
 
-                    $g = $nombres->get($e->guia);
-                    $filas->push([
-                        'guia'       => $e->guia,
-                        'cliente'    => $g ? trim(($g->telefono ? $g->telefono . ' ' : '') . $g->nombre) : '',
-                        'estado'     => GuiaEstado::traducir($e->estado)[1],
-                        'etapa'      => (int) $e->etapa,
-                        'repartidor' => $e->repartidor,
-                        'cuando'     => $e->cambio_at?->copy()->setTimezone($tz)->format('d/m g:i A'),
-                    ]);
                 }
 
                 // Primero lo que está en camino; las entregadas, al final.
@@ -128,6 +161,9 @@ class SeguimientoExpress extends Page
         $ultimaApi = Setting::get('express_api_ultima');
 
         return [
+            'aiwibi'       => $aiwibi ?? 0,
+            'aiwibiCobro'  => round($aiwibiCobro ?? 0, 2),
+            'filtro'       => $this->filtro,
             'ultimaApi'    => $ultimaApi ? Carbon::parse($ultimaApi)->setTimezone($tz)->format('d/m/Y g:i A') : null,
             'apiLista'     => \App\Services\ExpressApi::configurada(),
             'filas'        => $filas,

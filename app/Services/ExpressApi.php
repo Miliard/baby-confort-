@@ -150,6 +150,9 @@ class ExpressApi
                     $reg = \App\Models\GuiaEstado::registrar([
                         'guia'       => $o['tracking_code'],
                         'express_id' => $o['id'] ?? null,
+                        'nombre'     => $o['recipient']['name'] ?? null,
+                        'contenido'  => $o['contents'] ?? null,
+                        'cod'        => $o['cod_amount'] ?? null,
                         'estado'     => $o['status'] ?? '',
                         'entregado'  => $o['delivered_at'] ?? null,
                         'cambio'     => $o['updated_at'] ?? null,

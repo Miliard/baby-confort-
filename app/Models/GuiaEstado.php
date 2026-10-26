@@ -17,7 +17,7 @@ class GuiaEstado extends Model
     protected $table = 'guia_estados';
 
     protected $fillable = [
-        'guia', 'express_id', 'estado', 'etapa', 'repartidor', 'pago', 'url_publica',
+        'guia', 'express_id', 'nombre', 'contenido', 'cod', 'estado', 'etapa', 'repartidor', 'pago', 'url_publica',
         'entregado_at', 'cambio_at', 'historial', 'faltas',
     ];
 
@@ -75,6 +75,12 @@ class GuiaEstado extends Model
         return $cache[$c];
     }
 
+    /** ¿Es de AIWIBI? (lo dice el nombre o el contenido) */
+    public function esAiwibi(): bool
+    {
+        return (bool) preg_match('/AIWIB[IY]/iu', (string) $this->nombre . ' ' . (string) $this->contenido);
+    }
+
     public static function de(?string $guia): ?self
     {
         $guia = preg_replace('/\D/', '', (string) $guia);
@@ -130,6 +136,11 @@ class GuiaEstado extends Model
         $url = trim((string) ($fila['url'] ?? ''));
         if ($url !== '' && str_starts_with($url, 'https://') && static::tieneColumna('url_publica')) {
             $reg->url_publica = mb_substr($url, 0, 255);
+        }
+        if (static::tieneColumna('nombre')) {
+            if (filled($fila['nombre'] ?? null))    $reg->nombre    = mb_substr(trim((string) $fila['nombre']), 0, 190);
+            if (filled($fila['contenido'] ?? null)) $reg->contenido = mb_substr(trim((string) $fila['contenido']), 0, 255);
+            if (isset($fila['cod']) && $fila['cod'] !== null && $fila['cod'] !== '') $reg->cod = round((float) $fila['cod'], 2);
         }
         if (! empty($fila['express_id']) && static::tieneColumna('express_id')) {
             $reg->express_id = (int) $fila['express_id'];
