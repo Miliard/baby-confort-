@@ -81,6 +81,7 @@ class Whatsapp extends Page
         // Tocar el que ya está puesto lo quita: el mismo botón sirve para las
         // dos cosas y no hace falta una ✕ aparte.
         $this->filtroDia = ($this->filtroDia === $cual) ? null : $cual;
+        $this->limiteLista = 60;
     }
 
     /**
@@ -299,13 +300,52 @@ class Whatsapp extends Page
         return 'danger';
     }
 
+    /**
+     * Cuántos chats se muestran en la lista. Empieza en 60 para que cargue
+     * rápido; "Ver más" va sumando de 60 en 60.
+     */
+    public int $limiteLista = 60;
+
+    public function verMasChats(): void
+    {
+        $this->limiteLista = min(2000, $this->limiteLista + 60);
+    }
+
+    /** Al cambiar de filtro o de búsqueda, la lista vuelve a empezar en 60. */
+    public function updatedBuscar(): void
+    {
+        $this->limiteLista = 60;
+    }
+
     /** La lista de la izquierda. */
     public function conversaciones()
     {
         if (! WaConversacion::hayTabla()) return collect();
 
         try {
-            $q = WaConversacion::with(['agente', 'etiquetas'])->where('archivada', false);
+            return $this->consultaConversaciones()->with(['agente', 'etiquetas'])
+                ->orderByDesc('ultimo_mensaje_at')->limit($this->limiteLista)->get();
+        } catch (\Throwable $e) {
+            return collect();
+        }
+    }
+
+    /** Cuántos chats hay con los filtros puestos (para "Mostrando 60 de 412"). */
+    public function totalConversaciones(): int
+    {
+        if (! WaConversacion::hayTabla()) return 0;
+
+        try {
+            return $this->consultaConversaciones(false)->count();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    /** Los filtros de la lista, sin el límite. */
+    private function consultaConversaciones(bool $ordenFijadas = true)
+    {
+            $q =WaConversacion::query()->where('archivada', false);
 
             if ($this->filtroEtiqueta) {
                 $q->whereHas('etiquetas', fn ($w) => $w->where('wa_etiquetas.id', $this->filtroEtiqueta));
@@ -336,14 +376,11 @@ class Whatsapp extends Page
             // Se pregunta si la columna existe porque entre que sale el código
             // y corre la migración hay unos segundos, y no vale la pena que la
             // lista se vea vacía en ese rato.
-            if (static::hayFijadas()) {
+            if ($ordenFijadas && static::hayFijadas()) {
                 $q->orderByRaw('fijada_at IS NULL')->orderByDesc('fijada_at');
             }
 
-            return $q->orderByDesc('ultimo_mensaje_at')->limit(60)->get();
-        } catch (\Throwable $e) {
-            return collect();
-        }
+            return $q;
     }
 
     /** ¿Ya corrió la migración de las fijadas? Se pregunta una sola vez. */
@@ -439,6 +476,7 @@ class Whatsapp extends Page
     public function filtrarPor(?int $id): void
     {
         $this->filtroEtiqueta = ($this->filtroEtiqueta === $id) ? null : $id;
+        $this->limiteLista = 60;
     }
 
     /** Cuántas conversaciones hay en cada etiqueta, para el contador. */

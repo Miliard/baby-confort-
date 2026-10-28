@@ -1268,6 +1268,22 @@
                     Van a aparecer solas cuando alguien escriba.
                 </div>
             @endforelse
+
+            {{-- La lista carga de 60 en 60: así se sabe que hay más abajo. --}}
+            @php $totalLista = $this->totalConversaciones(); $vistos = min($limiteLista, $totalLista); @endphp
+            @if($totalLista > 0)
+                <div style="padding:12px 14px 18px;text-align:center;font-size:12.5px;color:var(--wa-suave)">
+                    Mostrando {{ $vistos }} de {{ $totalLista }} chats
+                    @if($totalLista > $limiteLista)
+                        <br>
+                        <button type="button" wire:click="verMasChats" wire:loading.attr="disabled" wire:target="verMasChats"
+                                class="wa-fil" style="margin-top:8px">
+                            <span wire:loading.remove wire:target="verMasChats">⬇️ Ver {{ min(60, $totalLista - $limiteLista) }} más</span>
+                            <span wire:loading wire:target="verMasChats">Cargando…</span>
+                        </button>
+                    @endif
+                </div>
+            @endif
         </div>
     </div>
 
