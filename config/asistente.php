@@ -34,6 +34,18 @@ return [
     */
     'modo' => env('ASISTENTE_MODO', 'conversacion'),
 
+    /*
+    | Solo asesora: tallas, presentaciones, precios y agotados. Cuando la
+    | clienta ya eligió (o pregunta por el envío o el total), NO pregunta de
+    | dónde escribe ni arma la orden: le pasa el chat a Wil, que sabe a quién
+    | se le cobra envío y a quién no. Para volver al modo completo:
+    | ASISTENTE_SOLO_ASESORAR=false en Railway.
+    |
+    | 'cierre' es lo que se le dice a la clienta al pasarlo (vacío = nada).
+    */
+    'solo_asesorar' => (bool) env('ASISTENTE_SOLO_ASESORAR', true),
+    'solo_asesorar_cierre' => env('ASISTENTE_CIERRE', 'En un momento le atiendo para coordinar su envío 😊'),
+
     // El banco de ejemplos (modo "ejemplos"): de cuántos días de chats se
     // arma, cuántos guarda como mucho y cuántos le pasa a la IA por turno.
     'ejemplos' => [

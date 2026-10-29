@@ -145,8 +145,18 @@ trait GuionDiagrama
             return;
         }
 
+        // ── Solo asesora: "¿cuánto el envío?", "¿cuánto sería todo?" ────────
+        // Lo contestás vos: a unos se les cobra envío y a otros no.
+        if (static::soloAsesora()) {
+            $faqE = Entender::respuesta($texto, (array) config('asistente.respuestas', []));
+            if ($this->dgPideTotal($n) || ($faqE !== null && str_contains($faqE, '{envio}'))) {
+                $this->pasarAWil('pregunta por el envío o el total', false);
+                return;
+            }
+        }
+
         // ── "¿Cuánto sería ya con el envío?": el total ─────────────────────
-        if ($this->dgPideTotal($n) && ! in_array($paso, ['datos', 'telefono', 'orden', 'colonia'], true)) {
+        if ($this->dgPideTotal($n) &&! in_array($paso, ['datos', 'telefono', 'orden', 'colonia'], true)) {
             if (! $f->dato('municipio') && ($muni = Municipios::buscarEn($texto))) $this->ponerMunicipio($muni);
             if ($this->dgTotal($paso, $hola)) return;
         }
@@ -174,7 +184,8 @@ trait GuionDiagrama
 
         // ── Dice de dónde es sin que se lo pregunten ("Suchitoto, Cuscatlán") ─
         // Se guarda y se le manda la leyenda del envío; sigue donde iba.
-        elseif (in_array($paso, ['talla', 'peso', 'opciones', 'cantidad_item', 'sugerencia'], true)
+        elseif (! static::soloAsesora()
+            && in_array($paso, ['talla', 'peso', 'opciones', 'cantidad_item', 'sugerencia'], true)
             && ! $f->dato('municipio')
             && (count(preg_split('/\s+/', trim($n))) <= 6 || preg_match('/\b(vivo en|soy de|somos de|desde|municipio|departamento|depto|colonia|canton|barrio|residencial|para (el|la)? ?(municipio|colonia))\b/', $n))
             && ($muni = Municipios::buscarEn($texto)) && $this->ponerMunicipio($muni)) {
@@ -443,6 +454,9 @@ trait GuionDiagrama
 
     private function dgDecir(string $msg, string $paso): void
     {
+        // Solo asesora: de acá en adelante (municipio, envío, datos) es tuyo.
+        if ($this->cortarAntesDeLaOrden($paso, $msg)) return;
+
         $this->f->poner('dpaso', $paso);
         $this->f->paso = 'diagrama · ' . $paso;
         $this->texto($msg);

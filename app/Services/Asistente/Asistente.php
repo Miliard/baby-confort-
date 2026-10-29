@@ -522,7 +522,11 @@ class Asistente
             // "¿Y el envío?": el costo depende de dónde es, así que se le
             // pregunta el municipio antes de seguir (o se le da el costo si ya
             // se sabe). No se le repite el pedido.
-            if (str_contains($r, '{envio}')) {
+            if (str_contains($r, '{envio}') && static::soloAsesora()) {
+                // Solo asesora: el envío lo contestás vos.
+                $this->paraWil = 'pregunta por el envío';
+                return;
+            } elseif (str_contains($r, '{envio}')) {
                 $this->preguntoEnvio($texto);
             } else {
                 $this->avisos[] = $this->rellenar($r);
@@ -2110,6 +2114,10 @@ class Asistente
         $antes = $saludo . ($this->avisos ? implode("\n", array_unique($this->avisos)) . "\n\n" : '');
         $disculpa = $this->fallosDe($paso) > 0 ? "Disculpe, no le entendí 🙏\n" : '';
 
+        // Solo asesora: de acá en adelante (municipio, envío, datos) es tuyo.
+        // Los avisos pueden traer el costo del envío: solo va el saludo.
+        if ($this->cortarAntesDeLaOrden($paso, $saludo)) return;
+
         switch ($paso) {
             case 'talla':          $this->pedirTalla($antes . $disculpa); break;
             case 'unidad':         $this->pedirUnidad($antes . $disculpa); break;
@@ -2770,6 +2778,55 @@ class Asistente
     // ════════════════════════════════════════════════════════════════════════
     // Pasar a Wil
     // ════════════════════════════════════════════════════════════════════════
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Solo asesora: la orden de envío la hace Wil
+    // ════════════════════════════════════════════════════════════════════════
+
+    /** Los pasos que ya son de la orden: de dónde es, envío, datos, total. */
+    public const PASOS_DE_ORDEN = [
+        'municipio', 'muni_envio', 'muni_duda', 'confirmar_muni', 'depto', 'colonia',
+        'envio', 'total', 'datos', 'datos_conf', 'nombre', 'direccion', 'telefono',
+        'confirmar', 'orden', 'corregir',
+    ];
+
+    public static function soloAsesora(): bool
+    {
+        return (bool) config('asistente.solo_asesorar', true);
+    }
+
+    /**
+     * Si el siguiente paso ya es de la orden (y está en "solo asesora"): se le
+     * manda lo que iba ANTES de la pregunta (p. ej. "¡Con gusto! 😊 *Pampers*
+     * talla M."), sin la pregunta del municipio ni del envío, más el cierre, y
+     * el chat pasa a Wil (🤖 Revisar y Pedidos). Devuelve true si cortó.
+     */
+    private function cortarAntesDeLaOrden(string $paso, string $msg): bool
+    {
+        if (! static::soloAsesora() || ! in_array($paso, self::PASOS_DE_ORDEN, true)) return false;
+
+        // El costo del envío o el total no se le dicen: depende del cliente.
+        $resto = in_array($paso, ['envio', 'total'], true) ? '' : static::sinPreguntaDeOrden($msg);
+        $cierre = trim((string) config('asistente.solo_asesorar_cierre', ''));
+        $txt = trim($resto . ($resto !== '' && $cierre !== '' ? "\n\n" : '') . $cierre);
+
+        if ($txt !== '' && $this->conv->ventanaAbierta()) $this->texto($txt);
+
+        $this->pasarAWil('ya eligió: te toca la orden de envío', false);
+        return true;
+    }
+
+    /** Quita del mensaje la pregunta de la orden y todo lo que sigue. */
+    public static function sinPreguntaDeOrden(string $msg): string
+    {
+        $corte = '/(📦\s*)?¡?Tenemos cobertura nacional|¿Desde (cu[aá]l|qu[eé]) municipio|¿De qu[eé] colonia'
+            . '|Hay un [^.?\n]{1,60} en varios departamentos|Para enviarlo me regala|¿Se lo enviamos a nombre'
+            . '|¿Cu[aá]ntos paquetes le enviamos|¿A qu[eé] n[uú]mero|¿A nombre de qui[eé]n|¿Me regala la direcci[oó]n'
+            . '|¡Perfecto! 😊 En San Miguel|No encontr[eé] ese municipio|¿Cu[aá]l es la direcci[oó]n'
+            . '|¡Perfecto! Para enviarlo/u';
+
+        return trim((string) (preg_split($corte, $msg, 2)[0] ?? ''));
+    }
 
     private function pasarAWil(string $motivo, bool $avisarAlCliente = true): void
     {

@@ -281,6 +281,11 @@ trait GuionEnsayado
         $faq = $preguntaCuando ? null : Entender::respuesta($texto, (array) config('asistente.respuestas', []));
         if ($faq !== null && str_contains($faq, '{promos}')) $faq = null;   // las promos van por talla (arriba)
         if ($faq !== null && str_contains($faq, '{envio}')) {
+            // Solo asesora: el envío lo contestás vos (a unos se les cobra y a otros no).
+            if (static::soloAsesora()) {
+                $this->pasarAWil('pregunta por el envío', false);
+                return;
+            }
             $r['pregunta_envio'] = true;
             $faq = null;
         }
@@ -789,6 +794,10 @@ trait GuionEnsayado
     {
         $antes = $this->gAntes ? implode("\n\n", array_unique($this->gAntes)) . "\n\n" : '';
         $this->gAntes = [];
+
+        // Solo asesora: de acá en adelante (municipio, envío, datos) es tuyo.
+        if ($this->cortarAntesDeLaOrden($ultima, trim($antes . $msg))) return;
+
         $this->f->poner('ultima', $ultima);
         $this->f->paso = 'guion · ' . $ultima;
         $this->texto(trim($antes . $msg));
