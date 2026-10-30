@@ -533,6 +533,9 @@ trait GuionDiagrama
             && ($m[2] !== 'm' || preg_match('/\b(tiene|bebe|nino|nina|edad)\b/', $n))) {
             $meses = ($meses ?? 0) + ($num[$m[1]] ?? (int) $m[1]);
         }
+        // "Tiene 20 días de nacido", "15 dia de nasida", "2 semanas": recién nacido.
+        if ($meses === null && preg_match('/\b(\d{1,2}|un|una|dos|tres|cuatro|cinco|quince|veinte)\s*(dia|dias|semana|semanas|semanita|semanitas)\b/', $n)
+            && preg_match('/\b(nacid[oa]|nasid[oa]|de nacer|tiene|bebe|nina|nino|edad)\b/', $n)) $meses = 0;
         if ($meses === null && preg_match('/\b(recien nacid[oa]s?|no ha nacido|no a nacido|todavia no nace|aun no nace|no ha nacido|no nace|va a nacer|por nacer|cuando nazca|esta por nacer|embarazada|estoy embarazada|para (mi|un|el) bebe que viene|nacimiento)\b/', $n)) $meses = 0;
         return $meses;
     }
@@ -549,6 +552,18 @@ trait GuionDiagrama
 
         // "sí", "ok", "claro", "si está bien": nada que contestar.
         if (preg_match('/^(si+|claro|ok|okay|oki|si\s+(esta bien|claro|gracias|por favor|porfavor|perfecto|exacto|asi es|creo que si|creo q si))[\s!.]*$/u', $n)) return true;
+
+        // "Me avisa cuando tenga", "estaré pendiente", "a la espera": queda en
+        // Agotados y se le confirma. No hace falta pasártelo.
+        if (in_array($paso, ['talla', 'peso', 'opciones', 'sugerencia'], true) && $this->dgPideAviso($n)) {
+            $this->marcarAgotado();
+            $this->texto('Con gusto 😊 Apenas entre le avisamos por aquí.');
+            return true;
+        }
+
+        // "Bueno, está bien, gracias", "vaya gracias", "ah entiendo": se despide
+        // o asiente. Nada que contestar ni que pasarte.
+        if (in_array($paso, ['talla', 'peso', 'opciones', 'sugerencia'], true) && static::dgSoloCortesia($n)) return true;
 
         // La edad: lo que suele usar a esa edad, y el peso (que es lo que manda).
         if (in_array($paso, ['talla', 'peso'], true) && ($meses = $this->dgEdadEnMeses($n)) !== null) {
@@ -585,6 +600,16 @@ trait GuionDiagrama
             return true;
         }
 
+        // "¿Qué otras tallas tiene?", "la más grande", "la que sigue", "¿cuál
+        // sería la talla?": la lista de las que hay y el peso para recomendar.
+        if (! preg_match('/\b(paquete|paquetes|bolsa|bolsas|unidades|cantidad|cinta|calzon\w*|noche)\b/', $n)
+            && preg_match('/\b(que (otras? )?tallas?|cuales tallas|otras tallas|de cuales (tiene|tienen|hay)|cuales (tiene|tienen|hay)|(la |una )?(talla )?mas grande|la (talla )?(que sigue|siguiente)|talla (anterior|siguiente|que sigue)|cual seria (la )?talla|cual (me )?recomienda)\b/', $n)) {
+            $this->f->poner('tallas_vistas', true);
+            $this->dgDecir(trim($hola . "Con gusto 😊 Estas son las tallas que tenemos ahora:\n\n" . implode("\n", $this->guionLineasTallas())
+                . "\n\n¿Cuánto pesa su bebé? Así le digo cuál le queda 😊"), 'peso');
+            return true;
+        }
+
         // Pregunta el precio, por promos, dice el tipo o cuántos quiere, o
         // que quiere pedir, pero sin decir la talla: con gusto, ¿qué talla?
         $tipo = Entender::tipo($texto);
@@ -605,6 +630,60 @@ trait GuionDiagrama
             return true;
         }
         return false;
+    }
+
+    /** "Me avisa cuando tenga", "estaré pendiente", "quedo a la espera". */
+    private function dgPideAviso(string $n): bool
+    {
+        if (preg_match('/\b(hora|que dia|entrega|entregan|llega|llegaria|repartidor|direccion)\b/', $n)) return false;
+
+        return (bool) preg_match('/\b(me (avisa|avisan|avise|avisaria|avisarian|habita|habitan|escribe cuando)|avisame|aviseme|avisenme|me (puede|pueden|podria|podrian) (avisar|habitar|escribir)|estare pendiente|estaremos (a la espera|pendientes?)|quedo (pendiente|a la espera)|a la espera|espero (su|el) aviso|cuando (tenga|tengan|haya|les llegue|entren?|vuelvan a tener) (me|nos) (avisa|avisan|escribe|escriben))\b/', $n);
+    }
+
+    /**
+     * El mensaje es solo de cortesía: cada palabra es "gracias", "bueno",
+     * "está bien", "entiendo", "ah", un emoji… Nada que contestar.
+     */
+    private static function dgSoloCortesia(string $n): bool
+    {
+        $n = trim(preg_replace('/[^a-z0-9ñ ]+/u', ' ', $n));
+        if ($n === '') return true;
+
+        static $ok = ['gracias', 'grasias', 'gracia', 'muchas', 'mil', 'ok', 'okey', 'oki', 'okis', 'dale', 'va', 'vaya', 'valla',
+            'baya', 'bueno', 'buena', 'bien', 'esta', 'perfecto', 'listo', 'genial', 'excelente', 'entendido', 'entiendo', 'comprendo',
+            'ah', 'aah', 'aaah', 'oh', 'ohh', 'ouh', 'ay', 'ayy', 'aja', 'si', 'claro', 'entonces', 'acuerdo', 'de', 'le', 'se', 'lo',
+            'agradezco', 'mucho', 'muy', 'amable', 'que', 'pena', 'lastima', 'ni', 'modo', 'pues', 'dios', 'mio', 'mioo', 'deos',
+            'ijole', 'chis', 'chispas', 'uy', 'uff', 'mmm', 'jaja', 'jajaja', 'ok', 'no', 'hay', 'problema', 'tranquilo', 'tranquila',
+            'igual', 'bendiciones', 'saludos', 'feliz', 'dia', 'tarde', 'noche', 'buen', 'buenas', 'y', 'a', 'usted', 'ustedes', 'por', 'favor', 'xfavor', 'porfa'];
+
+        foreach (explode(' ', preg_replace('/\s+/', ' ', $n)) as $w) {
+            if (! in_array($w, $ok, true)) return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Viendo las fotos dice que quiere esa: "de este quiero", "estos
+     * necesito", "uno de estos", "de esos", "sería esta", "uno y uno",
+     * "me interesa", "¿cómo los obtengo?". Una pregunta sobre la foto
+     * ("¿y de este tiene en M?") no cuenta.
+     */
+    private function dgEligeEste(string $texto): bool
+    {
+        $n = Entender::normalizar($texto);
+        $fuerte = '(quiero|quisiera|necesito|ocupo|interesa|interesad[oa]|enviar|enviarme|mandar|mandarme|envie|mande|obtengo|consigo|pido|compro)';
+        if (str_contains($texto, '?') && ! preg_match('/\b' . $fuerte . '\b/', $n)) return false;
+        // "¿Y cuándo va a tener? / de esos": pregunta por algo que no hay.
+        if (preg_match('/\bcuando (va|van|vaya|vayan|tendra|tendran|tenga|tengan|hay|habra|les llega|entra|entran)\b/', $n)) return false;
+        if (preg_match('/\b(tiene|tienen|hay|cuanto|cuantos|trae|traen|vienen|diferencia|igual|mismo que)\b/', $n) && ! preg_match('/\b' . $fuerte . '\b/', $n)) return false;
+
+        return (bool) preg_match('/\b(de (este|esta|estos|estas|ese|esa|esos|esas)( mism[oa]s?)?( (quiero|necesito|ocupo|seria|serian|por favor|porfa|me (manda|envia|puede)))?$'
+            . '|^(y )?(este|esta|estos|estas|ese|esa|esos|esas)( mism[oa]s?)? (quiero|necesito|ocupo|me sirve|me sirven|seria|serian|por favor|porfa|xfavor)'
+            . '|(uno|una|un paquete|dos|1|2) de (estos|estas|esos|esas|este|esta|cada uno|cada una)|uno y uno|una y una|uno de cada|una de cada'
+            . '|seria (este|esta|ese|esa|estos|estas|esos|esas)|(lo|los|la|las) (quiero|necesito)|me interesa|estoy interesad[oa]'
+            . '|como (lo|los|la|las) (obtengo|consigo|pido|compro|adquiero)|me (lo|los|la|las) (puede|podria|pueden|podrian) (enviar|mandar)'
+            . '|(este|esta|estos|estas|ese|esa|esos|esas) me (lo|los|la|las)? ?(puede|podria) (enviar|mandar))\b/', $n);
     }
 
     /** "¿Cuánto sería ya con el envío?", "con envío incluido", "total con el envío". */
@@ -1590,6 +1669,21 @@ trait GuionDiagrama
             if (($c = $this->dgCantidadEn($texto)) !== null) $f->poner('cant_pend', $c);
             $this->dgListaDeOpciones('Con gusto 😊 ¿De cuál le enviamos?', $ops);
             return;
+        }
+
+        // "De este quiero", "estos necesito", "uno de estos", "de esos": eligió.
+        // Si vio una sola, es esa. Si vio varias: en "solo asesora" te lo pasa
+        // (vos ves en el chat cuál citó); si no, se le pregunta cuál.
+        if ($this->dgEligeEste($texto)) {
+            if (count($vistas) === 1 && ($s = ProductSize::with('product')->find($vistas[0]['id']))) {
+                $this->dgElegir($s, $this->dgCantidadEn($texto));
+                return;
+            }
+            if (static::soloAsesora()) {
+                $this->cortarAntesDeLaOrden('municipio', '¡Con gusto! 😊');
+                return;
+            }
+            if ($ops) { $this->dgListaDeOpciones('Con gusto 😊 ¿De cuál le enviamos?', $ops); return; }
         }
 
         if ($this->dgSuelto($texto, 'opciones')) return;
