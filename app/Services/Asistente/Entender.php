@@ -197,7 +197,8 @@ class Entender
         $n = static::normalizar($texto);
 
         if (preg_match('/\b(talla|tallita|numero|etapa)\s*([0-9])\b(?!\s*(a|al|-)?\s*\d)/', $n, $m)) return (int) $m[2];
-        if (preg_match('/\bpampers?\b.*?\b([0-8])\b(?!\s*(a|al|-)?\s*\d)/', $n, $m)) return (int) $m[1];
+        // "pamper para niño de 1 año": el número es la edad (o el peso, o cuántos), no la talla.
+        if (preg_match('/\bpampers?\b.*?\b([0-8])\b(?!\s*(a|al|-)?\s*\d)(?!\s*(ano|anos|anito|anitos|mes|meses|dia|dias|semana|semanas|libra|libras|lb|lbs|kilo|kilos|kg|paquete|paquetes|bolsa|bolsas))/', $n, $m)) return (int) $m[1];
 
         return null;
     }
