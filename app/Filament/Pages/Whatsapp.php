@@ -435,6 +435,68 @@ class Whatsapp extends Page
         }
     }
 
+    // ── Mensajes fijados dentro del chat ────────────────────────────────────
+
+    /** ¿Ya corrió la migración de los mensajes fijados? */
+    public static function hayMensajesFijados(): bool
+    {
+        static $hay = null;
+        if ($hay !== null) return $hay;
+
+        try {
+            $hay = \Illuminate\Support\Facades\Schema::hasColumn('wa_mensajes', 'fijado_at');
+        } catch (\Throwable $e) {
+            $hay = false;
+        }
+
+        return $hay;
+    }
+
+    /**
+     * 📌 en un mensaje: lo fija arriba del chat (o lo suelta si ya estaba).
+     * Como en WhatsApp, hasta 3 por chat: al fijar el cuarto se suelta el más viejo.
+     * Solo se ve en el panel; al cliente no le cambia nada.
+     */
+    public function fijarMensaje(int $id): void
+    {
+        if (! static::hayMensajesFijados() || ! $this->abierta) return;
+
+        try {
+            $m = WaMensaje::where('conversacion_id', $this->abierta)->find($id);
+            if (! $m) return;
+
+            if ($m->fijado_at) {
+                $m->fijado_at = null;
+                $m->save();
+                return;
+            }
+
+            $fijados = WaMensaje::where('conversacion_id', $this->abierta)->whereNotNull('fijado_at')
+                ->orderBy('fijado_at')->get(['id', 'fijado_at']);
+            foreach ($fijados->slice(0, max(0, $fijados->count() - 2)) as $viejo) {
+                WaMensaje::whereKey($viejo->id)->update(['fijado_at' => null]);
+            }
+
+            $m->fijado_at = now();
+            $m->save();
+        } catch (\Throwable $e) {
+            Notification::make()->title('No se pudo fijar el mensaje')->body($e->getMessage())->danger()->send();
+        }
+    }
+
+    /** Los fijados del chat abierto, el último fijado primero. */
+    public function mensajesFijados()
+    {
+        if (! static::hayMensajesFijados() || ! $this->abierta) return collect();
+
+        try {
+            return WaMensaje::where('conversacion_id', $this->abierta)->whereNotNull('fijado_at')
+                ->orderByDesc('fijado_at')->limit(3)->get();
+        } catch (\Throwable $e) {
+            return collect();
+        }
+    }
+
     public function conversacion(): ?WaConversacion
     {
         if (! $this->abierta) return null;

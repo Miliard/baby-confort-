@@ -17,7 +17,7 @@ class WaMensaje extends Model
         'media_id', 'media_ruta', 'estado', 'error', 'user_id', 'automatico',
     ];
 
-    protected $casts = ['automatico' => 'boolean'];
+    protected $casts = ['automatico' => 'boolean', 'fijado_at' => 'datetime'];
 
     /**
      * El etiquetado automático se engancha acá y no en cada lugar que manda.

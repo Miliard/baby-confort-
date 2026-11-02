@@ -488,6 +488,16 @@
     .wa-cita{border-left:3px solid currentColor;padding:4px 0 4px 8px;margin-bottom:6px;
              font-size:12.5px;line-height:1.4;opacity:.72}
     .wa-cita-q{font-weight:800;font-size:11px;margin-bottom:2px}
+    /* Mensajes fijados: una barra arriba del chat, como en WhatsApp. */
+    .wa-fijados{border-bottom:1px solid rgba(127,127,127,.25);background:rgba(250,204,21,.10);
+        padding:4px 10px;font-size:13px;flex-shrink:0}
+    .wa-fijado{display:flex;align-items:center;gap:8px;padding:4px 2px}
+    .wa-fijado + .wa-fijado{border-top:1px dashed rgba(127,127,127,.25)}
+    .wa-fijado-txt{flex:1;min-width:0;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:4px}
+    .wa-fijado-txt:hover{background:rgba(127,127,127,.12)}
+    .wa-fijado-quien{font-weight:700;color:var(--wa-suave);margin-right:4px}
+    .wa-fijado-x{border:none;background:none;cursor:pointer;color:var(--wa-suave);font-size:14px;padding:2px 6px}
+    .wa-resp-btn.on{opacity:1}
     .wa-cita-ir{cursor:pointer;border-radius:4px}
     .wa-cita-ir:hover{background:rgba(127,127,127,.12)}
     /* El mensaje al que se llegó tocando una cita: se ilumina un momento. */
@@ -1518,6 +1528,26 @@
             @endif
 
             @if($pestana === 'chat')
+            {{-- Los mensajes fijados del chat (la dirección, lo que pidió, un
+                 acuerdo): tocar uno lleva hasta él. Solo se ven en el panel. --}}
+            @php $fijados = $this->mensajesFijados(); @endphp
+            @if($fijados->isNotEmpty())
+                <div class="wa-fijados" aria-label="Mensajes fijados">
+                    @foreach($fijados as $fm)
+                        <div class="wa-fijado" wire:key="fij-{{ $fm->id }}">
+                            <span aria-hidden="true">📌</span>
+                            <span class="wa-fijado-txt" role="button" tabindex="0" title="Ir al mensaje"
+                                  x-data
+                                  x-on:click="waIrA({{ $fm->id }}, $wire)"
+                                  x-on:keydown.enter.prevent="waIrA({{ $fm->id }}, $wire)">
+                                <span class="wa-fijado-quien">{{ $fm->esDelCliente() ? $conv->titulo() : 'Vos' }}:</span>{{ $fm->resumen(120) }}
+                            </span>
+                            <button type="button" class="wa-fijado-x" wire:click="fijarMensaje({{ $fm->id }})"
+                                    aria-label="Soltar este mensaje fijado" title="Soltar">✕</button>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
             <div class="wa-chat" data-conv="{{ $abierta }}">
                 @php $diaAnterior = null; @endphp
 
@@ -1607,6 +1637,15 @@
                                         wire:click="reusar({{ $m->id }})"
                                         aria-label="Traer este texto al cuadro para corregirlo y mandarlo de nuevo"
                                         title="Traerlo abajo para corregirlo y mandarlo de nuevo"><span aria-hidden="true">✏️</span></button>
+                            @endif
+
+                            {{-- 📌 Fijarlo arriba del chat (solo en el panel). --}}
+                            @if(\App\Filament\Pages\Whatsapp::hayMensajesFijados())
+                                <button type="button" class="wa-resp-btn {{ $m->fijado_at ? 'on' : '' }}"
+                                        wire:click="fijarMensaje({{ $m->id }})"
+                                        aria-pressed="{{ $m->fijado_at ? 'true' : 'false' }}"
+                                        aria-label="{{ $m->fijado_at ? 'Soltar' : 'Fijar arriba del chat' }} este mensaje"
+                                        title="{{ $m->fijado_at ? 'Soltar este mensaje' : 'Fijar este mensaje arriba del chat' }}"><span aria-hidden="true">📌</span></button>
                             @endif
 
                             {{-- La fecha completa en el title: la separación de
