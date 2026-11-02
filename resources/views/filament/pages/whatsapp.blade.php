@@ -1462,70 +1462,7 @@
                 </div>
             @endif
 
-            {{-- ═══ La ficha del cliente ═══
-                 El panel ya sabía la dirección y cuántas veces te compró, pero
-                 solo lo mostraba en la pestaña de pedido. Para leerlo había que
-                 salir de la conversación, mirar, y volver: dos toques y perder
-                 de vista lo que el cliente está escribiendo, decenas de veces
-                 al día.
-
-                 Va en un renglón. Lo justo para contestar "sí, a la misma
-                 dirección" sin moverse de acá; tocándolo se abre completa.
-
-                 Alpine y no Livewire: abrir y cerrar no necesita ir al
-                 servidor, y así responde en el acto. --}}
-            @php $ficha = $this->clienteConocido(); @endphp
-
-            @if($pestana === 'chat' && $ficha && (filled($ficha['direccion'] ?? null) || ($ficha['veces'] ?? 0) > 1))
-                <div class="wa-ficha" x-data="{ abierta: false }">
-                    <button type="button" class="wa-ficha-top"
-                            @click="abierta = !abierta"
-                            :aria-expanded="abierta"
-                            aria-label="Ver los datos guardados de este cliente">
-                        <span class="wa-ficha-res">
-                            @if(filled($ficha['municipio'] ?? null))
-                                <b>📍 {{ $ficha['municipio'] }}@if(filled($ficha['departamento'] ?? null)), {{ $ficha['departamento'] }}@endif</b>
-                            @elseif(filled($ficha['direccion'] ?? null))
-                                <b>📍 Tiene dirección guardada</b>
-                            @endif
-
-                            @if(($ficha['veces'] ?? 0) > 1)
-                                <span class="wa-ficha-veces">{{ $ficha['veces'] }}ª compra</span>
-                            @endif
-                        </span>
-
-                        <span class="wa-ficha-flecha" x-text="abierta ? '⌃' : '⌄'" aria-hidden="true"></span>
-                    </button>
-
-                    <div class="wa-ficha-mas" x-show="abierta" x-cloak>
-                        @if(filled($ficha['nombre'] ?? null))
-                            <div class="wa-ficha-fila">
-                                <span>Nombre</span><b>{{ $ficha['nombre'] }}</b>
-                            </div>
-                        @endif
-
-                        @if(filled($ficha['direccion'] ?? null))
-                            <div class="wa-ficha-fila">
-                                <span>Dirección</span>
-                                <b>{{ $ficha['direccion'] }}</b>
-                            </div>
-
-                            {{-- Copiar: casi siempre esto se va a pegar en la
-                                 orden de envío o en la guía. --}}
-                            <button type="button" class="wa-ficha-copiar"
-                                    data-copiar="{{ trim($ficha['direccion'] . ', ' . ($ficha['municipio'] ?? '') . ', ' . ($ficha['departamento'] ?? ''), ' ,') }}"
-                                    onclick="waCopiar(this)">
-                                📋 Copiar la dirección completa
-                            </button>
-                        @endif
-
-                        <div class="wa-ficha-ojo">
-                            Son los datos de la última entrega. Preguntale si siguen buenos
-                            antes de mandar.
-                        </div>
-                    </div>
-                </div>
-            @endif
+            {{-- La ficha del cliente (📍 municipio · Nª compra) se quitó: Wil no la usaba. --}}
 
             @if($pestana === 'chat')
             {{-- Los mensajes fijados del chat (la dirección, lo que pidió, un
