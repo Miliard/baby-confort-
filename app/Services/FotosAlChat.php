@@ -215,15 +215,21 @@ class FotosAlChat
         $buenos = ['enviado', 'entregado', 'leido'];
 
         try {
+            // Siempre en el chat de ESTE cliente. Antes el 1 y el 3 buscaban en
+            // cualquier chat: si la foto había salido a otro número (un dígito
+            // mal leído, o el teléfono de quien recibe), decía "enviada" aunque
+            // este cliente nunca la tuvo.
+            $conv = static::conversacionDe((string) GuiaFoto::telefonoCorto($foto->telefono));
+            if (! $conv) return null;
+
             // 1. El vinculado. "enviando" cuenta: es un envío de hace segundos
             //    que todavía no tuvo respuesta, y reintentarlo sería repetirlo.
             if ($foto->chat_mensaje_id) {
                 $m = \App\Models\WaMensaje::find($foto->chat_mensaje_id);
 
-                if ($m && in_array($m->estado, [...$buenos, 'enviando'], true)) return $m;
+                if ($m && (int) $m->conversacion_id === (int) $conv->id
+                    && in_array($m->estado, [...$buenos, 'enviando'], true)) return $m;
             }
-
-            $conv = static::conversacionDe((string) GuiaFoto::telefonoCorto($foto->telefono));
 
             // 2. Por el número de guía en el pie.
             if (filled($foto->guia) && $conv) {
@@ -240,7 +246,8 @@ class FotosAlChat
 
             // 3. Por la dirección del archivo.
             if ($foto->url()) {
-                return \App\Models\WaMensaje::where('direccion', 'saliente')
+                return \App\Models\WaMensaje::where('conversacion_id', $conv->id)
+                    ->where('direccion', 'saliente')
                     ->where('tipo', 'image')
                     ->whereIn('estado', $buenos)
                     ->where('media_ruta', url($foto->url()))
