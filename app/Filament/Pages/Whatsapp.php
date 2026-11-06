@@ -2282,10 +2282,11 @@ class Whatsapp extends Page
     /** Lo que ya sabemos de quien está escribiendo. */
     private function cargarDatosDelCliente(WaConversacion $conv): void
     {
-        // Desde un número de afuera, vacío: los últimos 8 de un +1 no son un
-        // teléfono de acá, y la guía necesita el de quien recibe en El Salvador,
-        // que viene en la orden.
-        $this->pedTelefono = $conv->esExtranjero() ? '' : ($conv->telefono ?: '');
+        // Desde un número de afuera (+1 281 707 6729): ese mismo, completo. Es
+        // el WhatsApp del cliente. Si alguien recibe acá, va en el otro campo.
+        $this->pedTelefono = $conv->esExtranjero()
+            ? WaConversacion::internacional((string) $conv->wa_id)
+            : ($conv->telefono ?: '');
         // El nombre del perfil de WhatsApp no sirve para la guía: en blanco
         // hasta que salga de la orden o de la libreta.
         $this->pedNombre   = '';

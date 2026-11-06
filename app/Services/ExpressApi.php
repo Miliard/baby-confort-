@@ -249,6 +249,8 @@ class ExpressApi
         $telContacto = trim((string) ($g['telefono_recibe'] ?? '')) !== '' ? $g['telefono_recibe'] : ($g['telefono'] ?? '');
         $tel = preg_replace('/\D/', '', (string) $telContacto);
         if (strlen($tel) === 11 && str_starts_with($tel, '503')) $tel = substr($tel, 3);
+        // De otro país (sin nadie que reciba acá): con su código, "+12817076729".
+        if (strlen($tel) > 8) $tel = '+' . (strlen($tel) === 10 ? '1' . $tel : $tel);
 
         $cobrar = round((float) ($g['cobrar'] ?? 0), 2);
 

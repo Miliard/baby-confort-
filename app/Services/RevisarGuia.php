@@ -61,8 +61,10 @@ class RevisarGuia
         if ($tel === '') {
             $avisos[] = ['nivel' => 'error', 'texto' => 'No tiene teléfono'];
         } elseif ($extranjero) {
+            // Se puede mandar así: el repartidor le escribe a ese WhatsApp. Solo
+            // se avisa, por si hay alguien que reciba acá con número local.
             if (! $recibeBien) {
-                $avisos[] = ['nivel' => 'error', 'texto' => 'El teléfono es de otro país: ponga el de quien recibe en El Salvador (8 dígitos)'];
+                $avisos[] = ['nivel' => 'ojo', 'texto' => 'Teléfono de otro país: el repartidor tendría que escribirle por WhatsApp. Si recibe alguien acá, ponga su número'];
             }
         } else {
             $ocho = strlen($tel) >= 8 ? substr($tel, -8) : $tel;
