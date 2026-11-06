@@ -56,8 +56,15 @@ class SistrackExcel
         if (strlen($d) === 11 && str_starts_with($d, '503')) {
             $d = substr($d, 3);
         }
-        // Formato salvadoreño: 4 dígitos, espacio, 4 dígitos.
-        $tel = strlen($d) === 8 ? substr($d, 0, 4) . ' ' . substr($d, 4) : $d;
+        // Formato salvadoreño: 4 dígitos, espacio, 4 dígitos. De otro país va con
+        // su código: "+1 281 707 6729" (EE. UU.) o "+" y los dígitos.
+        $tel = match (true) {
+            strlen($d) === 8                                 => substr($d, 0, 4) . ' ' . substr($d, 4),
+            strlen($d) === 11 && str_starts_with($d, '1')    => '+1 ' . substr($d, 1, 3) . ' ' . substr($d, 4, 3) . ' ' . substr($d, 7),
+            strlen($d) === 10                                => '+1 ' . substr($d, 0, 3) . ' ' . substr($d, 3, 3) . ' ' . substr($d, 6),
+            strlen($d) > 8                                   => '+' . $d,
+            default                                          => $d,
+        };
 
         $nom = trim((string) $nombre);
 

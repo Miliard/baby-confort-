@@ -50,8 +50,20 @@ class RevisarGuia
         }
 
         // ── Teléfono ─────────────────────────────────────────────────────────
+        $recibe = preg_replace('/\D/', '', (string) ($g['telefono_recibe'] ?? ''));
+        if (strlen($recibe) === 11 && str_starts_with($recibe, '503')) $recibe = substr($recibe, 3);
+        $recibeBien = strlen($recibe) === 8 && in_array($recibe[0], ['2', '6', '7'], true);
+
+        // Cliente de otro país (EE. UU., +1 281 707 6729): su número se guarda
+        // tal cual. Lo que necesita el repartidor es el de quien recibe acá.
+        $extranjero = strlen($tel) >= 10 && ! (strlen($tel) === 11 && str_starts_with($tel, '503'));
+
         if ($tel === '') {
             $avisos[] = ['nivel' => 'error', 'texto' => 'No tiene teléfono'];
+        } elseif ($extranjero) {
+            if (! $recibeBien) {
+                $avisos[] = ['nivel' => 'error', 'texto' => 'El teléfono es de otro país: ponga el de quien recibe en El Salvador (8 dígitos)'];
+            }
         } else {
             $ocho = strlen($tel) >= 8 ? substr($tel, -8) : $tel;
 
@@ -61,6 +73,11 @@ class RevisarGuia
                 // En El Salvador todos empiezan con 2, 6 o 7.
                 $avisos[] = ['nivel' => 'error', 'texto' => "El teléfono empieza con {$ocho[0]}, y acá no existen esos números"];
             }
+        }
+
+        // El de quien recibe, si lo pusieron, también tiene que ser de acá.
+        if ($recibe !== '' && ! $recibeBien) {
+            $avisos[] = ['nivel' => 'error', 'texto' => 'El teléfono de quien recibe no es un número de El Salvador (8 dígitos)'];
         }
 
         // ── Municipio y departamento ─────────────────────────────────────────
