@@ -515,9 +515,14 @@ trait GuionDiagrama
     private function dgAnotarTipo(string $texto): void
     {
         $tipo = Entender::tipo($texto);
-        if (in_array($tipo, ['cinta', 'calzoncito'], true)) $this->f->poner('tipo_pedido', $tipo);
-        if (preg_match('/\bnoche|nocturn/', Entender::normalizar($texto))) $this->f->poner('noche_pedido', true);
-        if ($p = $this->dgProductoNombrado($texto)) $this->f->poner('producto_pedido', $p);
+        $algo = false;
+        if (in_array($tipo, ['cinta', 'calzoncito'], true)) { $this->f->poner('tipo_pedido', $tipo); $algo = true; }
+        // "Buenas noches" es un saludo, no un pañal de noche.
+        $sinSaludo = preg_replace('/\b(buenas|buena|feliz|linda|bonita|bendecida) noches?\b/', ' ', Entender::normalizar($texto));
+        if (preg_match('/\bnoche|nocturn/', $sinSaludo)) { $this->f->poner('noche_pedido', true); $algo = true; }
+        if ($p = $this->dgProductoNombrado($texto)) { $this->f->poner('producto_pedido', $p); $algo = true; }
+        // En qué turno lo pidió: si fue hace rato, ya no se le dice "eso no hay".
+        if ($algo) $this->f->poner('pedido_en', count((array) $this->f->dato('turnos', [])));
     }
 
     /** "Jumbo", "Magic", "Comfy": la palabra que distingue a un producto, si la nombró. */
@@ -746,6 +751,14 @@ trait GuionDiagrama
             return;
         }
         $this->dgTalla($texto, '');
+    }
+
+    /** "Yo le aviso", "le escribo más tarde", "lo voy a pensar": se despide sin elegir. */
+    private function dgDespide(string $n): bool
+    {
+        if (preg_match('/\b(quiero|mandeme|envieme|me (manda|envia|los manda|lo manda)|\d+ paquetes?|de una vez)\b/', $n)) return false;
+
+        return (bool) preg_match('/\b((yo )?(le|les) (aviso|escribo|confirmo|digo)|lo (voy a )?pienso|lo pensare|voy a pensarlo|lo voy a pensar|despues (le|les) (escribo|aviso|confirmo)|mas tarde (le|les)|luego (le|les) (escribo|aviso)|si (lo|los|la|las) voy a querer|cualquier cosa (le|les) (aviso|escribo))\b/', $n);
     }
 
     /** "Me avisa cuando tenga", "estaré pendiente", "quedo a la espera". */
@@ -1520,7 +1533,9 @@ trait GuionDiagrama
         $tipoPed = (string) $f->dato('tipo_pedido', '');
         $nochePed = (bool) $f->dato('noche_pedido');
         $prodPed = (string) $f->dato('producto_pedido', '');
-        $f->quitar('tipo_pedido', 'noche_pedido', 'producto_pedido');
+        // ¿Lo pidió en este mensaje o en el anterior? (si fue hace rato, no se le dice "eso no hay")
+        $reciente = count((array) $f->dato('turnos', [])) - (int) $f->dato('pedido_en', -99) <= 1;
+        $f->quitar('tipo_pedido', 'noche_pedido', 'producto_pedido', 'pedido_en');
 
         foreach ($tallas as $t) {
             $primeraDeTalla = true;
@@ -1533,7 +1548,20 @@ trait GuionDiagrama
                     if ($nochePed && ! preg_match('/noche|nocturn/iu', $nom)) return false;
                     return true;
                 })->values();
-                if ($suyas->isNotEmpty()) $lista = $suyas;
+                if ($suyas->isNotEmpty()) {
+                    $lista = $suyas;
+                } else {
+                    // Lo que pidió ("calzoncito de noche") no hay en esta talla:
+                    // se le dice antes de las fotos, en vez de mostrarle otra cosa
+                    // como si fuera lo que pidió. Y queda en Agotados.
+                    $que = trim(($prodPed !== '' ? ucfirst($prodPed) . ' ' : '')
+                        . ($tipoPed !== '' ? 'de ' . $tipoPed : '') . ($nochePed ? ' de noche' : ''));
+                    if ($que !== '' && $reciente) {
+                        $this->marcarAgotado();
+                        $antes = trim($antes . ' En talla *' . $this->bonita($t) . '* en este momento no tenemos ' . $que
+                            . " 😔 Apenas entre le avisamos por aquí.\n\nEsto es lo que tenemos en esa talla 👇");
+                    }
+                }
             }
             // Si hay más de las que se mandan, que no falte ningún tipo (cinta,
             // calzoncito, de día, de noche): antes salían solo las primeras y
@@ -1612,6 +1640,14 @@ trait GuionDiagrama
             if ($s && in_array(mb_strtoupper(trim((string) $s->size)), $faltan, true)) {
                 $vistas[] = ['id' => (string) $s->id, 'nombre' => trim((string) $s->product->name), 'unidades' => (int) $s->unidades, 'precio' => (float) $s->price];
             }
+        }
+
+        // "Ok, yo le aviso si los voy a querer", "lo voy a pensar": se despide,
+        // NO eligió (el "ok" del principio no es un sí). Nada que contestar.
+        if ($this->dgDespide(Entender::normalizar($texto))) {
+            if ($f->dato('sin_talla')) $this->marcarAgotado();
+            $f->quitar('citada');
+            return;
         }
 
         // ¿Eligió una? (por número, por nombre, o respondiendo a la foto)
