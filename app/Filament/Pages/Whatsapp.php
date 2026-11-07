@@ -757,6 +757,9 @@ class Whatsapp extends Page
     {
         $this->respondiendo = $id;
         $this->pestana = 'chat';
+
+        // El cursor al cuadro de escribir (lo agarra el JS de la página).
+        $this->dispatch('wa-enfocar');
     }
 
     public function cancelarRespuesta(): void
@@ -786,6 +789,9 @@ class Whatsapp extends Page
 
             $this->pestana = 'chat';
             $this->abrirCajaSiHaceFalta($this->texto);
+
+            // Listo para corregir: el cursor al final del texto traído.
+            $this->dispatch('wa-enfocar');
         } catch (\Throwable $e) {
         }
     }

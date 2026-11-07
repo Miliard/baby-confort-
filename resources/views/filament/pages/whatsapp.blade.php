@@ -1551,8 +1551,12 @@
                             @php $deQuien = $m->esDelCliente() ? 'del cliente' : 'tuyo'; @endphp
 
                             @if(filled($m->wa_message_id))
+                                {{-- Al tocarlo, el cursor queda listo en el cuadro de
+                                     escribir: en el mismo toque (así el teléfono
+                                     abre el teclado) y otra vez al redibujar. --}}
                                 <button type="button" class="wa-resp-btn"
                                         wire:click="responderA({{ $m->id }})"
+                                        onclick="window.waEnfocar && window.waEnfocar()"
                                         aria-label="Responder a este mensaje {{ $deQuien }} de las {{ $m->hora() }}"
                                         title="Responder a este mensaje"><span aria-hidden="true">↩</span></button>
                             @endif
@@ -3050,6 +3054,22 @@
         function elCuadro() {
             return document.querySelector('.wa-escribir');
         }
+
+        // ↩ Responder: el cursor al final del cuadro de escribir, sin tener que
+        // tocarlo. Se llama en el toque y otra vez cuando el servidor contesta
+        // (la cita aparece arriba del cuadro y Livewire lo redibuja).
+        window.waEnfocar = function () {
+            var t = elCuadro();
+            if (!t) return;
+            try {
+                t.focus({ preventScroll: true });
+                var n = t.value.length;
+                t.setSelectionRange(n, n);
+            } catch (e) {}
+        };
+        window.addEventListener('wa-enfocar', function () {
+            setTimeout(window.waEnfocar, 60);
+        });
 
         document.addEventListener('input', function (e) {
             if (e.target && e.target.classList.contains('wa-escribir')) medirYAplicar(e.target);
