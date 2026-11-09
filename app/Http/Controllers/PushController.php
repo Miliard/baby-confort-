@@ -63,14 +63,34 @@ class PushController extends Controller
      */
     public function sinLeer()
     {
+        $n = 0;
+        $ultimo = null;
+
         try {
-            $n = WaConversacion::hayTabla()
-                ? WaConversacion::where('sin_leer', '>', 0)->where('archivada', false)->count()
-                : 0;
+            if (WaConversacion::hayTabla()) {
+                $n = WaConversacion::where('sin_leer', '>', 0)->where('archivada', false)->count();
+
+                // Quién escribió de último: el aviso dice su nombre y lo que
+                // escribió, y al tocarlo se abre ese chat.
+                $c = WaConversacion::where('sin_leer', '>', 0)->where('archivada', false)
+                    ->orderByDesc('ultimo_mensaje_at')->first();
+
+                if ($c) {
+                    $tel = $c->telefonoLegible();
+                    // El nombre que le pusiste; si no, el de su perfil de WhatsApp.
+                    $nom = $c->nombrePropio() ? trim((string) $c->alias) : trim((string) $c->nombre);
+                    $texto = trim((string) $c->ultimo_texto);
+
+                    $ultimo = [
+                        'id'     => $c->id,
+                        'nombre' => $nom !== '' && $nom !== $tel ? $nom . ' · ' . $tel : $tel,
+                        'texto'  => $texto !== '' ? mb_substr($texto, 0, 140) : 'Mensaje nuevo',
+                    ];
+                }
+            }
         } catch (\Throwable $e) {
-            $n = 0;
         }
 
-        return response()->json(['sin_leer' => $n]);
+        return response()->json(['sin_leer' => $n, 'ultimo' => $ultimo]);
     }
 }

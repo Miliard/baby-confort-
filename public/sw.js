@@ -6,7 +6,7 @@
  *
  * Los avisos llegan vacíos a propósito: el contenido no viaja por los
  * servidores de Google. Cuando llega uno, este archivo le pregunta al panel
- * cuántos mensajes hay sin leer y recién ahí arma el texto.
+ * cuántos mensajes hay sin leer y quién escribió, y recién ahí arma el texto.
  */
 
 self.addEventListener('install', function (e) {
@@ -24,23 +24,26 @@ self.addEventListener('push', function (e) {
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
                 var n = (d && d.sin_leer) ? d.sin_leer : 0;
+                var u = d && d.ultimo;
 
-                // Sin pendientes: alguien ya lo atendió entre el aviso y esto.
-                // Igual hay que mostrar algo, porque el navegador obliga.
-                var cuerpo = n === 1
-                    ? 'Tenés 1 conversación sin leer'
-                    : (n > 1
-                        ? 'Tenés ' + n + ' conversaciones sin leer'
-                        : 'Entró un mensaje nuevo');
+                // Arriba quién escribió (el nombre que le pusiste o el de su
+                // WhatsApp, y el número); abajo lo que escribió. Si hay más
+                // chats esperando, se dice cuántos.
+                var titulo = u && u.nombre ? u.nombre : 'Baby-Confort · mensajes';
+                var cuerpo = u && u.texto
+                    ? u.texto + (n > 1 ? '\n(+' + (n - 1) + ' chat' + (n - 1 === 1 ? '' : 's') + ' más sin leer)' : '')
+                    : (n === 1 ? 'Tenés 1 conversación sin leer'
+                        : (n > 1 ? 'Tenés ' + n + ' conversaciones sin leer' : 'Entró un mensaje nuevo'));
 
-                return self.registration.showNotification('Baby-Confort · mensajes', {
+                return self.registration.showNotification(titulo, {
                     body: cuerpo,
                     icon: '/favicon-192.png',
                     badge: '/favicon-32.png',
                     tag: 'baby-confort-wa',   // uno solo, no veinte apilados
                     renotify: true,
                     vibrate: [180, 80, 180],
-                    data: { url: '/chat/whatsapp' }
+                    // Al tocarlo se abre ESE chat.
+                    data: { url: u && u.id ? '/chat/whatsapp?chat=' + u.id : '/chat/whatsapp' }
                 });
             })
             .catch(function () {
@@ -66,7 +69,13 @@ self.addEventListener('notificationclick', function (e) {
                 // en lugar de abrir una nueva encima.
                 for (var i = 0; i < lista.length; i++) {
                     if (lista[i].url.indexOf('/chat') !== -1 && 'focus' in lista[i]) {
-                        return lista[i].focus();
+                        // Ya abierto: se trae al frente y se lleva a ese chat.
+                        var w = lista[i];
+                        return w.focus().then(function (c) {
+                            var cl = c || w;
+                            if (destino.indexOf('chat=') !== -1 && 'navigate' in cl) return cl.navigate(destino);
+                            return cl;
+                        });
                     }
                 }
 
