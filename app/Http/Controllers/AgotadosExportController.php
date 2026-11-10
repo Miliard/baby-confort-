@@ -50,6 +50,12 @@ class AgotadosExportController extends Controller
         $filas = $this->filas($dias, $zona);
         $e = fn ($t) => htmlspecialchars((string) $t, ENT_QUOTES, 'UTF-8');
 
+        // Primero los que preguntaron más veces (y, entre ellos, los más
+        // recientes): los envíos salen en ese orden, así la primera tanda va
+        // para los que más esperan.
+        usort($filas, fn ($a, $b) => [$b['veces'], $b['fecha']?->timestamp ?? 0] <=> [$a['veces'], $a['fecha']?->timestamp ?? 0]);
+        $repetidos = count(array_filter($filas, fn ($f) => $f['veces'] > 1));
+
         $cfg     = (array) config('asistente.plantilla_aviso', []);
         $nombre  = $e($cfg['nombre'] ?? 'aviso_disponibles');
         $idioma  = $e($cfg['idioma'] ?? 'es');
@@ -67,9 +73,11 @@ class AgotadosExportController extends Controller
             foreach ($tallas as $t) $porTalla[$t] = ($porTalla[$t] ?? 0) + 1;
 
             $ya = $f['avisado'] ? 'avisado el ' . $f['avisado']->format('d/m H:i') : '';
-            $filasHtml .= '<tr class="' . ($ya ? 'ya' : '') . '" data-tallas="' . $e('|' . implode('|', $tallas) . '|') . '">'
+            $vecesTxt = $f['veces'] > 1 ? '<b>' . $f['veces'] . ' veces</b>' . ($f['veces'] >= 3 ? ' 🔥' : '') : '1 vez';
+            $filasHtml .= '<tr class="' . ($ya ? 'ya' : '') . '" data-veces="' . (int) $f['veces'] . '" data-tallas="' . $e('|' . implode('|', $tallas) . '|') . '">'
                 . '<td><input type="checkbox" class="fila" value="' . $f['conv_id'] . '"' . ($ya ? '' : ' checked') . '></td>'
                 . '<td><b>' . $e($f['nombre'] ?: '—') . '</b><br><a href="' . $e($f['enlace']) . '" target="_blank">' . $e($f['telefono']) . '</a></td>'
+                . '<td>' . $vecesTxt . '</td>'
                 . '<td>' . $e($f['pidio'] ?: '—') . ($f['ya'] ? '<br><small>ya pidió después</small>' : '') . '</td>'
                 . '<td class="estado">' . $e($ya) . '</td>'
                 . '</tr>';
@@ -107,7 +115,9 @@ class AgotadosExportController extends Controller
 <h1>📣 Avisar a agotados</h1>
 <div>{$total} clientes de los últimos {$dias} días. Los que ya recibieron el aviso (últimos 30 días) salen en gris y sin marcar.</div>
 
-<div class="caja"><b>1. Tallas que llegaron</b> (desmarcá las que no entraron):<br>{$chips}</div>
+<div class="caja"><b>1. Tallas que llegaron</b> (desmarcá las que no entraron):<br>{$chips}
+  <div style="margin-top:8px"><label class="chip" style="background:#fff7ed;border-color:#f59e0b"><input type="checkbox" id="prioridad"> 🔥 Solo los que preguntaron más de una vez ({$repetidos})</label>
+  <span style="color:#555">· La lista ya va con ellos primero: la primera tanda sale para los que más esperan.</span></div></div>
 
 <div class="caja"><b>2. Plantilla</b> (tiene que estar <b>aprobada</b> en WhatsApp Manager)<br>
   Nombre: <input type="text" id="nombre" value="{$nombre}" style="width:220px"> Idioma: <input type="text" id="idioma" value="{$idioma}" style="width:60px"><br><br>
@@ -118,7 +128,7 @@ class AgotadosExportController extends Controller
   <div style="color:#555;margin-top:6px">Se manda de a 10. No cierres esta pestaña hasta que termine. Si algo falla, se detiene y te dice por qué.</div></div>
 
 <table>
-<thead><tr><th><input type="checkbox" id="todos" checked></th><th>Cliente</th><th>Lo que pidió</th><th>Aviso</th></tr></thead>
+<thead><tr><th><input type="checkbox" id="todos" checked></th><th>Cliente</th><th>Preguntó</th><th>Lo que pidió</th><th>Aviso</th></tr></thead>
 <tbody>{$filasHtml}</tbody>
 </table>
 
@@ -128,7 +138,8 @@ const filas = () => [...document.querySelectorAll('tbody tr')];
 function aplicarTallas() {
   const on = [...document.querySelectorAll('.talla:checked')].map(c => '|' + c.value + '|');
   filas().forEach(tr => {
-    const sirve = on.some(t => tr.dataset.tallas.includes(t));
+    const prio = document.getElementById('prioridad').checked;
+    const sirve = on.some(t => tr.dataset.tallas.includes(t)) && (!prio || Number(tr.dataset.veces) > 1);
     tr.classList.toggle('oculta', !sirve);
   });
   contar();
@@ -141,6 +152,7 @@ function contar() {
   document.getElementById('enviar').textContent = 'Enviar a ' + n + ' clientes (≈ $' + (n * PRECIO).toFixed(2) + ')';
 }
 document.querySelectorAll('.talla').forEach(c => c.addEventListener('change', aplicarTallas));
+document.getElementById('prioridad').addEventListener('change', aplicarTallas);
 document.querySelectorAll('.fila').forEach(c => c.addEventListener('change', contar));
 document.getElementById('todos').addEventListener('change', e => {
   filas().filter(tr => !tr.classList.contains('oculta') && !tr.classList.contains('ya')).forEach(tr => tr.querySelector('.fila').checked = e.target.checked);
@@ -276,7 +288,12 @@ HTML;
                 $msjs = $porConv->get($conv->id) ?? collect();
 
                 // El último "agotado" que se le dijo.
-                $aviso = $msjs->filter(fn ($m) => $m->direccion === 'saliente' && Etiquetado::diceAgotado($m->texto))->last();
+                $agotados = $msjs->filter(fn ($m) => $m->direccion === 'saliente' && Etiquetado::diceAgotado($m->texto));
+                $aviso = $agotados->last();
+
+                // Cuántas veces preguntó: los días distintos en que se le dijo
+                // que no había. El que volvió a preguntar es el que más lo quiere.
+                $veces = max(1, $agotados->map(fn ($m) => $m->created_at?->timezone($zona)->toDateString())->filter()->unique()->count());
 
                 // Con la etiqueta pero sin el mensaje en el período: igual sale,
                 // con lo último que escribió.
@@ -303,6 +320,7 @@ HTML;
 
                 $filas[] = [
                     'conv_id'  => (int) $conv->id,
+                    'veces'    => $veces,
                     'avisado'  => $avisado ? \Illuminate\Support\Carbon::parse($avisado)->timezone($zona) : null,
                     'fecha'    => $aviso ? $aviso->created_at->timezone($zona) : ($msjs->last()?->created_at?->timezone($zona)),
                     'nombre'   => $conv->comoSeLlama() ?: (string) $conv->nombre,
