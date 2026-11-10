@@ -293,7 +293,13 @@ HTML;
 
                 // Cuántas veces preguntó: los días distintos en que se le dijo
                 // que no había. El que volvió a preguntar es el que más lo quiere.
-                $veces = max(1, $agotados->map(fn ($m) => $m->created_at?->timezone($zona)->toDateString())->filter()->unique()->count());
+                // También cuentan los días en que el cliente volvió a preguntar
+                // ("¿ya les entró?", "¿aún no tienen?") aunque la respuesta no
+                // dijera "agotado" (p. ej. "todavía no").
+                $pregunto = $msjs->filter(fn ($m) => $m->direccion === 'entrante' && filled($m->texto)
+                    && preg_match('/\b(ya (les |le )?(entr|lleg|vin|trajer|ingres)\w*|ya (tiene|tienen|hay|dispone)|a[uú]n no (le |les )?(tiene|tienen|hay|han|an)|todav[ií]a no (le |les )?(tiene|tienen|hay|han|an)|cu[aá]ndo (van a tener|tendr[aá]n?|les llega|entran|ingresan|vienen))\b/iu', (string) $m->texto));
+                $veces = max(1, $agotados->merge($pregunto)
+                    ->map(fn ($m) => $m->created_at?->timezone($zona)->toDateString())->filter()->unique()->count());
 
                 // Con la etiqueta pero sin el mensaje en el período: igual sale,
                 // con lo último que escribió.
