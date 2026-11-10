@@ -103,6 +103,7 @@ class AgotadosExportController extends Controller
   #progreso{font-weight:bold;margin-left:10px}
 </style></head>
 <body>
+<div style="margin-bottom:8px"><a href="/chat/whatsapp">← Volver al chat</a></div>
 <h1>📣 Avisar a agotados</h1>
 <div>{$total} clientes de los últimos {$dias} días. Los que ya recibieron el aviso (últimos 30 días) salen en gris y sin marcar.</div>
 
@@ -254,12 +255,25 @@ HTML;
         // 2. Una fila por conversación.
         $filas = [];
 
-        foreach (array_chunk(array_keys($ids), 200) as $lote) {
+        // Por tandas de 100 chats: los mensajes y los avisos ya mandados se
+        // traen de una sola vez por tanda, no uno por uno (con 400 chats eran
+        // 800 consultas y la página tardaba tanto que parecía que no abría).
+        foreach (array_chunk(array_keys($ids), 100) as $lote) {
+            $porConv = WaMensaje::whereIn('conversacion_id', $lote)
+                ->where('created_at', '>=', $desde)
+                ->orderBy('id')
+                ->get(['id', 'conversacion_id', 'direccion', 'tipo', 'texto', 'created_at'])
+                ->groupBy('conversacion_id');
+
+            $avisados = WaMensaje::whereIn('conversacion_id', $lote)
+                ->where('tipo', 'template')->where('estado', '!=', 'fallido')
+                ->where('created_at', '>=', now()->subDays(30))
+                ->groupBy('conversacion_id')
+                ->selectRaw('conversacion_id, MAX(created_at) AS ultimo')
+                ->pluck('ultimo', 'conversacion_id');
+
             foreach (WaConversacion::whereIn('id', $lote)->get() as $conv) {
-                $msjs = WaMensaje::where('conversacion_id', $conv->id)
-                    ->where('created_at', '>=', $desde)
-                    ->orderBy('id')
-                    ->get(['id', 'direccion', 'tipo', 'texto', 'created_at']);
+                $msjs = $porConv->get($conv->id) ?? collect();
 
                 // El último "agotado" que se le dijo.
                 $aviso = $msjs->filter(fn ($m) => $m->direccion === 'saliente' && Etiquetado::diceAgotado($m->texto))->last();
@@ -285,10 +299,7 @@ HTML;
                 $tel = $conv->esExtranjero() ? $conv->telefonoLegible() : preg_replace('/\D/', '', (string) $conv->telefono ?: substr((string) $conv->wa_id, -8));
 
                 // ¿Ya se le mandó la plantilla de "ya llegó"?
-                $avisado = WaMensaje::where('conversacion_id', $conv->id)
-                    ->where('tipo', 'template')->where('estado', '!=', 'fallido')
-                    ->where('created_at', '>=', now()->subDays(30))
-                    ->max('created_at');
+                $avisado = $avisados[$conv->id] ?? null;
 
                 $filas[] = [
                     'conv_id'  => (int) $conv->id,

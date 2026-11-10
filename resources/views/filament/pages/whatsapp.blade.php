@@ -1172,9 +1172,11 @@
                     📋 Agotados
                 </a>
                 {{-- Mandarles la plantilla de "ya llegó" de un solo botón. --}}
+                {{-- En la misma pestaña: en el teléfono (app instalada) una pestaña
+                     nueva a veces no se abría y parecía que el botón no hacía nada. --}}
                 <a href="{{ route('agotados.avisar') }}" class="wa-fil"
                    style="--c:#16a34a;text-decoration:none"
-                   target="_blank" rel="noopener"
+                   onclick="this.textContent='⏳ Cargando lista…'"
                    title="Mandar la plantilla de 'ya llegó' a los clientes de agotados">
                     📣 Avisar
                 </a>
