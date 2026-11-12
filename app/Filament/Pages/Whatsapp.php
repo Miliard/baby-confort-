@@ -390,11 +390,7 @@ class Whatsapp extends Page
 
         if ($hay !== null) return $hay;
 
-        try {
-            $hay = \Illuminate\Support\Facades\Schema::hasColumn('wa_conversaciones', 'fijada_at');
-        } catch (\Throwable $e) {
-            $hay = false;
-        }
+        $hay = \App\Models\WaConversacion::columnaExiste('wa_conversaciones', 'fijada_at');
 
         return $hay;
     }
@@ -443,11 +439,7 @@ class Whatsapp extends Page
         static $hay = null;
         if ($hay !== null) return $hay;
 
-        try {
-            $hay = \Illuminate\Support\Facades\Schema::hasColumn('wa_mensajes', 'fijado_at');
-        } catch (\Throwable $e) {
-            $hay = false;
-        }
+        $hay = \App\Models\WaConversacion::columnaExiste('wa_mensajes', 'fijado_at');
 
         return $hay;
     }
@@ -527,6 +519,7 @@ class Whatsapp extends Page
             } else {
                 $conv->etiquetas()->attach($id);
             }
+            \Illuminate\Support\Facades\Cache::forget('wa:cuenta_etiquetas');
         } catch (\Throwable $e) {
             Notification::make()
                 ->title('No se pudo cambiar la etiqueta')
@@ -544,17 +537,48 @@ class Whatsapp extends Page
     /** Cuántas conversaciones hay en cada etiqueta, para el contador. */
     public function cuentaEtiquetas(): array
     {
+        // Se cuentan una vez por minuto, no en cada redibujado: con 400 chats
+        // en una etiqueta, contarlos cada vez que entra un mensaje era de lo
+        // más pesado. Al poner o quitar una etiqueta a mano se recuentan ya.
         try {
-            return \App\Models\WaEtiqueta::withCount(['conversaciones' => fn ($q) =>
-                $q->where('archivada', false)
-            ])->pluck('conversaciones_count', 'id')->all();
+            return \Illuminate\Support\Facades\Cache::remember('wa:cuenta_etiquetas', 60, fn () =>
+                \App\Models\WaEtiqueta::withCount(['conversaciones' => fn ($q) =>
+                    $q->where('archivada', false)
+                ])->pluck('conversaciones_count', 'id')->all()
+            );
         } catch (\Throwable $e) {
             return [];
         }
     }
 
-    /** Cuántos mensajes se muestran del chat abierto (los más nuevos). */
-    public int $limiteMensajes = 200;
+    /**
+     * Cuántos mensajes se muestran del chat abierto (los más nuevos).
+     *
+     * Eran 200: cada vez que entraba un mensaje en CUALQUIER chat, el panel
+     * redibujaba los 200 globos del abierto, y eso es lo que se sentía pesado.
+     * Con 50 alcanza para leer la conversación; los de antes, con el botón
+     * "Ver mensajes anteriores" (o tocando una cita vieja).
+     */
+    public int $limiteMensajes = 50;
+
+    /** "⬆️ Ver mensajes anteriores": 100 más, y la pantalla se queda donde estaba. */
+    public function verAnteriores(int $primero = 0): void
+    {
+        $this->limiteMensajes = min(3000, $this->limiteMensajes + 100);
+        if ($primero) $this->dispatch('wa-quedarse', id: $primero);
+    }
+
+    /** ¿Hay mensajes más viejos que los que se están mostrando? */
+    public function hayAnteriores(int $mostrados): bool
+    {
+        if (! $this->abierta || $mostrados < $this->limiteMensajes) return false;
+
+        try {
+            return WaMensaje::where('conversacion_id', $this->abierta)->count() > $mostrados;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
 
     /**
      * Tocó una cita de un mensaje viejo que no está entre los cargados: se
@@ -587,7 +611,7 @@ class Whatsapp extends Page
             return WaMensaje::with('agente')
                 ->where('conversacion_id', $this->abierta)
                 ->orderByDesc('id')
-                ->limit(max(200, $this->limiteMensajes))
+                ->limit(max(50, $this->limiteMensajes))
                 ->get()
                 ->reverse()
                 ->values();
@@ -679,7 +703,7 @@ class Whatsapp extends Page
     public function abrir(int $id): void
     {
         $this->abierta = $id;
-        $this->limiteMensajes = 200;
+        $this->limiteMensajes = 50;
         $this->texto = '';
         $this->pestana = 'chat';
 
@@ -1715,9 +1739,12 @@ class Whatsapp extends Page
 
         // Guías armadas a las que nunca se les mandó el enlace de rastreo.
         try {
-            if (\Illuminate\Support\Facades\Schema::hasTable('guias_borrador')) {
-                $p['sin_enlace'] = \App\Models\GuiaBorrador::whereNull('enviado_at')->count();
-            }
+            // Cada 30 segundos basta: es un aviso, no un contador en vivo.
+            $p['sin_enlace'] = (int) \Illuminate\Support\Facades\Cache::remember('wa:sin_enlace', 30, fn () =>
+                \App\Models\WaConversacion::columnaExiste('guias_borrador', 'enviado_at')
+                    ? \App\Models\GuiaBorrador::whereNull('enviado_at')->count()
+                    : 0
+            );
         } catch (\Throwable $e) {
         }
 

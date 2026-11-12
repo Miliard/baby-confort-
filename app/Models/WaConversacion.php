@@ -82,8 +82,30 @@ class WaConversacion extends Model
 
     public static function hayTabla(): bool
     {
+        return static::columnaExiste('wa_conversaciones');
+    }
+
+    /**
+     * ¿Existe la tabla (o la columna)? Preguntarle a la base de datos cómo
+     * está armada es lento, y el panel lo preguntaba varias veces en cada
+     * redibujado. Cuando la respuesta es "sí" ya no cambia: se guarda una hora.
+     * El "no" no se guarda, para que apenas corra la migración se note.
+     */
+    public static function columnaExiste(string $tabla, ?string $columna = null): bool
+    {
+        static $vistas = [];
+        $k = $tabla . '.' . ($columna ?? '*');
+        if (isset($vistas[$k])) return true;
+
         try {
-            return Schema::hasTable('wa_conversaciones');
+            if (\Illuminate\Support\Facades\Cache::get('esquema:' . $k)) return $vistas[$k] = true;
+
+            $hay = $columna === null ? Schema::hasTable($tabla) : Schema::hasColumn($tabla, $columna);
+            if ($hay) {
+                \Illuminate\Support\Facades\Cache::put('esquema:' . $k, true, 3600);
+                $vistas[$k] = true;
+            }
+            return $hay;
         } catch (\Throwable $e) {
             return false;
         }

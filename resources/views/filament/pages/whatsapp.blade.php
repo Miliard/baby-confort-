@@ -1488,9 +1488,21 @@
                 </div>
             @endif
             <div class="wa-chat" data-conv="{{ $abierta }}">
-                @php $diaAnterior = null; @endphp
+                @php $diaAnterior = null; $losMensajes = $this->mensajes(); @endphp
 
-                @forelse($this->mensajes() as $m)
+                {{-- Se cargan los últimos 50: los de antes, con este botón. --}}
+                @if($this->hayAnteriores($losMensajes->count()))
+                    <div style="text-align:center;margin:4px 0 10px">
+                        <button type="button" class="wa-fil" style="--c:#94a3b8"
+                                wire:click="verAnteriores({{ (int) optional($losMensajes->first())->id }})"
+                                wire:loading.attr="disabled" wire:target="verAnteriores">
+                            <span wire:loading.remove wire:target="verAnteriores">⬆️ Ver mensajes anteriores</span>
+                            <span wire:loading wire:target="verAnteriores">Cargando…</span>
+                        </button>
+                    </div>
+                @endif
+
+                @forelse($losMensajes as $m)
                     {{-- La fecha va en una separación entre días, no pegada a
                          cada globo. Repetirla en los veinte mensajes de un
                          mismo día es ruido: lo que uno necesita saber es dónde
@@ -2580,6 +2592,16 @@
         if (!id) return;
         // Después de que el panel dibuje los mensajes nuevos.
         setTimeout(function () { waResaltar(id); }, 250);
+    });
+    // "Ver mensajes anteriores": que la pantalla se quede en el mensaje que
+    // estabas viendo arriba, en vez de saltar al final.
+    window.addEventListener('wa-quedarse', function (e) {
+        var id = (e.detail && (e.detail.id || (e.detail[0] && e.detail[0].id))) || null;
+        if (!id) return;
+        setTimeout(function () {
+            var el = document.getElementById('wa-msg-' + id);
+            if (el) el.scrollIntoView({ block: 'start' });
+        }, 250);
     });
 
     var waPedirPermiso;
