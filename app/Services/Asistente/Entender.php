@@ -277,6 +277,15 @@ class Entender
 
         if (preg_match('/\b(diferencias?|cual es mejor|cual me recomienda|cual recomienda|que diferencia|como son|en que se diferencian|que tienen de diferente|cual conviene)\b/', $n)) return 'diferencia';
 
+        // Dicho al revés: "los que NO son de calzoncito", "que no sean
+        // calzón", "sin calzoncito" es querer de cinta (y al revés).
+        $c = 'cal[sdz]on\w*|pants?|pantis?';
+        $p = 'cintas?|sintas?|de pegar|broches?';
+        $neg = '(no (es|son|sea|sean|fuera|fueran|seria|serian)|que no|sin|menos|no)\s+(de |tipo |los de |las de )?';
+        // Si además pide ESE mismo tipo en otra parte del mensaje, no se adivina.
+        if (preg_match('/\b' . $neg . '(' . $c . ')\b/', $n) && ! preg_match('/\b(' . $c . ')\b/', preg_replace('/\b' . $neg . '(' . $c . ')\b/', ' ', $n))) return 'cinta';
+        if (preg_match('/\b' . $neg . '(' . $p . ')\b/', $n) && ! preg_match('/\b(' . $p . ')\b/', preg_replace('/\b' . $neg . '(' . $p . ')\b/', ' ', $n))) return 'calzoncito';
+
         $calzon = (bool) preg_match('/\b(calzoncitos?|calzon|calzones|pants?|pantis?|de subir|tipo calzon|braga|bragas|training|cal[sdz]on[cs]?it[oa]s?|calson(es)?|blumer|bloomer)\b/', $n);
         $cinta  = (bool) preg_match('/\b(cintas?|sintas?|zintas?|cinra|de pegar|pegar|pegarse|broches?|de broche|pegadit[oa]s?|adhesiv[oa]s?|velcro|normal|normales|tradicional|de los normales|pestanas?)\b/', $n);
 
