@@ -591,6 +591,10 @@ trait GuionDiagrama
         if (in_array($paso, ['talla', 'peso', 'opciones', 'sugerencia'], true) && static::dgSoloCortesia($n)) return true;
 
         // "Gracias, les escribo más tarde", "vamos a estar pendientes": se despide.
+        if (in_array($paso, ['talla', 'peso', 'opciones', 'sugerencia'], true) && ! str_contains($texto, '?') && $this->dgDespide($n)) {
+            if ($f->dato('sin_talla')) $this->marcarAgotado();
+            return true;
+        }
         if (in_array($paso, ['talla', 'peso', 'opciones', 'sugerencia'], true) && ! str_contains($texto, '?')
             && preg_match('/\b(le escribo|les escribo|le aviso|les aviso|le confirmo|despues le|mas tarde|luego le|vamos a estar pendientes?|estamos pendientes?|estoy pendiente|voy a estar (al )?pendiente)\b/', $n)
             && ! preg_match('/\b(quiero|necesito|mandeme|envieme|me (manda|envia))\b/', $n)) {
@@ -783,6 +787,19 @@ trait GuionDiagrama
         }
 
         $this->f->poner('dpaso', 'talla');
+
+        // "Quiero de calzoncito", "de noche": no es lo mismo de la vez pasada,
+        // pero la talla sí. Se le muestra su talla con lo que pidió (y si eso
+        // no hay, se le dice). Antes se le repetía la misma pregunta.
+        if ($u && ! empty($u['talla']) && ! $this->dgTallas($texto) && ! Entender::peso($texto)
+            && (in_array(Entender::tipo($texto), ['cinta', 'calzoncito'], true) || $this->dgProductoNombrado($texto)
+                || preg_match('/\bnoche|nocturn|de dia\b/', $n))) {
+            $this->dgAnotarTipo($texto);
+            $this->f->poner('tallas_vistas', true);
+            $this->dgConTalla((string) $u['talla'], 'Con gusto 😊 ');
+            return;
+        }
+
         if (Entender::siNo($texto) === false && ! $this->dgTallas($texto) && ! Entender::peso($texto)) {
             $this->f->poner('tallas_vistas', false);
             $this->dgPedirTalla('Con gusto 😊 ');
@@ -795,6 +812,10 @@ trait GuionDiagrama
     private function dgDespide(string $n): bool
     {
         if (preg_match('/\b(quiero|mandeme|envieme|me (manda|envia|los manda|lo manda)|\d+ paquetes?|de una vez)\b/', $n)) return false;
+
+        // "Mejor esperaré a que entren", "prefiero esperar", "porque me gustan
+        // más", "son más cómodos": decide esperar o explica por qué. Nada que contestar.
+        if (preg_match('/\b(esperare|esperaremos|voy a esperar|vamos a esperar|mejor espero|prefiero esperar|espero (a )?que (entren|lleguen|tengan|vengan)|esperemos|(porque|por que|es que) (me|le|nos) gusta|son mas comodos|me gustan mas|le quedan mejor)\b/', $n)) return true;
 
         return (bool) preg_match('/\b((yo )?(le|les) (aviso|escribo|confirmo|digo)|lo (voy a )?pienso|lo pensare|voy a pensarlo|lo voy a pensar|despues (le|les) (escribo|aviso|confirmo)|mas tarde (le|les)|luego (le|les) (escribo|aviso)|si (lo|los|la|las) voy a querer|cualquier cosa (le|les) (aviso|escribo))\b/', $n);
     }
@@ -1363,7 +1384,7 @@ trait GuionDiagrama
         // Cliente que ya compró y pide sin decir talla ("necesito pañales",
         // "me manda un paquete"): lo que hacés vos, "¿sería la misma orden?".
         $nt = Entender::normalizar($texto);
-        if (($u = $this->f->dato('conocido.ultima')) && ! empty($u['talla'])
+        if (($u = $this->f->dato('conocido.ultima')) && ! empty($u['talla']) && ! $this->f->dato('recompra_preguntada')
             && preg_match('/\b(necesito|ocupo|quiero|quisiera|queria|mandeme|envieme|me (manda|envia|puede mandar|puede enviar|podria mandar|podria enviar)|encargar|pedir|hacer (un|el) pedido)\b/', $nt)
             && ! preg_match('/\?|\b(precio|cuanto|ya (tiene|tienen|hay|llegaron|trajeron)|aun no|todavia)\b/', $texto . ' ' . $nt)) {
             // "Me manda este": habla de una foto o un mensaje que citó, que el
@@ -1381,6 +1402,7 @@ trait GuionDiagrama
                     . ' en este momento no lo tenemos 😔 Apenas entre le avisamos por aquí.'), 'talla');
                 return;
             }
+            $this->f->poner('recompra_preguntada', true);
             $this->dgDecir(trim(($hola !== '' ? $hola : 'Con gusto 😊 ') . '¿Le enviamos lo mismo de la vez pasada' . $this->dgLoDeLaVezPasada($u) . '?'), 'recompra');
             return;
         }
@@ -1768,6 +1790,14 @@ trait GuionDiagrama
         $nn = Entender::normalizar($texto);
         // Pide OTRA talla ("y la talla M"): se suman sus fotos, sin perder las de antes.
         $nuevas = array_values(array_diff($this->dgTallas($texto), (array) $f->dato('tallas', [])));
+        // "¿Y la XXL sí tiene en calzón?": pregunta por OTRA talla (una sola):
+        // se le muestra esa, con lo que pidió (y si no hay, se le dice).
+        if (count($nuevas) === 1 && count($this->dgTallas($texto)) === 1 && ! preg_match('/\b(tambien|ademas|y otr[oa]|mas otr[oa])\b/', $nn)) {
+            $this->dgAnotarTipo($texto);
+            $f->poner('tallas', []);
+            $this->dgConTalla($nuevas[0], '');
+            return;
+        }
         if ($nuevas) {   // pide otra talla más: también te lo pasa, sin contestar
             $this->pasarAWil('pide varias tallas (' . implode(', ', array_merge((array) $f->dato('tallas', []), $nuevas)) . ')', false);
             return;
@@ -1785,6 +1815,8 @@ trait GuionDiagrama
         // dice "de noche".
         $quiereNoche = (bool) preg_match('/\bnoche|nocturn|dormir/', $nn);
         $quiereDia   = (bool) preg_match('/\bde dia\b|\bdiario|para el dia/', $nn);
+        // "De noche y de día", "día o noche": cualquiera de las dos, no filtra.
+        if (preg_match('/\bnoche (y|o) (de |para el )?dia\b|\bdia (y|o) (de |para la )?noche\b/', $nn)) { $quiereNoche = false; $quiereDia = false; }
         $tipo = Entender::tipo($texto);
         if (in_array($tipo, ['cinta', 'calzoncito'], true)) $f->poner('dtipo', $tipo);
         elseif ($f->dato('dtipo') && ($quiereNoche || $quiereDia)) $tipo = (string) $f->dato('dtipo');
