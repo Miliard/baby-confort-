@@ -1,5 +1,7 @@
 <x-filament-panels::page>
 
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap">
 <style>
     /* Las proporciones salen de medir Wasapi: lista de 400 px y separación de
        24 px. Con 320 el nombre y la vista previa quedaban apretados. */
@@ -60,6 +62,22 @@
        oscuro da 5.6 de contraste y está bien; sobre blanco da 2.8, y el mínimo
        para texto es 4.5. O sea: en modo claro las horas, las ayudas y las
        vistas previas se leían mal. Un valor por tema lo arregla de una vez. */
+    /* ── 😊 Emojis ── */
+    .wa, .wa textarea, .wa input, .wa button{font-family:var(--font-family, 'Inter'), 'Noto Color Emoji', ui-sans-serif, system-ui, sans-serif}
+    .wa-emo{font-family:'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif}
+    .wa-emo-caja{position:absolute;bottom:115%;left:0;z-index:60;width:320px;max-width:86vw;background:#fff;color:#111;
+        border:1px solid rgba(127,127,127,.3);border-radius:12px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+    html.dark .wa-emo-caja{background:#1e293b;color:#e5e7eb}
+    .wa-emo-buscar{width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid rgba(127,127,127,.35);border-radius:8px;
+        font-size:14px;background:transparent;color:inherit;margin-bottom:6px}
+    .wa-emo-tabs{display:flex;justify-content:space-between;border-bottom:1px solid rgba(127,127,127,.25);padding-bottom:4px}
+    .wa-emo-tabs .wa-emo{font-size:18px;padding:4px 3px;border:none;background:none;cursor:pointer;border-radius:6px;opacity:.6}
+    .wa-emo-tabs .wa-emo.on{opacity:1;background:rgba(127,127,127,.18)}
+    .wa-emo-titulo{font-size:11.5px;color:var(--wa-suave);margin:6px 2px 2px;text-transform:capitalize}
+    .wa-emo-grilla{display:grid;grid-template-columns:repeat(8,1fr);gap:1px;height:230px;overflow-y:auto;align-content:start}
+    .wa-emo-grilla .wa-emo{font-size:23px;line-height:1;padding:5px 0;border:none;background:none;cursor:pointer;border-radius:6px}
+    .wa-emo-grilla .wa-emo:hover{background:rgba(127,127,127,.15)}
+    .wa-emo-nada{grid-column:1/-1;font-size:13px;color:var(--wa-suave);padding:14px 4px;text-align:center}
     :root{--wa-suave:#5b6b7f}
     html.dark{--wa-suave:#94a3b8}
 
@@ -1894,22 +1912,34 @@
                             🛒 Catálogo
                         </button>
 
-                        {{-- Emojis: los que más se usan con los clientes, de un toque.
-                             Se ponen donde está el cursor. wire:ignore para que el
-                             refresco de cada 3 segundos no cierre la ventanita. --}}
-                        <span wire:ignore x-data="{ abierto: false }" style="position:relative;display:inline-block"
+                        {{-- 😊 Emojis: todos (hasta los más nuevos), con buscador en
+                             español, por categoría y "Recientes". Se dibujan con la
+                             letra Noto Color Emoji (la de Android/Google), no con la
+                             de Windows, que se ve vieja y no trae los nuevos.
+                             La lista (public/js/emojis-es.json) se baja la primera
+                             vez que se abre. wire:ignore: el refresco no la cierra. --}}
+                        <span wire:ignore x-data="waEmojis()" style="position:relative;display:inline-block"
                               x-on:click.outside="abierto = false" x-on:keydown.escape.window="abierto = false">
-                            <button type="button" class="wa-chip" x-on:click="abierto = !abierto"
+                            <button type="button" class="wa-chip wa-emo" x-on:click="abrir()"
                                     title="Poner un emoji" aria-label="Poner un emoji">😊</button>
-                            <div x-show="abierto" x-cloak
-                                 style="position:absolute;bottom:115%;left:0;z-index:60;width:264px;max-height:220px;overflow-y:auto;
-                                        background:var(--wa-fondo-menu,#fff);border:1px solid rgba(127,127,127,.3);border-radius:12px;
-                                        padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);display:grid;grid-template-columns:repeat(8,1fr);gap:2px">
-                                @foreach(['😊','😀','😁','😂','🥰','😍','😘','🤗','🙏','👍','👌','👏','🙌','💪','✌️','👋','❤️','💙','💕','💖','✨','🎉','🥳','🔥','✅','☑️','❌','⚠️','📦','🚚','🏠','📍','💲','💵','🕐','📅','👶','🍼','🧸','🌙','☀️','😔','😢','😅','🤔','😉','🙂','😇'] as $emo)
-                                    <button type="button" style="font-size:20px;line-height:1;padding:5px 0;border:none;background:none;cursor:pointer;border-radius:6px"
-                                            onmouseover="this.style.background='rgba(127,127,127,.15)'" onmouseout="this.style.background='none'"
-                                            onclick="waPonerEmoji('{{ $emo }}')">{{ $emo }}</button>
-                                @endforeach
+                            <div x-show="abierto" x-cloak class="wa-emo-caja">
+                                <input type="search" class="wa-emo-buscar" placeholder="Buscar emoji… (corazón, bebé, risa)"
+                                       x-model="q" x-ref="buscar" aria-label="Buscar emoji">
+                                <div class="wa-emo-tabs" x-show="!q">
+                                    <template x-for="t in tabs" :key="t.id">
+                                        <button type="button" class="wa-emo" :class="{ 'on': grupo === t.id }"
+                                                x-on:click="grupo = t.id" :title="t.nombre" x-text="t.icono"></button>
+                                    </template>
+                                </div>
+                                <div class="wa-emo-titulo" x-text="titulo()"></div>
+                                <div class="wa-emo-grilla">
+                                    <template x-for="(e, k) in lista()" :key="k + e">
+                                        <button type="button" class="wa-emo" x-on:click="poner(e)" x-text="e"></button>
+                                    </template>
+                                    <div class="wa-emo-nada" x-show="cargando">Cargando…</div>
+                                    <div class="wa-emo-nada" x-show="!cargando && lista().length === 0"
+                                         x-text="q ? 'No hay emojis con esa palabra.' : 'Todavía no usaste ninguno.'"></div>
+                                </div>
                             </div>
                         </span>
 
@@ -3101,6 +3131,56 @@
         // ↩ Responder: el cursor al final del cuadro de escribir, sin tener que
         // tocarlo. Se llama en el toque y otra vez cuando el servidor contesta
         // (la cita aparece arriba del cuadro y Livewire lo redibuja).
+        // 😊 El selector de emojis (buscador en español, categorías, recientes).
+        window.waEmojis = function () {
+            return {
+                abierto: false, cargando: false, q: '', grupo: 'rec', datos: null, recientes: [],
+                tabs: [
+                    { id: 'rec', icono: '🕘', nombre: 'Recientes' }, { id: 0, icono: '😀', nombre: 'Caritas' },
+                    { id: 1, icono: '👋', nombre: 'Personas' }, { id: 3, icono: '🐶', nombre: 'Animales y naturaleza' },
+                    { id: 4, icono: '🍔', nombre: 'Comida' }, { id: 5, icono: '✈️', nombre: 'Viajes y lugares' },
+                    { id: 6, icono: '⚽', nombre: 'Actividades' }, { id: 7, icono: '💡', nombre: 'Objetos' },
+                    { id: 8, icono: '❤️', nombre: 'Símbolos' }, { id: 9, icono: '🏳️', nombre: 'Banderas' },
+                ],
+                abrir() {
+                    this.abierto = !this.abierto;
+                    if (!this.abierto) return;
+                    try { this.recientes = JSON.parse(localStorage.getItem('wa_emojis_recientes') || '[]'); } catch (e) { this.recientes = []; }
+                    if (!this.recientes.length && this.grupo === 'rec') this.grupo = 0;
+                    if (!this.datos && !this.cargando) {
+                        this.cargando = true;
+                        fetch('/js/emojis-es.json').then(r => r.json()).then(d => { this.datos = d.grupos; }).catch(() => {}).finally(() => { this.cargando = false; });
+                    }
+                    this.$nextTick(() => { if (window.innerWidth > 900) this.$refs.buscar.focus(); });
+                },
+                limpiar(t) { return (t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); },
+                lista() {
+                    if (this.q.trim()) {
+                        if (!this.datos) return [];
+                        const palabras = this.limpiar(this.q).split(/\s+/).filter(Boolean);
+                        const out = [];
+                        for (const g of this.datos) for (const [e, t] of g.e) {
+                            if (palabras.every(p => t.includes(p))) { out.push(e); if (out.length >= 160) return out; }
+                        }
+                        return out;
+                    }
+                    if (this.grupo === 'rec') return this.recientes;
+                    const g = (this.datos || []).find(x => x.id === this.grupo);
+                    return g ? g.e.map(x => x[0]) : [];
+                },
+                titulo() {
+                    if (this.q.trim()) return 'Resultados';
+                    const t = this.tabs.find(x => x.id === this.grupo);
+                    return t ? t.nombre : '';
+                },
+                poner(e) {
+                    window.waPonerEmoji(e);
+                    this.recientes = [e, ...this.recientes.filter(x => x !== e)].slice(0, 32);
+                    try { localStorage.setItem('wa_emojis_recientes', JSON.stringify(this.recientes)); } catch (er) {}
+                },
+            };
+        };
+
         // 😊 Emojis: se ponen donde estaba el cursor y se avisa a Livewire
         // (evento "input") para que el texto se mande completo.
         window.waPonerEmoji = function (emo) {
