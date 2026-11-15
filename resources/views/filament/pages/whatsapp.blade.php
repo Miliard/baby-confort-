@@ -1894,6 +1894,25 @@
                             🛒 Catálogo
                         </button>
 
+                        {{-- Emojis: los que más se usan con los clientes, de un toque.
+                             Se ponen donde está el cursor. wire:ignore para que el
+                             refresco de cada 3 segundos no cierre la ventanita. --}}
+                        <span wire:ignore x-data="{ abierto: false }" style="position:relative;display:inline-block"
+                              x-on:click.outside="abierto = false" x-on:keydown.escape.window="abierto = false">
+                            <button type="button" class="wa-chip" x-on:click="abierto = !abierto"
+                                    title="Poner un emoji" aria-label="Poner un emoji">😊</button>
+                            <div x-show="abierto" x-cloak
+                                 style="position:absolute;bottom:115%;left:0;z-index:60;width:264px;max-height:220px;overflow-y:auto;
+                                        background:var(--wa-fondo-menu,#fff);border:1px solid rgba(127,127,127,.3);border-radius:12px;
+                                        padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);display:grid;grid-template-columns:repeat(8,1fr);gap:2px">
+                                @foreach(['😊','😀','😁','😂','🥰','😍','😘','🤗','🙏','👍','👌','👏','🙌','💪','✌️','👋','❤️','💙','💕','💖','✨','🎉','🥳','🔥','✅','☑️','❌','⚠️','📦','🚚','🏠','📍','💲','💵','🕐','📅','👶','🍼','🧸','🌙','☀️','😔','😢','😅','🤔','😉','🙂','😇'] as $emo)
+                                    <button type="button" style="font-size:20px;line-height:1;padding:5px 0;border:none;background:none;cursor:pointer;border-radius:6px"
+                                            onmouseover="this.style.background='rgba(127,127,127,.15)'" onmouseout="this.style.background='none'"
+                                            onclick="waPonerEmoji('{{ $emo }}')">{{ $emo }}</button>
+                                @endforeach
+                            </div>
+                        </span>
+
                         {{-- Mandar una foto de la computadora o del teléfono.
 
                              Hasta ahora solo salían fotos YA cargadas en el
@@ -3082,6 +3101,19 @@
         // ↩ Responder: el cursor al final del cuadro de escribir, sin tener que
         // tocarlo. Se llama en el toque y otra vez cuando el servidor contesta
         // (la cita aparece arriba del cuadro y Livewire lo redibuja).
+        // 😊 Emojis: se ponen donde estaba el cursor y se avisa a Livewire
+        // (evento "input") para que el texto se mande completo.
+        window.waPonerEmoji = function (emo) {
+            var t = elCuadro();
+            if (!t) return;
+            var ini = t.selectionStart != null ? t.selectionStart : t.value.length;
+            var fin = t.selectionEnd != null ? t.selectionEnd : t.value.length;
+            t.value = t.value.slice(0, ini) + emo + t.value.slice(fin);
+            var pos = ini + emo.length;
+            t.dispatchEvent(new Event('input', { bubbles: true }));
+            try { t.focus({ preventScroll: true }); t.setSelectionRange(pos, pos); } catch (e) {}
+        };
+
         window.waEnfocar = function () {
             var t = elCuadro();
             if (!t) return;
