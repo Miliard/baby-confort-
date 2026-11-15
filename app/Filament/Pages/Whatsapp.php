@@ -1584,12 +1584,18 @@ class Whatsapp extends Page
              * Para volver a mandarlo como foto: WHATSAPP_CATALOGO_COMO_FOTO=true
              * en Railway.
              */
-            $relativa = config('whatsapp.catalogo_como_foto', false) ? $this->fotoDe($s, $p) : null;
+            // Ahora va como FOTO grande, con los datos y el enlace abajo (Wil:
+            // la tarjetita del enlace se veía muy pequeña). El enlace sigue en
+            // el texto para que pueda entrar a la página. Si la foto no está
+            // en JPG/PNG se pasa a JPG; si no se puede, va como antes.
+            $absoluta = config('whatsapp.catalogo_como_foto', true)
+                ? \App\Services\FotoWhatsapp::url($this->fotoDe($s, $p), (int) $s->id)
+                : null;
 
-            if (! $relativa) {
+            if (! $absoluta) {
+                $sinFoto[] = trim((string) $p->name);
                 $m = WhatsappApi::enviarTexto($conv, $pie, auth()->id());
             } else {
-                $absoluta = str_starts_with($relativa, 'http') ? $relativa : url($relativa);
                 $m = WhatsappApi::enviarImagen($conv, $absoluta, $pie, auth()->id());
             }
 
