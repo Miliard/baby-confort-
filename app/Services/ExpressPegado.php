@@ -49,32 +49,65 @@ class ExpressPegado
             $fecha = static::fecha($celdas[$i]);
             if (! $fecha) continue;
 
-            $g = fn ($n) => $celdas[$i + $n] ?? '';
+            // Las columnas se reconocen por lo que traen, no por su posición:
+            // Express cambió el Excel (con el sistema nuevo vino una columna
+            // más) y leer por posición ponía el número de guía como cliente,
+            // el cliente como zona y el monto en $0. Así sirve el viejo y el nuevo.
+            //   · la guía: la primera celda que es solo número (5 a 10 cifras);
+            //   · el cliente: la primera celda con letras después de la guía;
+            //   · la zona: la siguiente celda con letras;
+            //   · los montos: las celdas con número después del cliente
+            //     (monto, comisión, total);
+            //   · la nota: lo que tenga letras después de los montos.
+            $resto = array_values(array_slice($celdas, $i + 1));
+            $esGuia   = fn ($c) => (bool) preg_match('/^\d{5,10}$/', $c);
+            $esNumero = fn ($c) => $c === '' ? false : (bool) preg_match('/^[\s$\-]*[\d.,]+\s*$/u', $c);
+            $esTexto  = fn ($c) => (bool) preg_match('/\p{L}/u', $c);
 
-            $nombre = trim($g(3));
+            $iG = null;
+            foreach ($resto as $k => $c) { if ($esGuia($c)) { $iG = $k; break; } }
+            if ($iG === null) continue;
+
+            $orden = $resto[$iG];
+            $nombre = ''; $zona = ''; $iN = null;
+            for ($k = $iG + 1; $k < count($resto); $k++) {
+                if ($esTexto($resto[$k])) { $nombre = $resto[$k]; $iN = $k; break; }
+            }
             if ($nombre === '') continue;
 
-            $monto = static::numero($g(5));
-            $com   = static::numero($g(6));
-            $tot   = static::numero($g(7));
+            $nums = []; $nota = ''; $iZ = null;
+            for ($k = $iN + 1; $k < count($resto); $k++) {
+                $c = $resto[$k];
+                if ($c === '') { if ($nums) $nums[] = 0.0; continue; }
+                if ($esNumero($c)) { $nums[] = static::numero($c); continue; }
+                if ($esTexto($c)) {
+                    if (! $nums && $iZ === null) { $zona = $c; $iZ = $k; continue; }
+                    if ($nums) { $nota = trim($nota . ' ' . $c); }
+                }
+            }
+
+            $monto = (float) ($nums[0] ?? 0);
+            $com   = (float) ($nums[1] ?? 0);
+            $tot   = (float) ($nums[2] ?? 0);
 
             // Si el total viniera vacío, se deduce.
             if ($tot === 0.0 && $monto > 0) $tot = round($monto - $com, 2);
 
-            // La última columna trae explicaciones de Express.
-            $nota = trim($g(8));
+            // AIWIBI puede venir en el cliente o en el establecimiento.
+            $aiwibi = false;
+            foreach ($celdas as $c) { if (static::esAiwibi($c)) { $aiwibi = true; break; } }
 
             $filas[] = [
                 'fecha'     => $fecha,
-                'orden'     => trim($g(2)),
+                'orden'     => $orden,
                 'nombre'    => $nombre,
-                'zona'      => trim($g(4)),
+                'zona'      => $zona,
                 'monto'     => $monto,
                 'comision'  => $com,
                 'total'     => $tot,
                 'nota'      => $nota !== '' ? $nota : null,
                 'duplicado' => static::esDuplicado($nota),
-                'aiwibi'    => static::esAiwibi($nombre),
+                'aiwibi'    => $aiwibi,
             ] + static::deLaNota($nota);
         }
 

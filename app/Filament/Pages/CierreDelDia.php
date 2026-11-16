@@ -203,8 +203,9 @@ class CierreDelDia extends Page
             return;
         }
 
-        $nuevas = 0; $repetidas = 0;
+        $nuevas = 0; $repetidas = 0; $corregidas = 0;
         $deposito = trim($this->fechaDeposito) ?: null;
+        $usadasApi = [];
 
         // Si el mismo renglón viene repetido dentro del pegado (dos bultos
         // idénticos), se numeran para que no se pisen entre ellos.
@@ -226,6 +227,29 @@ class CierreDelDia extends Page
                 continue;
             }
 
+            // Renglón que se leyó mal antes (Excel nuevo de Express): la guía
+            // había quedado como cliente y el monto en $0. Se corrige ese mismo
+            // renglón en vez de agregar otro.
+            $malLeido = ExpressEntrega::where('fecha', $f['fecha'])->where('nombre', $f['orden'])->first();
+            if ($malLeido) {
+                $malLeido->fill($f + ['huella' => $huella, 'fecha_deposito' => $deposito ?: $malLeido->fecha_deposito])->save();
+                $corregidas++;
+                continue;
+            }
+
+            // Ya estaba traída con "📥 Traer de Express" (misma guía): se completa
+            // con lo del Excel (que es la liquidación oficial) en vez de duplicarla.
+            // Si la guía viene dos veces en el Excel (bulto extra), la segunda sí se agrega.
+            if (empty($usadasApi[$f['orden']])) {
+                $deApi = ExpressEntrega::where('huella', md5('api|' . $f['orden']))->first();
+                if ($deApi) {
+                    $deApi->fill(collect($f)->except(['fecha'])->all() + ['fecha_deposito' => $deposito ?: $deApi->fecha_deposito])->save();
+                    $usadasApi[$f['orden']] = true;
+                    $corregidas++;
+                    continue;
+                }
+            }
+
             ExpressEntrega::create($f + ['huella' => $huella, 'fecha_deposito' => $deposito]);
             $nuevas++;
         }
@@ -240,6 +264,8 @@ class CierreDelDia extends Page
             ->body(trim(
                 $fechas->count() . ' ' . ($fechas->count() === 1 ? 'fecha' : 'fechas') . ': ' . $fechas->implode(', ')
                 . ($repetidas > 0 ? ' · ' . $repetidas . ' ya estaban cargados' : '')
+                . ($corregidas > 0 ? ' · ' . $corregidas . ' corregidos o completados' : '')
+                . ' · AIWIBI: ' . collect($filas)->where('aiwibi', true)->count()
             ))
             ->success()->send();
     }
