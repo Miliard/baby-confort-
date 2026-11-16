@@ -140,30 +140,37 @@ class CierreDelDia extends Page
         $periodo = 'Del ' . \Illuminate\Support\Carbon::parse($d)->format('d/m/Y')
                  . ' al ' . \Illuminate\Support\Carbon::parse($h)->format('d/m/Y');
 
-        $t  = "\u{1F4E6} *REMUNERACI\u{D3}N AIWIBI*\n" . $periodo . "\n";
-        $t .= str_repeat('-', 28) . "\n\n";
-
-        foreach ($m['filas'] as $f) {
-            $t .= $f->fecha->format('d/m') . '  ' . trim($f->nombre) . "\n";
-            $t .= '     Gu' . "\u{ED}" . 'a ' . $f->orden;
-            if ($f->zona) $t .= ' ' . "\u{B7}" . ' ' . $f->zona;
-            $t .= "\n     $" . number_format($f->monto, 2) . "\n\n";
-        }
-
+        $d2 = fn ($v) => '$' . number_format((float) $v, 2);
         $pct = rtrim(rtrim(number_format($m['comisionPct'], 2), '0'), '.');
 
-        $t .= str_repeat('-', 28) . "\n";
-        $t .= "Env\u{ED}os: {$m['envios']}";
-        if ($m['sinCobro'] > 0)  $t .= " ({$m['sinCobro']} sin cobro)";
+        $t = "\u{1F4E6} *Remuneraci\u{F3}n AIWIBI*\n*" . $periodo . "*\n\n";
+
+        // Una entrega por renglón, numerada, con su cuenta: lo cobrado, la
+        // comisión y lo que queda. Las de $0 dicen "Sin cobro" para que se vea
+        // que igual cuentan como envío.
+        $n = 0;
+        foreach ($m['filas'] as $f) {
+            $n++;
+            // El teléfono del inicio del nombre no hace falta en el reporte.
+            $nombre = trim(preg_replace('/\s+/', ' ', preg_replace('/^\+?[\d\s]{8,}\s*/u', '', (string) $f->nombre)));
+            $t .= $n . '. ' . $f->fecha->format('d/m') . " \u{B7} Gu\u{ED}a " . $f->orden . " \u{B7} " . ($nombre !== '' ? $nombre : trim((string) $f->nombre)) . "\n";
+            $t .= (float) $f->monto > 0
+                ? '    Cobrado ' . $d2($f->monto) . " \u{2212} comisi\u{F3}n " . $d2($f->comision_socio) . ' = ' . $d2($f->neto_socio) . "\n"
+                : "    Sin cobro ($0.00)\n";
+        }
+
+        $conCobro = $m['envios'] - $m['sinCobro'];
+
+        $t .= "\n\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\n*Resumen*\n";
+        $t .= "Env\u{ED}os: {$m['envios']} ({$conCobro} con cobro, {$m['sinCobro']} sin cobro)";
         if ($m['devueltos'] > 0) $t .= " \u{B7} {$m['devueltos']} devueltos no cuentan";
         $t .= "\n";
-        $t .= 'Cobrado: $' . number_format($m['cobrado'], 2) . "\n";
-        $t .= "Comisi\u{F3}n {$pct}%: -$" . number_format($m['comision'], 2) . "\n";
-        $t .= 'Subtotal: $' . number_format($m['subtotal'], 2) . "\n";
-        $t .= "Env\u{ED}os {$m['envios']} x $" . number_format($m['porEnvio'], 2)
-            . ': -$' . number_format($m['descuento'], 2) . "\n";
-        $t .= str_repeat('-', 28) . "\n";
-        $t .= '*TOTAL A PAGAR: $' . number_format($m['aPagar'], 2) . '*';
+        $t .= 'Total cobrado: ' . $d2($m['cobrado']) . "\n";
+        $t .= "(\u{2212}) Comisi\u{F3}n {$pct}%: " . $d2($m['comision']) . "\n";
+        $t .= 'Subtotal: ' . $d2($m['subtotal']) . "\n";
+        $t .= "(\u{2212}) Env\u{ED}os {$m['envios']} \u{D7} " . $d2($m['porEnvio']) . ': ' . $d2($m['descuento']) . "\n";
+        $t .= "\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\n";
+        $t .= '*A pagar: ' . $d2($m['aPagar']) . '*';
 
         return $t;
     }

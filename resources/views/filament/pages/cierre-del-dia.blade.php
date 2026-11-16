@@ -595,22 +595,28 @@
                             </x-filament::button>
                         </div>
 
-                        <details style="margin-top:10px">
+                        <details style="margin-top:10px" open>
                             <summary style="cursor:pointer;font-size:12.5px;opacity:.7">
-                                Ver las {{ $m['envios'] }} entregas
+                                Las {{ $m['envios'] }} entregas, una por una
                             </summary>
-                            <div style="max-height:300px;overflow:auto;margin-top:8px">
+                            <div style="max-height:420px;overflow:auto;margin-top:8px">
                                 <table class="bc-tabla">
                                     <thead>
-                                        <tr><th>Fecha</th><th>Cliente</th><th>Zona</th><th style="text-align:right">Monto</th></tr>
+                                        <tr><th>#</th><th>Fecha</th><th>Cliente</th><th style="text-align:right">Cobrado</th><th style="text-align:right">Comisión</th><th style="text-align:right">Queda</th></tr>
                                     </thead>
                                     <tbody>
                                         @foreach($m['filas'] as $f)
                                             <tr>
+                                                <td style="opacity:.5">{{ $loop->iteration }}</td>
                                                 <td style="white-space:nowrap;opacity:.6">{{ $f->fecha->format('d/m') }}</td>
-                                                <td>{{ $f->nombre }}<span style="display:block;font-size:11px;opacity:.55">{{ $f->orden }}</span></td>
-                                                <td style="opacity:.6">{{ $f->zona }}</td>
-                                                <td style="text-align:right;font-weight:600">${{ number_format($f->monto, 2) }}</td>
+                                                <td>{{ $f->nombre }}<span style="display:block;font-size:11px;opacity:.55">Guía {{ $f->orden }}@if($f->zona) · {{ $f->zona }}@endif</span></td>
+                                                @if((float) $f->monto > 0)
+                                                    <td style="text-align:right;font-weight:600">${{ number_format($f->monto, 2) }}</td>
+                                                    <td style="text-align:right;color:#dc2626">− ${{ number_format($f->comision_socio, 2) }}</td>
+                                                    <td style="text-align:right;font-weight:700">${{ number_format($f->neto_socio, 2) }}</td>
+                                                @else
+                                                    <td colspan="3" style="text-align:right;opacity:.6">Sin cobro ($0.00)</td>
+                                                @endif
                                             </tr>
                                         @endforeach
                                     </tbody>
