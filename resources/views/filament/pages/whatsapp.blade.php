@@ -78,6 +78,13 @@
     .wa-emo-grilla .wa-emo{font-size:23px;line-height:1;padding:5px 0;border:none;background:none;cursor:pointer;border-radius:6px}
     .wa-emo-grilla .wa-emo:hover{background:rgba(127,127,127,.15)}
     .wa-emo-nada{grid-column:1/-1;font-size:13px;color:var(--wa-suave);padding:14px 4px;text-align:center}
+    /* En el teléfono la fila de botones se desliza de lado (overflow-x), y eso
+       recorta todo lo que se sale de ella: la caja se abría pero no se veía.
+       Ahí la caja flota fija sobre la pantalla, de lado a lado, justo encima
+       del botón (la altura la pone colocar() en el JS). */
+    .wa-emo-caja.fijo{position:fixed;left:6px;right:6px;bottom:auto;width:auto;max-width:none;z-index:80}
+    .wa-emo-caja.fijo .wa-emo-grilla{grid-template-columns:repeat(auto-fill,minmax(40px,1fr))}
+    .wa-emo-caja.fijo .wa-emo-grilla .wa-emo{font-size:26px;padding:6px 0}
     :root{--wa-suave:#5b6b7f}
     html.dark{--wa-suave:#94a3b8}
 
@@ -1920,9 +1927,9 @@
                              vez que se abre. wire:ignore: el refresco no la cierra. --}}
                         <span wire:ignore x-data="waEmojis()" style="position:relative;display:inline-block"
                               x-on:click.outside="abierto = false" x-on:keydown.escape.window="abierto = false">
-                            <button type="button" class="wa-chip wa-emo" x-on:click="abrir()"
+                            <button type="button" class="wa-chip wa-emo" x-on:click="abrir()" x-ref="boton"
                                     title="Poner un emoji" aria-label="Poner un emoji">😊</button>
-                            <div x-show="abierto" x-cloak class="wa-emo-caja">
+                            <div x-show="abierto" x-cloak class="wa-emo-caja" x-ref="caja">
                                 <input type="search" class="wa-emo-buscar" placeholder="Buscar emoji… (corazón, bebé, risa)"
                                        x-model="q" x-ref="buscar" aria-label="Buscar emoji">
                                 <div class="wa-emo-tabs" x-show="!q">
@@ -1937,6 +1944,7 @@
                                         <button type="button" class="wa-emo" x-on:click="poner(e)" x-text="e"></button>
                                     </template>
                                     <div class="wa-emo-nada" x-show="cargando">Cargando…</div>
+                                    <div class="wa-emo-nada" x-show="!cargando && fallo">No se pudo bajar la lista. Tocá 😊 otra vez.</div>
                                     <div class="wa-emo-nada" x-show="!cargando && lista().length === 0"
                                          x-text="q ? 'No hay emojis con esa palabra.' : 'Todavía no usaste ninguno.'"></div>
                                 </div>
@@ -3134,7 +3142,7 @@
         // 😊 El selector de emojis (buscador en español, categorías, recientes).
         window.waEmojis = function () {
             return {
-                abierto: false, cargando: false, q: '', grupo: 'rec', datos: null, recientes: [],
+                abierto: false, cargando: false, fallo: false, q: '', grupo: 'rec', datos: null, recientes: [], _mover: null,
                 tabs: [
                     { id: 'rec', icono: '🕘', nombre: 'Recientes' }, { id: 0, icono: '😀', nombre: 'Caritas' },
                     { id: 1, icono: '👋', nombre: 'Personas' }, { id: 3, icono: '🐶', nombre: 'Animales y naturaleza' },
@@ -3142,16 +3150,68 @@
                     { id: 6, icono: '⚽', nombre: 'Actividades' }, { id: 7, icono: '💡', nombre: 'Objetos' },
                     { id: 8, icono: '❤️', nombre: 'Símbolos' }, { id: 9, icono: '🏳️', nombre: 'Banderas' },
                 ],
+                init() {
+                    // Se cierra solo (clic afuera, Escape): soltar los avisos de mover.
+                    this.$watch('abierto', v => { if (!v) this.soltar(); });
+                },
                 abrir() {
                     this.abierto = !this.abierto;
                     if (!this.abierto) return;
                     try { this.recientes = JSON.parse(localStorage.getItem('wa_emojis_recientes') || '[]'); } catch (e) { this.recientes = []; }
                     if (!this.recientes.length && this.grupo === 'rec') this.grupo = 0;
                     if (!this.datos && !this.cargando) {
-                        this.cargando = true;
-                        fetch('/js/emojis-es.json').then(r => r.json()).then(d => { this.datos = d.grupos; }).catch(() => {}).finally(() => { this.cargando = false; });
+                        this.cargando = true; this.fallo = false;
+                        fetch('/js/emojis-es.json').then(r => r.json()).then(d => { this.datos = d.grupos; })
+                            .catch(() => { this.fallo = true; })
+                            .finally(() => { this.cargando = false; this.$nextTick(() => this.colocar()); });
                     }
-                    this.$nextTick(() => { if (window.innerWidth > 900) this.$refs.buscar.focus(); });
+                    this.$nextTick(() => {
+                        this.colocar();
+                        if (window.innerWidth > 900) this.$refs.buscar.focus();
+                    });
+                    // En el teléfono, al abrir o cerrar el teclado la pantalla
+                    // cambia de alto: la caja se vuelve a poner sobre el botón.
+                    if (!this._mover) {
+                        this._mover = () => { if (this.abierto) this.colocar(); };
+                        window.addEventListener('resize', this._mover);
+                        if (window.visualViewport) {
+                            window.visualViewport.addEventListener('resize', this._mover);
+                            window.visualViewport.addEventListener('scroll', this._mover);
+                        }
+                    }
+                },
+                soltar() {
+                    if (!this._mover) return;
+                    window.removeEventListener('resize', this._mover);
+                    if (window.visualViewport) {
+                        window.visualViewport.removeEventListener('resize', this._mover);
+                        window.visualViewport.removeEventListener('scroll', this._mover);
+                    }
+                    this._mover = null;
+                },
+                // Teléfono: caja fija, de lado a lado, justo encima del botón 😊
+                // (si no cabe, la cuadrícula se achica). Computadora: como antes.
+                colocar() {
+                    const caja = this.$refs.caja, boton = this.$refs.boton;
+                    if (!caja || !boton) return;
+                    const grilla = caja.querySelector('.wa-emo-grilla');
+                    if (window.innerWidth > 900) {
+                        caja.classList.remove('fijo'); caja.style.top = '';
+                        if (grilla) grilla.style.height = '';
+                        return;
+                    }
+                    caja.classList.add('fijo');
+                    if (grilla) grilla.style.height = '';
+                    const r = boton.getBoundingClientRect();
+                    const vv = window.visualViewport;
+                    const techo = (vv ? vv.offsetTop : 0) + 6;
+                    const libre = r.top - 8 - techo;
+                    let alto = caja.offsetHeight;
+                    if (grilla && alto > libre) {
+                        grilla.style.height = Math.max(110, grilla.offsetHeight - (alto - libre)) + 'px';
+                        alto = caja.offsetHeight;
+                    }
+                    caja.style.top = Math.max(techo, r.top - 8 - alto) + 'px';
                 },
                 limpiar(t) { return (t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); },
                 lista() {
@@ -3174,7 +3234,10 @@
                     return t ? t.nombre : '';
                 },
                 poner(e) {
-                    window.waPonerEmoji(e);
+                    // En el teléfono no se enfoca el cuadro: si no, se abre el
+                    // teclado a cada emoji y tapa la caja. Se pone igual donde
+                    // estaba el cursor.
+                    window.waPonerEmoji(e, window.innerWidth <= 900);
                     this.recientes = [e, ...this.recientes.filter(x => x !== e)].slice(0, 32);
                     try { localStorage.setItem('wa_emojis_recientes', JSON.stringify(this.recientes)); } catch (er) {}
                 },
@@ -3183,7 +3246,7 @@
 
         // 😊 Emojis: se ponen donde estaba el cursor y se avisa a Livewire
         // (evento "input") para que el texto se mande completo.
-        window.waPonerEmoji = function (emo) {
+        window.waPonerEmoji = function (emo, sinFoco) {
             var t = elCuadro();
             if (!t) return;
             var ini = t.selectionStart != null ? t.selectionStart : t.value.length;
@@ -3191,7 +3254,10 @@
             t.value = t.value.slice(0, ini) + emo + t.value.slice(fin);
             var pos = ini + emo.length;
             t.dispatchEvent(new Event('input', { bubbles: true }));
-            try { t.focus({ preventScroll: true }); t.setSelectionRange(pos, pos); } catch (e) {}
+            try {
+                if (!sinFoco) t.focus({ preventScroll: true });
+                t.setSelectionRange(pos, pos);
+            } catch (e) {}
         };
 
         window.waEnfocar = function () {
