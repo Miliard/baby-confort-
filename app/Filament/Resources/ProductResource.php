@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ProductResource\Pages;
+use App\Filament\Resources\ProductResource\RelationManagers;
 use App\Models\Product;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -19,131 +20,128 @@ class ProductResource extends Resource
     protected static ?string $modelLabel = 'Producto';
     protected static ?string $pluralModelLabel = 'Productos';
 
+    /*
+     * El producto en tarjetas, como en las tiendas grandes (Shopify, etc.):
+     *
+     *   ┌──────────────────────────────┬─────────────────┐
+     *   │ Datos (nombre, marca, …)     │ Foto principal  │
+     *   │ Página del producto (plegada)│ Visible / oferta│
+     *   └──────────────────────────────┴─────────────────┘
+     *
+     * Antes era una sola columna larguísima: datos, dos campos de foto con
+     * sus textos de ayuda, la ficha abierta con galería y características,
+     * y hasta el final las tallas. Ahora las tallas tienen su propia pestaña
+     * (SizesRelationManager), que es la que se abre primero, y acá queda lo
+     * que se toca poco. En el teléfono las tarjetas se apilan.
+     *
+     * Al CREAR todavía no hay producto donde colgar la tabla de tallas, así
+     * que ahí se piden las tallas con lo básico (talla, precio, existencia);
+     * fotos y texto de cada talla se ponen después, en la pestaña de tallas.
+     */
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Section::make('Datos del producto')->schema([
-                Forms\Components\TextInput::make('name')->label('Nombre')->required()->maxLength(255),
-                Forms\Components\TextInput::make('brand')->label('Marca')->maxLength(255),
-                Forms\Components\Select::make('categoria')->label('Categoría (para el menú)')
-                    ->options(\App\Models\Product::categoriaLabels())
-                    ->placeholder('Sin categoría')
-                    ->helperText('Define en qué sección del menú ☰ aparece.'),
-                Forms\Components\Textarea::make('description')->label('Descripción corta')->rows(3)->columnSpanFull(),
-                Forms\Components\TextInput::make('image')->label('Foto por link (pega la URL)')->url()->columnSpanFull()
-                    ->helperText('Pega el link de una imagen. Si prefieres, sube tu propia foto abajo.'),
-                Forms\Components\FileUpload::make('image_upload')->label('…o sube tu propia foto')
-                    ->image()->disk('public')->directory('productos')->imageEditor()->columnSpanFull()
-                    ->helperText('Si subes una foto aquí, se usará esta en lugar del link.'),
-                Forms\Components\TextInput::make('oferta')->label('Etiqueta de oferta (burbuja)')
-                    ->placeholder('¡Oferta!  ·  -20%  ·  2x1')->helperText('Si escribes algo, aparece una burbuja en el producto. Déjalo vacío para quitarla.'),
-                Forms\Components\Toggle::make('active')->label('Activo (visible en la tienda)')->default(true),
-            ])->columns(2),
+            Forms\Components\Grid::make(['default' => 1, 'lg' => 3])->schema([
 
-            Forms\Components\Section::make('Ficha de producto (página individual)')
-                ->description('Esto aparece en la página de cada producto.')
-                ->collapsible()
-                ->schema([
-                    Forms\Components\FileUpload::make('gallery')->label('Galería de fotos (varias)')
-                        ->image()->multiple()->reorderable()->disk('public')->directory('productos')
-                        ->columnSpanFull(),
-
-                    Forms\Components\Repeater::make('features')->label('Características (ícono + texto)')
+                // ── Columna ancha ──
+                Forms\Components\Group::make([
+                    Forms\Components\Section::make('Datos del producto')
+                        ->icon('heroicon-o-shopping-bag')
                         ->schema([
-                            Forms\Components\TextInput::make('icon')->label('Ícono (emoji)')->placeholder('🪶')->maxLength(4),
-                            Forms\Components\TextInput::make('text')->label('Texto')->placeholder('Tacto suave y ligero como una pluma.'),
-                        ])->columns(4)->addActionLabel('Agregar característica')->columnSpanFull()
-                        ->itemLabel(fn (array $state): ?string => ($state['icon'] ?? '') . ' ' . ($state['text'] ?? '')),
-
-                    Forms\Components\TextInput::make('made_in')->label('Fabricado en')->placeholder('AUSTRALIA'),
-                    Forms\Components\TextInput::make('badge')->label('Distintivo')->placeholder('Producto galardonado'),
-                    Forms\Components\Textarea::make('stock_warning')->label('Aviso de stock')->rows(2)
-                        ->placeholder('Este producto se agotó 32 veces el año pasado…')->columnSpanFull(),
-                ])->columns(2),
-
-            Forms\Components\Section::make('Tallas / presentaciones')
-                ->description('Cada talla tiene su propio peso, precio, cantidad y (opcional) combo.')
-                ->schema([
-                    Forms\Components\Repeater::make('sizes')->relationship()->label('Tallas')
-                        ->schema([
-                            Forms\Components\TextInput::make('size')->label('Talla / presentación')->required()->placeholder('Ej: M, S/M, 180 ML'),
-                            Forms\Components\TextInput::make('weight')->label('Peso')->placeholder('Ej: 6-11 kg'),
-                            Forms\Components\TextInput::make('unidades')->label('Unidades que trae esta talla')->numeric()->minValue(1)
-                                ->helperText('Cuántas unidades (piezas) incluye esta talla. Ej: 42')->placeholder('Ej: 42'),
-                            Forms\Components\Textarea::make('details')->label('Detalle de esta talla')->rows(6)->columnSpanFull()
-                                ->placeholder("Descripción que se muestra al elegir esta talla (puedes usar emojis y saltos de línea)."),
-
-                            Forms\Components\TextInput::make('image')->label('Foto de esta talla (link)')->url()->columnSpanFull()
-                                ->helperText('Al elegir esta talla, la imagen principal cambia a esta.'),
-                            Forms\Components\FileUpload::make('image_upload')->label('…o sube la foto de esta talla')
-                                ->image()->disk('public')->directory('productos/tallas')->columnSpanFull(),
-                            // Solo para WhatsApp. La página no las muestra: son
-                            // fotos reales para convencer a quien está
-                            // preguntando, no material de catálogo.
-                            Forms\Components\FileUpload::make('fotos_uso')
-                                ->label('📷 Fotos de cómo queda puesto (solo WhatsApp)')
-                                ->helperText('Se mandan desde el chat al elegir ESTA talla en el catálogo. '
-                                           . 'No aparecen en la página. Podés arrastrar varias; se mandan '
-                                           . 'en el orden en que las pongas.')
-                                ->image()->multiple()->reorderable()
-                                ->disk('public')->directory('productos/uso')
-                                ->maxSize(5120)
-                                ->panelLayout('grid')
+                            Forms\Components\TextInput::make('name')->label('Nombre')->required()->maxLength(255)
                                 ->columnSpanFull(),
+                            Forms\Components\TextInput::make('brand')->label('Marca')->maxLength(255),
+                            Forms\Components\Select::make('categoria')->label('Categoría del menú ☰')
+                                ->options(\App\Models\Product::categoriaLabels())
+                                ->placeholder('Sin categoría'),
+                            Forms\Components\Textarea::make('description')->label('Descripción corta')->rows(3)
+                                ->columnSpanFull(),
+                        ])->columns(2),
 
-                            Forms\Components\TextInput::make('price')->label('Precio')->numeric()->prefix('$')->required(),
-                            Forms\Components\TextInput::make('price_before')->label('Precio antes (oferta)')->numeric()->prefix('$')
-                                ->helperText('Opcional. Si es mayor al precio, se muestra tachado.'),
-                            Forms\Components\TextInput::make('quantity')->label('Cantidad (stock)')->numeric()->default(0)->required(),
-                            Forms\Components\TextInput::make('combo_qty')->label('Combo: cantidad')->numeric()->minValue(2)->helperText('Opcional'),
-                            Forms\Components\TextInput::make('combo_price')->label('Combo: precio')->numeric()->prefix('$')->helperText('Opcional'),
-                        ])->columns(3)->defaultItems(1)->addActionLabel('Agregar talla')->columnSpanFull()
+                    Forms\Components\Section::make('Tallas')
+                        ->icon('heroicon-o-tag')
+                        ->description('Lo básico de cada talla. Las fotos y el texto de cada una se agregan después de guardar, en la pestaña "Tallas".')
+                        ->visibleOn('create')
+                        ->schema([
+                            Forms\Components\Repeater::make('sizes')->relationship()->hiddenLabel()
+                                ->schema([
+                                    Forms\Components\TextInput::make('size')->label('Talla')->required()->placeholder('M, XL, 180 ML'),
+                                    Forms\Components\TextInput::make('price')->label('Precio')->numeric()->prefix('$')->required(),
+                                    Forms\Components\TextInput::make('quantity')->label('Existencia')->numeric()->default(0)->required(),
+                                    Forms\Components\TextInput::make('weight')->label('Peso')->placeholder('6-11 kg'),
+                                    Forms\Components\TextInput::make('unidades')->label('Unidades')->numeric()->minValue(1),
+                                ])
+                                ->columns(['default' => 2, 'md' => 5])
+                                ->defaultItems(1)->addActionLabel('Agregar otra talla'),
+                        ]),
 
-                        // Todas cerradas al abrir el producto. Antes cada talla
-                        // desplegaba sus trece campos, así que con cinco tallas
-                        // había que bajar media pantalla para llegar a la
-                        // segunda. Ahora se ven las cinco de un golpe, como
-                        // renglones, y se abre solo la que se va a tocar.
-                        ->collapsible()
-                        ->collapsed()
+                    Forms\Components\Section::make('Página del producto')
+                        ->icon('heroicon-o-document-text')
+                        ->description('Galería, características y avisos que se ven al abrir el producto en la tienda.')
+                        ->collapsible()->collapsed()
+                        ->schema([
+                            Forms\Components\FileUpload::make('gallery')->label('Galería de fotos (varias, se pueden ordenar)')
+                                ->image()->multiple()->reorderable()->disk('public')->directory('productos')
+                                ->panelLayout('grid')->columnSpanFull(),
 
-                        // El renglón cerrado tiene que decir lo suficiente para
-                        // no tener que abrirlo: talla, precio, unidades y stock.
-                        // Si hay que abrir cada una para saber cuál es, cerrarlas
-                        // no sirvió de nada.
-                        ->itemLabel(function (array $state): string {
-                            $talla = trim((string) ($state['size'] ?? '')) ?: 'Talla sin nombre';
+                            Forms\Components\Repeater::make('features')->label('Características (ícono + texto)')
+                                ->schema([
+                                    Forms\Components\TextInput::make('icon')->label('Ícono')->placeholder('🪶')->maxLength(4),
+                                    Forms\Components\TextInput::make('text')->label('Texto')->placeholder('Tacto suave y ligero como una pluma.')
+                                        ->columnSpan(3),
+                                ])->columns(4)->addActionLabel('Agregar característica')->columnSpanFull()
+                                ->collapsible()->collapsed()
+                                ->itemLabel(fn (array $state): ?string => trim(($state['icon'] ?? '') . ' ' . ($state['text'] ?? '')) ?: null),
 
-                            $partes = [];
+                            Forms\Components\TextInput::make('made_in')->label('Fabricado en')->placeholder('AUSTRALIA'),
+                            Forms\Components\TextInput::make('badge')->label('Distintivo')->placeholder('Producto galardonado'),
+                            Forms\Components\Textarea::make('stock_warning')->label('Aviso de existencia')->rows(2)
+                                ->placeholder('Este producto se agotó 32 veces el año pasado…')->columnSpanFull(),
+                        ])->columns(2),
+                ])->columnSpan(['lg' => 2]),
 
-                            if (($state['price'] ?? null) !== null && $state['price'] !== '') {
-                                $partes[] = '$' . number_format((float) $state['price'], 2);
-                            }
+                // ── Columna angosta ──
+                Forms\Components\Group::make([
+                    Forms\Components\Section::make('Foto principal')
+                        ->icon('heroicon-o-photo')
+                        ->schema([
+                            Forms\Components\FileUpload::make('image_upload')->hiddenLabel()
+                                ->image()->disk('public')->directory('productos')->imageEditor(),
+                            Forms\Components\TextInput::make('image')->label('…o pegá el link de una foto')->url()
+                                ->placeholder('https://…')
+                                ->helperText('Si hay foto subida, se usa esa.'),
+                        ]),
 
-                            if ((int) ($state['unidades'] ?? 0) > 0) {
-                                $partes[] = (int) $state['unidades'] . ' unidades';
-                            }
-
-                            $stock = (int) ($state['quantity'] ?? 0);
-                            $partes[] = $stock > 0 ? $stock . ' en existencia' : '⚠ agotada';
-
-                            if ((int) ($state['combo_qty'] ?? 0) > 0
-                                && (float) ($state['combo_price'] ?? 0) > 0) {
-                                $partes[] = 'combo ' . (int) $state['combo_qty']
-                                          . ' × $' . number_format((float) $state['combo_price'], 2);
-                            }
-
-                            return $talla . ' · ' . implode(' · ', $partes);
-                        }),
-                ]),
+                    Forms\Components\Section::make('En la tienda')
+                        ->icon('heroicon-o-eye')
+                        ->schema([
+                            Forms\Components\Toggle::make('active')->label('Visible en la tienda')->default(true),
+                            Forms\Components\TextInput::make('oferta')->label('Burbuja de oferta')
+                                ->placeholder('¡Oferta!  ·  -20%  ·  2x1')
+                                ->helperText('Vacío = sin burbuja.'),
+                        ]),
+                ])->columnSpan(['lg' => 1]),
+            ]),
         ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\SizesRelationManager::class,
+        ];
     }
 
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                Tables\Columns\ImageColumn::make('image')->label('Foto')->circular(),
+                // La foto que de verdad se ve en la tienda: la subida, o si no el link.
+                Tables\Columns\ImageColumn::make('foto')->label('Foto')->square()->size(48)
+                    ->getStateUsing(function (Product $r) {
+                        $u = $r->imageUrl();
+                        return $u ? (str_starts_with($u, 'http') ? $u : url($u)) : null;
+                    }),
                 // El buscador mira nombre, marca Y tallas: escribir "XXL" trae los
                 // productos que existen en esa talla.
                 Tables\Columns\TextColumn::make('name')->label('Nombre')->wrap()
@@ -157,11 +155,24 @@ class ProductResource extends Resource
                 Tables\Columns\TextColumn::make('brand')->label('Marca')->toggleable(),
                 Tables\Columns\SelectColumn::make('categoria')->label('Categoría')
                     ->options(\App\Models\Product::categoriaLabels())->placeholder('Sin categoría'),
-                Tables\Columns\TextColumn::make('sizes.size')->label('Tallas')
-                    ->badge()->limitList(5)->expandableLimitedList()
-                    ->color(fn ($state) => 'gray'),
+                // Cada talla con su existencia, en color: verde hay, naranja
+                // quedan pocas, rojo agotada. Se ve qué reponer sin entrar.
+                Tables\Columns\TextColumn::make('existencia')->label('Tallas · existencia')
+                    ->getStateUsing(fn (Product $r) => $r->sizes
+                        ->map(fn ($s) => $s->size . ' · ' . ((int) $s->quantity > 0 ? (int) $s->quantity : 'agotada'))
+                        ->all())
+                    ->badge()->limitList(6)->expandableLimitedList()
+                    ->color(function (string $state) {
+                        $n = (int) trim((string) strrchr($state, '·'), '· ');
+                        return str_ends_with($state, 'agotada') ? 'danger' : ($n <= 5 ? 'warning' : 'success');
+                    }),
+                Tables\Columns\TextColumn::make('desde')->label('Desde')
+                    ->getStateUsing(fn (Product $r) => $r->sizes->count() ? '$' . number_format($r->precioDesde(), 2) : null)
+                    ->placeholder('—')
+                    ->toggleable(),
                 Tables\Columns\IconColumn::make('active')->label('Activo')->boolean(),
             ])
+            ->modifyQueryUsing(fn (\Illuminate\Database\Eloquent\Builder $q) => $q->with('sizes'))
             ->reorderable('orden')
             ->defaultSort('orden')
             ->filters([
