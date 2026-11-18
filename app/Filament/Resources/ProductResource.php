@@ -172,7 +172,9 @@ class ProductResource extends Resource
                     ->toggleable(),
                 Tables\Columns\IconColumn::make('active')->label('Activo')->boolean(),
             ])
-            ->modifyQueryUsing(fn (\Illuminate\Database\Eloquent\Builder $q) => $q->with('sizes'))
+            // OJO: el parámetro tiene que llamarse $query. Filament lo pasa por
+            // nombre; con otro nombre llega una consulta vacía y la lista se cae.
+            ->modifyQueryUsing(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->with('sizes'))
             ->reorderable('orden')
             ->defaultSort('orden')
             ->filters([
