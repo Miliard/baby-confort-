@@ -1830,6 +1830,7 @@
                                       }
                                       if (! $event.shiftKey && window.innerWidth > 900) {
                                           $event.preventDefault();
+                                          window.waAlMandar && window.waAlMandar();
                                           $wire.enviar();
                                       }
                                   "
@@ -3046,25 +3047,61 @@
                 return;
             }
 
+            // Acabás de mandar algo (Enter o el botón Enviar): querés verlo,
+            // estuvieras donde estuvieras. Vale unos segundos, hasta que el
+            // mensaje aparece.
+            var mandaste = mandadoEn && (Date.now() - mandadoEn) < 10000;
+
             // Misma conversación, elemento nuevo. Su scrollTop es 0 y no
             // quiere decir nada, así que no se le pregunta a él: se usa lo
             // que se venía recordando.
             if (nuevo) {
                 ultimoAlto = chat.scrollHeight;
-                if (estabaAbajo || forzar) chat.scrollTop = chat.scrollHeight;
+                if (estabaAbajo || forzar || mandaste) {
+                    chat.scrollTop = chat.scrollHeight;
+                    estabaAbajo = true;
+                }
                 return;
             }
 
             var crecio = chat.scrollHeight > ultimoAlto;
             ultimoAlto = chat.scrollHeight;
 
-            // 140 px de tolerancia: si estabas cerca del final, se considera
-            // que querés seguir la conversación.
-            var cerca = (chat.scrollHeight - chat.scrollTop - chat.clientHeight) < CERCA;
-            estabaAbajo = cerca;
+            /*
+             * ¿Estabas al final ANTES de que creciera?
+             *
+             * Antes se medía después: si el mensaje nuevo era largo (un texto
+             * de varios renglones, el catálogo, una foto) medía más de 140 px,
+             * la distancia al final quedaba más grande que la tolerancia y el
+             * panel concluía "está leyendo arriba". Y no bajaba justo cuando
+             * acababas de mandar algo. Lo de antes lo tiene estabaAbajo.
+             */
+            var cerca = estabaAbajo
+                || (chat.scrollHeight - chat.scrollTop - chat.clientHeight) < CERCA;
 
-            if (forzar || (crecio && cerca)) chat.scrollTop = chat.scrollHeight;
+            if (forzar || mandaste || (crecio && cerca)) {
+                chat.scrollTop = chat.scrollHeight;
+                estabaAbajo = true;
+                if (mandaste && crecio) mandadoEn = 0;   // ya apareció
+            } else if (!crecio) {
+                estabaAbajo = (chat.scrollHeight - chat.scrollTop - chat.clientHeight) < CERCA;
+            }
         }
+
+        var mandadoEn = 0;
+
+        // Se llama al apretar Enter o Enviar: baja ya, sin esperar al servidor.
+        window.waAlMandar = function () {
+            mandadoEn = Date.now();
+            estabaAbajo = true;
+            var chat = document.querySelector('.wa-chat');
+            if (chat) chat.scrollTop = chat.scrollHeight;
+        };
+
+        // El botón Enviar (y en el teléfono es el único): mismo aviso.
+        document.addEventListener('click', function (e) {
+            if (e.target && e.target.closest && e.target.closest('.wa-enviar-fijo')) window.waAlMandar();
+        }, true);
 
         /*
          * Tomar nota cada vez que desplazás la conversación.
