@@ -860,6 +860,8 @@ trait GuionDiagrama
     private function dgEligeEste(string $texto): bool
     {
         $n = Entender::normalizar($texto);
+        // "¿Solo de ese?": pregunta si hay más, no elige.
+        if ($this->dgPreguntaSoloHay($n)) return false;
         $fuerte = '(quiero|quisiera|necesito|ocupo|interesa|interesad[oa]|enviar|enviarme|mandar|mandarme|envie|mande|obtengo|consigo|pido|compro)';
         if (str_contains($texto, '?') && ! preg_match('/\b' . $fuerte . '\b/', $n)) return false;
         // "¿Y cuándo va a tener? / de esos": pregunta por algo que no hay.
@@ -881,6 +883,52 @@ trait GuionDiagrama
             . '|seria (este|esta|ese|esa|estos|estas|esos|esas)|(lo|los|la|las) (quiero|necesito)|me interesa|estoy interesad[oa]'
             . '|como (lo|los|la|las) (obtengo|consigo|pido|compro|adquiero)|me (lo|los|la|las) (puede|podria|pueden|podrian) (enviar|mandar)'
             . '|(este|esta|estos|estas|ese|esa|esos|esas) me (lo|los|la|las)? ?(puede|podria) (enviar|mandar))\b/', $n);
+    }
+
+    /**
+     * "¿Solo de ese?", "¿solo ese hay?", "¿nada más esa tienen?", "¿no hay
+     * más?", "¿no tienen otro?", "¿es la única?": pregunta si hay más
+     * opciones. Con un verbo de pedir ("solo ese quiero") ya no es pregunta.
+     */
+    private function dgPreguntaSoloHay(string $n): bool
+    {
+        $n = trim($n);
+        $dem = '(ese|esa|eso|esos|esas|este|esta|estos|estas|esa presentacion|ese tipo)';
+        return (bool) preg_match('/^(y |o |entonces )?(solo|nada mas|nomas|no mas|unicamente|solamente) (hay |tienen |tiene |queda |quedan )?(de )?' . $dem
+                . '( hay| tienen| tiene| les queda| les quedan| queda| quedan| nada mas| nomas| tienen nada mas)?$/', $n)
+            || (bool) preg_match('/^(y |o )?(no )?(hay|tienen|tiene|tendran|les quedan?) (mas|otr[oa]s?|algun[oa]? otr[oa]|otra presentacion|otro tipo)( opciones?| presentaciones?| mas)?$/', $n)
+            || (bool) preg_match('/^(es|seria|era) (la|el) unic[oa]( que (hay|tienen|tiene))?$/', $n);
+    }
+
+    /** Contesta "¿solo de ese?": sí, esa es la única de ese tipo en esa talla (y si hay del otro tipo, se ofrece). */
+    private function dgSoloHayEsa(array $vistas, string $talla): void
+    {
+        $f = $this->f;
+        $tipos = array_values(array_unique(array_map(fn ($v) => $this->tipoDe((string) $v['nombre']), $vistas)));
+        $tipo  = count($tipos) === 1 ? $tipos[0] : null;
+        $en    = $talla !== '' ? 'En talla *' . $this->bonita($talla) . '* ' : '';
+        $de    = $tipo === 'Calzoncito' ? 'de calzoncito ' : ($tipo === 'Cinta' ? 'de cinta ' : '');
+
+        $txt = count($vistas) === 1
+            ? 'Así es 😊 ' . $en . $de . 'solo tenemos esa presentación en este momento.'
+            : 'Así es 😊 ' . $en . $de . 'solo tenemos esas ' . count($vistas) . ' presentaciones en este momento.';
+
+        // ¿Hay del OTRO tipo en esa talla? Se ofrece (y si dice "sí", se le muestra).
+        if ($tipo && $talla !== '') {
+            $otro = $tipo === 'Cinta' ? 'Calzoncito' : 'Cinta';
+            $hay = ProductSize::with('product')
+                ->whereRaw('UPPER(TRIM(size)) = ?', [mb_strtoupper(trim($talla))])
+                ->where('quantity', '>', 0)
+                ->get()
+                ->contains(fn ($s) => $s->product && $s->product->active && $this->tipoDe((string) $s->product->name) === $otro);
+            if ($hay) {
+                $txt .= "\n\n" . ($otro === 'Calzoncito' ? 'De calzoncito' : 'De cinta (de pegar a los lados)')
+                      . ' sí tenemos en talla *' . $this->bonita($talla) . '*. ¿Se la muestro? 😊';
+                $f->poner('ofrecido_tipo', mb_strtolower($otro));
+            }
+        }
+
+        $this->dgDecir($txt, 'opciones');
     }
 
     /** "¿Cuánto sería ya con el envío?", "con envío incluido", "total con el envío". */
@@ -1737,6 +1785,27 @@ trait GuionDiagrama
         if ($this->dgDespide(Entender::normalizar($texto))) {
             if ($f->dato('sin_talla')) $this->marcarAgotado();
             $f->quitar('citada');
+            return;
+        }
+
+        // Le ofrecimos el otro tipo ("En calzoncito sí tenemos… ¿se la
+        // muestro?") y dice que sí: se le muestra ese, NO se elige la que vio.
+        if ($otro = $f->dato('ofrecido_tipo')) {
+            $f->quitar('ofrecido_tipo');
+            if (Entender::siNo($texto) === true && $this->dgCantidadEn($texto) === null
+                && ! preg_match('/\b(quiero|deme|mandeme|me manda|envieme|necesito|ocupo|ese|esa|este|esta)\b/', Entender::normalizar($texto))) {
+                $f->quitar('citada');
+                $f->poner('tipo_pedido', $otro);
+                $f->poner('pedido_en', count((array) $f->dato('turnos', [])));
+                if (! empty($faltan[0])) { $this->dgConTalla((string) $faltan[0], ''); return; }
+            }
+        }
+
+        // "¿Solo de ese?", "¿no hay más?", "¿nada más ese tienen?": pregunta si
+        // hay otras opciones. NO está eligiendo (antes se tomaba como compra).
+        if ($vistas && $this->dgPreguntaSoloHay(Entender::normalizar($texto))) {
+            $f->quitar('citada');
+            $this->dgSoloHayEsa($vistas, (string) ($faltan[0] ?? ''));
             return;
         }
 
