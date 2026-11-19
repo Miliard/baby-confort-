@@ -3047,10 +3047,17 @@ class Asistente
         $talla = trim((string) $s->size);
         $peso  = $this->pesoDe($talla);
 
+        // El nombre tal como lo escribieron en el admin puede traer espacios de
+        // más ("…a los lados )"): se limpia para el cliente. Y si el nombre ya
+        // dice el tipo ("Cinta de noche…"), no se repite "*Cinta*" encima.
+        $nombre = $this->nombreLimpio((string) $p->name);
+        $tipo   = $this->tipoDe((string) $p->name);
+        $yaDice = mb_stripos($nombre, $tipo === 'Calzoncito' ? 'calzon' : 'cinta') !== false;
+
         $pie = "*Opción {$n}*\n"
             . '*Talla ' . $this->bonita($talla) . '*' . ($peso !== '' ? " ({$peso})" : '') . "\n"
-            . '*' . $this->tipoDe((string) $p->name) . "*\n\n"
-            . trim((string) $p->name) . "\n";
+            . ($yaDice ? "\n" : '*' . $tipo . "*\n\n")
+            . $nombre . "\n";
 
         if ((int) ($s->unidades ?? 0) > 0) $pie .= '*Contiene:* ' . (int) $s->unidades . " unidades\n";
 
@@ -3109,6 +3116,12 @@ class Asistente
     }
 
     /** "Cinta" o "Calzoncito", según el nombre del producto. */
+    /** El nombre del producto sin espacios de más: "(de pegar a los lados )" → "(de pegar a los lados)". */
+    private function nombreLimpio(string $nombre): string
+    {
+        return trim(preg_replace(['/\s+/u', '/\(\s+/u', '/\s+\)/u'], [' ', '(', ')'], $nombre));
+    }
+
     private function tipoDe(string $nombre): string
     {
         return $this->esCalzoncito($nombre) ? 'Calzoncito' : 'Cinta';

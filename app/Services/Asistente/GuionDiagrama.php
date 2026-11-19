@@ -2035,7 +2035,7 @@ trait GuionDiagrama
         $f->poner('carrito', $carrito);
         $f->quitar('dtipo');
 
-        $que = '*' . trim((string) $s->product->name) . '* talla ' . $this->bonita(trim((string) $s->size));
+        $que = '*' . $this->nombreLimpio((string) $s->product->name) . '* talla ' . $this->bonita(trim((string) $s->size));
 
         // Quedan tallas por elegir y no dijo cuántos de esta: se pregunta ya,
         // antes de pasar a la otra.
