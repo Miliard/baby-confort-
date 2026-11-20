@@ -3024,7 +3024,30 @@
          */
         var estabaAbajo = true;
 
-        var CERCA = 140;   // px de tolerancia para considerarte "al final"
+        /*
+         * Tolerancia para considerarte "al final": 60 px, menos de un renglón
+         * y medio. Era 140, y en el teléfono eso es casi un globo entero: subías
+         * un poquito para leer y el panel seguía creyendo que estabas abajo,
+         * así que al entrar cualquier mensaje te bajaba de golpe.
+         */
+        var CERCA = 60;
+
+        // La última vez que moviste el chat con el dedo, la rueda o la barra.
+        // Mientras lo estés moviendo (y un ratito después) no se te baja nada.
+        var tocadoEn = 0;
+        var QUIETO = 2500;   // ms
+
+        var mandadoEn = 0;
+
+        function distancia(chat) {
+            return chat.scrollHeight - chat.scrollTop - chat.clientHeight;
+        }
+
+        function bajar(chat) {
+            chat.scrollTop = chat.scrollHeight;
+            ultimoAlto = chat.scrollHeight;
+            estabaAbajo = true;
+        }
 
         function alFondo(forzar) {
             var chat = document.querySelector('.wa-chat');
@@ -3041,61 +3064,45 @@
             // Conversación recién abierta: siempre al último mensaje.
             if (conv !== ultimaConv) {
                 ultimaConv = conv;
-                ultimoAlto = chat.scrollHeight;
-                chat.scrollTop = chat.scrollHeight;
-                estabaAbajo = true;
-                return;
-            }
-
-            // Acabás de mandar algo (Enter o el botón Enviar): querés verlo,
-            // estuvieras donde estuvieras. Vale unos segundos, hasta que el
-            // mensaje aparece.
-            var mandaste = mandadoEn && (Date.now() - mandadoEn) < 10000;
-
-            // Misma conversación, elemento nuevo. Su scrollTop es 0 y no
-            // quiere decir nada, así que no se le pregunta a él: se usa lo
-            // que se venía recordando.
-            if (nuevo) {
-                ultimoAlto = chat.scrollHeight;
-                if (estabaAbajo || forzar || mandaste) {
-                    chat.scrollTop = chat.scrollHeight;
-                    estabaAbajo = true;
-                }
+                mandadoEn = 0;
+                bajar(chat);
                 return;
             }
 
             var crecio = chat.scrollHeight > ultimoAlto;
             ultimoAlto = chat.scrollHeight;
 
-            /*
-             * ¿Estabas al final ANTES de que creciera?
-             *
-             * Antes se medía después: si el mensaje nuevo era largo (un texto
-             * de varios renglones, el catálogo, una foto) medía más de 140 px,
-             * la distancia al final quedaba más grande que la tolerancia y el
-             * panel concluía "está leyendo arriba". Y no bajaba justo cuando
-             * acababas de mandar algo. Lo de antes lo tiene estabaAbajo.
-             */
-            var cerca = estabaAbajo
-                || (chat.scrollHeight - chat.scrollTop - chat.clientHeight) < CERCA;
-
-            if (forzar || mandaste || (crecio && cerca)) {
-                chat.scrollTop = chat.scrollHeight;
-                estabaAbajo = true;
-                if (mandaste && crecio) mandadoEn = 0;   // ya apareció
-            } else if (!crecio) {
-                estabaAbajo = (chat.scrollHeight - chat.scrollTop - chat.clientHeight) < CERCA;
+            // Acabás de mandar algo (Enter o Enviar) y ya apareció: se baja
+            // para que lo veas. Solo cuando APARECE (crece), no a cada refresco:
+            // si no, durante esos segundos no se podía subir.
+            var mandaste = mandadoEn && (Date.now() - mandadoEn) < 10000;
+            if (forzar || (mandaste && crecio)) {
+                if (mandaste && crecio) mandadoEn = 0;
+                bajar(chat);
+                return;
             }
-        }
 
-        var mandadoEn = 0;
+            // Lo estás moviendo vos ahora mismo: no se toca.
+            if (Date.now() - tocadoEn < QUIETO) return;
+
+            // Misma conversación, elemento nuevo: su scrollTop es 0 y no dice
+            // nada. Se usa lo que se venía recordando.
+            if (nuevo) {
+                if (estabaAbajo) bajar(chat);
+                return;
+            }
+
+            // Entró algo y estabas al final (según lo último que hiciste,
+            // no según la medida de después, que ya incluye lo nuevo).
+            if (crecio && estabaAbajo) bajar(chat);
+        }
 
         // Se llama al apretar Enter o Enviar: baja ya, sin esperar al servidor.
         window.waAlMandar = function () {
             mandadoEn = Date.now();
-            estabaAbajo = true;
+            tocadoEn = 0;
             var chat = document.querySelector('.wa-chat');
-            if (chat) chat.scrollTop = chat.scrollHeight;
+            if (chat) bajar(chat);
         };
 
         // El botón Enviar (y en el teléfono es el único): mismo aviso.
@@ -3104,26 +3111,25 @@
         }, true);
 
         /*
-         * Tomar nota cada vez que desplazás la conversación.
-         *
-         * Sin esto, "estabaAbajo" solo se actualizaría cada tres segundos, en
-         * el refresco. Si subís a leer algo viejo y justo entra un mensaje
-         * antes del siguiente refresco, el panel creería que seguís abajo y
-         * te arrastraría.
-         *
-         * Solo anota. No mueve nada ni toca el teclado — ese manejador ya se
-         * probó y se quitó: el chat también se desplaza por su cuenta al
-         * enfocar el cuadro, y no hay forma de distinguir eso de tu dedo.
-         * Anotar es inofensivo; actuar no lo era.
-         *
-         * En captura porque el evento "scroll" no burbujea.
+         * Tomar nota de dónde estás cada vez que se desplaza la conversación.
+         * Solo anota, no mueve nada. En captura porque "scroll" no burbujea.
          */
         document.addEventListener('scroll', function (e) {
             var t = e.target;
             if (!t || !t.classList || !t.classList.contains('wa-chat')) return;
-
-            estabaAbajo = (t.scrollHeight - t.scrollTop - t.clientHeight) < CERCA;
+            estabaAbajo = distancia(t) < CERCA;
         }, true);
+
+        // Tu mano en el chat (rueda, dedo, barra): se anota la hora, y si
+        // subís después de mandar, ya no se te baja al aparecer tu mensaje.
+        ['wheel', 'touchstart', 'touchmove', 'pointerdown'].forEach(function (ev) {
+            document.addEventListener(ev, function (e) {
+                if (!e.target || !e.target.closest || !e.target.closest('.wa-chat')) return;
+                tocadoEn = Date.now();
+                if (ev === 'wheel' && e.deltaY < 0) mandadoEn = 0;
+                if (ev === 'touchmove') mandadoEn = 0;
+            }, { capture: true, passive: true });
+        });
 
         function engancharFondo() {
             if (!window.Livewire || !window.Livewire.hook) return false;
