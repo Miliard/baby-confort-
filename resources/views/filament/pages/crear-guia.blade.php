@@ -92,7 +92,10 @@
                 </div>
 
                 @php
+                    // "repetido" solo entre las que todavía no salieron: las de
+                    // envíos anteriores quedan en la lista y no cuentan.
                     $conteoTel = collect($lista)
+                        ->filter(fn ($x) => $x['pendiente'] ?? true)
                         ->map(fn ($x) => preg_replace('/\D/', '', (string) ($x['telefono'] ?? '')))
                         ->countBy();
                     $faltanMensaje = collect($lista)->reject(fn ($x) => $x['enviado'] ?? false)->count();
@@ -217,7 +220,7 @@
                     @forelse($lista as $g)
                         @php
                             $tel = preg_replace('/\D/', '', (string) ($g['telefono'] ?? ''));
-                            $rep = $tel !== '' && ($conteoTel[$tel] ?? 0) > 1;
+                            $rep = $tel !== '' && ($g['pendiente'] ?? true) && ($conteoTel[$tel] ?? 0) > 1;
 
                             // Lo que está raro en esta guía, si hay algo.
                             $avisos  = \App\Services\RevisarGuia::de($g);

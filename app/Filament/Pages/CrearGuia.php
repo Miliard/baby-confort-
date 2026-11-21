@@ -678,27 +678,30 @@ class CrearGuia extends Page implements HasForms
             return;
         }
 
-        // Evita meter dos veces la misma guía en el lote. Se compara por el ID del
-        // cliente (su teléfono). Si es el mismo cliente pero otro pedido, se puede forzar.
+        /*
+         * ¿Ya está ese cliente en lo que TODAVÍA NO SALIÓ?
+         *
+         * Antes se comparaba con toda la lista, y la lista se deja acumular:
+         * ahí quedan las guías de envíos anteriores. Un cliente que vuelve a
+         * pedir lo mismo a la misma dirección salía "Guía repetida — No se
+         * agregó", y era un envío nuevo. Ahora solo cuentan las pendientes
+         * (sin lote), y nunca se bloquea: se avisa y se puede agregar igual.
+         */
         $idNuevo = self::soloDigitos($d['telefono'] ?? '');
         if (! $forzar && $idNuevo !== '') {
             foreach ($this->lista as $g) {
+                if (! ($g['pendiente'] ?? true)) continue;   // ya salió en otro envío
                 if (self::soloDigitos($g['telefono'] ?? '') !== $idNuevo) continue;
 
                 $mismaDir  = mb_strtolower(trim((string) ($g['direccion'] ?? ''))) === mb_strtolower(trim((string) ($d['direccion'] ?? '')));
                 $mismoProd = mb_strtolower(trim((string) ($g['descripcion'] ?? ''))) === mb_strtolower(trim((string) ($d['descripcion'] ?? '')));
 
-                if ($mismaDir && $mismoProd) {
-                    Notification::make()
-                        ->title('⚠️ Guía repetida')
-                        ->body('Ya tienes esta misma guía en el lote (' . ($g['nombre'] ?? '') . ' · ' . $idNuevo . '). No se agregó.')
-                        ->danger()->persistent()->send();
-                    return;
-                }
-
                 Notification::make()
-                    ->title('⚠️ Ese cliente ya está en el lote')
-                    ->body(($g['nombre'] ?? '') . ' · ' . $idNuevo . '. Si es otro pedido distinto, confirma para agregarlo.')
+                    ->title($mismaDir && $mismoProd ? '⚠️ Parece la misma guía' : '⚠️ Ese cliente ya está en este envío')
+                    ->body(($g['nombre'] ?? '') . ' · ' . $idNuevo
+                        . ($mismaDir && $mismoProd
+                            ? '. Misma dirección y mismo producto, todavía sin enviar. Si es otro paquete, agregala igual.'
+                            : '. Si es otro pedido distinto, confirma para agregarlo.'))
                     ->warning()->persistent()
                     ->actions([
                         \Filament\Notifications\Actions\Action::make('forzar')
