@@ -3653,6 +3653,220 @@ class Whatsapp extends Page
         $n->send();
     }
 
+    // ════════════════════════════════════════════════════════════════════════
+    // 📤 Mandar a Express todos los de una pestaña (la de "OK.")
+    // ════════════════════════════════════════════════════════════════════════
+    //
+    // Los chats de esa pestaña ya los leíste y les pasaste el filtro. Antes
+    // había que entrar uno por uno, "Procesar esta orden" y guardar. Acá se
+    // hace lo mismo con todos, en dos pasos:
+    //
+    //   1. prepararLote(): arma cada orden igual que el botón de procesar
+    //      (sin IA, leyendo la plantilla) y separa lo que sale de lo que hay
+    //      que mirar. No manda nada.
+    //   2. enviarDelLote(): el navegador lo llama de a uno, así 30 guías no
+    //      chocan con el tiempo máximo de una petición, y cada renglón se va
+    //      poniendo ✅ o ❌ a la vista.
+    //
+    // Reglas (las tuyas):
+    //   · teléfono vacío → el del WhatsApp que escribe; nombre vacío → "Cliente".
+    //   · SIN cobro → no sale solo: alarma, y un botón para mandarla igual.
+    //   · municipio que no cuadra, producto que no está en el catálogo, orden
+    //     que no se encuentra, guía ya hecha, San Miguel o cliente que dijo que
+    //     está mal → a revisar, con el motivo y el botón de abrir el chat.
+
+    /** El lote abierto: ['etiqueta' => id, 'nombre' => …, 'listos' => [...], 'revisar' => [...]]. */
+    public ?array $lote = null;
+
+    /** Los avisos que se juntaron desde $desde, y se sacan de la pantalla. */
+    private function notifsTomar(int $desde): array
+    {
+        $todas  = (array) session('filament.notifications', []);
+        $nuevas = array_slice($todas, $desde);
+        session()->put('filament.notifications', array_slice($todas, 0, $desde));
+
+        return array_map(fn ($n) => trim((string) ($n['title'] ?? '')) . ' ' . trim((string) ($n['body'] ?? '')), $nuevas);
+    }
+
+    /** La última orden de envío escrita en el chat (la corregida, si hubo dos). */
+    private function ultimaOrdenDe(WaConversacion $conv): ?WaMensaje
+    {
+        return WaMensaje::where('conversacion_id', $conv->id)
+            ->orderByDesc('id')->limit(80)->get()
+            ->first(fn ($m) => \App\Services\Etiquetado::pareceOrden($m->texto)
+                && preg_match('/producto/iu', (string) $m->texto));
+    }
+
+    /**
+     * Arma el pedido de un chat en el formulario, como "Procesar esta orden",
+     * y dice si sale solo o qué hay que mirar. Deja el formulario lleno.
+     */
+    private function evaluarParaLote(WaConversacion $conv): array
+    {
+        $r = ['id' => $conv->id, 'tel' => $conv->titulo(), 'ok' => false, 'sinCobro' => false,
+              'motivo' => '', 'municipio' => '', 'producto' => '', 'cobro' => 0.0];
+
+        $orden = $this->ultimaOrdenDe($conv);
+        if (! $orden) return ['motivo' => 'No encontré la orden de envío en el chat'] + $r;
+
+        // Ya se hizo la guía después de esta orden: no se manda dos veces.
+        $tel8 = substr(preg_replace('/\D/', '', (string) $conv->telefono), -8);
+        try {
+            if ($tel8 !== '' && \App\Models\GuiaBorrador::where('created_at', '>=', $orden->created_at)
+                    ->where('telefono', 'like', '%' . $tel8)->exists()) {
+                return ['motivo' => 'Ya tiene guía hecha después de esta orden'] + $r;
+            }
+        } catch (\Throwable $e) {}
+
+        if ($conv->etiquetas->contains(fn ($e) => mb_stripos((string) $e->nombre, 'san miguel') !== false)) {
+            return ['motivo' => 'Es de San Miguel: la entregás vos'] + $r;
+        }
+
+        $dijoMal = WaMensaje::where('conversacion_id', $conv->id)->where('id', '>', $orden->id)
+            ->where('direccion', 'entrante')->pluck('texto')
+            ->contains(fn ($t) => preg_match('/no est[aá] (correct|bien)|est[aá] mal|incorrect|equivoc/iu', (string) $t));
+        if ($dijoMal) return ['motivo' => 'El cliente dijo que la orden no está bien'] + $r;
+
+        // Igual que tocar "Procesar esta orden" en ese chat.
+        $this->abierta = $conv->id;
+        $this->limpiarPedido();
+        $n0 = count((array) session('filament.notifications', []));
+        $this->procesarOrden($orden->id);
+        $avisos = $this->notifsTomar($n0);
+
+        if (trim($this->pedNombre) === '') $this->pedNombre = 'Cliente';
+        if (trim($this->pedTelefono) === '') {
+            $this->pedTelefono = $conv->esExtranjero()
+                ? WaConversacion::internacional((string) $conv->wa_id)
+                : (string) ($conv->telefono ?: '');
+        }
+
+        $r['municipio'] = trim($this->pedMunicipio);
+        $r['producto']  = $this->descripcionPedido();
+        $r['cobro']     = round($this->totalPedido(), 2);
+        $r['orden']     = $orden->id;
+
+        $faltan = [];
+        if (trim($this->pedTelefono) === '')  $faltan[] = 'el teléfono';
+        if (trim($this->pedDireccion) === '') $faltan[] = 'la dirección';
+        if (trim($this->pedMunicipio) === '') $faltan[] = 'el municipio';
+        if ($r['producto'] === '')            $faltan[] = 'el producto';
+        if ($faltan) return ['motivo' => 'Falta ' . implode(', ', $faltan)] + $r;
+
+        $zona = $this->revisionZona();
+        if (in_array($zona['estado'], ['error', 'ambiguo', 'desconocido'], true)) {
+            return ['motivo' => 'Municipio: ' . strip_tags((string) $zona['mensaje'])] + $r;
+        }
+
+        foreach ($avisos as $a) {
+            if (str_starts_with($a, 'Hay algo que no reconocí')) {
+                return ['motivo' => 'Hay un producto que no reconocí del catálogo'] + $r;
+            }
+        }
+
+        if ($r['cobro'] <= 0) {
+            return ['motivo' => 'Sale SIN cobro: ¿ya pagó?', 'sinCobro' => true] + $r;
+        }
+
+        return ['ok' => true] + $r;
+    }
+
+    /** Paso 1: revisa todos los chats de la pestaña puesta. No manda nada. */
+    public function prepararLote(): void
+    {
+        if (! $this->filtroEtiqueta) {
+            Notification::make()->title('Primero abrí la pestaña (por ejemplo OK.)')->warning()->send();
+            return;
+        }
+
+        $antes = ['abierta' => $this->abierta, 'pestana' => $this->pestana, 'texto' => $this->texto];
+
+        $listos = [];
+        $revisar = [];
+
+        try {
+            $convs = $this->consultaConversaciones(false)->with('etiquetas')
+                ->orderBy('ultimo_mensaje_at')->limit(80)->get();
+
+            foreach ($convs as $c) {
+                $e = $this->evaluarParaLote($c);
+                if ($e['ok']) $listos[] = $e; else $revisar[] = $e;
+            }
+        } catch (\Throwable $e) {
+            Notification::make()->title('No se pudo revisar la pestaña')->body($e->getMessage())->danger()->send();
+        }
+
+        $this->abierta = $antes['abierta'];
+        $this->limpiarPedido();
+        $this->pestana = $antes['pestana'];
+        $this->texto   = $antes['texto'];
+
+        $etq = \App\Models\WaEtiqueta::find($this->filtroEtiqueta);
+        $this->lote = [
+            'etiqueta' => $this->filtroEtiqueta,
+            'nombre'   => $etq?->nombre ?? 'esta pestaña',
+            'listos'   => $listos,
+            'revisar'  => $revisar,
+        ];
+    }
+
+    /** Paso 2: manda UNA guía del lote. Lo llama el navegador, de a una. */
+    public function enviarDelLote(int $convId, bool $aunSinCobro = false): array
+    {
+        $antes = ['abierta' => $this->abierta, 'pestana' => $this->pestana, 'texto' => $this->texto];
+
+        $volver = function () use ($antes) {
+            $this->abierta = $antes['abierta'];
+            $this->limpiarPedido();
+            $this->pestana = $antes['pestana'];
+            $this->texto   = $antes['texto'];
+        };
+
+        $conv = WaConversacion::with('etiquetas')->find($convId);
+        if (! $conv) { $volver(); return ['ok' => false, 'error' => 'No encontré el chat']; }
+
+        $ev = $this->evaluarParaLote($conv);
+        if (! $ev['ok'] && ! ($aunSinCobro && $ev['sinCobro'])) {
+            $volver();
+            return ['ok' => false, 'error' => $ev['motivo'] ?: 'No se pudo armar'];
+        }
+
+        $this->texto = '';
+        $n0 = count((array) session('filament.notifications', []));
+        $this->guardarPedido(true);
+        $avisos = $this->notifsTomar($n0);
+        $ventanaCerrada = trim($this->texto) !== '';   // el rastreo quedó en el cuadro
+
+        $todo = implode(' | ', $avisos);
+        $ok = (bool) preg_match('/📤 Guía (\d+)/u', $todo, $g);
+
+        if ($ok && ! empty($this->lote['etiqueta'])) {
+            try { $conv->etiquetas()->detach($this->lote['etiqueta']); } catch (\Throwable $e) {}
+        }
+
+        $volver();
+
+        return $ok
+            ? ['ok' => true, 'guia' => $g[1], 'nota' => $ventanaCerrada ? 'ventana cerrada: el rastreo no le salió' : '']
+            : ['ok' => false, 'error' => trim(preg_replace('/\s+/u', ' ', $avisos[0] ?? 'Express no la aceptó'))];
+    }
+
+    /** Cierra el lote y abre ese chat con la orden ya cargada, para corregirla. */
+    public function abrirDelLote(int $convId): void
+    {
+        $this->lote = null;
+        $this->abrir($convId);
+
+        $conv = $this->conversacion();
+        $orden = $conv ? $this->ultimaOrdenDe($conv) : null;
+        if ($orden) $this->procesarOrden($orden->id);
+    }
+
+    public function cerrarLote(): void
+    {
+        $this->lote = null;
+    }
+
     /** Resumen del pedido para mandárselo al cliente y que confirme. */
     public function pasarPedidoAlChat(): void
     {

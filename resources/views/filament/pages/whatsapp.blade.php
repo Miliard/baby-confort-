@@ -983,6 +983,18 @@
     .wa-etq.on{background:var(--c);color:#fff;border-style:solid;opacity:1}
 
     /* ── La ventana del catálogo ── */
+    /* ── El lote para Express ── */
+    .wa-lote-t{font-size:13px;font-weight:800;margin:2px 0 8px}
+    .wa-lote-t span{font-weight:600;color:var(--wa-suave)}
+    .wa-lote-fila{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;
+                  padding:8px 2px;border-bottom:1px solid rgba(120,140,170,.16);font-size:13px}
+    .wa-lote-dato{min-width:0;flex:1}
+    .wa-lote-sub{font-size:12px;color:var(--wa-suave);margin-top:2px}
+    .wa-lote-mot{font-size:12.5px;font-weight:700;color:#d4a017;margin-top:2px}
+    .wa-lote-estado{flex:none;text-align:right;font-size:12.5px;max-width:45%}
+    .wa-lote-esp{color:var(--wa-suave)}
+    .wa-lote-ok{color:#2e9e6b;font-weight:700}
+    .wa-lote-mal{color:#e5695f;font-weight:600}
     .wa-modal-fondo{position:fixed;inset:0;background:rgba(10,16,26,.62);z-index:60;
                     display:grid;place-items:center;padding:18px}
     .wa-modal{background:#fff;border-radius:16px;width:100%;max-width:460px;
@@ -1274,6 +1286,17 @@
                     </button>
                 @endforeach
             </div>
+
+            {{-- 📤 Mandar a Express todos los de la pestaña puesta (la de OK.):
+                 primero revisa y muestra qué sale y qué hay que mirar. --}}
+            @if($filtroEtiqueta)
+                <button type="button" wire:click="prepararLote" wire:loading.attr="disabled" wire:target="prepararLote"
+                        class="wa-fil" style="--c:#16a34a;margin-top:8px;font-weight:700"
+                        title="Revisa todas las órdenes de esta pestaña y las manda a Express de una vez">
+                    <span wire:loading.remove wire:target="prepararLote">📤 Mandar a Express todos los de esta pestaña</span>
+                    <span wire:loading wire:target="prepararLote">⏳ Revisando las órdenes…</span>
+                </button>
+            @endif
         </div>
 
         <div class="wa-lista">
@@ -2428,6 +2451,116 @@
         @endif
     </div>
 </div>
+
+{{-- ═══ 📤 El lote para Express ══════════════════════════════════════════
+     Lo que sale solo, con su cobro, y lo que hay que mirar, con el motivo.
+     El envío lo hace el navegador de a una guía (enviarDelLote), así no
+     choca con el tiempo máximo y cada renglón se pone ✅ o ❌ a la vista.
+     wire:ignore: el refresco de cada 3 s no borra los ✅ que van saliendo. --}}
+@if($lote)
+@php
+    $loteListos  = $lote['listos'] ?? [];
+    $loteRevisar = $lote['revisar'] ?? [];
+    $loteTotal   = array_sum(array_column($loteListos, 'cobro'));
+@endphp
+<div class="wa-modal-fondo">
+    <div class="wa-modal" style="max-width:760px" wire:ignore
+         x-data="{
+             yendo: false, hechos: {},
+             async mandar(id, aunSinCobro) {
+                 this.hechos[id] = { estado: 'yendo' };
+                 try {
+                     const r = await $wire.enviarDelLote(id, aunSinCobro);
+                     this.hechos[id] = r && r.ok ? { estado: 'ok', guia: r.guia, nota: r.nota } : { estado: 'mal', error: (r && r.error) || 'No salió' };
+                 } catch (e) { this.hechos[id] = { estado: 'mal', error: 'Se cortó la conexión. Probá de nuevo.' }; }
+             },
+             async mandarTodos(ids) {
+                 if (! confirm('¿Mandar ' + ids.length + ' guías a Express?\n\nTotal a cobrar: ${{ number_format($loteTotal, 2) }}\n\nSe crean de verdad en Express y a cada cliente le sale su rastreo.')) return;
+                 this.yendo = true;
+                 for (const id of ids) { if (this.hechos[id] && this.hechos[id].estado === 'ok') continue; await this.mandar(id, false); }
+                 this.yendo = false;
+             },
+             cuantos(estado) { return Object.values(this.hechos).filter(h => h.estado === estado).length; }
+         }">
+
+        <div class="wa-modal-cab">
+            <b>📤 Mandar a Express · {{ $lote['nombre'] }}</b>
+            <button type="button" class="wa-modal-x" wire:click="cerrarLote" x-bind:disabled="yendo" aria-label="Cerrar">✕</button>
+        </div>
+
+        <div class="wa-modal-cuerpo">
+            <div class="wa-lote-t">✅ Listas para salir: {{ count($loteListos) }}
+                @if($loteListos) <span>· a cobrar ${{ number_format($loteTotal, 2) }}</span> @endif
+            </div>
+            @forelse($loteListos as $it)
+                <div class="wa-lote-fila">
+                    <div class="wa-lote-dato">
+                        <b>{{ $it['tel'] }}</b> · {{ $it['municipio'] }} · <b>${{ number_format($it['cobro'], 2) }}</b>
+                        <div class="wa-lote-sub">{{ \Illuminate\Support\Str::limit($it['producto'], 110) }}</div>
+                    </div>
+                    <div class="wa-lote-estado">
+                        <template x-if="!hechos[{{ $it['id'] }}]"><span class="wa-lote-esp">Esperando</span></template>
+                        <template x-if="hechos[{{ $it['id'] }}] && hechos[{{ $it['id'] }}].estado === 'yendo'"><span>⏳ Mandando…</span></template>
+                        <template x-if="hechos[{{ $it['id'] }}] && hechos[{{ $it['id'] }}].estado === 'ok'">
+                            <span class="wa-lote-ok" x-text="'✅ Guía ' + hechos[{{ $it['id'] }}].guia + (hechos[{{ $it['id'] }}].nota ? ' · ' + hechos[{{ $it['id'] }}].nota : '')"></span>
+                        </template>
+                        <template x-if="hechos[{{ $it['id'] }}] && hechos[{{ $it['id'] }}].estado === 'mal'">
+                            <span class="wa-lote-mal">❌ <span x-text="hechos[{{ $it['id'] }}].error"></span>
+                                <button type="button" class="wa-mini" wire:click="abrirDelLote({{ $it['id'] }})">Abrir</button></span>
+                        </template>
+                    </div>
+                </div>
+            @empty
+                <div class="wa-lote-sub" style="padding:8px 2px">Ninguna sale sola.</div>
+            @endforelse
+
+            @if($loteRevisar)
+                <div class="wa-lote-t" style="margin-top:16px;color:#d4a017">⚠️ Para revisar: {{ count($loteRevisar) }}</div>
+                @foreach($loteRevisar as $it)
+                    <div class="wa-lote-fila">
+                        <div class="wa-lote-dato">
+                            <b>{{ $it['tel'] }}</b>
+                            @if($it['municipio']) · {{ $it['municipio'] }} @endif
+                            @if($it['cobro'] > 0) · ${{ number_format($it['cobro'], 2) }} @endif
+                            <div class="wa-lote-mot">{{ $it['motivo'] }}</div>
+                            @if($it['producto'])<div class="wa-lote-sub">{{ \Illuminate\Support\Str::limit($it['producto'], 110) }}</div>@endif
+                        </div>
+                        <div class="wa-lote-estado">
+                            <template x-if="hechos[{{ $it['id'] }}] && hechos[{{ $it['id'] }}].estado === 'ok'">
+                                <span class="wa-lote-ok" x-text="'✅ Guía ' + hechos[{{ $it['id'] }}].guia"></span>
+                            </template>
+                            <template x-if="hechos[{{ $it['id'] }}] && hechos[{{ $it['id'] }}].estado === 'yendo'"><span>⏳ Mandando…</span></template>
+                            <template x-if="!hechos[{{ $it['id'] }}] || hechos[{{ $it['id'] }}].estado === 'mal'">
+                                <span style="display:inline-flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+                                    @if($it['sinCobro'])
+                                        <button type="button" class="wa-mini" x-on:click="mandar({{ $it['id'] }}, true)" x-bind:disabled="yendo"
+                                                title="Ya pagó: sale con cobro $0">Mandar igual (ya pagó)</button>
+                                    @endif
+                                    <button type="button" class="wa-mini" wire:click="abrirDelLote({{ $it['id'] }})" x-bind:disabled="yendo">Abrir y corregir</button>
+                                </span>
+                            </template>
+                        </div>
+                    </div>
+                @endforeach
+            @endif
+        </div>
+
+        <div class="wa-modal-pie">
+            <span style="font-size:12.5px;color:var(--wa-suave);flex:1">
+                <span x-show="cuantos('ok') || cuantos('mal')" x-text="'Salieron ' + cuantos('ok') + (cuantos('mal') ? ' · fallaron ' + cuantos('mal') : '')"></span>
+            </span>
+            @if($loteListos)
+                <x-filament::button color="success" icon="heroicon-m-paper-airplane"
+                    x-on:click="mandarTodos({{ json_encode(array_column($loteListos, 'id')) }})" x-bind:disabled="yendo">
+                    <span x-show="!yendo">Mandar {{ count($loteListos) }} a Express</span>
+                    <span x-show="yendo">Mandando…</span>
+                </x-filament::button>
+            @endif
+            <x-filament::button color="gray" wire:click="cerrarLote" x-bind:disabled="yendo">Cerrar</x-filament::button>
+        </div>
+    </div>
+</div>
+@endif
 
 {{-- ═══ La ventana de las fotos guardadas ═════════════════════════════════ --}}
 @if($fotosAbiertas)
