@@ -3706,11 +3706,33 @@ class Whatsapp extends Page
         $r = ['id' => $conv->id, 'tel' => $conv->titulo(), 'ok' => false, 'sinCobro' => false,
               'motivo' => '', 'municipio' => '', 'producto' => '', 'cobro' => 0.0];
 
+        /*
+         * Revendedores: mandan varias órdenes seguidas desde su número, una
+         * por cada cliente suyo. Acá solo se toma la última, así que el resto
+         * se perdería: esas se hacen a mano. Dos formas de reconocerlos:
+         *   · el número está en REVENDEDORES (Railway), separado por comas;
+         *   · el propio chat mandó 2 o más órdenes escritas en la última semana.
+         */
+        $tel8 = substr(preg_replace('/\D/', '', (string) $conv->telefono), -8);
+        $revendedores = array_filter(array_map(
+            fn ($n) => substr(preg_replace('/\D/', '', $n), -8),
+            explode(',', (string) env('REVENDEDORES', '63006371'))
+        ));
+        if ($tel8 !== '' && in_array($tel8, $revendedores, true)) {
+            return ['motivo' => 'Es revendedor (varias órdenes en el mismo chat): hacelas a mano'] + $r;
+        }
+        $suyas = WaMensaje::where('conversacion_id', $conv->id)->where('direccion', 'entrante')
+            ->where('created_at', '>=', now()->subDays(7))->orderByDesc('id')->limit(200)->pluck('texto')
+            ->filter(fn ($t) => \App\Services\Etiquetado::pareceOrden($t) && preg_match('/producto/iu', (string) $t))
+            ->count();
+        if ($suyas >= 2) {
+            return ['motivo' => "Mandó {$suyas} órdenes en la semana (¿revendedor?): hacelas a mano"] + $r;
+        }
+
         $orden = $this->ultimaOrdenDe($conv);
         if (! $orden) return ['motivo' => 'No encontré la orden de envío en el chat'] + $r;
 
         // Ya se hizo la guía después de esta orden: no se manda dos veces.
-        $tel8 = substr(preg_replace('/\D/', '', (string) $conv->telefono), -8);
         try {
             if ($tel8 !== '' && \App\Models\GuiaBorrador::where('created_at', '>=', $orden->created_at)
                     ->where('telefono', 'like', '%' . $tel8)->exists()) {
