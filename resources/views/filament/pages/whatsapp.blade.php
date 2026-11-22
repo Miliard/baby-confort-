@@ -16,7 +16,7 @@
     /* ── Pantalla ancha: la lista crece y muestra más de cada plática ───────
        Con 2000 px el chat se llevaba 1600 y los globos no pasan de cierto
        ancho: el medio quedaba vacío. Ese ancho pasa a la lista, que muestra
-       los dos mensajes de antes del último (.wa-hist): se ve de qué va cada
+       en un renglón lo que dijo el cliente (.wa-hist): se ve de qué va cada
        chat sin entrar. El chat sigue teniendo de sobra (~1350 px). */
     @media(min-width:1400px){
         .wa{grid-template-columns:clamp(420px, 30vw, 620px) 1fr}
@@ -31,13 +31,10 @@
         .wa-der{border-top-left-radius:0 !important;border-bottom-left-radius:0 !important}
     }
 
-    /* Los mensajes de antes del último, en la lista (solo pantalla ancha). */
-    .wa-hist{display:none;margin-top:4px}
-    .wa-hist-l{font-size:12.5px;line-height:1.35;color:var(--wa-suave);
-               overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .wa-hist-l b{font-weight:700}
-    .wa-hist-l.cli b{color:#e5695f}
-    .wa-hist-l.yo b{color:#3fae7a}
+    /* Lo que dijo el cliente, en la lista (solo pantalla ancha): un renglón. */
+    .wa-hist{display:none;margin-top:3px;font-size:12.5px;line-height:1.35;color:var(--wa-suave);
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .wa-hist b{color:#e5695f;font-weight:700}
 
     /* El título "WhatsApp" no dice nada que no se sepa por el menú de arriba,
        y se lleva casi 100 px de alto de conversación. */
@@ -1302,25 +1299,10 @@
                         <div class="wa-apodo">{{ $c->subtitulo() }}</div>
                     @endif
 
-                    {{-- Los dos mensajes de antes del último (solo en pantalla
-                         ancha): de qué va la plática sin entrar al chat. --}}
-                    @if($c->relationLoaded('historial') && $c->historial->isNotEmpty())
-                        <div class="wa-hist">
-                            @foreach($c->historial as $h)
-                                @php
-                                    $hTexto = trim((string) $h->texto);
-                                    $hMedia = match ($h->tipo) {
-                                        'image' => '📷 Foto', 'audio', 'voice' => '🎤 Audio', 'video' => '🎬 Video',
-                                        'document' => '📄 Documento', 'sticker' => 'Sticker', default => '',
-                                    };
-                                    $hQuien = $h->direccion === 'entrante' ? 'Cliente' : ($h->automatico ? '🤖' : 'Vos');
-                                @endphp
-                                <div class="wa-hist-l {{ $h->direccion === 'entrante' ? 'cli' : 'yo' }}">
-                                    <b>{{ $hQuien }}:</b>
-                                    {{ $hMedia !== '' && ($hTexto === '' || $h->tipo !== 'text') ? $hMedia . ($hTexto !== '' ? ' · ' : '') : '' }}{{ \Illuminate\Support\Str::limit(preg_replace('/\s+/u', ' ', $hTexto), 140) }}
-                                </div>
-                            @endforeach
-                        </div>
+                    {{-- Lo que dijo el cliente, en un renglón (solo en pantalla
+                         ancha): con eso se intuye qué contestarle sin entrar. --}}
+                    @if(filled($c->dichoCliente ?? null))
+                        <div class="wa-hist"><b>Cliente:</b> {{ \Illuminate\Support\Str::limit($c->dichoCliente, 220) }}</div>
                     @endif
 
                     {{-- Las palomitas delante de la vista previa cuentan la
