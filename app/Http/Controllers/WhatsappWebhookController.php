@@ -116,6 +116,26 @@ class WhatsappWebhookController extends Controller
         $conv   = WaConversacion::deNumero($waId, $nombre);
 
         $tipo  = $m['type'] ?? 'text';
+
+        /*
+         * Reacción (👍 ❤️ 🙏 sobre un mensaje): se pega al mensaje al que
+         * reaccionó, como en WhatsApp. No es un mensaje nuevo: no suma a "sin
+         * leer", no mueve el chat en la lista y el asistente no la contesta.
+         * Si quitó la reacción, Meta manda el emoji vacío y se borra.
+         * Solo si no se encuentra el mensaje (muy viejo) se guarda aparte.
+         */
+        if ($tipo === 'reaction') {
+            $emoji  = (string) ($m['reaction']['emoji'] ?? '');
+            $sobre  = $m['reaction']['message_id'] ?? null;
+            $objeto = $sobre ? WaMensaje::where('wa_message_id', $sobre)->first() : null;
+
+            if ($objeto && \Illuminate\Support\Facades\Schema::hasColumn('wa_mensajes', 'reaccion')) {
+                $objeto->reaccion = $emoji !== '' ? mb_substr($emoji, 0, 32) : null;
+                $objeto->save();
+                return;
+            }
+            if ($emoji === '') return;
+        }
         $texto = null;
         $mediaId = null;
         $ruta = null;
@@ -141,6 +161,22 @@ class WhatsappWebhookController extends Controller
             $texto   = $m['button']['text'] ?? '[botón]';
             $idBoton = $m['button']['payload'] ?? null;
             $tipo    = 'text';
+        } elseif ($tipo === 'location') {
+            // Ubicación: con su enlace de Google Maps, que en el panel se
+            // puede tocar. Antes llegaba como "[location]" y había que ir al
+            // teléfono a verla. El tipo sigue siendo "location": el asistente
+            // la reconoce igual que antes.
+            $lat = $m['location']['latitude'] ?? null;
+            $lng = $m['location']['longitude'] ?? null;
+            $lugar = trim(implode(' · ', array_filter([
+                trim((string) ($m['location']['name'] ?? '')),
+                trim((string) ($m['location']['address'] ?? '')),
+            ])));
+            $texto = '📍 Ubicación' . ($lugar !== '' ? ': ' . $lugar : '')
+                   . ($lat !== null && $lng !== null ? "\nhttps://maps.google.com/?q={$lat},{$lng}" : '');
+        } elseif ($tipo === 'reaction') {
+            // Reacción a un mensaje que ya no está en el panel: se guarda aparte.
+            $texto = 'Reaccionó ' . ($m['reaction']['emoji'] ?? '');
         } else {
             $texto = '[' . $tipo . ']';
         }
@@ -273,6 +309,22 @@ class WhatsappWebhookController extends Controller
         } elseif (in_array($tipo, ['image', 'video', 'document', 'audio'], true)) {
             $mediaId = $e[$tipo]['id'] ?? null;
             $texto   = $e[$tipo]['caption'] ?? null;
+        } elseif ($tipo === 'location') {
+            // Ubicación: con su enlace de Google Maps, que en el panel se
+            // puede tocar. Antes llegaba como "[location]" y había que ir al
+            // teléfono a verla. El tipo sigue siendo "location": el asistente
+            // la reconoce igual que antes.
+            $lat = $m['location']['latitude'] ?? null;
+            $lng = $m['location']['longitude'] ?? null;
+            $lugar = trim(implode(' · ', array_filter([
+                trim((string) ($m['location']['name'] ?? '')),
+                trim((string) ($m['location']['address'] ?? '')),
+            ])));
+            $texto = '📍 Ubicación' . ($lugar !== '' ? ': ' . $lugar : '')
+                   . ($lat !== null && $lng !== null ? "\nhttps://maps.google.com/?q={$lat},{$lng}" : '');
+        } elseif ($tipo === 'reaction') {
+            // Reacción a un mensaje que ya no está en el panel: se guarda aparte.
+            $texto = 'Reaccionó ' . ($m['reaction']['emoji'] ?? '');
         } else {
             $texto = '[' . $tipo . ']';
         }

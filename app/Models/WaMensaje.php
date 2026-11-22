@@ -14,7 +14,7 @@ class WaMensaje extends Model
 
     protected $fillable = [
         'conversacion_id', 'wa_message_id', 'responde_a', 'direccion', 'tipo', 'texto',
-        'media_id', 'media_ruta', 'estado', 'error', 'user_id', 'automatico',
+        'media_id', 'media_ruta', 'estado', 'error', 'user_id', 'automatico', 'reaccion',
     ];
 
     protected $casts = ['automatico' => 'boolean', 'fijado_at' => 'datetime'];

@@ -441,6 +441,12 @@
     .wa-glo{max-width:74%;padding:9px 13px;border-radius:13px;font-size:15px;line-height:1.45;
             word-wrap:break-word;text-align:left}
     .wa-txt{white-space:pre-wrap;overflow-wrap:anywhere}
+    /* La reacción del cliente, colgando del borde de abajo del globo. */
+    .wa-glo:has(.wa-reac){position:relative;margin-bottom:12px}
+    .wa-reac{position:absolute;bottom:-13px;right:12px;font-size:15px;line-height:1;
+             padding:3px 6px;border-radius:999px;background:#fff;border:1px solid rgba(120,140,170,.35);
+             box-shadow:0 1px 3px rgba(0,0,0,.18)}
+    html.dark .wa-reac{background:#1e293b;border-color:rgba(255,255,255,.15)}
     /* El globo que ya se ve pero todavía no salió. Apagado, no gris: tiene que
        leerse como "va en camino", no como "falló". Cuando Meta confirma,
        recupera el color solo. */
@@ -1714,6 +1720,11 @@
                                     wire:click="procesarOrden({{ $m->id }})">
                                 📦 Procesar esta orden
                             </button>
+                        @endif
+
+                        {{-- La reacción del cliente a este mensaje, como en WhatsApp. --}}
+                        @if(filled($m->reaccion ?? null))
+                            <span class="wa-reac" title="Reacción del cliente">{{ $m->reaccion }}</span>
                         @endif
                     </div>
                 @empty
