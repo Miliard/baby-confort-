@@ -392,6 +392,12 @@
     .wa-hora{font-size:11.5px;color:var(--wa-suave);float:right;font-weight:400}
     .wa-pin{background:#e5695f;color:#fff;font-size:10.5px;font-weight:800;
             border-radius:999px;padding:1px 7px;flex:none}
+    /* "✓ Leído" al lado del número de sin leer: solo en la computadora. */
+    .wa-leido{display:none;border:1px solid rgba(120,140,170,.45);background:none;color:var(--wa-suave);
+              font-family:inherit;font-size:10.5px;font-weight:700;border-radius:999px;
+              padding:1px 8px;cursor:pointer;flex:none;margin-left:auto}
+    .wa-leido:hover{border-color:#2e9e6b;color:#2e9e6b}
+    @media(min-width:901px){ .wa-leido{display:inline-flex} }
     .wa-quien{font-size:10.5px;color:#4aa3df;font-weight:700}
 
     /* Una sola fila con todo. Si no entra, se desliza de derecha a izquierda
@@ -1324,7 +1330,12 @@
                                 aria-label="{{ $c->fijada() ? 'Soltar' : 'Fijar arriba' }} el chat de {{ $c->titulo() }}"
                                 title="{{ $c->fijada() ? 'Soltar este chat de arriba' : 'Fijar este chat arriba' }}"><span aria-hidden="true">📌</span></button>
                         {{ $c->titulo() }}
-                        @if($c->sin_leer > 0)<span class="wa-pin">{{ $c->sin_leer }}</span>@endif
+                        @if($c->sin_leer > 0)<span class="wa-pin">{{ $c->sin_leer }}</span>
+                            {{-- Solo en la computadora: marcarlo leído sin entrar. --}}
+                            <button type="button" class="wa-leido" wire:click.stop="marcarLeida({{ $c->id }})"
+                                    title="Marcar como leído sin abrir el chat"
+                                    aria-label="Marcar como leído el chat de {{ $c->titulo() }}">✓ Leído</button>
+                        @endif
                     </span>
 
                     @if($c->subtitulo())

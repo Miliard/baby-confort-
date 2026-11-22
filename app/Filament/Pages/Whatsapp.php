@@ -763,18 +763,38 @@ class Whatsapp extends Page
         // Se precarga lo que ya sabemos del cliente, para no volver a pedírselo.
         $this->cargarDatosDelCliente($conv);
 
-        if ($conv->sin_leer > 0) {
-            $conv->sin_leer = 0;
-            $conv->save();
+        $this->ponerLeida($conv);
+    }
 
-            // Las dos palomitas azules del lado del cliente.
-            $ultimo = WaMensaje::where('conversacion_id', $conv->id)
-                ->where('direccion', 'entrante')
-                ->whereNotNull('wa_message_id')
-                ->orderByDesc('id')->first();
+    /** Sin leer a cero, y las palomitas azules del lado del cliente. */
+    private function ponerLeida(WaConversacion $conv): void
+    {
+        if ($conv->sin_leer <= 0) return;
 
+        $conv->sin_leer = 0;
+        $conv->save();
+
+        $ultimo = WaMensaje::where('conversacion_id', $conv->id)
+            ->where('direccion', 'entrante')
+            ->whereNotNull('wa_message_id')
+            ->orderByDesc('id')->first();
+
+        try {
             if ($ultimo) WhatsappApi::marcarLeido($ultimo->wa_message_id);
+        } catch (\Throwable $e) {
+            // Que no salgan las azules no cambia nada de este lado.
         }
+    }
+
+    /**
+     * "✓ Leído" desde la lista, sin abrir el chat. En la computadora la lista
+     * ya muestra de qué va la plática: entrar y salir solo para que se apague
+     * el número era trabajo de más.
+     */
+    public function marcarLeida(int $id): void
+    {
+        $conv = WaConversacion::find($id);
+        if ($conv) $this->ponerLeida($conv);
     }
 
     /** La flecha de volver del teléfono: cierra el chat y muestra la lista. */
