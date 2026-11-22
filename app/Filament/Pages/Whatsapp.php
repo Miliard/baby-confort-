@@ -945,7 +945,7 @@ class Whatsapp extends Page
             // Si lo que se mandó es la orden de envío, sale sola detrás la
             // pregunta de que la revise. Antes se escribía a mano cada vez
             // ("¿Puede revisar la orden…?") y a veces se olvidaba.
-            if ($revisar = $this->pedirRevisarOrden($texto)) {
+            if ($revisar = $this->pedirRevisarOrden($texto, $conv)) {
                 $rev = WhatsappApi::anotarSaliente($conv, $revisar, auth()->id(), false, null);
                 $this->dispatch('wa-despachar', id: $rev->id);
             }
@@ -981,9 +981,41 @@ class Whatsapp extends Page
      * dirección), se le pide ese dato de una vez. Null si el texto no es una
      * orden de envío.
      */
-    private function pedirRevisarOrden(string $texto): ?string
+    private function pedirRevisarOrden(string $texto, ?WaConversacion $conv = null): ?string
     {
-        if (! preg_match('/orden de env[ií]o/iu', $texto) || ! preg_match('/producto/iu', $texto)) return null;
+        /*
+         * Tiene que ser LA ORDEN, no un mensaje que la nombra ("ya le hago la
+         * orden de envío", "desde la página le da enviar orden de envío").
+         *
+         *  1. El primer renglón con letras es el encabezado "Orden de envío".
+         *  2. Trae los renglones de la plantilla: Producto y Total sí o sí, y
+         *     al menos dos de nombre / teléfono / municipio / dirección.
+         *  3. No pregunta ya en el mismo mensaje si está bien ("revise…").
+         *  4. No se mandó la misma pregunta en este chat hace menos de 3
+         *     minutos (si se manda la orden dos veces seguidas, va una sola).
+         */
+        $renglones = array_values(array_filter(array_map('trim', preg_split('/\R/u', $texto)),
+            fn ($r) => preg_match('/\p{L}/u', $r)));
+        if (! $renglones || ! preg_match('/orden de env[ií]o/iu', $renglones[0])) return null;
+
+        if (! preg_match('/^\W*producto/imu', $texto)) return null;
+        if (! preg_match('/^\W*total/imu', $texto)) return null;
+
+        $datos = 0;
+        foreach (['nombre', 'tel[eé]fono', 'municipio', 'direcci[oó]n'] as $c) {
+            if (preg_match('/^\W*' . $c . '/imu', $texto)) $datos++;   // con o sin dos puntos
+        }
+        if ($datos < 2) return null;
+
+        if (preg_match('/\b(revis[ae]|revisar|est[aá] correct[ao]|est[aá]n correctos)\b/iu', $texto)) return null;
+
+        if ($conv && WaMensaje::where('conversacion_id', $conv->id)
+                ->where('direccion', 'saliente')
+                ->where('created_at', '>=', now()->subMinutes(3))
+                ->where('texto', 'like', 'Por favor, revise que los datos de su orden%')
+                ->exists()) {
+            return null;
+        }
 
         $campos = [
             ['nombre[^:\n]*',     'su nombre completo'],
