@@ -323,10 +323,57 @@ class Whatsapp extends Page
         if (! WaConversacion::hayTabla()) return collect();
 
         try {
-            return $this->consultaConversaciones()->with(['agente', 'etiquetas'])
+            $convs = $this->consultaConversaciones()->with(['agente', 'etiquetas'])
                 ->orderByDesc('ultimo_mensaje_at')->limit($this->limiteLista)->get();
         } catch (\Throwable $e) {
             return collect();
+        }
+
+        $this->ponerHistorial($convs);
+
+        return $convs;
+    }
+
+    /**
+     * Los dos mensajes de antes del último, para la lista ancha: así se ve de
+     * qué va la plática sin entrar al chat. Se cuelgan como relación
+     * "historial" (lo más viejo primero).
+     *
+     * Una sola consulta: un pedacito "los últimos 5 de este chat" por cada
+     * chat de la lista, unidos. Cada pedacito usa el índice de la
+     * conversación, así que no recorre chats enteros aunque tengan miles de
+     * mensajes. Se piden 5 para poder saltar las reacciones y ediciones.
+     */
+    private function ponerHistorial($convs): void
+    {
+        if ($convs->isEmpty()) return;
+
+        $porConv = [];
+        try {
+            $q = null;
+            foreach ($convs as $c) {
+                $parte = WaMensaje::query()
+                    ->select(['id', 'conversacion_id', 'direccion', 'tipo', 'texto', 'automatico'])
+                    ->where('conversacion_id', $c->id)
+                    ->orderByDesc('id')->limit(5);
+                $q = $q ? $q->unionAll($parte) : $parte;
+            }
+            foreach ($q->get() as $m) $porConv[$m->conversacion_id][] = $m;
+        } catch (\Throwable $e) {
+            $porConv = [];
+        }
+
+        $ruido = ['[reaction]', '[edit]', '[unsupported]', '[sticker]'];
+
+        foreach ($convs as $c) {
+            $msjs = collect($porConv[$c->id] ?? [])
+                ->sortByDesc('id')
+                ->reject(fn ($m) => in_array(trim((string) $m->texto), $ruido, true) && ! in_array($m->tipo, ['image', 'audio', 'voice', 'video', 'document'], true))
+                ->values()
+                ->slice(1, 2)          // el último ya se ve en la vista previa
+                ->reverse()->values();  // lo más viejo arriba
+
+            $c->setRelation('historial', $msjs);
         }
     }
 
