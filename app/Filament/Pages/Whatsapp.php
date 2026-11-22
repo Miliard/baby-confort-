@@ -335,14 +335,14 @@ class Whatsapp extends Page
     }
 
     /**
-     * Lo que dijo el CLIENTE, en un renglón, para la lista ancha: con eso se
-     * intuye qué contestarle sin entrar al chat. Solo sus mensajes (los
-     * nuestros saturaban), los últimos 4, sin contar el último mensaje del
-     * chat porque ese ya se ve en la vista previa. Queda como "dichoCliente".
+     * Los dos mensajes de antes del último, para la lista ancha: así se ve de
+     * qué va la plática sin entrar al chat. Se cuelgan como relación
+     * "historial" (lo más viejo primero).
      *
-     * Una sola consulta: un pedacito "los últimos 8 de este chat" por cada
+     * Una sola consulta: un pedacito "los últimos 5 de este chat" por cada
      * chat de la lista, unidos. Cada pedacito usa el índice de la
-     * conversación, así que no recorre chats enteros.
+     * conversación, así que no recorre chats enteros aunque tengan miles de
+     * mensajes. Se piden 5 para poder saltar las reacciones y ediciones.
      */
     private function ponerHistorial($convs): void
     {
@@ -353,9 +353,9 @@ class Whatsapp extends Page
             $q = null;
             foreach ($convs as $c) {
                 $parte = WaMensaje::query()
-                    ->select(['id', 'conversacion_id', 'direccion', 'tipo', 'texto'])
+                    ->select(['id', 'conversacion_id', 'direccion', 'tipo', 'texto', 'automatico'])
                     ->where('conversacion_id', $c->id)
-                    ->orderByDesc('id')->limit(8);
+                    ->orderByDesc('id')->limit(5);
                 $q = $q ? $q->unionAll($parte) : $parte;
             }
             foreach ($q->get() as $m) $porConv[$m->conversacion_id][] = $m;
@@ -363,25 +363,17 @@ class Whatsapp extends Page
             $porConv = [];
         }
 
-        $ruido = ['[reaction]', '[edit]', '[unsupported]', '[sticker]', '[location]'];
-        $media = ['image' => '📷 foto', 'audio' => '🎤 audio', 'voice' => '🎤 audio', 'video' => '🎬 video', 'document' => '📄 documento'];
+        $ruido = ['[reaction]', '[edit]', '[unsupported]', '[sticker]'];
 
         foreach ($convs as $c) {
-            $partes = collect($porConv[$c->id] ?? [])
-                ->sortByDesc('id')->values()
-                ->slice(1)                                   // el último ya está en la vista previa
-                ->filter(fn ($m) => $m->direccion === 'entrante')
-                ->take(4)
-                ->reverse()
-                ->map(function ($m) use ($ruido, $media) {
-                    $t = trim(preg_replace('/\s+/u', ' ', (string) $m->texto));
-                    if (isset($media[$m->tipo])) return $media[$m->tipo] . ($t !== '' && ! in_array($t, $ruido, true) ? ': ' . $t : '');
-                    return in_array($t, $ruido, true) ? '' : $t;
-                })
-                ->filter()
-                ->values();
+            $msjs = collect($porConv[$c->id] ?? [])
+                ->sortByDesc('id')
+                ->reject(fn ($m) => in_array(trim((string) $m->texto), $ruido, true) && ! in_array($m->tipo, ['image', 'audio', 'voice', 'video', 'document'], true))
+                ->values()
+                ->slice(1, 2)          // el último ya se ve en la vista previa
+                ->reverse()->values();  // lo más viejo arriba
 
-            $c->setAttribute('dichoCliente', $partes->implode(' · '));
+            $c->setRelation('historial', $msjs);
         }
     }
 
