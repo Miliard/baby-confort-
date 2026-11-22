@@ -886,6 +886,32 @@ trait GuionDiagrama
     }
 
     /**
+     * "No entiendo eso de cinta", "¿qué es calzoncito?", "¿a qué se refiere
+     * con cinta?", "¿cómo así de pegar a los lados?": no sabe qué es cada tipo.
+     */
+    private function dgPreguntaQueEsTipo(string $n): bool
+    {
+        $tipo  = '(cinta|cintas|calzon|calzoncito|calzoncitos|pants|pegar a los lados)';
+        $duda  = '(no entiendo|no entendi|no le entiendo|que es|que son|que significa|a que se refiere|como asi|que quiere decir|no se que es|explique|expliqueme|me explica)';
+        return (bool) preg_match('/\b' . $duda . '\b.{0,40}\b' . $tipo . '\b/', $n)
+            || (bool) preg_match('/\b' . $tipo . '\b.{0,25}\b(no entiendo|no entendi|que es eso|que significa|como es eso)\b/', $n);
+    }
+
+    /** Qué es cinta y qué es calzoncito, en palabras simples. $tipos = los que hay en esa talla. */
+    private function dgExplicarTipos(array $tipos): string
+    {
+        $t = "Con gusto le explico 😊\n\n"
+           . "• *Cinta* (de pegar a los lados): es el pañal tradicional. Se le pone al bebé acostado y se cierra con las cintas adhesivas de los lados.\n"
+           . "• *Calzoncito* (tipo pants): se sube como una ropa interior. Es más práctico cuando el bebé ya se mueve mucho, gatea o camina.";
+
+        if (count($tipos) === 1) {
+            return $t . "\n\nEn esta talla tenemos de *" . mb_strtolower($tipos[0]) . '* 😊';
+        }
+
+        return $t . "\n\n¿Cuál le gustaría? 😊";
+    }
+
+    /**
      * "¿Solo de ese?", "¿solo ese hay?", "¿nada más esa tienen?", "¿no hay
      * más?", "¿no tienen otro?", "¿es la única?": pregunta si hay más
      * opciones. Con un verbo de pedir ("solo ese quiero") ya no es pregunta.
@@ -1810,6 +1836,16 @@ trait GuionDiagrama
                 $f->poner('pedido_en', count((array) $f->dato('turnos', [])));
                 if (! empty($faltan[0])) { $this->dgConTalla((string) $faltan[0], ''); return; }
             }
+        }
+
+        // "No entiendo eso de cinta", "¿qué es calzoncito?": pregunta qué es
+        // cada tipo. Antes la palabra "cinta" se tomaba como que eligió cinta
+        // y se le volvían a mandar todas las de cinta, sin explicarle nada.
+        if ($this->dgPreguntaQueEsTipo(Entender::normalizar($texto))) {
+            $f->quitar('citada');
+            $tipos = array_values(array_unique(array_map(fn ($v) => $this->tipoDe((string) $v['nombre']), $vistas)));
+            $this->dgDecir($this->dgExplicarTipos($tipos), 'opciones');
+            return;
         }
 
         // "¿Solo de ese?", "¿no hay más?", "¿nada más ese tienen?": pregunta si
