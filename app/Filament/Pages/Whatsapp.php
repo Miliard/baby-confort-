@@ -3873,14 +3873,21 @@ class Whatsapp extends Page
             return ['ok' => false, 'error' => $ev['motivo'] ?: 'No se pudo armar'];
         }
 
+        /*
+         * A LA COLA, no a Express. Express reinicia sus contadores pasada la
+         * medianoche: si se mandan de noche, a la mañana ya no se imprimen
+         * todas juntas. Así quedan en Crear guías y a la mañana salen todas de
+         * una con "📤 Enviar N a Express".
+         */
         $this->texto = '';
         $n0 = count((array) session('filament.notifications', []));
-        $this->guardarPedido(true);
+        $this->guardarPedido(false);
         $avisos = $this->notifsTomar($n0);
         $ventanaCerrada = trim($this->texto) !== '';   // el rastreo quedó en el cuadro
 
         $todo = implode(' | ', $avisos);
-        $ok = (bool) preg_match('/📤 Guía (\d+)/u', $todo, $g);
+        $ok = str_contains($todo, 'Guardado en la cola');
+        $g = [1 => ''];
 
         if ($ok && ! empty($this->lote['etiqueta'])) {
             try { $conv->etiquetas()->detach($this->lote['etiqueta']); } catch (\Throwable $e) {}

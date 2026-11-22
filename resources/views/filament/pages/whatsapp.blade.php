@@ -1311,13 +1311,13 @@
                 @endforeach
             </div>
 
-            {{-- 📤 Mandar a Express todos los de la pestaña puesta (la de OK.):
+            {{-- 📥 Pasar a la cola de guías todos los de la pestaña puesta (la de OK.):
                  primero revisa y muestra qué sale y qué hay que mirar. --}}
             @if($filtroEtiqueta)
                 <button type="button" wire:click="prepararLote" wire:loading.attr="disabled" wire:target="prepararLote"
                         class="wa-fil" style="--c:#16a34a;margin-top:8px;font-weight:700"
-                        title="Revisa todas las órdenes de esta pestaña y las manda a Express de una vez">
-                    <span wire:loading.remove wire:target="prepararLote">📤 Mandar a Express todos los de esta pestaña</span>
+                        title="Revisa todas las órdenes de esta pestaña y las pasa a la cola de guías (Crear guías)">
+                    <span wire:loading.remove wire:target="prepararLote">📥 Pasar a la cola todos los de esta pestaña</span>
                     <span wire:loading wire:target="prepararLote">⏳ Revisando las órdenes…</span>
                 </button>
             @endif
@@ -2507,7 +2507,7 @@
                  } catch (e) { this.hechos[id] = { estado: 'mal', error: 'Se cortó la conexión. Probá de nuevo.' }; }
              },
              async mandarTodos(ids) {
-                 if (! confirm('¿Mandar ' + ids.length + ' guías a Express?\n\nTotal a cobrar: ${{ number_format($loteTotal, 2) }}\n\nSe crean de verdad en Express y a cada cliente le sale su rastreo.')) return;
+                 if (! confirm('¿Pasar ' + ids.length + ' guías a la cola?\n\nTotal a cobrar: ${{ number_format($loteTotal, 2) }}\n\nQuedan en Crear guías (no se mandan a Express todavía) y a cada cliente le sale su rastreo.')) return;
                  this.yendo = true;
                  for (const id of ids) { if (this.hechos[id] && this.hechos[id].estado === 'ok') continue; await this.mandar(id, false); }
                  this.yendo = false;
@@ -2516,7 +2516,7 @@
          }">
 
         <div class="wa-modal-cab">
-            <b>📤 Mandar a Express · {{ $lote['nombre'] }}</b>
+            <b>📥 Pasar a la cola de guías · {{ $lote['nombre'] }}</b>
             <button type="button" class="wa-modal-x" wire:click="cerrarLote" x-bind:disabled="yendo" aria-label="Cerrar">✕</button>
         </div>
 
@@ -2532,9 +2532,9 @@
                     </div>
                     <div class="wa-lote-estado">
                         <template x-if="!hechos[{{ $it['id'] }}]"><span class="wa-lote-esp">Esperando</span></template>
-                        <template x-if="hechos[{{ $it['id'] }}] && hechos[{{ $it['id'] }}].estado === 'yendo'"><span>⏳ Mandando…</span></template>
+                        <template x-if="hechos[{{ $it['id'] }}] && hechos[{{ $it['id'] }}].estado === 'yendo'"><span>⏳ Pasando…</span></template>
                         <template x-if="hechos[{{ $it['id'] }}] && hechos[{{ $it['id'] }}].estado === 'ok'">
-                            <span class="wa-lote-ok" x-text="'✅ Guía ' + hechos[{{ $it['id'] }}].guia + (hechos[{{ $it['id'] }}].nota ? ' · ' + hechos[{{ $it['id'] }}].nota : '')"></span>
+                            <span class="wa-lote-ok" x-text="'✅ En la cola' + (hechos[{{ $it['id'] }}].nota ? ' · ' + hechos[{{ $it['id'] }}].nota : '')"></span>
                         </template>
                         <template x-if="hechos[{{ $it['id'] }}] && hechos[{{ $it['id'] }}].estado === 'mal'">
                             <span class="wa-lote-mal">❌ <span x-text="hechos[{{ $it['id'] }}].error"></span>
@@ -2559,14 +2559,14 @@
                         </div>
                         <div class="wa-lote-estado">
                             <template x-if="hechos[{{ $it['id'] }}] && hechos[{{ $it['id'] }}].estado === 'ok'">
-                                <span class="wa-lote-ok" x-text="'✅ Guía ' + hechos[{{ $it['id'] }}].guia"></span>
+                                <span class="wa-lote-ok" x-text="'✅ En la cola'"></span>
                             </template>
-                            <template x-if="hechos[{{ $it['id'] }}] && hechos[{{ $it['id'] }}].estado === 'yendo'"><span>⏳ Mandando…</span></template>
+                            <template x-if="hechos[{{ $it['id'] }}] && hechos[{{ $it['id'] }}].estado === 'yendo'"><span>⏳ Pasando…</span></template>
                             <template x-if="!hechos[{{ $it['id'] }}] || hechos[{{ $it['id'] }}].estado === 'mal'">
                                 <span style="display:inline-flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
                                     @if($it['sinCobro'])
                                         <button type="button" class="wa-mini" x-on:click="mandar({{ $it['id'] }}, true)" x-bind:disabled="yendo"
-                                                title="Ya pagó: sale con cobro $0">Mandar igual (ya pagó)</button>
+                                                title="Ya pagó: va con cobro $0">Pasar igual (ya pagó)</button>
                                     @endif
                                     <button type="button" class="wa-mini" wire:click="abrirDelLote({{ $it['id'] }})" x-bind:disabled="yendo">Abrir y corregir</button>
                                 </span>
@@ -2579,13 +2579,13 @@
 
         <div class="wa-modal-pie">
             <span style="font-size:12.5px;color:var(--wa-suave);flex:1">
-                <span x-show="cuantos('ok') || cuantos('mal')" x-text="'Salieron ' + cuantos('ok') + (cuantos('mal') ? ' · fallaron ' + cuantos('mal') : '')"></span>
+                <span x-show="cuantos('ok') || cuantos('mal')" x-text="'En la cola ' + cuantos('ok') + (cuantos('mal') ? ' · fallaron ' + cuantos('mal') : '')"></span>
             </span>
             @if($loteListos)
                 <x-filament::button color="success" icon="heroicon-m-paper-airplane"
                     x-on:click="mandarTodos({{ json_encode(array_column($loteListos, 'id')) }})" x-bind:disabled="yendo">
-                    <span x-show="!yendo">Mandar {{ count($loteListos) }} a Express</span>
-                    <span x-show="yendo">Mandando…</span>
+                    <span x-show="!yendo">Pasar {{ count($loteListos) }} a la cola</span>
+                    <span x-show="yendo">Pasando…</span>
                 </x-filament::button>
             @endif
             <x-filament::button color="gray" wire:click="cerrarLote" x-bind:disabled="yendo">Cerrar</x-filament::button>
