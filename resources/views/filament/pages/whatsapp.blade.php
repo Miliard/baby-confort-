@@ -3648,9 +3648,29 @@
                  * dándole de alto exactamente lo que queda de pantalla, para
                  * que tampoco sobre nada abajo ni aparezca una barra de más.
                  */
-                var arribaPc = pegarArriba();
+                /*
+                 * OJO: acá se mide contra la barra ENTERA (.fi-topbar), no
+                 * contra el menú de adentro como en el teléfono. En la
+                 * computadora la barra es más alta que su menú y queda fija
+                 * arriba: midiendo el menú, el panel subía de más y la barra
+                 * le tapaba la cabecera del chat (el número y las etiquetas).
+                 */
                 caja = document.querySelector('.wa');
-                if (caja) caja.style.height = Math.max(460, Math.round(window.innerHeight - arribaPc)) + 'px';
+                if (caja) {
+                    // La página no tiene nada que desplazar: si se corrió (por
+                    // ejemplo al cambiar de chat), la barra fija tapaba arriba.
+                    if (window.scrollY > 0) { try { window.scrollTo(0, 0); } catch (e) {} }
+                    caja.style.marginTop = '';
+                    var barraPc = document.querySelector('.fi-topbar');
+                    var finPc   = barraPc ? barraPc.getBoundingClientRect().bottom : 0;
+                    var arribaPc = caja.getBoundingClientRect().top;
+                    var huecoPc  = Math.round(arribaPc - finPc);
+                    if (huecoPc > 0) {
+                        caja.style.marginTop = (-huecoPc) + 'px';
+                        arribaPc = finPc;
+                    }
+                    caja.style.height = Math.max(460, Math.round(window.innerHeight - Math.max(arribaPc, 0))) + 'px';
+                }
                 return;
             }
 
