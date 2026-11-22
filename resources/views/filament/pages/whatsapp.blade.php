@@ -659,7 +659,9 @@
     .wa-rap-foto img{width:100%;height:100%;object-fit:cover;display:block}
     .wa-rap-foto em{position:absolute;right:5px;bottom:5px;font-style:normal;font-size:11px;font-weight:800;
                     background:rgba(0,0,0,.6);color:#fff;border-radius:999px;padding:1px 7px}
-    .wa-rap-sin{display:grid;place-items:center;font-size:26px}
+    /* Sin foto: en vez de un dibujo, el comando con que se llama (/hola). */
+    .wa-rap-sin{display:grid;place-items:center;padding:6px;text-align:center;word-break:break-word;
+                font-family:ui-monospace,Menlo,Consolas,monospace;font-size:17px;font-weight:800;color:#2e9e6b}
     .wa-rap b{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .wa-rap-txt{font-size:11.5px;color:var(--wa-suave);line-height:1.35;overflow:hidden;
                 display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
@@ -1907,7 +1909,7 @@
                                             </span>
                                         </template>
                                         <template x-if="! (r.fotos && r.fotos.length)">
-                                            <span class="wa-rap-foto wa-rap-sin">💬</span>
+                                            <span class="wa-rap-foto wa-rap-sin" x-text="'/' + (r.titulo || '').trim()"></span>
                                         </template>
                                         <b x-text="r.titulo"></b>
                                         <span class="wa-rap-txt" x-text="r.previa"></span>
