@@ -634,7 +634,7 @@
        tapada por el teclado del teléfono, que es justo donde más sirve. */
     .wa-slash-wrap{position:relative}
     .wa-slash{position:absolute;left:0;right:0;bottom:calc(100% + 6px);z-index:30;
-              max-height:260px;overflow-y:auto;padding:5px;
+              max-height:min(440px, 60vh);overflow-y:auto;padding:5px;
               background:#fff;border:1px solid #d1d5db;border-radius:12px;
               box-shadow:0 -10px 30px rgba(10,16,26,.20)}
     html.dark .wa-slash{background:#16202f;border-color:rgba(255,255,255,.16)}
@@ -648,6 +648,21 @@
     .wa-slash-op span{display:block;font-size:12px;color:var(--wa-suave);margin-top:2px;
                       overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .wa-slash-nada{padding:9px;font-size:12px;color:var(--wa-suave)}
+    /* Las respuestas rápidas en tarjetas, como el catálogo. */
+    .wa-rap-grilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;padding:4px}
+    .wa-rap{display:flex;flex-direction:column;gap:4px;text-align:left;border:1.5px solid #e5e7eb;
+            background:none;border-radius:12px;padding:7px;cursor:pointer;font-family:inherit;color:inherit;min-width:0}
+    html.dark .wa-rap{border-color:rgba(255,255,255,.12)}
+    .wa-rap:hover{border-color:#2e9e6b;background:rgba(46,158,107,.08)}
+    .wa-rap-foto{position:relative;display:block;width:100%;aspect-ratio:4/3;border-radius:8px;overflow:hidden;
+                 background:rgba(120,140,170,.12)}
+    .wa-rap-foto img{width:100%;height:100%;object-fit:cover;display:block}
+    .wa-rap-foto em{position:absolute;right:5px;bottom:5px;font-style:normal;font-size:11px;font-weight:800;
+                    background:rgba(0,0,0,.6);color:#fff;border-radius:999px;padding:1px 7px}
+    .wa-rap-sin{display:grid;place-items:center;font-size:26px}
+    .wa-rap b{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .wa-rap-txt{font-size:11.5px;color:var(--wa-suave);line-height:1.35;overflow:hidden;
+                display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 
     /* La franja del asistente de ventas, arriba del chat. */
     .wa-bot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;
@@ -667,7 +682,8 @@
     .wa-slash-fotos em{font-style:normal;font-size:12px;font-weight:700;
                        color:var(--wa-suave);padding-left:2px}
     @media(max-width:900px){
-        .wa-slash{max-height:210px}
+        .wa-slash{max-height:45vh}
+        .wa-rap-grilla{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px}
         .wa-slash-op{padding:10px 9px}
     }
 
@@ -1877,24 +1893,27 @@
                         <div class="wa-slash" x-show="abierto" x-cloak>
                             <div class="wa-slash-t">Respuestas rápidas</div>
 
-                            <template x-for="r in filtradas" :key="r.id">
-                                <button type="button" class="wa-slash-op" x-on:click="elegir(r)">
-                                    <b><span x-show="r.foto">📷 </span><span x-text="r.titulo"></span></b>
-                                    <span x-text="r.previa"></span>
-
-                                    {{-- Las fotos que se van a mandar, chiquitas.
-                                         loading="lazy": con veinte respuestas con
-                                         foto, se cargan solo las que se ven. --}}
-                                    <template x-if="r.fotos && r.fotos.length">
-                                        <div class="wa-slash-fotos">
-                                            <template x-for="u in r.fotos" :key="u">
-                                                <img :src="u" alt="" loading="lazy">
-                                            </template>
-                                            <em x-show="r.mas > 0" x-text="'+' + r.mas"></em>
-                                        </div>
-                                    </template>
-                                </button>
-                            </template>
+                            {{-- En tarjetas, como el catálogo: la foto arriba (si la
+                                 tiene), el nombre y un pedacito del texto. Se
+                                 reconoce de un vistazo, sin leer la lista. --}}
+                            <div class="wa-rap-grilla">
+                                <template x-for="r in filtradas" :key="r.id">
+                                    <button type="button" class="wa-rap" x-on:click="elegir(r)" :title="r.previa">
+                                        <template x-if="r.fotos && r.fotos.length">
+                                            <span class="wa-rap-foto">
+                                                <img :src="r.fotos[0]" alt="" loading="lazy">
+                                                <em x-show="(r.fotos.length + (r.mas || 0)) > 1"
+                                                    x-text="'+' + (r.fotos.length - 1 + (r.mas || 0))"></em>
+                                            </span>
+                                        </template>
+                                        <template x-if="! (r.fotos && r.fotos.length)">
+                                            <span class="wa-rap-foto wa-rap-sin">💬</span>
+                                        </template>
+                                        <b x-text="r.titulo"></b>
+                                        <span class="wa-rap-txt" x-text="r.previa"></span>
+                                    </button>
+                                </template>
+                            </div>
 
                             <div class="wa-slash-nada" x-show="filtradas.length === 0">
                                 Ninguna se llama así. Borrá la barra para seguir escribiendo.
