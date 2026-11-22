@@ -3495,10 +3495,24 @@
             if (window.innerWidth > 900) {
                 document.documentElement.style.removeProperty('--wa-alto');
                 document.documentElement.classList.remove('wa--teclado');
-                if (caja) caja.style.marginTop = '';
                 teclaAntes = false;
+
+                /*
+                 * En la computadora también quedaba una franja negra entre el
+                 * menú de arriba y el panel. Se cierra igual que en el
+                 * teléfono: midiendo el hueco real y subiendo el panel, y
+                 * dándole de alto exactamente lo que queda de pantalla, para
+                 * que tampoco sobre nada abajo ni aparezca una barra de más.
+                 */
+                var arribaPc = pegarArriba();
+                caja = document.querySelector('.wa');
+                if (caja) caja.style.height = Math.max(460, Math.round(window.innerHeight - arribaPc)) + 'px';
                 return;
             }
+
+            // En el teléfono el alto lo maneja --wa-alto (CSS): se quita el de
+            // la computadora por si se achicó la ventana.
+            if (caja) caja.style.height = '';
 
             // ¿Está el teclado abierto?
             //
