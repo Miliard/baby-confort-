@@ -941,6 +941,14 @@ class Whatsapp extends Page
             );
 
             $this->dispatch('wa-despachar', id: $mensaje->id);
+
+            // Si lo que se mandó es la orden de envío, sale sola detrás la
+            // pregunta de que la revise. Antes se escribía a mano cada vez
+            // ("¿Puede revisar la orden…?") y a veces se olvidaba.
+            if ($revisar = $this->pedirRevisarOrden($texto)) {
+                $rev = WhatsappApi::anotarSaliente($conv, $revisar, auth()->id(), false, null);
+                $this->dispatch('wa-despachar', id: $rev->id);
+            }
         }
 
         $this->texto = '';
@@ -965,6 +973,47 @@ class Whatsapp extends Page
                 ->body($fallidas[0]->error ?: 'Meta rechazó el mensaje.')
                 ->danger()->persistent()->send();
         }
+    }
+
+    /**
+     * Después de mandar la orden de envío: el mensaje que le pide al cliente
+     * que la revise. Si quedó algún dato vacío (nombre, teléfono, municipio o
+     * dirección), se le pide ese dato de una vez. Null si el texto no es una
+     * orden de envío.
+     */
+    private function pedirRevisarOrden(string $texto): ?string
+    {
+        if (! preg_match('/orden de env[ií]o/iu', $texto) || ! preg_match('/producto/iu', $texto)) return null;
+
+        $campos = [
+            ['nombre[^:\n]*',     'su nombre completo'],
+            ['tel[eé]fono[^:\n]*', 'su número de teléfono'],
+            ['municipio[^:\n]*',  'el municipio'],
+            ['direcci[oó]n[^:\n]*', 'la dirección exacta'],
+        ];
+
+        $faltan = [];
+        foreach ($campos as [$etiqueta, $como]) {
+            // El renglón tiene que estar en la orden. El dato puede ir al lado
+            // ("Nombre: Karla") o en el renglón de abajo ("Nombre:" y debajo
+            // "Karla"): vacío es solo si no hay nada en ninguno de los dos.
+            if (! preg_match('/' . $etiqueta . ':[ \t]*(.*)(?:\n(.*))?/iu', $texto, $m)) continue;
+
+            $alLado = trim(preg_replace('/[✅\s:]+/u', '', $m[1]));
+            $abajo  = trim((string) ($m[2] ?? ''));
+            $abajoEsDato = $abajo !== '' && ! preg_match('/^(✅|💰|➡|📦|✨)|:\s*$/u', $abajo);
+
+            if ($alLado === '' && ! $abajoEsDato) $faltan[] = $como;
+        }
+
+        $t = "Por favor, revise que los datos de su orden estén correctos: nombre, teléfono, dirección y producto 🙏";
+
+        if ($faltan) {
+            $ultimo = array_pop($faltan);
+            $t .= "\n\nMe hace falta " . ($faltan ? implode(', ', $faltan) . ' y ' : '') . "*{$ultimo}*.";
+        }
+
+        return $t . "\n\nSi algo no está bien, me avisa por aquí y lo corregimos antes de enviarla 😊";
     }
 
     /**
