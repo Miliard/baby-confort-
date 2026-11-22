@@ -1386,6 +1386,16 @@ trait GuionDiagrama
         $this->dgDecir($hola . "¿Para qué talla necesita? 😊 Estas son las tallas que tenemos:\n\n" . implode("\n", $this->guionLineasTallas()), 'talla');
     }
 
+    /**
+     * La primera vez que se le pide la talla. Antes era "¿Qué talla usa su
+     * bebé o cuánto pesa?" a secas, y se sentía brusco: muchos dejaban de
+     * contestar. Se le explica por qué se pregunta (cada talla tiene su precio).
+     */
+    private function pideTallaAmable(): string
+    {
+        return 'Será un gusto ayudarle. Como cada talla tiene un precio diferente, ¿podría indicarnos la talla o el peso de su bebé? Así podremos brindarle información precisa de inmediato 👶💙';
+    }
+
     /** Las tallas que hay, con sus libras, escritas (sin botones). */
     private function dgPedirTalla(string $hola): void
     {
@@ -1394,7 +1404,7 @@ trait GuionDiagrama
         if (! $this->f->dato('tallas_vistas') && ($img = $this->dgImagenTallas())) {
             $this->f->poner('tallas_vistas', true);
             try {
-                \App\Services\WhatsappApi::enviarImagen($this->conv, $img, trim($hola . '¿Qué talla usa su bebé o cuánto pesa? 😊'), null, true);
+                \App\Services\WhatsappApi::enviarImagen($this->conv, $img, trim($hola . $this->pideTallaAmable()), null, true);
                 $this->f->poner('dpaso', 'talla');
                 $this->f->paso = 'diagrama · talla';
                 return;
@@ -1403,12 +1413,13 @@ trait GuionDiagrama
             }
         }
 
-        $lista = '';
         if (! $this->f->dato('tallas_vistas')) {
             $this->f->poner('tallas_vistas', true);
-            $lista = "Estas son las tallas que tenemos:\n\n" . implode("\n", $this->guionLineasTallas()) . "\n\n";
+            $lista = "Estas son las tallas que tenemos:\n\n" . implode("\n", $this->guionLineasTallas());
+            $this->dgDecir($hola . $this->pideTallaAmable() . "\n\n" . $lista, 'talla');
+            return;
         }
-        $this->dgDecir($hola . $lista . '¿Qué talla usa su bebé o cuánto pesa? 😊', 'talla');
+        $this->dgDecir($hola . '¿Qué talla usa su bebé o cuánto pesa? 😊', 'talla');
     }
 
     private function dgTalla(string $texto, string $hola): void
