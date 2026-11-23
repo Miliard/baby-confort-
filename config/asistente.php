@@ -153,10 +153,12 @@ return [
     // no, va como tarjeta.
     'presentacion_como_foto' => (bool) env('ASISTENTE_COMO_FOTO', true),
 
-    // Cuántas presentaciones se mandan con foto por talla. Las demás no se
-    // pierden: aparecen en la lista de "Comprar" con talla, tipo y precio.
-    // Cada foto es un mensaje que Meta cobra (desde octubre de 2026).
-    'max_fotos' => (int) env('ASISTENTE_MAX_FOTOS', 4),
+    // Cuántas presentaciones se mandan con foto por talla. Era 4, y una talla
+    // tiene hasta 6 (Comfy, Jumbo, cinta de noche, calzoncito de día, de noche
+    // y Magic): la Jumbo y otras se quedaban afuera aunque estuvieran
+    // habilitadas. 8 = todas las que haya en existencia. Las que están en 0 o
+    // inactivas no salen igual.
+    'max_fotos' => (int) env('ASISTENTE_MAX_FOTOS', 8),
 
     /*
     |--------------------------------------------------------------------------
