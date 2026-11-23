@@ -476,6 +476,19 @@ class Etiquetado
 
         $pedido = WaEtiqueta::porRol('pedido');
         if ($pedido) $conv->etiquetas()->detach($pedido->id);
+
+        // "OK." es tu pestaña de "ya lo revisé, listo para la guía". Con la
+        // guía hecha ya cumplió: se quita, igual que Pedidos. No tiene papel
+        // propio, así que se reconoce por el nombre (OK, OK., ok).
+        try {
+            $ok = WaEtiqueta::all()->filter(fn ($e) => preg_match('/^\s*ok\.?\s*$/i', (string) $e->nombre))->pluck('id')->all();
+            if ($ok) $conv->etiquetas()->detach($ok);
+        } catch (\Throwable $e) {
+            // Sin esto la guía igual quedó hecha.
+        }
+
+        // Que los contadores de las pestañas se actualicen ya, no al minuto.
+        try { \Illuminate\Support\Facades\Cache::forget('wa:cuenta_etiquetas'); } catch (\Throwable $e) {}
     }
 
     /**
