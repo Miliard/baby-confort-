@@ -952,16 +952,24 @@ class CrearGuia extends Page implements HasForms
             return;
         }
 
-        // Mismo control que antes de bajar el Excel.
-        $malas = $pendientes->filter(fn ($g) => \App\Services\RevisarGuia::tieneError($g->aFila()))
-            ->map(fn ($g) => $g->nombre ?: 'sin nombre')->values();
+        /*
+         * Las que tienen un error NO salen, pero ya no frenan a las demás.
+         * Antes una sola guía en rojo dejaba las 60 sin mandar. Ahora salen
+         * las buenas y las malas se quedan en la lista, marcadas, para
+         * corregirlas y mandarlas después.
+         */
+        $malas = $pendientes->filter(fn ($g) => \App\Services\RevisarGuia::tieneError($g->aFila()));
+        $pendientes = $pendientes->reject(fn ($g) => \App\Services\RevisarGuia::tieneError($g->aFila()))->values();
+
         if ($malas->isNotEmpty()) {
             Notification::make()
-                ->title('⚠️ Corrija primero: ' . $malas->take(4)->implode(' · '))
-                ->body('Hay datos en rojo debajo de cada una. No se envió nada.')
-                ->danger()->persistent()->send();
-            return;
+                ->title('⚠️ ' . $malas->count() . ($malas->count() === 1 ? ' guía no salió' : ' guías no salieron') . ': '
+                    . $malas->map(fn ($g) => $g->nombre ?: 'sin nombre')->take(4)->implode(' · '))
+                ->body('Tienen datos en rojo. Corregilas con el lápiz y volvé a tocar Enviar: las demás ya salieron.')
+                ->warning()->persistent()->send();
         }
+
+        if ($pendientes->isEmpty()) return;
 
         if ($soloUna) $pendientes = $pendientes->take(1);
 

@@ -247,6 +247,10 @@ class ExpressApi
         [$depto, $muni] = SistrackExcel::ubicacionTnt($g['departamento'] ?? '', $g['municipio'] ?? '');
 
         $telContacto = trim((string) ($g['telefono_recibe'] ?? '')) !== '' ? $g['telefono_recibe'] : ($g['telefono'] ?? '');
+        // Dos números en el mismo campo: el primero al teléfono, el otro a las notas.
+        $varios = RevisarGuia::telefonosSv((string) $telContacto);
+        $otroTel = count($varios) > 1 ? $varios[1] : '';
+        if ($varios) $telContacto = $varios[0];
         $tel = preg_replace('/\D/', '', (string) $telContacto);
         if (strlen($tel) === 11 && str_starts_with($tel, '503')) $tel = substr($tel, 3);
         // De otro país (sin nadie que reciba acá): con su código, "+12817076729".
@@ -264,7 +268,8 @@ class ExpressApi
             'contents'          => SistrackExcel::limpiar($g['descripcion'] ?? '') ?: 'Productos para bebe',
             'cod_amount'        => $cobrar,
             // Los artículos, que en "contenido" no caben. El cobro va en cod_amount.
-            'notes'             => SistrackExcel::observaciones($cobrar, $g['descripcion'] ?? ''),
+            'notes'             => trim(SistrackExcel::observaciones($cobrar, $g['descripcion'] ?? '')
+                                   . ($otroTel !== '' ? ' · Otro teléfono: ' . substr($otroTel, 0, 4) . ' ' . substr($otroTel, 4) : '')),
             'fragile'           => false,
             'recipient'         => [
                 'name'         => SistrackExcel::nombreConTelefono($g['telefono'] ?? '', $g['nombre'] ?? ''),

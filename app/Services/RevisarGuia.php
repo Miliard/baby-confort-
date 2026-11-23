@@ -50,9 +50,15 @@ class RevisarGuia
         }
 
         // ── Teléfono ─────────────────────────────────────────────────────────
-        $recibe = preg_replace('/\D/', '', (string) ($g['telefono_recibe'] ?? ''));
+        // Puede traer DOS números ("7670 1422 - 7481 7904"): vale si al menos
+        // uno es de acá. A Express va el primero y el otro en las notas.
+        $nums = static::telefonosSv((string) ($g['telefono_recibe'] ?? ''));
+        $recibe = $nums[0] ?? preg_replace('/\D/', '', (string) ($g['telefono_recibe'] ?? ''));
         if (strlen($recibe) === 11 && str_starts_with($recibe, '503')) $recibe = substr($recibe, 3);
         $recibeBien = strlen($recibe) === 8 && in_array($recibe[0], ['2', '6', '7'], true);
+        if (count($nums) > 1) {
+            $avisos[] = ['nivel' => 'ojo', 'texto' => 'Trae dos teléfonos de quien recibe: a Express va el ' . $nums[0] . ' y el otro en las notas'];
+        }
 
         // Cliente de otro país (EE. UU., +1 281 707 6729): su número se guarda
         // tal cual. Lo que necesita el repartidor es el de quien recibe acá.
@@ -116,6 +122,13 @@ class RevisarGuia
     }
 
     /** ¿Tiene algo que impida mandarla así? */
+    /** Los números de El Salvador (8 dígitos, empiezan con 2, 6 o 7) que haya en un texto. */
+    public static function telefonosSv(string $t): array
+    {
+        preg_match_all('/(?:\+?\s*503[\s.-]*)?\(?([267]\d{3})\)?[\s.-]*(\d{4})(?!\d)/u', $t, $m, PREG_SET_ORDER);
+        return array_values(array_unique(array_map(fn ($x) => $x[1] . $x[2], $m)));
+    }
+
     public static function tieneError(array $g): bool
     {
         foreach (static::de($g) as $a) {
