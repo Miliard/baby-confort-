@@ -3800,6 +3800,41 @@ class Whatsapp extends Page
             return ['motivo' => 'Municipio: ' . strip_tags((string) $zona['mensaje'])] + $r;
         }
 
+        /*
+         * EN EL LOTE NO SE ADIVINA NADA.
+         *
+         * A mano, el formulario ayuda: si el municipio no venía claro lo busca
+         * en la dirección o en el texto, y vos lo ves antes de guardar. En el
+         * lote no lo ve nadie, y así pasó con "cara sucia": no es municipio
+         * (es de San Francisco Menéndez) y salía con otro sacado del texto.
+         *
+         * Acá solo sale si la orden trae ESCRITOS:
+         *   · el municipio, tal cual uno de la lista (antes de la coma);
+         *   · el total a pagar, con un monto (o que diga que ya está pagado).
+         * Si no, a revisar, y lo hacés vos mirando el chat.
+         */
+        $leida = $this->leerOrden((string) $orden->texto);
+        $M = \App\Services\Municipios::class;
+        $muniEscrito = trim(explode(',', (string) ($leida['municipio'] ?? ''))[0]);
+
+        if ($muniEscrito === '') {
+            return ['motivo' => 'La orden no trae el municipio escrito (no lo adivino de la dirección)'] + $r;
+        }
+        if (! $M::existe($muniEscrito)) {
+            return ['motivo' => "Municipio «{$muniEscrito}» no es un municipio de la lista (¿es un cantón o colonia?)"] + $r;
+        }
+        if ($M::normalizar($M::nombreBueno($muniEscrito)) !== $M::normalizar($this->pedMunicipio)
+            || trim($this->pedDepartamento) === '') {
+            return ['motivo' => "Municipio «{$muniEscrito}»: no quedó claro el departamento"] + $r;
+        }
+
+        $totalEscrito = static::montoDe((string) ($leida['total'] ?? ''));
+        $diceSinCobro = (bool) preg_match('/pagad|cancelad|transferencia|ya pag/iu', (string) $orden->texto);
+
+        if ($totalEscrito <= 0 && ! $diceSinCobro) {
+            return ['motivo' => 'La orden no trae el total a pagar escrito (no lo calculo del catálogo)'] + $r;
+        }
+
         // Que un producto no esté en el catálogo (o esté agotado) NO frena la
         // guía: la descripción va igual con lo que dice la orden, y el cobro
         // sale del total escrito. Si por eso el cobro quedara en cero, lo
