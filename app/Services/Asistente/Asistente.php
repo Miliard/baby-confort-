@@ -2801,9 +2801,55 @@ class Asistente
      * talla M."), sin la pregunta del municipio ni del envío, más el cierre, y
      * el chat pasa a Wil (🤖 Revisar y Pedidos). Devuelve true si cortó.
      */
+    /**
+     * ETAPA 1 DEL ENVÍO (sobre "solo asesora"). Con un cliente NUEVO, después
+     * de elegir (o si pregunta por el envío):
+     *   1. "📦 ¡Tenemos cobertura nacional…! ¿De cuál municipio nos escribe?"
+     *   2. con el municipio, la leyenda del envío ($2.50) — o el total, si
+     *      ya eligió —, el cierre, y el chat pasa a Pedidos. Ahí muere: no
+     *      pide datos ni arma la orden (eso es la etapa 2).
+     * Cliente antiguo: como antes, te lo pasa sin decir el envío (el suyo lo
+     * manejás vos). San Miguel: te lo pasa. ASISTENTE_ETAPA_ENVIO=false la apaga.
+     */
+    public static function etapaEnvio(): bool
+    {
+        return static::soloAsesora() && (bool) config('asistente.etapa_envio', true);
+    }
+
+    /** ¿Nunca nos compró? (no está en la libreta de clientes ni se lo reconoció). */
+    protected function clienteNuevo(): bool
+    {
+        try {
+            if ($this->conv->cliente()) return false;
+        } catch (\Throwable $e) {}
+
+        return ! $this->f->dato('conocido');
+    }
+
+    protected function envioParaNuevo(): bool
+    {
+        return static::etapaEnvio() && $this->clienteNuevo();
+    }
+
     private function cortarAntesDeLaOrden(string $paso, string $msg): bool
     {
         if (! static::soloAsesora() || ! in_array($paso, self::PASOS_DE_ORDEN, true)) return false;
+
+        if ($this->envioParaNuevo()) {
+            // Que pregunte de dónde es (y el departamento si hay duda).
+            if (in_array($paso, ['municipio', 'muni_envio', 'muni_duda', 'confirmar_muni', 'depto'], true)) return false;
+
+            // La leyenda del envío o el total: se le dicen, sin "¿Le parece
+            // bien?", con el cierre, y el chat pasa a Pedidos. Hasta acá llega.
+            if (in_array($paso, ['envio', 'total'], true)) {
+                $txt = trim((string) preg_replace('/\s*¿Le parece bien\?\s*😊?\s*$/u', '', $msg));
+                $cierre = trim((string) config('asistente.solo_asesorar_cierre', ''));
+                $todo = trim($txt . ($txt !== '' && $cierre !== '' ? "\n\n" : '') . $cierre);
+                if ($todo !== '' && $this->conv->ventanaAbierta()) $this->texto($todo);
+                $this->pasarAWil('cliente nuevo: se le dijo el envío ($' . number_format((float) $this->f->dato('envio'), 2) . '), te toca la orden', false);
+                return true;
+            }
+        }
 
         // El costo del envío o el total no se le dicen: depende del cliente.
         $resto = in_array($paso, ['envio', 'total'], true) ? '' : static::sinPreguntaDeOrden($msg);

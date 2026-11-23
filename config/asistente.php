@@ -46,6 +46,13 @@ return [
     'solo_asesorar' => (bool) env('ASISTENTE_SOLO_ASESORAR', true),
     'solo_asesorar_cierre' => env('ASISTENTE_CIERRE', 'En un momento le atiendo para coordinar su envío 😊'),
 
+    /*
+    | Etapa 1 del envío (con solo_asesorar): al cliente NUEVO se le pregunta el
+    | municipio y se le da la leyenda del envío (o el total), y ahí pasa a
+    | Pedidos. No pide datos ni arma la orden. false = como antes.
+    */
+    'etapa_envio' => (bool) env('ASISTENTE_ETAPA_ENVIO', true),
+
     // El banco de ejemplos (modo "ejemplos"): de cuántos días de chats se
     // arma, cuántos guarda como mucho y cuántos le pasa a la IA por turno.
     'ejemplos' => [

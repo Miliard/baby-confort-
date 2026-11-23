@@ -160,7 +160,15 @@ trait GuionDiagrama
 
         // ── Solo asesora: "¿cuánto el envío?", "¿cuánto sería todo?" ────────
         // Lo contestás vos: a unos se les cobra envío y a otros no.
-        if (static::soloAsesora()) {
+        // Rebaja, envío gratis, descuento: no se contesta, lo decidís vos.
+        if (preg_match('/\b(gratis|descuento|descuentito|rebaja|rebajita|mas barato|mas baratos|precio especial|me lo deja|me los deja|me hace precio|me hace un precio|sin costo de envio|sin envio)\b/', $n)) {
+            $this->pasarAWil('pide rebaja o envío gratis', false);
+            return;
+        }
+
+        // Etapa 1 del envío: con el cliente NUEVO esto sí se contesta (abajo:
+        // primero el municipio, después la leyenda). Al antiguo, como siempre.
+        if (static::soloAsesora() && ! $this->envioParaNuevo()) {
             $faqE = Entender::respuesta($texto, (array) config('asistente.respuestas', []));
             if ($this->dgPideTotal($n) || ($faqE !== null && str_contains($faqE, '{envio}'))) {
                 $this->pasarAWil('pregunta por el envío o el total', false);
@@ -244,7 +252,7 @@ trait GuionDiagrama
             $f->poner('pend_texto', mb_substr($texto, 0, 300));   // por si también pidió talla
             // Primero el municipio (es imprescindible); la leyenda va después,
             // cuando contesta de dónde es.
-            $this->dgDecir(trim($hola . 'Tenemos cobertura nacional con los envíos. ¿Desde cuál municipio nos escribe, disculpe?'), 'muni_envio');
+            $this->dgDecir(trim($hola . '📦 ¡Tenemos cobertura nacional en nuestros envíos! 🇸🇻 ¿De cuál municipio nos escribe, disculpe? 😊'), 'muni_envio');
             return;
         }
 
@@ -606,7 +614,7 @@ trait GuionDiagrama
 
         // Solo asesora: el envío y la entrega (costo, a dónde, cuándo) los
         // contestás vos.
-        if ($enPasos && static::soloAsesora() && ! preg_match('/orden de envio/', $n)
+        if ($enPasos && static::soloAsesora() && ! $this->envioParaNuevo() && ! preg_match('/orden de envio/', $n)
             && preg_match('/\b((el|del|de|su|los|hacen|hace|ase|asen|tiene|tienen|cobran|cobra|costo|precio|vale|cuesta|cuanto|y el|sin|con|hay) envios?|envios? (a|al|para|hasta|gratis|incluido)|entregan|entregas|entregar|entregarian|(la|hace|hacen|ase|asen|de|su|cuando|que dia|k dia) entrega|domicilio|a donde (llegan|mandan|entregan)|llegan hasta|mandan a|me (los|lo) (traen|llevan)|que dia (llega|llegan|llegaria|me))\b/', $n)) {
             $this->pasarAWil('pregunta por el envío o la entrega', false);
             return true;
@@ -981,7 +989,7 @@ trait GuionDiagrama
         if (! $f->dato('municipio')) {
             $f->poner('volver_a', $paso);
             $f->poner('pend_total', true);
-            $this->dgDecir(trim($hola . 'Con gusto 😊 Tenemos cobertura nacional con los envíos. ¿Desde cuál municipio nos escribe, disculpe?'), 'muni_envio');
+            $this->dgDecir(trim($hola . "Con gusto 😊\n\n📦 ¡Tenemos cobertura nacional en nuestros envíos! 🇸🇻 ¿De cuál municipio nos escribe, disculpe? 😊"), 'muni_envio');
             return true;
         }
         if ($this->entregaPropia()) {
@@ -1000,8 +1008,10 @@ trait GuionDiagrama
                 $s = ProductSize::with('product')->find($c['id']);
                 if (! $s) continue;
                 $cant = max(1, (int) ($c['cant'] ?? 1));
-                $sub += $cant * (float) $s->price;
-                $lineas[] = '• ' . $cant . ' × *' . trim(preg_replace('/\s*\(.*$/u', '', (string) $s->product->name)) . '* talla ' . trim((string) $s->size) . ': ' . $m($cant * (float) $s->price);
+                // Con la oferta del combo si aplica (3 × $25), no precio × cantidad.
+                $linea = (float) $s->subtotalPara($cant);
+                $sub += $linea;
+                $lineas[] = '• ' . $cant . ' × *' . trim(preg_replace('/\s*\(.*$/u', '', (string) $s->product->name)) . '* talla ' . trim((string) $s->size) . ': ' . $m($linea);
             }
             $nota = array_filter($carrito, fn ($c) => empty($c['dicha'])) ? "\n(por 1 paquete; si lleva más, me dice cuántos)" : '';
             $txt = trim($hola !== '' ? $hola : 'Con gusto 😊') . "\n\n" . implode("\n", $lineas) . "\n• Envío: " . $m($envio) . "\n\n*Total: " . $m($sub + $envio) . '*' . $nota;
@@ -2220,7 +2230,7 @@ trait GuionDiagrama
             return;
         }
 
-        $this->dgDecir($antes . 'Tenemos cobertura nacional con los envíos. ¿Desde cuál municipio nos escribe, disculpe?', 'municipio');
+        $this->dgDecir($antes . '📦 ¡Tenemos cobertura nacional en nuestros envíos! 🇸🇻 ¿De cuál municipio nos escribe, disculpe? 😊', 'municipio');
     }
 
     /** Las tallas que pidió y de las que todavía no eligió nada. */
