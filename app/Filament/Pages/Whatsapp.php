@@ -3800,11 +3800,10 @@ class Whatsapp extends Page
             return ['motivo' => 'Municipio: ' . strip_tags((string) $zona['mensaje'])] + $r;
         }
 
-        foreach ($avisos as $a) {
-            if (str_starts_with($a, 'Hay algo que no reconocí')) {
-                return ['motivo' => 'Hay un producto que no reconocí del catálogo'] + $r;
-            }
-        }
+        // Que un producto no esté en el catálogo (o esté agotado) NO frena la
+        // guía: la descripción va igual con lo que dice la orden, y el cobro
+        // sale del total escrito. Si por eso el cobro quedara en cero, lo
+        // agarra la alarma de "sin cobro" de abajo.
 
         if ($r['cobro'] <= 0) {
             return ['motivo' => 'Sale SIN cobro: ¿ya pagó?', 'sinCobro' => true] + $r;
