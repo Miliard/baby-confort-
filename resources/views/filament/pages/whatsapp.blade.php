@@ -1886,6 +1886,8 @@
                              elegir(r) {
                                  this.abierto = false;
                                  this.termino = '';
+                                 // Las de solo texto salen de una: que el chat baje a verla.
+                                 if (! (r.fotos && r.fotos.length) && window.waAlMandar) window.waAlMandar();
                                  $wire.usarRespuesta(r.id);
                              }
                          }"

@@ -2171,6 +2171,22 @@ class Whatsapp extends Page
         // texto —agregar el nombre, cambiar un precio— y cuando le des a
         // Enviar sale una sola cosa: la foto con ese texto de pie.
         $this->rapidaFoto = $r->tieneFoto() ? $r->id : null;
+
+        /*
+         * Solo texto → sale de una, sin buscar el botón Enviar. Ya se sabe qué
+         * se va a mandar; dejarla en el cuadro era un paso de más.
+         *
+         * Menos las que son para LLENAR: la orden de envío y cualquier otra
+         * con renglones vacíos ("Nombre:", "Teléfono:" sin nada al lado).
+         * Esas se quedan en el cuadro para completarlas. Las de foto también,
+         * como siempre, para poder corregir el texto de pie.
+         */
+        $t = trim((string) $r->texto);
+        $paraLlenar = preg_match('/orden de env[ií]o/iu', $t) || preg_match('/:[ \t]*$/mu', $t);
+
+        if (! $r->tieneFoto() && $t !== '' && ! $paraLlenar) {
+            $this->enviar();
+        }
     }
 
     /** La respuesta rápida cuya foto está esperando, si hay alguna. */
