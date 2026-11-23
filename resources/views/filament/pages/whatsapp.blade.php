@@ -1243,7 +1243,7 @@
             {{-- Todas las conversaciones en un archivo, sin datos personales,
                  para analizarlas y mejorar el asistente. Se elige el período y
                  se descarga de una vez. --}}
-            <span x-data="{ dias: '60' }" style="display:inline-flex;gap:4px;align-items:center;margin-top:8px">
+            <span x-data="{ dias: '60', completo: false }" style="display:inline-flex;gap:4px;align-items:center;margin-top:8px;flex-wrap:wrap">
                 <select x-model="dias" class="wa-fil" style="--c:#94a3b8;padding-right:4px"
                         aria-label="Período de los chats a descargar">
                     <option value="30">30 días</option>
@@ -1251,9 +1251,16 @@
                     <option value="90">90 días</option>
                     <option value="0">Todos</option>
                 </select>
-                <a :href="'{{ route('chats.descargar') }}?dias=' + dias" class="wa-fil"
+                {{-- Marcada: sale con teléfonos, nombres y direcciones (para buscar
+                     clientes). Sin marcar: tapado, como antes. --}}
+                <label class="wa-fil" style="--c:#94a3b8;display:inline-flex;gap:4px;align-items:center;cursor:pointer"
+                       title="El archivo sale con teléfonos, nombres y direcciones sin tapar">
+                    <input type="checkbox" x-model="completo" style="margin:0">
+                    Con números
+                </label>
+                <a :href="'{{ route('chats.descargar') }}?dias=' + dias + (completo ? '&completo=1' : '')" class="wa-fil"
                    style="--c:#94a3b8;text-decoration:none"
-                   aria-label="Descargar todos los chats para analizar">
+                   aria-label="Descargar todos los chats">
                     📥 Descargar chats
                 </a>
                 {{-- A quién se le dijo "agotado": teléfono y lo que pidió, para

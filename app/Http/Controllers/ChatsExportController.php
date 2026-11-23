@@ -25,9 +25,14 @@ class ChatsExportController extends Controller
         $desde = $dias > 0 ? now()->subDays(min($dias, 730)) : null;
         $zona  = 'America/El_Salvador';
 
-        $nombre = 'chats-baby-confort-' . now($zona)->format('Y-m-d') . ($dias > 0 ? "-ultimos-{$dias}-dias" : '-todos') . '.txt';
+        // Con números: sin tapar nada, y el teléfono y nombre de cada chat
+        // arriba, para poder buscar al cliente.
+        $completo = $request->boolean('completo');
 
-        return response()->streamDownload(function () use ($desde, $dias, $zona) {
+        $nombre = 'chats-baby-confort-' . now($zona)->format('Y-m-d') . ($dias > 0 ? "-ultimos-{$dias}-dias" : '-todos')
+            . ($completo ? '-con-numeros' : '') . '.txt';
+
+        return response()->streamDownload(function () use ($desde, $dias, $zona, $completo) {
             $hayFichas = \App\Models\AsistenteFicha::hayTabla();
 
             $q = WaConversacion::query()
@@ -42,7 +47,9 @@ class ChatsExportController extends Controller
             echo 'Período: ' . ($dias > 0 ? "últimos {$dias} días" : 'todo el historial')
                 . ' · descargado el ' . now($zona)->format('d/m/Y H:i') . "\n";
             echo "Conversaciones: {$total}\n";
-            echo "Sin datos personales: teléfonos, nombres y direcciones van tapados.\n";
+            echo $completo
+                ? "CON DATOS DE CLIENTES: teléfonos, nombres y direcciones sin tapar. No reenviar.\n"
+                : "Sin datos personales: teléfonos, nombres y direcciones van tapados.\n";
             echo "Quién habla: CLIENTE · TIENDA (vos o el equipo) · ASISTENTE (respuesta automática)\n\n";
 
             // Resumen de por qué el asistente pasó chats a Wil: es lo primero
@@ -68,7 +75,7 @@ class ChatsExportController extends Controller
 
             $n = 0;
 
-            $q->chunk(100, function ($convs) use (&$n, $desde, $zona, $hayFichas) {
+            $q->chunk(100, function ($convs) use (&$n, $desde, $zona, $hayFichas, $completo) {
                 foreach ($convs as $conv) {
                     $n++;
 
@@ -79,13 +86,19 @@ class ChatsExportController extends Controller
 
                     if ($msjs->isEmpty()) continue;
 
-                    $tapar = $this->palabrasATapar($conv);
+                    $tapar = $completo ? [] : $this->palabrasATapar($conv);
 
                     echo str_repeat('═', 60) . "\n";
                     echo "Cliente {$n} · {$msjs->count()} mensajes · "
                         . $msjs->first()->created_at->timezone($zona)->format('d/m/Y')
                         . ' → ' . $msjs->last()->created_at->timezone($zona)->format('d/m/Y')
                         . ($conv->esExtranjero() ? ' · escribe desde el extranjero' : '') . "\n";
+
+                    if ($completo) {
+                        $nom = trim(implode(' / ', array_unique(array_filter([trim((string) $conv->alias), trim((string) $conv->nombre)]))));
+                        echo 'Teléfono: ' . $this->telLegible((string) $conv->telefono)
+                            . ($nom !== '' ? " · Nombre: {$nom}" : '') . "\n";
+                    }
 
                     $etqs = $conv->etiquetas->pluck('nombre')->filter()->implode(', ');
                     if ($etqs !== '') echo "Etiquetas: {$etqs}\n";
@@ -105,7 +118,7 @@ class ChatsExportController extends Controller
                             'document' => ' (documento)', 'sticker' => ' (sticker)', default => '',
                         };
 
-                        $texto = $this->limpiar((string) $m->texto, $tapar);
+                        $texto = $completo ? trim((string) $m->texto) : $this->limpiar((string) $m->texto, $tapar);
                         if ($texto === '' && $tipo === '') continue;
 
                         echo '[' . $m->created_at->timezone($zona)->format('d/m H:i') . "] {$quien}{$tipo}: "
@@ -118,6 +131,15 @@ class ChatsExportController extends Controller
                 if (function_exists('flush')) @flush();
             });
         }, $nombre, ['Content-Type' => 'text/plain; charset=UTF-8']);
+    }
+
+    /** "50371234567" → "7123 4567"; los de afuera quedan con su código. */
+    private function telLegible(string $tel): string
+    {
+        $d = preg_replace('/\D/', '', $tel);
+        if (strlen($d) === 11 && str_starts_with($d, '503')) $d = substr($d, 3);
+        if (strlen($d) === 8) return substr($d, 0, 4) . ' ' . substr($d, 4);
+        return $d !== '' ? '+' . $d : '(sin número)';
     }
 
     /** El nombre y el apodo del cliente, para taparlos donde aparezcan. */
