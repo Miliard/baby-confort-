@@ -1883,7 +1883,14 @@
                              get filtradas() {
                                  const t = this.limpio(this.termino);
                                  if (t === '') return this.lista;
-                                 return this.lista.filter(r => this.limpio(r.titulo).includes(t));
+                                 // Estricto: el comando tiene que EMPEZAR con lo
+                                 // escrito ("/n" → solo las que empiezan con n),
+                                 // no contenerlo en el medio. El exacto va primero,
+                                 // así Enter manda ese y no otro.
+                                 const tit = r => this.limpio(r.titulo).trim();
+                                 return this.lista
+                                     .filter(r => tit(r).startsWith(t))
+                                     .sort((a, b) => (tit(b) === t) - (tit(a) === t) || tit(a).length - tit(b).length);
                              },
                              alEscribir(valor) {
                                  const m = (valor || '').match(/^\/(\S*)$/);
