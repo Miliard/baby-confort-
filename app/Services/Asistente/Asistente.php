@@ -2842,6 +2842,16 @@ class Asistente
             // La leyenda del envío o el total: se le dicen, sin "¿Le parece
             // bien?", con el cierre, y el chat pasa a Pedidos. Hasta acá llega.
             if (in_array($paso, ['envio', 'total'], true)) {
+                // Hasta el precio del envío y nada más: aunque iba a dar el
+                // total, se le manda la leyenda del envío. El total lo das vos.
+                if ($paso === 'total') {
+                    $leyenda = '';
+                    foreach ((array) config('asistente.respuestas', []) as $r) {
+                        if (str_contains((string) ($r['texto'] ?? ''), '{envio}')) { $leyenda = $this->rellenar((string) $r['texto']); break; }
+                    }
+                    $msg = trim($leyenda) !== '' ? $leyenda
+                        : '🚚 El envío es de $' . number_format((float) \App\Models\Setting::envio(), 2) . ', lleve lo que lleve 😊';
+                }
                 $txt = trim((string) preg_replace('/\s*¿Le parece bien\?\s*😊?\s*$/u', '', $msg));
                 // "Si lleva más, me dice cuántos" es una pregunta: acá el
                 // asistente ya se despide y lo seguís vos.
