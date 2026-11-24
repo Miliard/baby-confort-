@@ -3524,6 +3524,23 @@ class Whatsapp extends Page
             $this->pedDepartamento = $zona['sugerido'];
         }
 
+        // Teléfono con un dígito distinto al del WhatsApp: casi siempre es un
+        // error al escribirlo. Se avisa una vez; si está bien, se guarda al
+        // presionar otra vez.
+        $convTel = $this->conversacion();
+        if ($convTel && ($dudoso = $this->telefonoDudoso($convTel))) {
+            $clave = $convTel->id . '|' . trim($this->pedTelefono) . '|' . trim($this->pedTelefonoRecibe);
+            if ($this->telDudosoVisto !== $clave) {
+                $this->telDudosoVisto = $clave;
+                Notification::make()
+                    ->title('¿El teléfono está bien?')
+                    ->body($dudoso . ' Si está bien, presioná guardar otra vez.')
+                    ->warning()->persistent()->send();
+                return;
+            }
+        }
+        $this->telDudosoVisto = null;
+
         $fila = [
             'nombre'       => trim($this->pedNombre),
             'telefono'     => trim($this->pedTelefono),
@@ -3553,6 +3570,23 @@ class Whatsapp extends Page
         $conv = $this->conversacion();
         $aviso = '';
         $avisoCobro = '';
+
+        // A la libreta de clientes, con el teléfono de la orden Y con el del
+        // WhatsApp: así la próxima vez el asistente la reconoce como clienta
+        // activa aunque la orden haya ido con el número de otra persona.
+        try {
+            $tels = array_unique(array_filter([
+                \App\Models\Cliente::normalizar($fila['telefono']),
+                $conv ? \App\Models\Cliente::normalizar((string) $conv->telefono) : '',
+            ], fn ($t) => strlen($t) === 8));
+            foreach ($tels as $t) {
+                \App\Models\Cliente::recordar([
+                    'telefono' => $t, 'nombre' => $fila['nombre'], 'direccion' => $fila['direccion'],
+                    'municipio' => $fila['municipio'], 'departamento' => $fila['departamento'],
+                ]);
+            }
+        } catch (\Throwable $e) {
+        }
 
         /*
          * Guardada en la cola → Preparados. Siempre, en este momento.
@@ -3689,6 +3723,40 @@ class Whatsapp extends Page
         $n->send();
     }
 
+    /** El teléfono dudoso que ya se avisó (al segundo guardar, pasa). */
+    public ?string $telDudosoVisto = null;
+
+    /**
+     * ¿El teléfono de la orden es el del WhatsApp con un dígito mal escrito?
+     * (6143 8058 en vez de 6143 8057, o dos dígitos cambiados de lugar.)
+     * Un número totalmente distinto es de otra persona y está bien.
+     */
+    private function telefonoDudoso(WaConversacion $conv): ?string
+    {
+        $wa = \App\Models\Cliente::normalizar((string) $conv->telefono);
+        if (strlen($wa) !== 8) return null;
+
+        foreach (['teléfono' => $this->pedTelefono, 'teléfono de quien recibe' => $this->pedTelefonoRecibe] as $campo => $valor) {
+            preg_match_all('/(?<!\d)(?:\+?503[\s.-]*)?([267]\d{3})[\s.-]*(\d{4})(?!\d)/', (string) $valor, $mm, PREG_SET_ORDER);
+            foreach ($mm as $m) {
+                $t = $m[1] . $m[2];
+                if ($t === $wa) continue;
+                $dif = [];
+                for ($i = 0; $i < 8; $i++) if ($t[$i] !== $wa[$i]) $dif[] = $i;
+                $unDigito = count($dif) === 1;
+                $cambiados = count($dif) === 2 && $dif[1] === $dif[0] + 1
+                    && $t[$dif[0]] === $wa[$dif[1]] && $t[$dif[1]] === $wa[$dif[0]];
+                if ($unDigito || $cambiados) {
+                    $a = substr($t, 0, 4) . ' ' . substr($t, 4);
+                    $b = substr($wa, 0, 4) . ' ' . substr($wa, 4);
+                    return "El {$campo} de la orden es {$a} y el WhatsApp es {$b}: parece un dígito mal escrito.";
+                }
+            }
+        }
+
+        return null;
+    }
+
     // ════════════════════════════════════════════════════════════════════════
     // 📤 Mandar a Express todos los de una pestaña (la de "OK.")
     // ════════════════════════════════════════════════════════════════════════
@@ -3810,6 +3878,8 @@ class Whatsapp extends Page
         if (trim($this->pedMunicipio) === '') $faltan[] = 'el municipio';
         if ($r['producto'] === '')            $faltan[] = 'el producto';
         if ($faltan) return ['motivo' => 'Falta ' . implode(', ', $faltan)] + $r;
+
+        if ($dudoso = $this->telefonoDudoso($conv)) return ['motivo' => $dudoso] + $r;
 
         $zona = $this->revisionZona();
         if (in_array($zona['estado'], ['error', 'ambiguo', 'desconocido'], true)) {
