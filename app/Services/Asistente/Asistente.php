@@ -2843,6 +2843,9 @@ class Asistente
             // bien?", con el cierre, y el chat pasa a Pedidos. Hasta acá llega.
             if (in_array($paso, ['envio', 'total'], true)) {
                 $txt = trim((string) preg_replace('/\s*¿Le parece bien\?\s*😊?\s*$/u', '', $msg));
+                // "Si lleva más, me dice cuántos" es una pregunta: acá el
+                // asistente ya se despide y lo seguís vos.
+                $txt = trim((string) preg_replace('/\n?\(por 1 paquete; si lleva más, me dice cuántos\)/u', '', $txt));
                 $cierre = trim((string) config('asistente.solo_asesorar_cierre', ''));
                 $todo = trim($txt . ($txt !== '' && $cierre !== '' ? "\n\n" : '') . $cierre);
                 if ($todo !== '' && $this->conv->ventanaAbierta()) $this->texto($todo);

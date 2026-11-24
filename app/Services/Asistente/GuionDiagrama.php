@@ -985,8 +985,16 @@ trait GuionDiagrama
     /** "¿Cuánto sería ya con el envío?", "con envío incluido", "total con el envío". */
     private function dgPideTotal(string $n): bool
     {
-        return (bool) preg_match('/\benvio\b/', $n)
-            && (bool) preg_match('/\b(ya con|con el envio|con envio|incluido|incluyendo|en total|total|todo junto|mas el envio|con todo)\b/', $n);
+        // "¿Cuenta con envío?", "¿tienen envío?", "¿hacen envío?" preguntan SI
+        // hay envío, no el total: eso es la cobertura.
+        if (preg_match('/\b(cuenta|cuentan|tiene|tienen|hacen|hace|ase|asen|hay|ofrecen|manejan|trabajan) (con )?(el )?envios?\b/', $n)
+            && ! preg_match('/\b(cuanto|total|precio|sale|saldria|seria|vale|cuesta|pagar|pago)\b/', $n)) return false;
+
+        if (! preg_match('/\benvio\b/', $n)) return false;
+        if (preg_match('/\b(incluido|incluyendo|en total|total|todo junto|mas el envio|con todo)\b/', $n)) return true;
+        // "ya con el envío", "con envío": solo si pregunta cuánto.
+        return (bool) preg_match('/\b(ya con|con el envio|con envio)\b/', $n)
+            && (bool) preg_match('/\b(cuanto|precio|sale|saldria|seria|serian|vale|cuesta|pagar|queda|quedaria)\b/', $n);
     }
 
     /**
@@ -2365,6 +2373,7 @@ trait GuionDiagrama
         $m = Municipios::buscarEn($texto) ?: Municipios::aproximado($texto);
 
         if (! $m) {
+            if ($this->dgReiterarCobertura($texto, 'municipio')) return;
             if ((Entender::esCortesia($texto) || Entender::siNo($texto) === true) && ! $f->dato('muni_repetido')) {
                 $f->poner('muni_repetido', true);
                 $this->dgDecir('¿Desde cuál municipio nos escribe, disculpe? 😊', 'municipio');
@@ -2382,6 +2391,23 @@ trait GuionDiagrama
         $this->dgDespuesDelMunicipio();
     }
 
+    /**
+     * Ya se le dijo la cobertura y en vez del municipio pregunta otra vez por
+     * el envío ("¿cuenta con envío?", "¿hacen envíos?"): no se le repite el
+     * mismo mensaje; se le contesta corto que sí y se le pide el municipio.
+     * Una sola vez: si vuelve a preguntar, te lo pasa.
+     */
+    private function dgReiterarCobertura(string $texto, string $paso): bool
+    {
+        $n = Entender::normalizar($texto);
+        if (! preg_match('/\benvios?\b|\bentregan\b|\bdomicilio\b|\bmandan\b/', $n)) return false;
+        if (preg_match('/\b(gratis|gratuit)/', $n)) return false;   // eso lo decidís vos (arriba)
+        if ($this->f->dato('cobertura_reiterada')) return false;
+        $this->f->poner('cobertura_reiterada', true);
+        $this->dgDecir('¡Sí, claro! 😊 Enviamos a todo El Salvador 🚚 ¿De cuál municipio nos escribe?', $paso);
+        return true;
+    }
+
     /** Contestó de dónde escribe, después de preguntar el envío: se guarda y se sigue donde iba. */
     private function dgMuniEnvio(string $texto): void
     {
@@ -2390,6 +2416,7 @@ trait GuionDiagrama
         $m = Municipios::buscarEn($texto) ?: Municipios::aproximado($texto);
 
         if (! $m || ! $this->ponerMunicipio($m)) {
+            if (! $m && $this->dgReiterarCobertura($texto, 'muni_envio')) return;
             // En vez del municipio dijo la talla o el peso: se sigue con eso.
             if ($volver === 'talla' && ($this->dgTallas($texto) || Entender::peso($texto))) {
                 $f->quitar('volver_a', 'pend_texto');
