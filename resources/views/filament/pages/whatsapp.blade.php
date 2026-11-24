@@ -1884,7 +1884,7 @@
                                  const t = this.limpio(this.termino);
                                  if (t === '') return this.lista;
                                  // Estricto: el comando tiene que EMPEZAR con lo
-                                 // escrito ("/n" → solo las que empiezan con n),
+                                 // escrito (/n: solo las que empiezan con n),
                                  // no contenerlo en el medio. El exacto va primero,
                                  // así Enter manda ese y no otro.
                                  const tit = r => this.limpio(r.titulo).trim();
