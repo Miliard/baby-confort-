@@ -1997,14 +1997,8 @@
                             Enviar
                         </x-filament::button>
 
-                        @if($this->puedeMejorar())
-                            <button type="button" class="wa-chip wa-chip-ia" wire:click="mejorar"
-                                    wire:loading.attr="disabled" wire:target="mejorar"
-                                    title="Corrige ortografía, tildes y redacción sin inventar nada">
-                                <span wire:loading.remove wire:target="mejorar">✨ Mejorar</span>
-                                <span wire:loading wire:target="mejorar">Corrigiendo…</span>
-                            </button>
-                        @endif
+                        {{-- Acá iba "✨ Mejorar" (corregir con IA). Se quitó a pedido
+                             de Wil. El método mejorar() sigue en Whatsapp.php. --}}
 
                         @if($textoAntes !== '')
                             <button type="button" class="wa-chip" wire:click="deshacerMejora"
