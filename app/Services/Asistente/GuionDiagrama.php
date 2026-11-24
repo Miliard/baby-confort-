@@ -84,6 +84,16 @@ trait GuionDiagrama
         // spam. No se contesta nada.
         if (preg_match('/^\s*https?:\/\/\S+\s*$/iu', $texto) && ! preg_match('/baby-?confort/i', $texto)) return;
 
+        // Pide dos o más tallas en un mismo mensaje ("M y XL", "una L y una
+        // XXL"): en cualquier paso, no se contesta nada; lo atendés vos.
+        foreach (preg_split('/\n+/', $texto) as $l) {
+            $ts = array_values(array_unique($this->dgTallas($l)));
+            if (count($ts) > 1) {
+                $this->pasarAWil('pide varias tallas en un mensaje (' . implode(', ', $ts) . ')', false);
+                return;
+            }
+        }
+
         // ── ¿Quién es? Si ya compró, se cargan sus datos (no se le piden de nuevo).
         $this->dgCargarConocido();
 
