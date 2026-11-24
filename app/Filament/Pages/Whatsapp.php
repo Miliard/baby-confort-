@@ -736,9 +736,15 @@ class Whatsapp extends Page
     {
         $this->rescatarAtascados();
 
+        // Órdenes confirmadas por el cliente: a la cola solas (una vez por minuto).
+        $hizoAlgo = false;
+        try { $hizoAlgo = $this->autoCola(); } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('autoCola: ' . $e->getMessage());
+        }
+
         $nueva = $this->huellaActual();
 
-        if ($nueva === $this->huella) {
+        if ($nueva === $this->huella && ! $hizoAlgo) {
             $this->skipRender();
             return;
         }
@@ -4018,6 +4024,240 @@ class Whatsapp extends Page
         return $ok
             ? ['ok' => true, 'guia' => $g[1], 'nota' => $ventanaCerrada ? 'ventana cerrada: el rastreo no le salió' : '']
             : ['ok' => false, 'error' => trim(preg_replace('/\s+/u', ' ', $avisos[0] ?? 'Express no la aceptó'))];
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // ⏱️ A la cola sola: orden escrita por vos + "sí" limpio del cliente
+    // ════════════════════════════════════════════════════════════════════════
+    //
+    // Vos escribís la orden de envío. Si el cliente contesta que está bien
+    // ("sí", "perfecto", "está correcta", o un 👍 a la orden) y pasan 10
+    // minutos sin que escriba otra cosa, la guía entra a la cola sola, con
+    // las mismas reglas estrictas del lote, más:
+    //   · el envío escrito es el de siempre ($2.50) o el de su orden anterior
+    //     en este chat — envío gratis o $0 nunca sale solo;
+    //   · la suma de productos + envío da el total escrito;
+    //   · después de la orden, el cliente solo dijo que sí (o gracias): nada
+    //     de "pero", "mejor", otra cantidad, audios ni fotos;
+    //   · vos no escribiste nada más (salvo la pregunta de revisar la orden).
+    // A Express NO se manda nada: queda en la cola como siempre.
+    //
+    // Red de seguridad: si el cliente escribe algo que no sea un gracias
+    // después de que pasó a la cola, el chat vuelve a Pedidos con 🤖 Revisar
+    // y te avisa, para que mires la guía antes de mandarla.
+    //
+    // Corre mientras el panel está abierto (con el pulso de cada 3 segundos,
+    // una vez por minuto). Se apaga con AUTO_COLA=false en Railway.
+
+    private const AUTO_COLA_MIN = 10;
+
+    /** "Sí", "perfecto", "está correcta gracias": confirma y nada más. */
+    private static function siLimpio(string $t): ?string
+    {
+        $n = \App\Services\Asistente\Entender::normalizar($t);
+        $n = trim(preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $n));
+        if ($n === '') return preg_match('/👍|✅|👌/u', $t) ? 'si' : 'cortesia';   // solo emojis
+
+        $si = '(si+|sip|ok+|okay|okey|oki|va|vaya|dale|listo|lista|perfecto|perfecta|correcto|correcta|excelente|exacto|claro|de acuerdo|todo bien|esta bien|esta perfecta|esta perfecto|esta correcta|esta correcto|asi esta bien|todo esta bien|todo correcto|todo perfecto|bien|muy bien|asi es|genial|super)';
+        $relleno = '(gr+a+[cs]+i+a+s*|informacion|seria|eso|feliz|tarde|noche|dia|buen|muchas|mil|muy|amable|bendiciones|dios|le|la|lo|los|bendiga|porfa|por|favor|hola|buenas|buenos|dias|tardes|noches|ya|entonces|quedo|quedamos|pendiente|atenta|atento|igualmente|usted|ud|todo|y|esta|asi|es|a|la orden|con gusto|espero|esperamos)';
+
+        $sinSi = trim(preg_replace('/\b' . $si . '\b/u', ' ', $n));
+        $resto = trim(preg_replace('/\s+/u', ' ', preg_replace('/\b' . $relleno . '\b/u', ' ', $sinSi)));
+        if ($resto !== '') return null;
+
+        return $sinSi === $n ? 'cortesia' : 'si';
+    }
+
+    /** Suma de los productos de la orden (con el "($34)" si lo trae). */
+    private static function sumaProductos(string $productos): ?array
+    {
+        $simple = 0.0; $porCant = 0.0; $alguna = false;
+        foreach (preg_split('/\r\n|\n|\r/u', $productos) as $l) {
+            $l = trim($l);
+            if ($l === '' || ! preg_match('/\d/', $l)) continue;
+            if (preg_match_all('/\(\s*\$?\s*(\d+(?:[.,]\d{1,2})?)\s*\)/u', $l, $p) && $p[1]) {
+                $v = (float) str_replace(',', '.', end($p[1]));
+                $simple += $v; $porCant += $v; $alguna = true;
+                continue;
+            }
+            if (! preg_match_all('/\$\s*(\d+(?:[.,]\d{1,2})?)/u', $l, $m) || ! $m[1]) return null;   // renglón sin precio
+            if (count($m[1]) > 1) return null;   // dos precios en un renglón: lo mirás vos
+            $v = (float) str_replace(',', '.', $m[1][0]);
+            $cant = preg_match('/^\D{0,3}(\d{1,2})\b/u', $l, $c) ? max(1, (int) $c[1]) : 1;
+            $simple += $v; $porCant += $v * $cant; $alguna = true;
+        }
+        return $alguna ? [$simple, $porCant] : null;
+    }
+
+    /** Revisa los chats con orden reciente y pasa a la cola los confirmados. */
+    private function autoCola(): bool
+    {
+        if (! filter_var(env('AUTO_COLA', true), FILTER_VALIDATE_BOOLEAN)) return false;
+        if ($this->lote) return false;                            // el lote está abierto
+        if (! \Illuminate\Support\Facades\Cache::add('wa:autocola:tick', 1, 60)) return false;
+
+        $hizo = $this->autoColaRed();
+
+        $ids = WaMensaje::where('direccion', 'saliente')->where('automatico', false)
+            // Solo órdenes de las últimas 6 horas: una vieja que dejaste
+            // quieta (para el lunes, por ejemplo) no se manda sola.
+            ->where('created_at', '>=', now()->subHours(6))
+            ->where('texto', 'like', '%rden de env%')
+            ->distinct()->limit(40)->pluck('conversacion_id');
+
+        foreach ($ids as $id) {
+            $conv = WaConversacion::with('etiquetas')->find($id);
+            if (! $conv) continue;
+
+            $ultimo = (int) WaMensaje::where('conversacion_id', $conv->id)->max('id');
+            $clave = 'wa:autocola:visto:' . $conv->id;
+            if ((int) \Illuminate\Support\Facades\Cache::get($clave) === $ultimo) continue;   // ya se miró así
+
+            $res = $this->autoColaUna($conv);
+            if ($res === 'esperar') continue;                       // todavía no pasan los 10 min
+            \Illuminate\Support\Facades\Cache::put($clave, $ultimo, now()->addDays(2));
+            if ($res === 'ok') $hizo = true;
+        }
+
+        return $hizo;
+    }
+
+    /** 'ok' (pasó a la cola), 'esperar' (faltan minutos) o 'no' (lo hacés vos). */
+    private function autoColaUna(WaConversacion $conv): string
+    {
+        $orden = $this->ultimaOrdenDe($conv);
+        if (! $orden || $orden->direccion !== 'saliente' || $orden->automatico) return 'no';
+
+        $despues = WaMensaje::where('conversacion_id', $conv->id)->where('id', '>', $orden->id)
+            ->orderBy('id')->get(['id', 'direccion', 'tipo', 'texto', 'automatico', 'created_at']);
+
+        // Vos: nada más que la pregunta de revisar (o un "ok" corto).
+        foreach ($despues->where('direccion', 'saliente') as $m) {
+            $t = trim((string) $m->texto);
+            if ($t === self::PREGUNTA_REVISAR) continue;
+            if (mb_strlen($t) <= 15 && self::siLimpio($t) !== null) continue;
+            return 'no';
+        }
+
+        // El cliente: un sí claro, y nada más que cortesías.
+        $confirmo = in_array(trim((string) $orden->reaccion), ['👍', '👍🏻', '👍🏼', '👍🏽', '👍🏾', '👍🏿', '✅', '👌', '👌🏻', '👌🏽', '❤️', '🙏', '🙏🏻'], true);
+        $ultimaCliente = $confirmo ? $orden->updated_at : null;
+        foreach ($despues->where('direccion', 'entrante') as $m) {
+            if ($m->tipo !== 'text') return 'no';                   // audio, foto, ubicación: lo mirás vos
+            $k = self::siLimpio((string) $m->texto);
+            if ($k === null) return 'no';
+            if ($k === 'si') $confirmo = true;
+            $ultimaCliente = $m->created_at;
+        }
+        if (! $confirmo) return 'no';
+        if ($ultimaCliente && $ultimaCliente->gt(now()->subMinutes(self::AUTO_COLA_MIN))) return 'esperar';
+
+        // El envío: el de siempre, o el mismo de su orden anterior. Nunca gratis.
+        $leida = $this->leerOrden((string) $orden->texto);
+        $envio = static::montoDe((string) ($leida['envio'] ?? ''));
+        if ($envio <= 0 || preg_match('/gratis|gratuit/iu', (string) ($leida['envio'] ?? ''))) return 'no';
+        $base = (float) \App\Models\Setting::envio();
+        if (abs($envio - $base) > 0.009) {
+            $previa = WaMensaje::where('conversacion_id', $conv->id)->where('id', '<', $orden->id)
+                ->where('direccion', 'saliente')->where('texto', 'like', '%rden de env%')
+                ->orderByDesc('id')->first();
+            $envAntes = $previa ? static::montoDe((string) ($this->leerOrden((string) $previa->texto)['envio'] ?? '')) : 0.0;
+            if ($envAntes <= 0 || abs($envio - $envAntes) > 0.009) return 'no';
+        }
+
+        // San Miguel lo entregás vos.
+        $muni = \App\Services\Municipios::normalizar(trim(explode(',', (string) ($leida['municipio'] ?? ''))[0]));
+        if (str_contains($muni, 'san miguel')) return 'no';
+
+        // Productos + envío = total escrito.
+        $total = static::montoDe((string) ($leida['total'] ?? ''));
+        $suma = self::sumaProductos((string) ($leida['productos'] ?? ''));
+        if ($total <= 0 || ! $suma) return 'no';
+        if (abs($suma[0] + $envio - $total) > 0.009 && abs($suma[1] + $envio - $total) > 0.009) return 'no';
+
+        // Que no la agarren dos paneles a la vez.
+        if (! \Illuminate\Support\Facades\Cache::add('wa:autocola:conv:' . $conv->id, 1, 120)) return 'esperar';
+
+        // Lo que tenías en pantalla se guarda y se devuelve tal cual.
+        $antes = ['abierta' => $this->abierta, 'pestana' => $this->pestana, 'texto' => $this->texto];
+        foreach (get_object_vars($this) as $k => $v) if (str_starts_with($k, 'ped')) $antes['ped'][$k] = $v;
+        $volver = function () use ($antes) {
+            $this->abierta = $antes['abierta'];
+            $this->pestana = $antes['pestana'];
+            $this->texto   = $antes['texto'];
+            foreach ((array) ($antes['ped'] ?? []) as $k => $v) $this->{$k} = $v;
+        };
+
+        $n0 = count((array) session('filament.notifications', []));
+        $ok = false;
+        try {
+            $ev = $this->evaluarParaLote($conv);
+            if ($ev['ok']) {
+                $this->texto = '';
+                $this->guardarPedido(false);
+                $ok = str_contains(implode(' | ', $this->notifsTomar($n0)), 'Guardado en la cola');
+            } else {
+                $this->notifsTomar($n0);
+            }
+        } catch (\Throwable $e) {
+            $this->notifsTomar($n0);
+        }
+        $volver();
+
+        if (! $ok) return 'no';
+
+        // Para la red de seguridad.
+        $hechas = (array) \Illuminate\Support\Facades\Cache::get('wa:autocola:hechas', []);
+        $hechas[$conv->id] = ['desde' => (int) WaMensaje::where('conversacion_id', $conv->id)->max('id'), 'at' => now()->timestamp];
+        \Illuminate\Support\Facades\Cache::put('wa:autocola:hechas', $hechas, now()->addDays(2));
+
+        Notification::make()
+            ->title('⏱️ A la cola sola: ' . $conv->titulo())
+            ->body('Confirmó la orden y pasaron ' . self::AUTO_COLA_MIN . ' minutos. Cobro $' . number_format($total, 2) . '.')
+            ->success()->duration(8000)->send();
+
+        return 'ok';
+    }
+
+    /** Escribió algo (que no es un gracias) después de pasar a la cola: vuelve a Pedidos. */
+    private function autoColaRed(): bool
+    {
+        $hechas = (array) \Illuminate\Support\Facades\Cache::get('wa:autocola:hechas', []);
+        if (! $hechas) return false;
+
+        $hizo = false;
+        foreach ($hechas as $convId => $h) {
+            if (now()->timestamp - (int) ($h['at'] ?? 0) > 6 * 3600) { unset($hechas[$convId]); continue; }
+
+            $nuevos = WaMensaje::where('conversacion_id', $convId)->where('id', '>', (int) ($h['desde'] ?? 0))
+                ->where('direccion', 'entrante')->orderBy('id')->get(['tipo', 'texto']);
+            $raro = $nuevos->first(fn ($m) => $m->tipo !== 'text' || self::siLimpio((string) $m->texto) === null);
+            if (! $raro) continue;
+
+            unset($hechas[$convId]);
+            $conv = WaConversacion::find($convId);
+            if (! $conv) continue;
+
+            try {
+                $proc = \App\Models\WaEtiqueta::porRol('procesada');
+                $ped  = \App\Models\WaEtiqueta::porRol('pedido');
+                $rev  = \App\Models\WaEtiqueta::porRol('asistente');
+                if ($proc) $conv->etiquetas()->detach($proc->id);
+                $conv->etiquetas()->syncWithoutDetaching(array_values(array_filter([$ped?->id, $rev?->id])));
+                \Illuminate\Support\Facades\Cache::forget('wa:cuenta_etiquetas');
+            } catch (\Throwable $e) {
+            }
+
+            Notification::make()
+                ->title('🤖 Ojo: ' . $conv->titulo() . ' escribió después de pasar a la cola')
+                ->body('«' . \Illuminate\Support\Str::limit(trim((string) $raro->texto) ?: '(' . $raro->tipo . ')', 90)
+                    . '». Volvió a Pedidos. Revisá su guía en Crear guías antes de mandarla a Express.')
+                ->warning()->persistent()->send();
+            $hizo = true;
+        }
+
+        \Illuminate\Support\Facades\Cache::put('wa:autocola:hechas', $hechas, now()->addDays(2));
+        return $hizo;
     }
 
     /** Cierra el lote y abre ese chat con la orden ya cargada, para corregirla. */
