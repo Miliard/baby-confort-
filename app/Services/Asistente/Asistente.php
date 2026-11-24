@@ -3326,6 +3326,18 @@ class Asistente
         $t = trim($t);
         if ($t === '') return;
 
+        // Iba a mandar exactamente lo mismo que acaba de mandar (sin nada
+        // en medio): no se repite; el chat queda para vos.
+        try {
+            $ult = \App\Models\WaMensaje::where('conversacion_id', $this->conv->id)
+                ->where('direccion', 'saliente')->latest('id')->first(['texto', 'automatico', 'created_at']);
+            if ($ult && $ult->automatico && trim((string) $ult->texto) === $t && $ult->created_at && $ult->created_at->gt(now()->subMinutes(15))) {
+                if ($this->f->estado !== 'wil') $this->pasarAWil('iba a repetir el mismo mensaje', false);
+                return;
+            }
+        } catch (\Throwable $e) {
+        }
+
         WhatsappApi::enviarTexto($this->conv, $t, null, true);
     }
 

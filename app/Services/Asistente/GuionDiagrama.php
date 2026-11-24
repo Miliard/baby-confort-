@@ -141,6 +141,13 @@ trait GuionDiagrama
             $this->pasarAWil('pregunta el día u hora de entrega', false);
             return;
         }
+        // "Para el viernes se puede", "¿para mañana?", "para el sábado me lo
+        // manda": también es el día de entrega.
+        if (preg_match('/\bpara (el |este |el otro |el proximo )?(hoy|manana|pasado manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo|fin de semana|otra semana|la otra semana|la proxima semana|la otra quincena|la quincena)\b/', $n)
+            && (str_contains($texto, '?') || preg_match('/\b(se puede|puede|podria|podrian|seria|serian|me lo|me los|lo tendria|los tendria|quiero|ocupo|necesito|lo ocupo|los ocupo|reservar|reserva|aparta|apartar)\b/', $n) || mb_strlen($n) <= 30)) {
+            $this->pasarAWil('pregunta o pide un día de entrega', false);
+            return;
+        }
 
         // Lo primero que dice es que no ("no gracias", "ya no lo ocupo", "ya
         // compré"), típico al contestar el aviso de "ya llegó": no se le
@@ -171,7 +178,7 @@ trait GuionDiagrama
         // ── Solo asesora: "¿cuánto el envío?", "¿cuánto sería todo?" ────────
         // Lo contestás vos: a unos se les cobra envío y a otros no.
         // Rebaja, envío gratis, descuento: no se contesta, lo decidís vos.
-        if (preg_match('/\b(gratis|descuento|descuentito|rebaja|rebajita|mas barato|mas baratos|precio especial|me lo deja|me los deja|me hace precio|me hace un precio|sin costo de envio|sin envio)\b/', $n)) {
+        if (preg_match('/\b(gratis|gratuito|gratuita|gratuitos|grates|regalado|regala el envio|envio incluido|incluye el envio|incluido el envio|no cobran (el )?envio|descuento|descuentito|rebaja|rebajita|mas barato|mas baratos|precio especial|me lo deja|me los deja|me hace precio|me hace un precio|sin costo de envio|sin envio)\b/', $n)) {
             $this->pasarAWil('pide rebaja o envío gratis', false);
             return;
         }
@@ -1523,6 +1530,11 @@ trait GuionDiagrama
             return;
         }
 
+        // Cliente activo que saluda otra vez ("Hola" y luego "Buenas tardes"):
+        // ya se le saludó; no se le manda el saludo de cliente nuevo.
+        if ($this->f->dato('conocido') && ! $this->f->dato('tallas_vistas')
+            && preg_match('/^(\s*(hola|holi|ola|buenas|buenos|buena|buen|dias|dia|tardes|tarde|noches|noche|que tal|como esta|saludos|bendiciones)[\s,.!]*)+$/', Entender::normalizar($texto))) return;
+
         // Primer mensaje (saludo, "información", "¿tiene pampers?"): se pide la talla.
         if ($hola !== '' || Entender::esSaludo($texto) || ! $this->f->dato('tallas_vistas')) { $this->dgPedirTalla($hola); return; }
 
@@ -1879,7 +1891,10 @@ trait GuionDiagrama
         // ¿Eligió una? (por número, por nombre, o respondiendo a la foto)
         // Una pregunta ("¿tendrán de más unidades?") no es elegir, aunque
         // responda citando la foto o nombre algo de la opción.
-        $esPregunta = (str_contains($texto, '?') || preg_match('/^\s*(tendran|tendra|tiene|tienen|hay|habra|cual|cuales|que|como|cuanto|cuantos|cuantas|de cuantos|vienen|traen|son|es)\b/', $nn ?? Entender::normalizar($texto)))
+        // "El precio", "esté que precio", "¿y cuánto sale?": pregunta el precio
+        // (aunque cite la foto), no está eligiendo.
+        $esPregunta = (str_contains($texto, '?') || preg_match('/^\s*(tendran|tendra|tiene|tienen|hay|habra|cual|cuales|que|como|cuanto|cuantos|cuantas|de cuantos|vienen|traen|son|es)\b/', $nn ?? Entender::normalizar($texto))
+                || preg_match('/\b(precio|precios|cuanto (cuesta|vale|sale|es)|que cuesta|que vale|a como)\b/', Entender::normalizar($texto)))
             && ! preg_match('/\b(quiero|deme|mandeme|me manda|envieme|la opcion|opcion \d)\b/', Entender::normalizar($texto));
 
         // "¿Tendrán de más unidades?", "¿paquete más grande?"
