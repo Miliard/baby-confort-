@@ -90,6 +90,11 @@ class Etiquetado
         // "me lo manda", "me los manda a la casa"
         '/\bme\s+(lo|los|la|las)\s+(manda|mandas|mandan|envia|envias|envian|trae|traes)\b/',
 
+        // Subjuntivo: "para que me envíe uno de esos en talla L", "que me
+        // mande dos", "me traiga la L". Se escapaba porque solo estaba "envía".
+        '/\bme\s+(envie|envien|mande|manden|traiga|traigan)\s+(otro|otra|un|uno|una|dos|tres|cuatro|\d+|el|la|los|las|ese|esa|esos|esas|este|esta|estos|estas|paquet\w*|talla)\b(?!\s+(el\s+|la\s+|los\s+|las\s+|su\s+|sus\s+)?(foto|fotos|imagen|imagenes|informacion|info|precio|precios|ubicacion|captura|video|audio|lista|catalogo|cotizacion|numero|cuenta|mensaje|datos|direccion|link|enlace))/',
+        '/\b(para\s+(que|q)\s+)?me\s+(lo|los|la|las)\s+(envie|envien|mande|manden|traiga|traigan)\b/',
+
         // "quiero hacer un pedido", "cómo hago el pedido", "otro pedido"
         '/\b(hacer|hago|realizar|poner)\s+(un|el|mi|otro|nuevo)?\s*pedido\b/',
         '/\b(otro|nuevo)\s+(pedido|paquete)\b/',
@@ -223,6 +228,16 @@ class Etiquetado
         if ($t === '' || mb_strlen($t) < 8 || mb_strlen($t) > 400) return false;
         $t = strtr($t, ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n']);
         $t = preg_replace('/\s+/u', ' ', $t);
+
+        // Pedirle los datos para el envío ("Solo me ayuda con su nombre y su
+        // dirección", "me regala su nombre completo") o decirle cuándo sale
+        // ("se los estaría enviando mañana"): eso ya es un pedido, aunque no
+        // nombre el producto.
+        if (preg_match('/\bme\s+(ayuda|ayudas|regala|regalas|da|das|pasa|pasas|brinda|confirma|comparte|escribe|proporciona)\s+(con\s+)?(su|sus|tu|tus)\s+(nombre|nombres|direccion|datos)\b/', $t)
+            || preg_match('/\b(su|sus)\s+(nombre\s+(completo\s+)?y\s+(su\s+)?direccion|datos\s+para\s+(el\s+)?envio)\b/', $t)
+            || preg_match('/\bse\s+(lo|los|la|las)\s+(estaria|estariamos|estare|estaremos|voy\s+a\s+estar|vamos\s+a\s+estar)\s+(enviando|mandando|despachando)\b/', $t)) {
+            return true;
+        }
 
         // Preguntas ("¿le mando talla M?") y negaciones no son pedido.
         if (str_contains($t, '?') || preg_match('/\b(no|todavia no|aun no)\s+(se\s+)?(le\s+|lo\s+|los\s+)?(mando|envio|mandamos|enviamos|puedo)\b/', $t)) return false;
