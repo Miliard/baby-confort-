@@ -2818,11 +2818,7 @@ class Whatsapp extends Page
 
         $cliente = $conv->cliente();
         if ($cliente) {
-            // Sin el "AIWIBI": es la marca de que el cliente es de ellos. Si
-            // ahora te compra a vos, el nombre guardado no lo tiene que traer
-            // (si no, la guía contaría como de AIWIBI). Si sí es de ellos, lo
-            // escribís en la orden y ese se respeta.
-            $this->pedNombre       = static::sinAiwibi($this->limpiarNombre($cliente['nombre'] ?? '')) ?: $this->pedNombre;
+            $this->pedNombre       = $this->limpiarNombre($cliente['nombre'] ?? '') ?: $this->pedNombre;
             $this->pedDireccion    = $cliente['direccion'] ?? '';
             $this->pedMunicipio    = $cliente['municipio'] ?? '';
             $this->pedDepartamento = $cliente['departamento'] ?? '';
@@ -3026,7 +3022,7 @@ class Whatsapp extends Page
 
         // El nombre del perfil de WhatsApp NO: suele ser un apodo, un emoji o el
         // de otra persona. Si no se sabe, queda en blanco para escribirlo.
-        $nombre    = static::sinAiwibi((string) ($cliente['nombre'] ?? ''));
+        $nombre    = $cliente['nombre'] ?? '';
         $telefono  = $conv->esExtranjero() ? '' : $conv->telefono;
         $municipio = $cliente['municipio'] ?? '';
         $direccion = $cliente['direccion'] ?? '';
@@ -3280,10 +3276,9 @@ class Whatsapp extends Page
          */
         $conIA = false;
 
-        // El nombre de la orden; si no lo trae, queda el de su pedido anterior,
-        // sin el "AIWIBI" (ver cargarDatosDelCliente).
-        if (filled($datos['nombre'])) $this->pedNombre = $this->limpiarNombre($datos['nombre']);
-        else $this->pedNombre = static::sinAiwibi($this->pedNombre);
+        // Estricto: el nombre es el de la orden. Si la orden no lo trae, queda
+        // vacío (y se nota), no el de un pedido anterior precargado.
+        $this->pedNombre = filled($datos['nombre']) ? $this->limpiarNombre($datos['nombre']) : '';
         $this->pedTelefonoRecibe = '';
 
         /*
@@ -3464,26 +3459,21 @@ class Whatsapp extends Page
         // Qué se vació porque la orden no lo traía, y qué había antes ahí.
         // Decirlo importa: el campo que quedó en blanco es justo el que hay
         // que mirar, y si antes tenía algo, es dato de OTRO pedido.
-        // Wil: si la orden NO trae la dirección o el municipio, vale usar los
-        // del pedido anterior de este cliente (es cliente que vuelve). Se usa
-        // solo cuando el renglón no venía; si venía, manda lo escrito.
         $perdidos = [];
 
-        if (trim($this->pedDireccion) === '' && trim((string) $antes['direccion']) !== '' && ! filled($datos['direccion'] ?? null)) {
-            $this->pedDireccion = $antes['direccion'];
-            $perdidos[] = 'la dirección';
-        }
-        if (trim($this->pedMunicipio) === '' && trim((string) $antes['municipio']) !== '' && ! filled($datos['municipio'] ?? null)) {
-            $this->pedMunicipio    = $antes['municipio'];
-            $this->pedDepartamento = $antes['departamento'];
-            $perdidos[] = 'el municipio';
+        foreach (['direccion' => 'la dirección', 'municipio' => 'el municipio'] as $campo => $nombre) {
+            $ahora = $campo === 'direccion' ? $this->pedDireccion : $this->pedMunicipio;
+
+            if (trim((string) $ahora) === '' && trim((string) $antes[$campo]) !== '') {
+                $perdidos[] = $nombre;
+            }
         }
 
         if ($perdidos) {
             Notification::make()
                 ->title('Ojo: ' . implode(' y ', $perdidos) . ' no venía en la orden')
-                ->body('Se usó ' . (count($perdidos) > 1 ? 'lo' : 'el dato') . ' de su pedido anterior. '
-                     . 'Revisá que siga siendo el mismo antes de guardar.')
+                ->body('Lo que había ahí era del pedido anterior de este cliente, así que lo '
+                     . 'borré. Escribilo mirando el texto de la orden, que quedó arriba.')
                 ->warning()->duration(8000)->send();
             return;
         }
@@ -3829,13 +3819,6 @@ class Whatsapp extends Page
             }
         }
         return $encontrado;
-    }
-
-    /** "María López AIWIBI" → "María López" (la marca de Wil no sale al cliente ni a la guía). */
-    public static function sinAiwibi(string $nombre): string
-    {
-        $n = preg_replace('/[\(\[\-–—\/]*\s*\b(aiwibi|aiwiby|aiwivi|aiuibi|aywibi)\b\s*[\)\]]*/iu', ' ', $nombre);
-        return trim((string) preg_replace('/\s{2,}/u', ' ', (string) $n), " \t.,;:-");
     }
 
     private function limpiarNombre(string $crudo): string
