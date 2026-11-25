@@ -1139,6 +1139,11 @@ class Whatsapp extends Page
             } else {
                 $mal[$l] = 'decí si es *calzoncito* o *cinta*, y cuál';
             }
+
+            // Y la talla: "Cinta de noche $18" sin talla salía igual.
+            if (! preg_match('/\b(talla\s+\S+|' . $tallas . ')\b/u', $n)) {
+                $mal[$l] = isset($mal[$l]) ? $mal[$l] . ', y la *talla*' : 'falta la *talla* (RN, S, M, L, XL, XXL, XXXL)';
+            }
         }
 
         return $mal;
