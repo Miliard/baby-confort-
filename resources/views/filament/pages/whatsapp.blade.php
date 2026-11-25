@@ -687,6 +687,14 @@
         .wa-slash{max-height:45vh}
         .wa-rap-grilla{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px}
         .wa-slash-op{padding:10px 9px}
+        /* El catálogo de la talla (/m) en el teléfono: una sola fila que se
+           desliza de lado. En grilla quedaba alto y, con el teclado abierto,
+           la parte de arriba (justo el catálogo) quedaba fuera de la pantalla. */
+        .wa-cat-fila{display:flex;overflow-x:auto;gap:6px;padding:4px;scroll-snap-type:x mandatory;
+                     scrollbar-width:none}
+        .wa-cat-fila::-webkit-scrollbar{display:none}
+        .wa-cat-fila .wa-rap{flex:0 0 112px;scroll-snap-align:start}
+        .wa-solo-pc{display:none !important}
     }
 
     .wa-btns{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;align-items:center}
@@ -1938,7 +1946,7 @@
                             <template x-if="talla">
                                 <div>
                                     <div class="wa-slash-t" x-text="'📦 Catálogo talla ' + catalogo[talla].talla"></div>
-                                    <div class="wa-rap-grilla">
+                                    <div class="wa-rap-grilla wa-cat-fila">
                                         <button type="button" class="wa-rap wa-rap-todas" x-on:click="mandarTalla(deTalla.map(p => p.id))"
                                                 title="Una foto por presentación, con precio y enlace (Enter)">
                                             <span class="wa-rap-foto wa-rap-sin">📦</span>
@@ -1958,12 +1966,12 @@
                                 </div>
                             </template>
 
-                            <div class="wa-slash-t" x-show="filtradas.length">Respuestas rápidas</div>
+                            <div class="wa-slash-t" x-show="filtradas.length" :class="talla ? 'wa-solo-pc' : ''">Respuestas rápidas</div>
 
                             {{-- En tarjetas, como el catálogo: la foto arriba (si la
                                  tiene), el nombre y un pedacito del texto. Se
                                  reconoce de un vistazo, sin leer la lista. --}}
-                            <div class="wa-rap-grilla">
+                            <div class="wa-rap-grilla" :class="talla ? 'wa-solo-pc' : ''">
                                 <template x-for="r in filtradas" :key="r.id">
                                     <button type="button" class="wa-rap" x-on:click="elegir(r)" :title="r.previa">
                                         <template x-if="r.fotos && r.fotos.length">
