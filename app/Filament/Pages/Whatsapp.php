@@ -3247,29 +3247,13 @@ class Whatsapp extends Page
      * gracia es poder comparar renglón por renglón sin cambiar de ventana, que
      * es justo lo que no se podía hacer antes.
      */
-    public function procesarOrden(int $mensajeId, bool $conProductos = false): void
+    public function procesarOrden(int $mensajeId): void
     {
         $m = WaMensaje::find($mensajeId);
         if (! $m || blank($m->texto)) return;
 
         $this->pedOrigen = $m->texto;
         $datos = $this->leerOrden($m->texto);
-
-        /*
-         * El BOTÓN no trae producto ni total (Wil). Si el cliente cambió de
-         * talla, procesar una orden vieja metía la talla equivocada en la guía.
-         * El producto y el total se escriben a mano, preguntándole al cliente.
-         * Solo el lote y el pase automático (que exigen la orden más nueva,
-         * revisada y confirmada) los leen de la orden: ahí $conProductos = true.
-         */
-        if (! $conProductos) {
-            $datos['productos'] = '';
-            $datos['total'] = '';
-            $datos['lineas'] = [];
-            $this->pedProductosTexto = '';
-            $this->pedCobrarManual = '';
-            $this->pedLineas = [];
-        }
 
         // Procesar solo llena el formulario: no mueve de pestaña. El paso a
         // Preparados es al GUARDAR en la cola (ver guardarPedido), porque
@@ -3520,12 +3504,9 @@ class Whatsapp extends Page
         Notification::make()
             ->title($leidos > 0 ? "Se leyeron {$leidos} datos de la orden" : 'No se pudo leer la orden')
             ->body($leidos > 0
-                ? ($conProductos
-                    ? 'Revisalos contra el texto original, que quedó arriba del formulario.'
-                    : 'Nombre, teléfono y dirección listos. El producto y el total escribilos a mano, confirmando con el cliente.')
+                ? 'Revisalos contra el texto original, que quedó arriba del formulario.'
                 : 'Revisá que el mensaje tenga el formato de siempre, con dos puntos después de cada campo.')
             ->{$leidos > 0 ? 'success' : 'warning'}()
-            ->duration(7000)
             ->send();
     }
 
@@ -4274,7 +4255,7 @@ class Whatsapp extends Page
         $this->abierta = $conv->id;
         $this->limpiarPedido();
         $n0 = count((array) session('filament.notifications', []));
-        $this->procesarOrden($orden->id, true);
+        $this->procesarOrden($orden->id);
         $avisos = $this->notifsTomar($n0);
 
         if (trim($this->pedNombre) === '') $this->pedNombre = 'Cliente';
