@@ -208,6 +208,40 @@ class Etiquetado
     }
 
     /**
+     * Vos (o el equipo) le dijiste al cliente que se lo mandás: "Entonces le
+     * mando 2 de talla M", "se lo envío hoy", "le preparo su pedido". Eso es
+     * un pedido en marcha: el chat va a Pedidos aunque el cliente no haya
+     * escrito "quiero".
+     *
+     * Tiene que hablar de PRODUCTO (talla, paquete, calzoncito, cinta, su
+     * pedido…). "Le mando la foto", "le mando el catálogo", "le mando la guía"
+     * o "le mando la ubicación" no cuentan.
+     */
+    public static function wilConfirmaPedido(?string $texto): bool
+    {
+        $t = mb_strtolower(trim((string) $texto));
+        if ($t === '' || mb_strlen($t) < 8 || mb_strlen($t) > 400) return false;
+        $t = strtr($t, ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n']);
+        $t = preg_replace('/\s+/u', ' ', $t);
+
+        // Preguntas ("¿le mando talla M?") y negaciones no son pedido.
+        if (str_contains($t, '?') || preg_match('/\b(no|todavia no|aun no)\s+(se\s+)?(le\s+|lo\s+|los\s+)?(mando|envio|mandamos|enviamos|puedo)\b/', $t)) return false;
+
+        $verbo = '/\b((yo\s+)?(se\s+)?(le|les|lo|los|la|las|se lo|se los|se la|se las)\s+(mando|envio|mandamos|enviamos|despacho|despachamos|preparo|preparamos|alisto|alistamos|apartamos|aparto|separo|separamos)'
+               . '|(le|les)\s+(voy|vamos)\s+a\s+(mandar|enviar|preparar|despachar|alistar|apartar)'
+               . '|(le|les)\s+hago\s+(la|su)\s+orden|le\s+(armo|preparo)\s+(el|su)\s+pedido)\b/';
+        if (! preg_match($verbo, $t)) return false;
+
+        // De qué habla: producto sí; foto, catálogo, enlace, guía, ubicación no.
+        if (preg_match('/\b(foto|fotos|imagen|imagenes|catalogo|opciones|presentaciones|enlace|link|guia|rastreo|ubicacion|numero|cuenta|comprobante|audio|video|mensaje|precio|precios|tabla|informacion)\b/', $t)) return false;
+        // Dudas, historia y explicaciones: "no sé si le mando L", "la última
+        // vez le mandamos XXL", "los mandamos desde San Miguel", devoluciones.
+        if (preg_match('/\b(no se si|nose si|la ultima vez|la vez pasada|desde san miguel|mandamos desde|enviamos desde|devoluci\w*|reclamo)\b/', $t)) return false;
+
+        return (bool) preg_match('/\b(talla|tallas|paquete|paquetes|paquetito|calzon\w*|cinta\w*|magic|jumbo|panal\w*|pamper\w*|pedido|orden|xl|xxl|xxxl|rn|\d+\s+de\s+(esos|estos|esas|estas))\b|\b(s|m|l)\b(?=\s|$|[.,!])/', $t);
+    }
+
+    /**
      * Las formas de decirle a un cliente que algo no hay, como las escribís.
      *
      * Igual que con los pedidos: el mensaje se compara en minúsculas y sin
@@ -354,7 +388,7 @@ class Etiquetado
      * lleva el enlace es un paso más adelante, aunque de casualidad también
      * mencione un total.
      */
-    public static function alGuardarMensaje(?WaConversacion $conv, ?string $texto, bool $delCliente = false): void
+    public static function alGuardarMensaje(?WaConversacion $conv, ?string $texto, bool $delCliente = false, bool $automatico = false): void
     {
         if (! $conv) return;
 
@@ -382,6 +416,12 @@ class Etiquetado
             // de pedido y el asistente creería que hay un pedido abierto).
             if ($delCliente && static::quierePedir($texto)
                 && ! \App\Services\Asistente\Asistente::loTiene($conv)) {
+                static::marcarIntencion($conv);
+            }
+
+            // Le dijiste que se lo mandás ("Entonces le mando la talla M"):
+            // también es un pedido en marcha. Solo lo que escribe una persona.
+            if (! $delCliente && ! $automatico && static::wilConfirmaPedido($texto)) {
                 static::marcarIntencion($conv);
             }
 

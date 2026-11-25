@@ -37,7 +37,7 @@ class WaMensaje extends Model
 
             try {
                 if (! $delAsistente) {
-                    \App\Services\Etiquetado::alGuardarMensaje($m->conversacion, $m->texto, $m->esDelCliente());
+                    \App\Services\Etiquetado::alGuardarMensaje($m->conversacion, $m->texto, $m->esDelCliente(), (bool) $m->automatico);
                 }
             } catch (\Throwable $e) {
                 // Guardar el mensaje es lo que no puede fallar. Lo demás es
