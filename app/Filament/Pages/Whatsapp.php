@@ -968,6 +968,18 @@ class Whatsapp extends Page
             return;
         }
 
+        // Orden de envío con un producto sin especificar ("1 calzoncito M"):
+        // no sale. Quien la escribe la tiene que dejar bien antes de mandarla.
+        if ($mal = static::productosSinPresentacion($texto)) {
+            $lista = [];
+            foreach ($mal as $renglon => $falta) $lista[] = '«' . \Illuminate\Support\Str::limit($renglon, 60) . '»: ' . str_replace('*', '', $falta) . '.';
+            Notification::make()
+                ->title('La orden no salió: falta especificar el producto')
+                ->body(implode("\n", $lista) . "\nCorregí el renglón y mandala de nuevo.")
+                ->danger()->persistent()->send();
+            return;
+        }
+
         // Al contestar, el chat queda tuyo.
         if (! $conv->agente_id) $this->tomar();
 
@@ -1055,6 +1067,78 @@ class Whatsapp extends Page
      * Después de mandar la orden de envío: la pregunta de que la revise.
      * Null si el texto no es una orden de envío.
      */
+    /**
+     * Renglones de producto de una orden de envío que no dicen bien qué es.
+     * Cada renglón tiene que decir:
+     *   · si es CALZONCITO o CINTA, y
+     *   · cuál: calzoncito Magic / de Noche / de Día (el blanco);
+     *           cinta de Noche / Jumbo / la de 50 unidades.
+     * Recién nacido, talla especial (4 a 7, 8 a 14 años), toallitas y
+     * natación no se piden: son una sola presentación.
+     * Devuelve [renglón => qué falta]. Vacío = está bien (o no es una orden).
+     */
+    public static function productosSinPresentacion(string $texto): array
+    {
+        $renglones = array_values(array_filter(array_map('trim', preg_split('/\R/u', $texto)),
+            fn ($r) => preg_match('/\p{L}/u', $r)));
+        if (! $renglones || ! preg_match('/orden de env[ií]o/iu', $renglones[0])) return [];
+        if (! preg_match('/^\W*producto/imu', $texto)) return [];
+
+        // Los renglones entre "Producto(s):" y el envío/total.
+        $lineas = [];
+        $dentro = false;
+        foreach (preg_split('/\R/u', $texto) as $l) {
+            $limpio = trim(preg_replace('/^[^\p{L}\p{N}]+/u', '', trim($l)));
+            if (preg_match('/^producto/iu', $limpio)) {
+                $dentro = true;
+                $resto = trim(preg_replace('/^producto\(?s?\)?\s*:?/iu', '', $limpio));
+                if ($resto !== '') $lineas[] = $resto;
+                continue;
+            }
+            if (! $dentro) continue;
+            if (preg_match('/^(costo|env[ií]o|total|💰|d[ií]a de entrega|nombre|tel[eé]fono|direcci|municipio|gracias)/iu', $limpio)
+                || preg_match('/total a pagar|costo de env/iu', $l)) break;
+            if ($limpio !== '' && preg_match('/\p{L}/u', $limpio)) $lineas[] = $limpio;
+        }
+
+        $mal = [];
+        foreach ($lineas as $l) {
+            $n = \App\Services\Asistente\Entender::normalizar($l);
+            // "cinta (no calzoncito)": lo que se niega no cuenta.
+            $n = preg_replace('/\bno (es )?(calzon\w*|cinta|sinta)\b/u', ' ', $n);
+
+            if (preg_match('/recien nacid|\brn\b|talla especial|\b\d{1,2} a \d{1,2}\b|\banos\b|toall|natacion|adulto/u', $n)) continue;
+
+            // Un renglón que solo dice la talla ("TALLA: L") es la continuación
+            // del de arriba, no un producto aparte.
+            $tallas = '(rn|s|m|l|g|xl|xxl|xxxl|2xl|3xl|xg|xxg|xxxg)';
+            if (trim(preg_replace('/\b(\d+(\.\d+)?|talla|tallas|' . $tallas . '|paquetes?|de|\$\S*)\b|\$/u', ' ', $n)) === '') continue;
+
+            // Magic y "el blanco" solo son calzoncito; Jumbo, Comfy y "la de 50
+            // unidades" solo son cinta: con eso ya se entiende cuál es.
+            $esCalzon = (bool) preg_match('/\b(calzon\w*|calson\w*|calzoncit\w*|pants|pant|panta|pantalon\w*|magic|majic|magik|blanco|blancos)\b/u', $n);
+            $esCinta  = (bool) preg_match('/\b(cinta\w*|sinta\w*|pegar|ajuste lateral|jumbo|yumbo|yunbo|comfy\w*|confy\w*|50 unidades)\b/u', $n);
+
+            // Lo que no es pañal (pacha, babero, cepillo, repuestos) no se revisa.
+            if (! $esCalzon && ! $esCinta
+                && ! preg_match('/\b(panal\w*|pamper\w*|panper\w*|paquetes?|talla|tallas|' . $tallas . ')\b/u', $n)) continue;
+
+            if ($esCalzon && ! $esCinta) {
+                if (! preg_match('/\b(magic|majic|magi|magik|noche|nocturn\w*|dia|diurno|blanco|blancos)\b/u', $n)) {
+                    $mal[$l] = 'decí cuál calzoncito: *Magic*, *de Noche* o *de Día* (el blanco)';
+                }
+            } elseif ($esCinta && ! $esCalzon) {
+                if (! preg_match('/\b(noche|nocturn\w*|jumbo|yumbo|yunbo|jumb\w*|comfy\w*|confy\w*|50 unidades|50u|de 50)\b/u', $n)) {
+                    $mal[$l] = 'decí cuál cinta: *de Noche*, *Jumbo* o *la de 50 unidades*';
+                }
+            } else {
+                $mal[$l] = 'decí si es *calzoncito* o *cinta*, y cuál';
+            }
+        }
+
+        return $mal;
+    }
+
     private function pedirRevisarOrden(string $texto, ?WaConversacion $conv = null): ?string
     {
         /*
@@ -3858,6 +3942,10 @@ class Whatsapp extends Page
             ->where('direccion', 'entrante')->pluck('texto')
             ->contains(fn ($t) => preg_match('/no est[aá] (correct|bien)|est[aá] mal|incorrect|equivoc/iu', (string) $t));
         if ($dijoMal) return ['motivo' => 'El cliente dijo que la orden no está bien'] + $r;
+
+        if ($sinPres = static::productosSinPresentacion((string) $orden->texto)) {
+            return ['motivo' => 'Producto sin especificar: «' . \Illuminate\Support\Str::limit((string) array_key_first($sinPres), 50) . '»'] + $r;
+        }
 
         // Igual que tocar "Procesar esta orden" en ese chat.
         $this->abierta = $conv->id;
