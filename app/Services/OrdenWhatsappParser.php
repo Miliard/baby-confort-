@@ -41,14 +41,19 @@ class OrdenWhatsappParser
 
         foreach ($lineas as $linea) {
             // Quita emojis/símbolos decorativos y espacios sobrantes.
-            $l = trim(preg_replace('/[✅☑️✔️🚚💰📦🛒👉•*_]+/u', '', $linea));
+            $l = trim(preg_replace('/[✅☑️✔️🚚💰📦🛒👉•*_👤📱📍🏠📅🛍━]+|\x{FE0F}/u', '', $linea));
             // Quita viñetas al inicio ("- 3 paquetes...", "· 2 pañales").
             $l = trim(preg_replace('/^[\-\x{2013}\x{2014}\x{00B7}>»]+\s*/u', '', $l));
-            if ($l === '') continue;
+            if ($l === '' || ! preg_match('/[\p{L}\p{N}]/u', $l)) continue;
 
             $clave = self::normalizar($l);
 
             if (str_starts_with($clave, 'orden de envio')) continue;
+
+            // El formato del panel: "SU PEDIDO" abre los productos; el día de
+            // entrega no va en ningún campo.
+            if (str_starts_with($clave, 'su pedido')) { $seccion = 'items'; continue; }
+            if (str_starts_with($clave, 'dia de entrega')) { $seccion = null; continue; }
 
             // ¿La línea abre una sección? (el valor puede venir tras ":" o en la línea siguiente)
             foreach ([

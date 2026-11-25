@@ -980,6 +980,9 @@ class Whatsapp extends Page
             return;
         }
 
+        // La orden sale acomodada: datos arriba, pedido aislado y en negrita.
+        $texto = $this->formatearOrden($texto);
+
         // Al contestar, el chat queda tuyo.
         if (! $conv->agente_id) $this->tomar();
 
@@ -1082,16 +1085,16 @@ class Whatsapp extends Page
         $renglones = array_values(array_filter(array_map('trim', preg_split('/\R/u', $texto)),
             fn ($r) => preg_match('/\p{L}/u', $r)));
         if (! $renglones || ! preg_match('/orden de env[ií]o/iu', $renglones[0])) return [];
-        if (! preg_match('/^\W*producto/imu', $texto)) return [];
+        if (! preg_match('/^\W*(producto|su pedido)/imu', $texto)) return [];
 
-        // Los renglones entre "Producto(s):" y el envío/total.
+        // Los renglones entre "Producto(s):" (o "SU PEDIDO") y el envío/total.
         $lineas = [];
         $dentro = false;
-        foreach (preg_split('/\R/u', $texto) as $l) {
+        foreach (preg_split('/\R/u', str_replace('*', '', $texto)) as $l) {
             $limpio = trim(preg_replace('/^[^\p{L}\p{N}]+/u', '', trim($l)));
-            if (preg_match('/^producto/iu', $limpio)) {
+            if (preg_match('/^(producto|su pedido)/iu', $limpio)) {
                 $dentro = true;
-                $resto = trim(preg_replace('/^producto\(?s?\)?\s*:?/iu', '', $limpio));
+                $resto = trim(preg_replace('/^(producto\(?s?\)?|su pedido)\s*:?/iu', '', $limpio));
                 if ($resto !== '') $lineas[] = $resto;
                 continue;
             }
@@ -1139,6 +1142,152 @@ class Whatsapp extends Page
         }
 
         return $mal;
+    }
+
+    /**
+     * Acomoda la orden de envío antes de mandarla, para que se lea de un
+     * vistazo: los datos arriba, el pedido aislado entre dos líneas con el
+     * producto y el precio en negrita, el envío aparte y el total en negrita.
+     * No cambia ningún dato: solo el orden visual, espacios y renglones.
+     *
+     * Si algo no cuadra (no es una orden, o al releerla el total o los
+     * productos no dan igual que antes), se manda tal cual la escribieron.
+     */
+    private function formatearOrden(string $texto): string
+    {
+        $original = $texto;
+
+        $renglones = array_values(array_filter(array_map('trim', preg_split('/\R/u', $texto)),
+            fn ($r) => preg_match('/\p{L}/u', $r)));
+        if (! $renglones || ! preg_match('/orden de env[ií]o/iu', $renglones[0])) return $original;
+        if (! preg_match('/^\W*(producto|su pedido)/imu', $texto) || ! preg_match('/^\W*total/imu', $texto)) return $original;
+
+        $etiquetas = [
+            'nombre'    => '/^(nombre completo|nombre)\b/iu',
+            'telefono'  => '/^(tel[eé]fono|tel|celular|whatsapp|n[uú]mero)\b/iu',
+            'municipio' => '/^(municipio)\b/iu',
+            'direccion' => '/^(direcci[oó]n exacta|direcci[oó]n)\b/iu',
+            'entrega'   => '/^(d[ií]a de entrega)\b/iu',
+            'productos' => '/^(producto\(s\)|productos|producto|su pedido)/iu',
+            'envio'     => '/^(costo de env[ií]o|env[ií]o)\b/iu',
+            'total'     => '/^(total a pagar|total)\b/iu',
+        ];
+        $campos = array_fill_keys(array_keys($etiquetas), []);
+        $arriba = [];      // renglones sueltos antes de la primera etiqueta
+        $cierre = [];      // "¡Gracias por tu preferencia!…"
+        $actual = null;
+        $encabezado = false;
+
+        foreach (preg_split('/\R/u', str_replace('*', '', $texto)) as $linea) {
+            $cruda = trim($linea);
+            if ($cruda === '' || ! preg_match('/[\p{L}\p{N}]/u', $cruda)) continue;   // vacíos y ━━━
+            $l = trim(preg_replace('/^[^\p{L}\p{N}]+/u', '', $cruda));
+
+            if (! $encabezado && preg_match('/orden de env[ií]o/iu', $l)) { $encabezado = true; continue; }
+
+            if (preg_match('/gracias por (tu|su) preferencia|estar\p{L}? en camino/iu', $l)) {
+                $cierre[] = $cruda; $actual = 'cierre'; continue;
+            }
+            if ($actual === 'cierre') { $cierre[] = $cruda; continue; }
+
+            $es = null; $mm = [];
+            foreach ($etiquetas as $k => $rx) {
+                if (preg_match($rx, $l, $mm)) { $es = $k; break; }
+            }
+            if ($es) {
+                $actual = $es;
+                // Lo que sigue a la etiqueta, con o sin dos puntos
+                // ("Costo de envío$2.50", "Nombre completo: Karla").
+                $valor = trim((string) preg_replace('/^\s*[:：]?\s*/u', '', mb_substr($l, mb_strlen($mm[0]))));
+                $valor = trim((string) preg_replace('/^[:：]\s*/u', '', $valor));
+                if ($valor !== '') $campos[$es][] = $valor;
+                continue;
+            }
+
+            $l = trim((string) preg_replace('/^[•·▪◦\-–—]+\s*/u', '', $l));
+            if ($actual === null) $arriba[] = $l; else $campos[$actual][] = $l;
+        }
+
+        $productos = $campos['productos'];
+        if (! $productos || ! $campos['total']) return $original;
+
+        // El teléfono escrito adentro del nombre va a su renglón.
+        $nombre = trim(implode(' ', $campos['nombre']));
+        $tel = trim(implode(' ', $campos['telefono']));
+        $rxTel = '/(?<!\d)(?:\+?503[\s.-]*)?([267]\d{3})[\s.-]?(\d{4})(?!\d)/u';
+        if (preg_match($rxTel, $nombre, $mt)) {
+            if ($tel === '') $tel = $mt[1] . ' ' . $mt[2];
+            $sinTel = trim(preg_replace('/\s{2,}/u', ' ', preg_replace($rxTel, ' ', $nombre)));
+            if ($sinTel !== '') $nombre = $sinTel;
+        }
+
+        $junta = fn (array $v, string $sep) => trim((string) preg_replace('/\s{2,}/u', ' ', implode($sep, array_filter(array_map('trim', $v), fn ($x) => $x !== ''))));
+        $dinero = fn (string $v) => trim((string) preg_replace('/\$\s+(?=\d)/u', '$', $v));
+
+        $out = ['📦 *ORDEN DE ENVÍO* 🚚', ''];
+        foreach ($arriba as $a) $out[] = $a;
+        if ($nombre !== '')                      $out[] = '👤 *Nombre:* ' . $nombre;
+        if ($tel !== '')                         $out[] = '📱 *Teléfono:* ' . $tel;
+        if ($m = $junta($campos['municipio'], ', ')) $out[] = '📍 *Municipio:* ' . $m;
+        if ($d = $junta($campos['direccion'], ', ')) $out[] = '🏠 *Dirección:* ' . $d;
+        if ($e = $junta($campos['entrega'], ' '))    $out[] = '📅 *Día de entrega:* ' . $e;
+
+        $out[] = '';
+        $out[] = '━━━━━━━━━━━━━━';
+        $out[] = '🛍️ *SU PEDIDO*';
+        // "TALLA: L" en su propio renglón es parte del producto de arriba.
+        $junt = [];
+        foreach ($productos as $p) {
+            $p = trim(preg_replace('/[✅☑✔]\x{FE0F}?/u', '', $p));
+            if ($p === '') continue;
+            if ($junt && ! preg_match('/^\d/u', $p) && ! str_contains($p, '$') && preg_match('/^talla/iu', $p)) {
+                $junt[count($junt) - 1] .= ' ' . $p;
+                continue;
+            }
+            $junt[] = $p;
+        }
+        $productos = $junt;
+        if (! $productos) return $original;
+
+        foreach ($productos as $p) {
+            $p = trim(preg_replace('/\s{2,}/u', ' ', $p));
+            $pos = mb_strpos($p, '$');
+            if ($pos !== false && $pos > 0) {
+                $desc = rtrim(trim(mb_substr($p, 0, $pos)), " -–—:");
+                $precio = $dinero(mb_substr($p, $pos));
+                $out[] = '• *' . $desc . '* — *' . $precio . '*';
+            } else {
+                $out[] = '• *' . $p . '*';
+            }
+        }
+        $out[] = '━━━━━━━━━━━━━━';
+        $out[] = '';
+        if ($v = $junta($campos['envio'], ' ')) $out[] = '🚚 Envío: ' . $dinero($v);
+        $out[] = '💰 *TOTAL A PAGAR: ' . $dinero($junta($campos['total'], ' ')) . '*';
+        if ($cierre) { $out[] = ''; foreach ($cierre as $c) $out[] = $c; }
+
+        $nuevo = implode("\n", $out);
+
+        // Red de seguridad: releída, tiene que decir lo mismo que la original.
+        try {
+            $a = $this->leerOrden($original);
+            $b = $this->leerOrden($nuevo);
+            $prodA = preg_replace('/[^\p{L}\p{N}$.]/u', '', mb_strtolower((string) $a['productos']));
+            $prodB = preg_replace('/[^\p{L}\p{N}$.]/u', '', mb_strtolower((string) $b['productos']));
+            // (Si la original no se dejaba leer el envío o el total —"Costo de
+            // envío$2.50" sin dos puntos—, la acomodada sí: eso no es error.)
+            $tA = static::montoDe($a['total']); $tB = static::montoDe($b['total']);
+            $eA = static::montoDe($a['envio']); $eB = static::montoDe($b['envio']);
+            if (($tA > 0 && $tA !== $tB)
+                || ($eA > 0 && $eA !== $eB)
+                || $prodA !== $prodB) {
+                return $original;
+            }
+        } catch (\Throwable $e) {
+            return $original;
+        }
+
+        return $nuevo;
     }
 
     /**
@@ -1205,7 +1354,7 @@ class Whatsapp extends Page
             fn ($r) => preg_match('/\p{L}/u', $r)));
         if (! $renglones || ! preg_match('/orden de env[ií]o/iu', $renglones[0])) return null;
 
-        if (! preg_match('/^\W*producto/imu', $texto)) return null;
+        if (! preg_match('/^\W*(producto|su pedido)/imu', $texto)) return null;
         if (! preg_match('/^\W*total/imu', $texto)) return null;
 
         $datos = 0;
@@ -3423,9 +3572,11 @@ class Whatsapp extends Page
             'telefono'  => ['telefono', 'teléfono', 'tel'],
             'municipio' => ['municipio'],
             'direccion' => ['direccion exacta', 'dirección exacta', 'direccion', 'dirección'],
-            'productos' => ['producto(s)', 'productos', 'producto'],
+            'productos' => ['producto(s)', 'productos', 'producto', 'su pedido'],
             'envio'     => ['costo de envio', 'costo de envío', 'envio', 'envío'],
             'total'     => ['total a pagar', 'total'],
+            // No va a la guía; está para que no se pegue a la dirección.
+            'entrega'   => ['día de entrega', 'dia de entrega'],
         ];
 
         $salida = array_fill_keys(array_keys($campos), '');
@@ -3435,11 +3586,20 @@ class Whatsapp extends Page
         // en varios renglones entran completos y no solo el primero.
         $actual = null;
 
+        // La negrita de WhatsApp (*así*) no es parte de los datos.
+        $texto = str_replace('*', '', $texto);
+
         foreach (preg_split('/\r\n|\n|\r/u', $texto) as $linea) {
             $cruda = rtrim($linea);
 
+            // Separadores (━━━━) y renglones sin letras ni números: nada.
+            if (! preg_match('/[\p{L}\p{N}]/u', $cruda)) continue;
+
             // Fuera emojis, palomitas y viñetas del principio.
             $l = preg_replace('/^[^\p{L}\p{N}]+/u', '', trim($cruda));
+
+            // "SU PEDIDO" va solo, sin dos puntos: abre los productos.
+            if (preg_match('/^su pedido\s*:?\s*$/iu', $l)) { $actual = 'productos'; continue; }
 
             $esEtiqueta = false;
 
@@ -3455,6 +3615,8 @@ class Whatsapp extends Page
 
                             if ($salida[$clave] === '') {
                                 $salida[$clave] = trim($valor, " \t$");
+                            } elseif ($clave === 'productos' && trim($valor) !== '') {
+                                $salida[$clave] .= "\n" . trim($valor);
                             }
 
                             break 2;
@@ -3463,16 +3625,30 @@ class Whatsapp extends Page
                 }
             }
 
+            // Etiqueta sin dos puntos: "Costo de envío$2.50", "Total a pagar $25".
+            // Antes ese renglón se pegaba a los productos y la guía salía con
+            // "Costo de envío$2.50" en la descripción.
+            if (! $esEtiqueta && preg_match('/^(costo de env[ií]o|env[ií]o|total a pagar|producto\(s\)|productos)\s*(\$.*|$)/iu', $l, $sc)) {
+                $clave = preg_match('/^total/iu', $sc[1]) ? 'total' : (preg_match('/^producto/iu', $sc[1]) ? 'productos' : 'envio');
+                $actual = $clave;
+                if ($salida[$clave] === '' && trim($sc[2]) !== '') $salida[$clave] = trim($sc[2], " \t$");
+                continue;
+            }
+
             if ($esEtiqueta) continue;
 
             // Renglón suelto: si veníamos llenando algo, se le suma.
             if ($actual === null) continue;
 
             $suelto = trim($cruda);
+            // La viñeta del formato ("• 1 Cinta…") no va en la guía.
+            $suelto = trim((string) preg_replace('/^[•·▪◦\-–—]+\s*/u', '', $suelto));
+            // "1 Cinta Jumbo XL — $23": la raya es del formato, no del producto.
+            $suelto = trim((string) preg_replace('/\s+[—–]\s+(?=\$)/u', ' ', $suelto));
             if ($suelto === '') continue;
 
             // El cierre de cortesía no es parte de ningún campo.
-            if (preg_match('/gracias por tu preferencia|estar\p{L}? en camino/iu', $suelto)) {
+            if (preg_match('/gracias por (tu|su) preferencia|estar\p{L}? en camino/iu', $suelto)) {
                 $actual = null;
                 continue;
             }
@@ -3937,7 +4113,7 @@ class Whatsapp extends Page
         return WaMensaje::where('conversacion_id', $conv->id)
             ->orderByDesc('id')->limit(80)->get()
             ->first(fn ($m) => \App\Services\Etiquetado::pareceOrden($m->texto)
-                && preg_match('/producto/iu', (string) $m->texto));
+                && preg_match('/producto|su pedido/iu', (string) $m->texto));
     }
 
     /**
@@ -3966,7 +4142,7 @@ class Whatsapp extends Page
         }
         $suyas = WaMensaje::where('conversacion_id', $conv->id)->where('direccion', 'entrante')
             ->where('created_at', '>=', now()->subDays(7))->orderByDesc('id')->limit(200)->pluck('texto')
-            ->filter(fn ($t) => \App\Services\Etiquetado::pareceOrden($t) && preg_match('/producto/iu', (string) $t))
+            ->filter(fn ($t) => \App\Services\Etiquetado::pareceOrden($t) && preg_match('/producto|su pedido/iu', (string) $t))
             ->count();
         if ($suyas >= 2) {
             return ['motivo' => "Mandó {$suyas} órdenes en la semana (¿revendedor?): hacelas a mano"] + $r;
