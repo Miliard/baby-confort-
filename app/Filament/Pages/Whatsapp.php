@@ -2818,7 +2818,10 @@ class Whatsapp extends Page
 
         $cliente = $conv->cliente();
         if ($cliente) {
-            $this->pedNombre       = $this->limpiarNombre($cliente['nombre'] ?? '') ?: $this->pedNombre;
+            // Sin "AIWIBI": es la marca de los clientes del socio en la misma
+            // libreta. Si ahora te compra a vos, la guía no tiene que salir
+            // como de él.
+            $this->pedNombre       = static::sinAiwibi($this->limpiarNombre($cliente['nombre'] ?? '')) ?: $this->pedNombre;
             $this->pedDireccion    = $cliente['direccion'] ?? '';
             $this->pedMunicipio    = $cliente['municipio'] ?? '';
             $this->pedDepartamento = $cliente['departamento'] ?? '';
@@ -3125,6 +3128,31 @@ class Whatsapp extends Page
         if (blank($delChat['nombre'] ?? null) && ($dicho = $this->nombreDichoEnChat($conv)) !== '') {
             $nombre = $dicho;
             $leyo = true;
+        }
+
+        /*
+         * ESTRICTO (Wil):
+         *  · El nombre nunca lleva "AIWIBI". La libreta es la misma para los
+         *    clientes del socio, y un nombre que termina en AIWIBI hace creer
+         *    que la orden la mandó él. Si de verdad es de él, se escribe a mano.
+         *  · El municipio tiene que ser uno de la lista. Si lo que salió no es
+         *    un municipio (una colonia, un cantón, un pedazo de dirección),
+         *    queda en blanco para escribirlo, en vez de ir en el campo
+         *    equivocado.
+         */
+        $nombre = static::sinAiwibi((string) $nombre);
+
+        $M = \App\Services\Municipios::class;
+        $muniCrudo = trim((string) $municipio);
+        if ($muniCrudo !== '') {
+            $antesDeComa = trim(explode(',', $muniCrudo)[0]);
+            $bueno = $M::existe($antesDeComa) ? $M::nombreBueno($antesDeComa) : $M::buscarEn($muniCrudo);
+            if ($bueno) {
+                $depto = $M::departamentoSeguro($bueno);
+                $municipio = $bueno . ($depto ? ', ' . $depto : '');
+            } else {
+                $municipio = '';
+            }
         }
 
         $this->texto = "\u{1F4E6} Orden de Env\u{ED}o: \u{1F69A}\n"
@@ -3815,6 +3843,13 @@ class Whatsapp extends Page
             }
         }
         return $encontrado;
+    }
+
+    /** "María López AIWIBI" → "María López": la marca del socio no va en tus órdenes. */
+    public static function sinAiwibi(string $nombre): string
+    {
+        $n = preg_replace('/[\(\[\-–—\/]*\s*\b(aiwibi|aiwiby|aiwivi|aiuibi|aywibi|iwibi|iwiby)\b\s*[\)\]]*/iu', ' ', $nombre);
+        return trim((string) preg_replace('/\s{2,}/u', ' ', (string) $n), " \t.,;:-");
     }
 
     private function limpiarNombre(string $crudo): string

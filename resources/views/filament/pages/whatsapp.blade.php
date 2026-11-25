@@ -1542,9 +1542,16 @@
                     </span>
                 @endif
 
-                {{-- Acá iba el botón "Orden de envío" (plantillaOrden). Se quitó
-                     a pedido de Wil: la orden se escribe con las respuestas
-                     rápidas. El método sigue en Whatsapp.php por si se vuelve. --}}
+                @if($pestana === 'chat')
+                    {{-- "Orden de envío" (crear orden): arma la orden con la libreta,
+                         lo que escribió el cliente y la IA. En pantalla chica dice
+                         solo "Orden"; el ícono ya cuenta el resto. --}}
+                    <x-filament::button size="xs" color="success" wire:click="plantillaOrden"
+                        icon="heroicon-m-clipboard-document-list">
+                        <span class="wa-t-largo">Orden de envío</span>
+                        <span class="wa-t-corto">Orden</span>
+                    </x-filament::button>
+                @endif
 
                 {{-- Las etiquetas van acá mismo, en la fila que ya se desliza.
                      Antes estaban detrás de un botón: eran dos toques para
