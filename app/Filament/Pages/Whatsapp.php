@@ -1873,6 +1873,59 @@ class Whatsapp extends Page
         }
     }
 
+    /**
+     * El catálogo para la barra "/": escribir /m muestra las presentaciones
+     * con existencia de la talla M, con su foto y precio, para mandarlas de
+     * un toque. Clave: la talla en mayúsculas.
+     */
+    public function catalogoParaSlash(): array
+    {
+        try {
+            $filas = \App\Models\ProductSize::with('product')
+                ->where('price', '>', 0)
+                ->where('quantity', '>', 0)
+                ->whereHas('product', fn ($q) => $q->where('active', true))
+                ->get()
+                ->sortBy(fn ($s) => $s->product->orden ?? 0);
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        $cat = [];
+        foreach ($filas as $s) {
+            $talla = trim((string) $s->size);
+            if ($talla === '' || preg_match('/\s/u', $talla)) continue;   // "4 a 7 años" no se escribe con la barra
+            $k = mb_strtoupper($talla);
+            $cat[$k]['talla'] = $talla;
+            $cat[$k]['items'][] = [
+                'id'       => (string) $s->id,
+                'nombre'   => trim((string) preg_replace('/\s*\(.*$/u', '', (string) $s->product->name)),
+                'precio'   => number_format((float) $s->price, 2),
+                'unidades' => (int) ($s->unidades ?? 0),
+                'foto'     => $this->fotoDe($s, $s->product),
+            ];
+        }
+
+        return $cat;
+    }
+
+    /** Desde la barra "/": manda esas presentaciones de la talla (foto, precio y enlace). */
+    public function mandarDeTalla(string $talla, array $ids): void
+    {
+        $validos = $this->presentacionesDe($talla)->pluck('id')->map(fn ($i) => (string) $i)->all();
+        $ids = array_values(array_intersect(array_map('strval', $ids), $validos));
+
+        if (! $ids) {
+            Notification::make()->title('Esa presentación ya no tiene existencia')->warning()->send();
+            return;
+        }
+
+        $this->texto = '';
+        $this->tallaElegida = $talla;
+        $this->elegidas = $ids;
+        $this->enviarElegidas();
+    }
+
     /** Las presentaciones con existencia de una talla. */
     public function presentacionesDe(string $talla)
     {

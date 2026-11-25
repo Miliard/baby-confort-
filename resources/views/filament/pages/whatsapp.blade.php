@@ -1862,6 +1862,9 @@
                             'fotos'  => array_slice($r->urls(), 0, 4),
                             'mas'    => max(0, $r->cuantasFotos() - 4),
                         ])->values();
+                        // /m, /xl, /rn…: el catálogo de esa talla, para mandarlo
+                        // desde la misma barra.
+                        $catSlash = $this->catalogoParaSlash();
                     @endphp
 
                     <div class="wa-slash-wrap"
@@ -1869,6 +1872,28 @@
                              abierto: false,
                              termino: '',
                              lista: @js($paraSlash),
+                             catalogo: @js($catSlash),
+                             get talla() {
+                                 const t = (this.termino || '').trim().toUpperCase();
+                                 if (t === '') return null;
+                                 const alias = { '2XL': 'XXL', '3XL': 'XXXL', 'G': 'L', 'XG': 'XL', 'XXG': 'XXL', 'XXXG': 'XXXL' };
+                                 const k = alias[t] || t;
+                                 return this.catalogo[k] ? k : null;
+                             },
+                             get deTalla() {
+                                 return this.talla ? (this.catalogo[this.talla].items || []) : [];
+                             },
+                             mandarTalla(ids) {
+                                 const t = this.catalogo[this.talla].talla;
+                                 this.abierto = false;
+                                 this.termino = '';
+                                 if (window.waAlMandar) window.waAlMandar();
+                                 $wire.mandarDeTalla(t, ids);
+                             },
+                             get exacta() {
+                                 const f = this.filtradas;
+                                 return f.length && this.limpio(f[0].titulo).trim() === this.limpio(this.termino);
+                             },
                              limpio(s) {
                                  return (s || '').toString().toLowerCase()
                                      .normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -1902,7 +1927,31 @@
                          x-on:wa-abrir-rapidas.window="abierto = ! abierto; termino = ''">
 
                         <div class="wa-slash" x-show="abierto" x-cloak>
-                            <div class="wa-slash-t">Respuestas rápidas</div>
+                            {{-- /m → el catálogo de la talla M: todas de una, o una sola. --}}
+                            <template x-if="talla">
+                                <div>
+                                    <div class="wa-slash-t" x-text="'📦 Catálogo talla ' + catalogo[talla].talla"></div>
+                                    <div class="wa-rap-grilla">
+                                        <button type="button" class="wa-rap wa-rap-todas" x-on:click="mandarTalla(deTalla.map(p => p.id))"
+                                                title="Una foto por presentación, con precio y enlace (Enter)">
+                                            <span class="wa-rap-foto wa-rap-sin">📦</span>
+                                            <b x-text="'Mandar todas (' + deTalla.length + ')'"></b>
+                                            <span class="wa-rap-txt">Foto, precio y enlace de cada una · Enter</span>
+                                        </button>
+                                        <template x-for="p in deTalla" :key="'cat' + p.id">
+                                            <button type="button" class="wa-rap" x-on:click="mandarTalla([p.id])" :title="p.nombre">
+                                                <span class="wa-rap-foto">
+                                                    <template x-if="p.foto"><img :src="p.foto" alt="" loading="lazy"></template>
+                                                </span>
+                                                <b x-text="p.nombre"></b>
+                                                <span class="wa-rap-txt" x-text="'$' + p.precio + (p.unidades ? ' · ' + p.unidades + ' unidades' : '')"></span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <div class="wa-slash-t" x-show="filtradas.length">Respuestas rápidas</div>
 
                             {{-- En tarjetas, como el catálogo: la foto arriba (si la
                                  tiene), el nombre y un pedacito del texto. Se
@@ -1926,7 +1975,7 @@
                                 </template>
                             </div>
 
-                            <div class="wa-slash-nada" x-show="filtradas.length === 0">
+                            <div class="wa-slash-nada" x-show="filtradas.length === 0 && ! talla">
                                 Ninguna se llama así. Borrá la barra para seguir escribiendo.
                             </div>
 
@@ -1945,9 +1994,10 @@
                                   x-on:input="alEscribir($event.target.value)"
                                   x-on:keydown.escape="abierto = false"
                                   x-on:keydown.enter="
-                                      if (abierto && filtradas.length) {
+                                      if (abierto && (filtradas.length || talla)) {
                                           $event.preventDefault();
-                                          elegir(filtradas[0]);
+                                          if (exacta || ! talla) elegir(filtradas[0]);
+                                          else mandarTalla(deTalla.map(p => p.id));
                                           return;
                                       }
                                       if (! $event.shiftKey && window.innerWidth > 900) {
