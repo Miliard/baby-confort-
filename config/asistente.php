@@ -321,7 +321,7 @@ return [
             'texto'    => 'Son pañales *Aiwibi* y vienen desde Australia 🇦🇺',
         ],
         [
-            'palabras' => ['donde estan', 'donde quedan', 'donde queda', 'ubicados', 'ubicada', 'ubicacion de la tienda', 'tienda fisica', 'tienen tienda', 'tienen local', 'de donde son ustedes', 'donde se encuentran'],
+            'palabras' => ['donde estan', 'donde quedan', 'donde queda', 'ubicados', 'ubicada', 'ubicacion de la tienda', 'tienda fisica', 'tienen tienda', 'tienen local', 'de donde son ustedes', 'donde se encuentran', 'donde se ubican', 'donde estan ubicados', 'donde los encuentro', 'donde se ubica'],
             // Primero el envío a todo el país, después la tienda: que lea que se lo
             // mandamos antes de ver que estamos en San Miguel (caso 8).
             'texto'    => '📦 ¡Tenemos cobertura nacional en nuestros envíos! 🇸🇻 Y nuestra tienda está en *San Miguel, plaza Concepción* (a dos cuadras de Sertracen) 📍',

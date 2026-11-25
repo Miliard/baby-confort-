@@ -91,7 +91,7 @@ class Entender
         // se reconoció: si no, "extra grande" también sería "grande" (L).
         // Las marcadas con * no valen en modo estricto.
         $reglas = [
-            'RN'   => ['/\b(rn|nb|newborn)\b/', '/\brecien nacid[oa]s?\b/', '/\btalla (rn|0|cero)\b/'],
+            'RN'   => ['/\b(rn|nb|newborn)\b/', '/\brecien nac\w*\b/', '/\breci?en nacid\w*\b/', '/\btalla (rn|0|cero)\b/'],
             '8 A 14 AÑOS' => ['/\b8\s*(a|al|-)?\s*1[45]\b/', '/\bocho a (catorce|quince)\b/', '/\btalla especial\b/'],
             '4 A 7 AÑOS'  => ['/\b4\s*(a|al|-)?\s*7\b(?!\s*(\d|dias|horas))/', '/\bcuatro a siete\b/'],
             'XXXL' => ['/\b(xxxl|3xl|xxxg|3xg)\b/', '/\btriple extra ?grande\b/'],

@@ -177,6 +177,12 @@ trait GuionDiagrama
 
         // ── Solo asesora: "¿cuánto el envío?", "¿cuánto sería todo?" ────────
         // Lo contestás vos: a unos se les cobra envío y a otros no.
+        // Para revender, mayoreo, margen de ganancia: eso lo hablás vos.
+        if (preg_match('/\b(margen|ganancia|ganancias|para negocio|para mi negocio|para un negocio|revender|reventa|revendo|mayoreo|al por mayor|por mayor|distribuidor|distribuidora|distribuir|precio de mayorista|mayorista)\b/', $n)) {
+            $this->pasarAWil('pregunta por precio para revender o mayoreo', false);
+            return;
+        }
+
         // Rebaja, envío gratis, descuento: no se contesta, lo decidís vos.
         if (preg_match('/\b(gratis|gratuito|gratuita|gratuitos|grates|regalado|regala el envio|envio incluido|incluye el envio|incluido el envio|no cobran (el )?envio|descuento|descuentito|rebaja|rebajita|mas barato|mas baratos|precio especial|me lo deja|me los deja|me hace precio|me hace un precio|sin costo de envio|sin envio)\b/', $n)) {
             $this->pasarAWil('pide rebaja o envío gratis', false);
@@ -945,6 +951,8 @@ trait GuionDiagrama
     {
         $n = trim($n);
         $dem = '(ese|esa|eso|esos|esas|este|esta|estos|estas|esa presentacion|ese tipo)';
+        // "Solo así hay", "solo eso hay", "solo de esos tienen"
+        if (preg_match('/^(y |o |entonces )?(solo|nada mas|nomas|unicamente|solamente) (asi|eso|esos|esas|esto|estos) (hay|tienen|tiene|les queda|les quedan)$/', $n)) return true;
         return (bool) preg_match('/^(y |o |entonces )?(solo|nada mas|nomas|no mas|unicamente|solamente) (hay |tienen |tiene |queda |quedan )?(de )?' . $dem
                 . '( hay| tienen| tiene| les queda| les quedan| queda| quedan| nada mas| nomas| tienen nada mas)?$/', $n)
             || (bool) preg_match('/^(y |o )?(no )?(hay|tienen|tiene|tendran|les quedan?) (mas|otr[oa]s?|algun[oa]? otr[oa]|otra presentacion|otro tipo)( opciones?| presentaciones?| mas)?$/', $n)
@@ -1923,7 +1931,18 @@ trait GuionDiagrama
             return;
         }
 
-        $id = ($esPregunta || $soloTipo) ? null : ($f->dato('citada') ?: Entender::opcion($texto, $vistas));
+        // Citar la foto no alcanza: "No dan margen de ganancia para negocios"
+        // citando la foto del Comfy se tomaba como que eligió el Comfy. La cita
+        // vale si el mensaje es corto o dice que lo quiere.
+        $citada = $f->dato('citada');
+        if ($citada) {
+            $nc = Entender::normalizar($texto);
+            $eligeConCita = ! preg_match('/\b(no|margen|ganancia|negocio|revender|reventa|mayoreo|mayor|distribuidor|precio|cuanto|cuesta|vale)\b/', $nc)
+                && (mb_strlen($nc) <= 25
+                    || preg_match('/\b(quiero|quisiera|ese|esa|este|esta|esos|esas|estos|estas|me lo|me los|deme|mandeme|envieme|lo llevo|los llevo|me interesa|opcion|si|de este|de ese)\b/', $nc));
+            if (! $eligeConCita) $citada = null;
+        }
+        $id = ($esPregunta || $soloTipo) ? null : ($citada ?: Entender::opcion($texto, $vistas));
         if ($soloTipo) $f->quitar('citada');
 
         // Hay una sola opción y dice "quiero 2", "sí", "lo quiero": es esa.
@@ -2129,13 +2148,22 @@ trait GuionDiagrama
         // "Yo quería de los otros", "el otro", "esos no": si de esa talla hay
         // presentaciones que no vio, se le mandan; si ya vio todas, es otro
         // producto (uno que no hay o que llevó antes): a una persona.
-        if (preg_match('/\b(l[oa]s otr[oa]s|el otro|la otra|de otr[oa]s?|otro tipo|otra marca|otra presentacion|esos no|esas no|no son esos|no de esos|los de antes|los que (me )?(lleve|compre|mandaron))\b/', $nn)) {
+        if (preg_match('/\b(l[oa]s otr[oa]s|el otro|la otra|de otr[oa]s?|otro tipo|otra marca|otra presentacion|esos no|esas no|no son esos|no de esos|los de antes|los que (me )?(lleve|compre|mandaron)|de aquell[oa]s|aquell[oa]s|ya no tienen de)\b/', $nn)) {
             $this->dgLosOtros();
             return;
         }
 
         // Dice la edad viendo las fotos ("tiene 2 años, no sé cuánto pesa").
         if ($this->dgEdadEnMeses($nn) !== null && $this->dgSuelto($texto, 'peso')) return;
+
+        // "¿Y hay de día y de noche?", "ay d día y de noche d calsoncito":
+        // pregunta si hay de los dos. Se le explica cuál es de día y cuál de
+        // noche, con lo que está viendo.
+        if ($ops && preg_match('/\bdia\b/', $nn) && preg_match('/\bnoche\b/', $nn)
+            && ($txt = $this->dgTextoDiaNoche($ops))) {
+            $this->dgDecir($txt, 'opciones');
+            return;
+        }
 
         $this->dgNoEntendi('opciones', '¿Cuál de las opciones le interesa? Puede decirme el número 😊');
     }

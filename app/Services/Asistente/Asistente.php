@@ -2859,6 +2859,9 @@ class Asistente
                 $cierre = trim((string) config('asistente.solo_asesorar_cierre', ''));
                 $todo = trim($txt . ($txt !== '' && $cierre !== '' ? "\n\n" : '') . $cierre);
                 if ($todo !== '' && $this->conv->ventanaAbierta()) $this->texto($todo);
+                // A Pedidos: todo lo que llega hasta el envío es tuyo (Wil).
+                // Antes quedaba sin etiqueta y no se veía en la pestaña.
+                $this->dgAPedidos();
                 $this->pasarAWil('cliente nuevo: se le dijo el envío ($' . number_format((float) $this->f->dato('envio'), 2) . '), te toca la orden', false);
                 return true;
             }
@@ -3352,6 +3355,25 @@ class Asistente
         }
 
         WhatsappApi::enviarTexto($this->conv, $t, null, true);
+
+        // Cliente nuevo al que se le acaba de dar el precio del envío (aunque
+        // todavía no haya elegido): ya está comprando → a Pedidos.
+        try {
+            if (static::etapaEnvio() && $this->clienteNuevo() && $this->esLeyendaEnvio($t)) $this->dgAPedidos();
+        } catch (\Throwable $e) {
+        }
+    }
+
+    /** ¿Este texto es la leyenda del envío ("Solo $2.50, lleve lo que lleve")? */
+    private function esLeyendaEnvio(string $t): bool
+    {
+        foreach ((array) config('asistente.respuestas', []) as $r) {
+            $txt = (string) ($r['texto'] ?? '');
+            if (! str_contains($txt, '{envio}')) continue;
+            $ley = trim($this->rellenar($txt));
+            if ($ley !== '' && str_contains($t, mb_substr($ley, 0, 40))) return true;
+        }
+        return false;
     }
 
     private function botones(string $cuerpo, array $botones): void
