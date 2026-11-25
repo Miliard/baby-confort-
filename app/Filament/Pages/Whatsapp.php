@@ -3144,6 +3144,23 @@ class Whatsapp extends Page
 
         $M = \App\Services\Municipios::class;
         $muniCrudo = trim((string) $municipio);
+
+        // Si el "municipio" es en realidad el nombre de la colonia de la
+        // dirección ("Colonia San Sebastián…"), no sirve: se usa el que anotó
+        // el asistente, o queda en blanco.
+        if ($muniCrudo !== '' && trim((string) $direccion) !== '') {
+            if (static::esNombreDeLugar(trim(explode(',', $muniCrudo)[0]), (string) $direccion)) {
+                $muniCrudo = '';
+                try {
+                    $f = \App\Models\AsistenteFicha::hayTabla() ? \App\Models\AsistenteFicha::de($conv) : null;
+                    $mf = $f ? trim((string) $f->dato('municipio')) : '';
+                    if ($mf !== '' && $M::existe($mf)) $muniCrudo = $mf;
+                } catch (\Throwable $e) {
+                }
+                $municipio = $muniCrudo;
+            }
+        }
+
         if ($muniCrudo !== '') {
             $antesDeComa = trim(explode(',', $muniCrudo)[0]);
             $bueno = $M::existe($antesDeComa) ? $M::nombreBueno($antesDeComa) : $M::buscarEn($muniCrudo);
@@ -3241,9 +3258,23 @@ class Whatsapp extends Page
             }
         }
 
+        // El municipio que el asistente ya le preguntó y anotó ("De
+        // chalchuapa"): es el más seguro, lo dijo como municipio.
+        if ($salida['municipio'] === '') {
+            try {
+                $f = \App\Models\AsistenteFicha::hayTabla() ? \App\Models\AsistenteFicha::de($conv) : null;
+                $mf = $f ? trim((string) $f->dato('municipio')) : '';
+                if ($mf !== '' && \App\Services\Municipios::existe($mf)) $salida['municipio'] = $mf;
+            } catch (\Throwable $e) {
+            }
+        }
+
         if ($salida['municipio'] === '') {
             foreach ($mensajes as $texto) {
-                $mun = \App\Services\Municipios::buscarEn((string) $texto);
+                // "Colonia San Sebastián", "Barrio San Miguelito", "Cantón El
+                // Rosario": ese nombre es la colonia, no el municipio (Esmeralda
+                // es de Chalchuapa y la orden salió "San Sebastián, San Vicente").
+                $mun = static::municipioSinLugares((string) $texto);
                 if (! $mun) continue;
 
                 $salida['municipio'] = $mun;
@@ -3843,6 +3874,35 @@ class Whatsapp extends Page
             }
         }
         return $encontrado;
+    }
+
+    /**
+     * Quita los nombres que van después de "colonia", "barrio", "cantón",
+     * "residencial", "calle"…: "Colonia San Sebastián" es una colonia, aunque
+     * exista un municipio San Sebastián. Así no se toma por municipio.
+     */
+    private const LUGARES = 'colonia|col|barrio|bo|bario|canton|caserio|residencial|resid|res|urbanizacion|urb|pasaje|psje|pje|lotificacion|lot|comunidad|reparto|hacienda|finca|condominio|poligono|parcelacion|villa|villas|altos|jardines|cooperativa|asentamiento';
+
+    /** ¿Ese municipio aparece en el texto como nombre de colonia/barrio/cantón ("Colonia San Sebastián")? */
+    public static function esNombreDeLugar(string $municipio, string $texto): bool
+    {
+        $M = \App\Services\Municipios::class;
+        $m = $M::normalizar($municipio);
+        if ($m === '') return false;
+        return (bool) preg_match('/\b(' . self::LUGARES . ')\.?\s+((de|del|la|el|los|las)\s+)?' . preg_quote($m, '/') . '(?![\p{L}])/u', $M::normalizar($texto));
+    }
+
+    /** El municipio de un texto, sin contar los que son nombre de colonia/barrio/cantón. */
+    public static function municipioSinLugares(string $texto): ?string
+    {
+        $M = \App\Services\Municipios::class;
+        $t = $M::normalizar($texto);
+        for ($i = 0; $i < 4; $i++) {
+            $mun = $M::buscarEn($t);
+            if (! $mun || ! static::esNombreDeLugar($mun, $t)) return $mun;
+            $t = (string) preg_replace('/\b(' . self::LUGARES . ')\.?\s+((de|del|la|el|los|las)\s+)?' . preg_quote($M::normalizar($mun), '/') . '(?![\p{L}])/u', ' ', $t);
+        }
+        return null;
     }
 
     /** "María López AIWIBI" → "María López": la marca del socio no va en tus órdenes. */
