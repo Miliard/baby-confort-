@@ -1124,11 +1124,13 @@ class Whatsapp extends Page
                 && ! preg_match('/\b(panal\w*|pamper\w*|panper\w*|paquetes?|talla|tallas|' . $tallas . ')\b/u', $n)) continue;
 
             if ($esCalzon && ! $esCinta) {
-                if (! preg_match('/\b(magic|majic|magi|magik|noche|nocturn\w*|dia|diurno|blanco|blancos)\b/u', $n)) {
+                if (! preg_match('/\b(magic|majic|magi|magik|noche|nocturn\w*|dia|diurno|blanco|blancos)\b/u', $n)
+                    && ! static::presentacionPorPrecio('calzon', $l)) {
                     $mal[$l] = 'decí cuál calzoncito: *Magic*, *de Noche* o *de Día* (el blanco)';
                 }
             } elseif ($esCinta && ! $esCalzon) {
-                if (! preg_match('/\b(noche|nocturn\w*|jumbo|yumbo|yunbo|jumb\w*|comfy\w*|confy\w*|50 unidades|50u|de 50)\b/u', $n)) {
+                if (! preg_match('/\b(noche|nocturn\w*|jumbo|yumbo|yunbo|jumb\w*|comfy\w*|confy\w*|50 unidades|50u|de 50)\b/u', $n)
+                    && ! static::presentacionPorPrecio('cinta', $l)) {
                     $mal[$l] = 'decí cuál cinta: *de Noche*, *Jumbo* o *la de 50 unidades*';
                 }
             } else {
@@ -1137,6 +1139,53 @@ class Whatsapp extends Page
         }
 
         return $mal;
+    }
+
+    /**
+     * ¿El precio ya dice cuál es? "Cinta XL $23" → en el catálogo, de las
+     * cintas (de esa talla, si la dice) solo una vale $23: la Jumbo. Si dos
+     * valen lo mismo (calzoncito de día y de noche, $20), no alcanza.
+     */
+    private static function presentacionPorPrecio(string $tipo, string $renglon): bool
+    {
+        static $catalogo = null;
+
+        try {
+            if ($catalogo === null) {
+                $catalogo = \App\Models\ProductSize::with('product:id,name')->get(['id', 'product_id', 'size', 'price'])
+                    ->map(fn ($s) => ['prod' => (int) $s->product_id, 'nombre' => mb_strtolower((string) $s->product?->name),
+                                      'talla' => mb_strtoupper(trim((string) $s->size)), 'precio' => round((float) $s->price, 2)])
+                    ->all();
+            }
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        // El precio por paquete: el que no está entre paréntesis ("$17 ($34)").
+        $sinParen = preg_replace('/\([^)]*\)/u', ' ', $renglon);
+        if (! preg_match_all('/\$\s*(\d+(?:[.,]\d{1,2})?)/u', $sinParen, $m) || ! $m[1]) return false;
+        $precio = (float) str_replace(',', '.', $m[1][0]);
+        $cant = preg_match('/^\D{0,3}(\d{1,2})\b/u', $renglon, $c) ? max(1, (int) $c[1]) : 1;
+        $precios = array_unique([round($precio, 2), round($precio / $cant, 2)]);
+
+        // La talla, si la dice.
+        $alias = ['2XL' => 'XXL', '3XL' => 'XXXL', 'G' => 'L', 'XG' => 'XL', 'XXG' => 'XXL', 'XXXG' => 'XXXL'];
+        $talla = preg_match('/\b(xxxl|xxl|2xl|3xl|xl|rn|xxxg|xxg|xg|s|m|l|g)\b/iu', $sinParen, $t) ? mb_strtoupper($t[1]) : null;
+        if ($talla) $talla = $alias[$talla] ?? $talla;
+
+        $esDelTipo = fn ($nombre) => $tipo === 'calzon'
+            ? (bool) preg_match('/calzon/u', $nombre) && ! preg_match('/especial|natac/u', $nombre)
+            : (bool) preg_match('/cinta|comfy|ajuste lateral|pegar/u', $nombre) && ! preg_match('/reci[eé]n nacid/u', $nombre);
+
+        $prods = [];
+        foreach ($catalogo as $s) {
+            if (! $esDelTipo($s['nombre'])) continue;
+            if ($talla && $s['talla'] !== $talla) continue;
+            if (! in_array($s['precio'], $precios, true)) continue;
+            $prods[$s['prod']] = true;
+        }
+
+        return count($prods) === 1;
     }
 
     private function pedirRevisarOrden(string $texto, ?WaConversacion $conv = null): ?string
