@@ -1896,6 +1896,13 @@ trait GuionDiagrama
             return;
         }
 
+        // "¿Tiene fotos reales?", "¿cómo quedan puestos?": las fotos de uso.
+        if ($vistas && $this->dgPideFotosDeUso($texto, $vistas)) {
+            $f->quitar('citada');
+            $f->poner('dpaso', 'opciones');
+            return;
+        }
+
         // "¿Solo de ese?", "¿no hay más?", "¿nada más ese tienen?": pregunta si
         // hay otras opciones. NO está eligiendo (antes se tomaba como compra).
         if ($vistas && $this->dgPreguntaSoloHay(Entender::normalizar($texto))) {
@@ -2231,9 +2238,71 @@ trait GuionDiagrama
             return;
         }
 
+        // Cliente nuevo que eligió: las fotos reales de cómo queda puesto, de
+        // ilustración (si están subidas en el admin).
+        $this->dgFotosDeUso($s);
+
         // Si dijo cuántos, va en la confirmación ("2 paquetes de *Magic* talla M").
         $cuantos = $cant && $cant > 1 ? $cant . ' paquetes de ' : '';
         $this->dgDespuesDeElegir('¡Con gusto! 😊 ' . $cuantos . $que . ".\n\n");
+    }
+
+    /**
+     * Fotos reales de cómo queda puesto ("📷 Cómo queda puesto" en el admin).
+     * Solo a clientes nuevos, máximo 2 por presentación y una sola vez por
+     * producto en el chat. Sirven las de cualquier talla del producto.
+     * True si mandó alguna.
+     */
+    private function dgFotosDeUso(ProductSize $s): bool
+    {
+        try {
+            if (! $this->clienteNuevo() || ! $this->conv->ventanaAbierta()) return false;
+
+            $ya = array_map('strval', (array) $this->f->dato('uso_enviadas', []));
+            if (in_array((string) $s->product_id, $ya, true)) return false;
+
+            $urls = array_slice($s->fotosUsoUrls(), 0, 2);
+            if (! $urls) return false;
+
+            // WhatsApp solo acepta JPG/PNG: lo demás (webp, heic…) se pasa a JPG.
+            $urls = array_values(array_filter(array_map(function ($u) {
+                $ruta = str_contains($u, '/storage/') ? '/storage/' . explode('/storage/', $u, 2)[1] : $u;
+                return \App\Services\FotoWhatsapp::url($ruta, (int) (crc32($u) % 1000000));
+            }, $urls)));
+            if (! $urls) return false;
+
+            $nombre = $this->nombreLimpio((string) ($s->product->name ?? ''));
+            foreach ($urls as $i => $u) {
+                \App\Services\WhatsappApi::enviarImagen($this->conv, $u,
+                    $i === 0 ? 'Así se ven puestos los *' . $nombre . '* 😊' : null, null, true);
+            }
+
+            $ya[] = (string) $s->product_id;
+            $this->f->poner('uso_enviadas', $ya);
+            return true;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /** "¿Tiene fotos reales?", "¿cómo quedan puestos?": manda las de lo que está viendo. True si mandó. */
+    private function dgPideFotosDeUso(string $texto, array $vistas): bool
+    {
+        $n = Entender::normalizar($texto);
+        if (! preg_match('/\b(fotos? (reales?|de verdad|puest[oa]s?|de como (se )?(ven|quedan))|como (se )?(ven|quedan|queda|lucen) (puest[oa]s?|en el bebe|en la bebe|en el nino|en la nina)|(tiene|tienen|hay|me manda|mandeme|me puede mandar) (alguna |una |unas )?fotos?( reales?)?$|se ven puest[oa]s?)\b/', $n)) return false;
+
+        $ids = [];
+        if ($c = $this->f->dato('citada')) $ids[] = (string) $c;
+        elseif (count($vistas) === 1) $ids[] = (string) $vistas[0]['id'];
+        else foreach ($vistas as $v) $ids[] = (string) $v['id'];
+
+        $mando = false; $productos = 0;
+        foreach ($ids as $id) {
+            if ($productos >= 2) break;
+            $s = ProductSize::with('product')->find($id);
+            if ($s && $this->dgFotosDeUso($s)) { $mando = true; $productos++; }
+        }
+        return $mando;
     }
 
     /** La siguiente talla que pidió, o el municipio si ya no quedan. */

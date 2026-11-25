@@ -30,6 +30,21 @@ class ProductSize extends Model
     {
         $rutas = $this->fotos_uso;
 
+        // Son fotos genéricas de cómo queda puesto: sirven para todas las
+        // tallas del producto. Si esta talla no tiene, se usan las de otra
+        // talla del mismo producto (basta subirlas en una sola).
+        if ((! is_array($rutas) || ! $rutas) && $this->product_id) {
+            try {
+                $otra = static::where('product_id', $this->product_id)
+                    ->where('id', '!=', $this->id)
+                    ->whereNotNull('fotos_uso')
+                    ->get(['id', 'fotos_uso'])
+                    ->first(fn ($s) => is_array($s->fotos_uso) && $s->fotos_uso);
+                if ($otra) $rutas = $otra->fotos_uso;
+            } catch (\Throwable $e) {
+            }
+        }
+
         if (! is_array($rutas) || ! $rutas) return [];
 
         $urls = [];
