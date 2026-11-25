@@ -3276,7 +3276,10 @@ class Whatsapp extends Page
          */
         $conIA = false;
 
-        if (filled($datos['nombre'])) $this->pedNombre = $this->limpiarNombre($datos['nombre']);
+        // Estricto: el nombre es el de la orden. Si la orden no lo trae, queda
+        // vacío (y se nota), no el de un pedido anterior precargado.
+        $this->pedNombre = filled($datos['nombre']) ? $this->limpiarNombre($datos['nombre']) : '';
+        $this->pedTelefonoRecibe = '';
 
         /*
          * LA ORDEN MANDA. Lo que la orden no diga, se vacía.
@@ -3526,9 +3529,10 @@ class Whatsapp extends Page
                 : $M::buscarEn($municipioCrudo);
         }
 
-        // Último recurso: la dirección. "…los chilamates nueva concepción
-        // chalatenango" trae el municipio aunque el campo haya salido mal.
-        if (! $encontrado && trim($direccion) !== '') {
+        // Último recurso: la dirección, SOLO si la orden no traía el renglón
+        // "Municipio:". Si lo traía, manda lo escrito: sacarlo de la dirección
+        // ponía otro municipio (una colonia o un cantón con nombre parecido).
+        if (! $encontrado && trim($municipioCrudo) === '' && trim($direccion) !== '') {
             $encontrado = $M::buscarEn($direccion);
         }
 
