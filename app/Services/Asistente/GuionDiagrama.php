@@ -475,7 +475,7 @@ trait GuionDiagrama
         $pre = trim($hola . 'Le paso la talla *' . $this->bonita($t) . '* que nos había consultado 👇');
         foreach ($suyas as $s) {
             $nro = count($enviadas) + 1;
-            $this->tarjeta($s, $nro, $pre);
+            $this->dgTarjeta($s, $nro, $pre);
             $pre = '';
             $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];
         }
@@ -1081,7 +1081,7 @@ trait GuionDiagrama
         $pre = 'Con gusto 😊 Estas son las otras de talla *' . $this->bonita($tallas[0]) . '* 👇';
         foreach ($this->dgVariadas($otras, max(1, (int) config('asistente.max_fotos', 4))) as $s) {
             $nro = count($enviadas) + 1;
-            $this->tarjeta($s, $nro, $pre);
+            $this->dgTarjeta($s, $nro, $pre);
             $pre = '';
             $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];
         }
@@ -1362,7 +1362,7 @@ trait GuionDiagrama
             $pre = 'Con gusto 😊 Estas traen más unidades en talla *' . $this->bonita($t) . '* 👇';
             foreach ($mas->take(max(1, (int) config('asistente.max_fotos', 4))) as $s) {
                 $nro = count($enviadas) + 1;
-                $this->tarjeta($s, $nro, $pre);
+                $this->dgTarjeta($s, $nro, $pre);
                 $pre = '';
                 $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];
             }
@@ -1799,7 +1799,7 @@ trait GuionDiagrama
                 if (! $enviadas) $pre = trim($antes);
                 if ($varias && $primeraDeTalla) $pre = trim($pre . "\n\n" . '*Talla ' . $this->bonita($t) . '* 👇');
 
-                $this->tarjeta($s, $nro, $pre);
+                $this->dgTarjeta($s, $nro, $pre);
                 $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];
                 $primeraDeTalla = false;
             }
@@ -2031,7 +2031,7 @@ trait GuionDiagrama
                     $enviadas = [];
                     foreach ($this->dgVariadas($cat, max(1, (int) config('asistente.max_fotos', 4))) as $s) {
                         $nro = count($enviadas) + 1;
-                        $this->tarjeta($s, $nro, '');
+                        $this->dgTarjeta($s, $nro, '');
                         $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];
                     }
                     $f->poner('fotos_enviadas', $enviadas);
@@ -2198,7 +2198,7 @@ trait GuionDiagrama
             foreach ($this->presentaciones([$t], 'ambos')->take(max(1, (int) config('asistente.max_fotos', 4))) as $s) {
                 $nro = count($enviadas) + 1;
                 $pre = $primera ? trim($antes . "\n\n*Talla " . $this->bonita($t) . '* 👇') : '';
-                $this->tarjeta($s, $nro, $pre);
+                $this->dgTarjeta($s, $nro, $pre);
                 $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];
                 $primera = false; $antes = '';
             }
@@ -2245,6 +2245,16 @@ trait GuionDiagrama
         // Si dijo cuántos, va en la confirmación ("2 paquetes de *Magic* talla M").
         $cuantos = $cant && $cant > 1 ? $cant . ' paquetes de ' : '';
         $this->dgDespuesDeElegir('¡Con gusto! 😊 ' . $cuantos . $que . ".\n\n");
+    }
+
+    /**
+     * La tarjeta de una presentación y, debajo, sus fotos reales de cómo
+     * queda puesto (cliente nuevo, una vez por producto). Ver dgFotosDeUso.
+     */
+    private function dgTarjeta(ProductSize $s, int $nro, string $pre): void
+    {
+        $this->tarjeta($s, $nro, $pre);
+        $this->dgFotosDeUso($s);
     }
 
     /**
@@ -2324,7 +2334,7 @@ trait GuionDiagrama
                 $pre = '*Talla ' . $this->bonita($faltan[0]) . '* 👇';
                 foreach ($this->presentaciones([$faltan[0]], 'ambos')->take(max(1, (int) config('asistente.max_fotos', 4))) as $s) {
                     $nro = count($enviadas) + 1;
-                    $this->tarjeta($s, $nro, $pre);
+                    $this->dgTarjeta($s, $nro, $pre);
                     $pre = '';
                     $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];
                 }
@@ -2443,7 +2453,7 @@ trait GuionDiagrama
             $s = ProductSize::with('product')->find($id);
             if (! $s) continue;
             $nro = count($enviadas) + 1;
-            $this->tarjeta($s, $nro, $antes);
+            $this->dgTarjeta($s, $nro, $antes);
             $antes = '';
             $enviadas[] = ['opcion' => $nro, 'id' => (string) $s->id];
         }
