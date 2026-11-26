@@ -1739,7 +1739,13 @@ trait GuionDiagrama
             $r = $this->guionRangoLb($t);
             if ($r && $lb >= $r[0] && $lb <= $r[1]) $out[] = $t;
         }
-        return $out;
+
+        // Las tallas de niño grande ("4 a 7 años", "8 a 14 años") solo si no
+        // le queda ninguna normal. Con 40 libras le quedan XXL, XXXL y "4 a 7
+        // años": se elegía la de niño (la más grande), que trae UNA sola
+        // presentación de 10 unidades, y la clienta se asustaba con el precio.
+        $normales = array_values(array_filter($out, fn ($t) => ! preg_match('/\d+\s*A\s*\d+/u', $t)));
+        return $normales ?: $out;
     }
 
     /** No hay la que pidió (o la que le queda): se sugiere la vecina que sí hay. */
