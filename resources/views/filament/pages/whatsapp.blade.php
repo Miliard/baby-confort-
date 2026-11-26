@@ -1308,6 +1308,18 @@
                     @if($sinLeer > 0)<span class="wa-fil-n">{{ $sinLeer }}</span>@endif
                 </button>
 
+                {{-- 🔥 Las que están por comprar y esperan respuesta: primero la
+                     de más interés y la que más espera. El número cuenta las
+                     🔥🔥🔥 (pegó orden, mandó datos, dice que lo quiere, pide el total). --}}
+                @php $nCalientes = $this->cuantasCalientes(); @endphp
+                <button type="button" wire:click="alternarCalientes"
+                        class="wa-fil {{ $soloCalientes ? 'on' : '' }}" style="--c:#f97316"
+                        aria-pressed="{{ $soloCalientes ? 'true' : 'false' }}"
+                        title="Clientas por comprar que esperan respuesta">
+                    🔥 Calientes
+                    @if($nCalientes > 0)<span class="wa-fil-n">{{ $nCalientes }}</span>@endif
+                </button>
+
                 {{-- Acá iba el filtro "Sin responder". La barra roja al costado
                      de cada conversación ya dice lo mismo sin ocupar lugar en
                      el carrusel. El método alternarSinResponder() sigue vivo. --}}

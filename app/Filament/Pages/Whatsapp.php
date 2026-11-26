@@ -148,6 +148,105 @@ class Whatsapp extends Page
         $this->soloSinResponder = ! $this->soloSinResponder;
     }
 
+    // ── 🔥 Calientes: las que están por comprar y esperan respuesta ────────
+
+    public bool $soloCalientes = false;
+
+    public function alternarCalientes(): void
+    {
+        $this->soloCalientes = ! $this->soloCalientes;
+    }
+
+    /**
+     * Los chats que esperan respuesta, con su puntaje de interés (ver
+     * App\Services\Interes). Se mira lo que el cliente escribió DESPUÉS de
+     * nuestra última respuesta, en las últimas 24 horas.
+     * [convId => ['puntos', 'motivo', 'texto', 'desde' (timestamp), 'ultimo' (id)]],
+     * ordenado: más puntos primero y, entre iguales, el que más espera.
+     */
+    public function calientes(): array
+    {
+        try {
+            return \Illuminate\Support\Facades\Cache::remember('wa:calientes', 45, function () {
+                $convs = WaConversacion::where('archivada', false)
+                    ->where('ultimo_saliente', false)
+                    ->where('ultimo_mensaje_at', '>=', now()->subHours(24))
+                    ->orderByDesc('ultimo_mensaje_at')->limit(80)->get(['id']);
+
+                $res = [];
+                foreach ($convs as $c) {
+                    $ultNuestro = (int) WaMensaje::where('conversacion_id', $c->id)->where('direccion', 'saliente')->max('id');
+                    $suyos = WaMensaje::where('conversacion_id', $c->id)->where('direccion', 'entrante')
+                        ->where('id', '>', $ultNuestro)->orderBy('id')->limit(12)
+                        ->get(['id', 'tipo', 'texto', 'created_at']);
+                    if ($suyos->isEmpty()) continue;
+
+                    $mejor = ['puntos' => -1, 'motivo' => '', 'texto' => ''];
+                    foreach ($suyos as $m) {
+                        $i = \App\Services\Interes::de((string) $m->texto, (string) $m->tipo);
+                        if ($i['puntos'] >= $mejor['puntos']) $mejor = $i + ['texto' => (string) $m->texto];
+                    }
+                    if ($mejor['puntos'] < 2) continue;
+
+                    $res[$c->id] = $mejor + [
+                        'desde'  => $suyos->first()->created_at?->timestamp ?? now()->timestamp,
+                        'ultimo' => (int) $suyos->last()->id,
+                    ];
+                }
+
+                uasort($res, fn ($a, $b) => [$b['puntos'], $a['desde']] <=> [$a['puntos'], $b['desde']]);
+                return $res;
+            });
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    /** Cuántas 🔥🔥🔥 esperan respuesta (el número del filtro). */
+    public function cuantasCalientes(): int
+    {
+        return count(array_filter($this->calientes(), fn ($c) => $c['puntos'] >= 3));
+    }
+
+    /**
+     * 🔥🔥🔥 con más de 5 minutos sin respuesta: aviso a cada uno que tenga el
+     * panel abierto, una vez por mensaje, a cualquier hora.
+     */
+    private function avisarCalientes(): bool
+    {
+        $uid = (int) auth()->id();
+        if (! \Illuminate\Support\Facades\Cache::add('wa:calientes:tick:' . $uid, 1, 60)) return false;
+
+        $hizo = false;
+        foreach ($this->calientes() as $convId => $c) {
+            if ($c['puntos'] < 3) continue;
+            $min = (int) floor((now()->timestamp - $c['desde']) / 60);
+            if ($min < 5) continue;
+            if ($convId === $this->abierta) continue;   // ya lo está mirando
+
+            $clave = 'wa:calientes:avisado:' . $uid . ':' . $convId;
+            if ((int) \Illuminate\Support\Facades\Cache::get($clave) === $c['ultimo']) continue;
+            \Illuminate\Support\Facades\Cache::put($clave, $c['ultimo'], now()->addDay());
+
+            $conv = WaConversacion::find($convId);
+            if (! $conv) continue;
+
+            $espera = $min >= 60 ? floor($min / 60) . ' h ' . ($min % 60) . ' min' : $min . ' min';
+            Notification::make()
+                ->title('🔥 ' . $conv->titulo() . ' ' . $c['motivo'] . ' y espera hace ' . $espera)
+                ->body('«' . \Illuminate\Support\Str::limit(trim(preg_replace('/\s+/u', ' ', $c['texto'])) ?: '(ubicación)', 90) . '»')
+                ->warning()->persistent()
+                ->actions([
+                    \Filament\Notifications\Actions\Action::make('abrir')->label('Abrir chat')->button()
+                        ->url(static::getUrl(['chat' => $convId])),
+                ])
+                ->send();
+            $hizo = true;
+        }
+
+        return $hizo;
+    }
+
     /** Cuántas están esperando respuesta. */
     public function cuantasSinResponder(): int
     {
@@ -410,6 +509,14 @@ class Whatsapp extends Page
             }
 
             if ($this->soloSinResponder) $q->where('ultimo_saliente', false);
+
+            // 🔥 Calientes: las que están por comprar, primero la de más interés
+            // y la que más espera.
+            if ($this->soloCalientes) {
+                $ids = array_keys($this->calientes());
+                if (! $ids) $ids = [0];
+                $q->whereIn('id', $ids)->orderByRaw('FIELD(id, ' . implode(',', array_map('intval', $ids)) . ')');
+            }
             if ($this->soloSinLeer)      $q->where('sin_leer', '>', 0);
 
             // Por día, según el último mensaje de la conversación.
@@ -740,6 +847,10 @@ class Whatsapp extends Page
         $hizoAlgo = false;
         try { $hizoAlgo = $this->autoCola(); } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('autoCola: ' . $e->getMessage());
+        }
+        // 🔥 Clientas por comprar que esperan hace más de 5 minutos.
+        try { $hizoAlgo = $this->avisarCalientes() || $hizoAlgo; } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('calientes: ' . $e->getMessage());
         }
 
         $nueva = $this->huellaActual();
