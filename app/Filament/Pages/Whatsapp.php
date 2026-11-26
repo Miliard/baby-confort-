@@ -169,13 +169,23 @@ class Whatsapp extends Page
         try {
             return \Illuminate\Support\Facades\Cache::remember('wa:calientes', 30, function () {
                 $convs = WaConversacion::where('archivada', false)
-                    ->where('ultimo_saliente', false)
                     ->where('ultimo_mensaje_at', '>=', now()->subHours(24))
                     ->orderByDesc('ultimo_mensaje_at')->limit(80)->get(['id']);
 
                 $res = [];
                 foreach ($convs as $c) {
-                    $ultNuestro = (int) WaMensaje::where('conversacion_id', $c->id)->where('direccion', 'saliente')->max('id');
+                    // Mientras el asistente lo está atendiendo, no: él contesta.
+                    try {
+                        $ficha = \App\Models\AsistenteFicha::hayTabla() ? \App\Models\AsistenteFicha::de($c) : null;
+                        if ($ficha && $ficha->activa()) continue;
+                    } catch (\Throwable $e) {
+                    }
+
+                    // "Nuestra última respuesta" = la de una PERSONA. El "En un
+                    // momento le atiendo" del asistente no cuenta: ahí la
+                    // clienta justo queda esperando a alguien.
+                    $ultNuestro = (int) WaMensaje::where('conversacion_id', $c->id)->where('direccion', 'saliente')
+                        ->where('automatico', false)->max('id');
                     $suyos = WaMensaje::where('conversacion_id', $c->id)->where('direccion', 'entrante')
                         ->where('id', '>', $ultNuestro)->orderBy('id')->limit(12)
                         ->get(['id', 'tipo', 'texto', 'created_at']);

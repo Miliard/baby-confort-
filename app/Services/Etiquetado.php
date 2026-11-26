@@ -234,6 +234,7 @@ class Etiquetado
         // ("se los estaría enviando mañana"): eso ya es un pedido, aunque no
         // nombre el producto.
         if (preg_match('/\bme\s+(ayuda|ayudas|regala|regalas|da|das|pasa|pasas|brinda|confirma|comparte|escribe|proporciona)\s+(con\s+)?(su|sus|tu|tus)\s+(nombre|nombres|direccion|datos)\b/', $t)
+            || preg_match('/\b(ayudeme|ayudenme|ayudame|regaleme|regalame|deme|dame|paseme|pasame|digame|brindeme|confirmeme|escribame|mandeme|envieme)\s+(con\s+)?(su|sus|tu|tus)\s+(nombre|nombres|direccion|datos)\b/', $t)
             || preg_match('/\b(su|sus)\s+(nombre\s+(completo\s+)?y\s+(su\s+)?direccion|datos\s+para\s+(el\s+)?envio)\b/', $t)
             || preg_match('/\bse\s+(lo|los|la|las)\s+(estaria|estariamos|estare|estaremos|voy\s+a\s+estar|vamos\s+a\s+estar)\s+(enviando|mandando|despachando)\b/', $t)) {
             return true;
