@@ -1023,6 +1023,19 @@
 
     /* ── La ventana del catálogo ── */
     /* ── El lote para Express ── */
+    /* 📌 Aviso de fijados: suave, en el centro. */
+    .wa-modal-fondo.wa-fij-fondo{background:rgba(10,16,26,.35)}
+    .wa-fij-aviso{width:min(460px,92vw);max-height:80vh;overflow:auto;background:#fff;border-radius:16px;
+                  padding:16px 16px 12px;box-shadow:0 20px 50px rgba(10,16,26,.25);border:2px solid #f5c542;
+                  animation:waFijIn .25s ease-out}
+    html.dark .wa-fij-aviso{background:#16202f}
+    .wa-fij-t{font-size:15px;font-weight:800;margin-bottom:10px}
+    .wa-fij-item{border:1px solid rgba(120,140,170,.3);border-radius:12px;padding:9px 10px;margin-bottom:8px;
+                 background:rgba(245,197,66,.08)}
+    .wa-fij-quien{font-size:11.5px;color:var(--wa-suave);font-weight:700;margin-bottom:3px}
+    .wa-fij-txt{font-size:14px;white-space:pre-line;line-height:1.4}
+    .wa-fij-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+    @keyframes waFijIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
     .wa-lote-t{font-size:13px;font-weight:800;margin:2px 0 8px}
     .wa-lote-t span{font-weight:600;color:var(--wa-suave)}
     .wa-lote-fila{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;
@@ -2591,6 +2604,35 @@
      El envío lo hace el navegador de a una guía (enviarDelLote), así no
      choca con el tiempo máximo y cada renglón se pone ✅ o ❌ a la vista.
      wire:ignore: el refresco de cada 3 s no borra los ✅ que van saliendo. --}}
+{{-- 📌 Aviso suave al entrar a un chat con mensajes fijados (encargos,
+     fechas, acuerdos). Sale cada vez que se entra; se cierra con "Entendido". --}}
+@if($avisoFijados && $avisoFijados === $abierta)
+@php $avFij = $this->mensajesFijados(); $avConv = $this->conversacion(); @endphp
+@if($avFij->isNotEmpty())
+<div class="wa-modal-fondo wa-fij-fondo" x-data x-on:keydown.escape.window="$wire.cerrarAvisoFijados()">
+    <div class="wa-fij-aviso" role="dialog" aria-modal="true" aria-label="Mensajes fijados de este chat">
+        <div class="wa-fij-t">📌 Tenés {{ $avFij->count() === 1 ? 'un mensaje fijado' : $avFij->count() . ' mensajes fijados' }} en este chat</div>
+        @foreach($avFij as $fm)
+            <div class="wa-fij-item" wire:key="avfij-{{ $fm->id }}">
+                <div class="wa-fij-quien">{{ $fm->esDelCliente() ? ($avConv?->titulo() ?? 'Cliente') : 'Vos' }}
+                    · fijado {{ optional($fm->fijado_at)->timezone('America/El_Salvador')?->format('d/m H:i') }}</div>
+                <div class="wa-fij-txt">{{ $fm->resumen(240) }}</div>
+                <div class="wa-fij-btns">
+                    <button type="button" class="wa-fil" style="--c:#2e9e6b"
+                            x-on:click="$wire.cerrarAvisoFijados(); setTimeout(() => waIrA({{ $fm->id }}, $wire), 150)">Ir al mensaje</button>
+                    <button type="button" class="wa-fil" style="--c:#94a3b8"
+                            wire:click="soltarDesdeAviso({{ $fm->id }})" title="Ya está hecho: quitar el 📌">✓ Ya lo hice (soltar)</button>
+                </div>
+            </div>
+        @endforeach
+        <div style="text-align:right;margin-top:10px">
+            <button type="button" class="wa-fil on" style="--c:#2e9e6b" wire:click="cerrarAvisoFijados">Entendido</button>
+        </div>
+    </div>
+</div>
+@endif
+@endif
+
 @if($lote)
 @php
     $loteListos  = $lote['listos'] ?? [];

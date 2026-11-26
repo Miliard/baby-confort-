@@ -963,6 +963,25 @@ class Whatsapp extends Page
         $this->cargarDatosDelCliente($conv);
 
         $this->ponerLeida($conv);
+
+        // 📌 Si el chat tiene mensajes fijados (un encargo, una fecha, un
+        // acuerdo), se avisan en el centro de la pantalla cada vez que se entra.
+        $this->avisoFijados = $this->mensajesFijados()->isNotEmpty() ? $id : null;
+    }
+
+    /** El chat cuyo aviso de 📌 fijados está en pantalla (null = ninguno). */
+    public ?int $avisoFijados = null;
+
+    public function cerrarAvisoFijados(): void
+    {
+        $this->avisoFijados = null;
+    }
+
+    /** Soltar un fijado desde el aviso; si no quedan, el aviso se cierra. */
+    public function soltarDesdeAviso(int $id): void
+    {
+        $this->fijarMensaje($id);
+        if ($this->mensajesFijados()->isEmpty()) $this->avisoFijados = null;
     }
 
     /** Sin leer a cero, y las palomitas azules del lado del cliente. */
