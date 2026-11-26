@@ -806,6 +806,26 @@ trait GuionDiagrama
         return $nom !== '' ? ' (*' . $nom . '* talla *' . $this->bonita((string) $u['talla']) . '*)' : ' (talla *' . $this->bonita((string) $u['talla']) . '*)';
     }
 
+    /**
+     * ¿Nombra el producto que llevó la vez pasada? ("de día" y llevó el
+     * Calzoncito de día; "magic" y llevó el Magic.) Solo si es ese y no otro.
+     */
+    private function dgNombraSuProducto(string $n, array $u): bool
+    {
+        $s = ! empty($u['size_id']) ? ProductSize::with('product')->find($u['size_id']) : null;
+        $suyo = Entender::normalizar((string) ($s?->product->name ?? ($u['producto'] ?? '')));
+        if ($suyo === '') return false;
+
+        $claves = ['dia' => '/\b(de dia|dia|blanco|blancos)\b/', 'noche' => '/\b(noche|nocturn\w*)\b/',
+                   'magic' => '/\b(magic|majic|magi)\b/', 'jumbo' => '/\b(jumbo|yumbo)\b/', 'comfy' => '/\b(comfy\w*|50 unidades)\b/'];
+        foreach ($claves as $k => $rx) {
+            if (! preg_match($rx, $n)) continue;
+            // Lo que nombró tiene que estar en su producto.
+            return (bool) preg_match('/\b' . ($k === 'dia' ? 'dia' : $k) . '/', $suyo);
+        }
+        return false;
+    }
+
     /** Contesta a "¿Le enviamos lo mismo de la vez pasada?". */
     private function dgRecompraConf(string $texto): void
     {
@@ -817,6 +837,24 @@ trait GuionDiagrama
         if ($u && $igual && ! $this->dgTallas($texto)) {
             if ($this->dgRecompra($u, $texto)) return;
             $this->pasarAWil('pide lo mismo de antes (recompra)', false);
+            return;
+        }
+
+        // "¿Ya tiene de día?", "¿hay de los Magic?": pregunta si hay LO MISMO
+        // que llevó (nombra su producto). Se le contesta con ESA presentación
+        // sola —no con todas las de la talla— y se le vuelve a preguntar.
+        if ($u && ! $this->dgTallas($texto) && $this->dgNombraSuProducto($n, $u)) {
+            $hay = $this->dgUltimaHay($u);
+            $nom = trim(preg_replace('/\s*\(.*$/u', '', (string) ($hay['s']?->product->name ?? '')));
+            if ($hay['s']) {
+                $this->dgTarjeta($hay['s'], 1, '¡Sí! 😊 Ya tenemos su *' . $nom . '* talla *' . $this->bonita((string) $u['talla']) . '* 👇');
+                $this->f->poner('fotos_enviadas', [['opcion' => 1, 'id' => (string) $hay['s']->id]]);
+                $this->dgDecir('¿Le enviamos lo mismo de la vez pasada? 😊', 'recompra');
+                return;
+            }
+            $this->marcarAgotado();
+            $this->f->poner('dpaso', 'talla');
+            $this->dgDecir('En este momento no tenemos' . $this->dgLoDeLaVezPasada($u) . ' 😔 Apenas entre le avisamos por aquí 😊', 'talla');
             return;
         }
 
