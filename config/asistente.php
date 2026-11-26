@@ -137,7 +137,10 @@ return [
 
     // Si la conversación quedó parada este rato, el siguiente mensaje empieza
     // de cero. Y si vuelve a saludar ("hola") después de este otro rato, también.
-    'reiniciar_tras_minutos'      => 120,
+    // 12 horas y no 2: la clienta que contesta "Calzoncito" a las 3 horas está
+    // respondiendo lo que se le preguntó; empezar de cero le volvía a mandar
+    // todas las fotos con "¡Hola!". Si saluda, sí se empieza de nuevo (abajo).
+    'reiniciar_tras_minutos'      => 720,
     'reiniciar_si_saluda_minutos' => 10,
 
     // Más paquetes que esto en un solo producto huele a mayoreo: a Wil.
@@ -337,7 +340,7 @@ return [
         ],
         [
             // "¿Llega mañana / hoy / el domingo?" no se contesta (caso 6).
-            'palabras' => ['cuanto tarda', 'cuanto tardan', 'tiempo de entrega', 'cuantos dias', 'en cuanto tiempo'],
+            'palabras' => ['cuanto tarda', 'cuanto tardan', 'tiempo de entrega', 'cuantos dias', 'en cuanto tiempo', 'cuanto tiempo', 'dentro de cuanto', 'en cuantos dias', 'cuanto se tarda', 'cuanto demora', 'cuanto se demora', 'cuanto dura la entrega'],
             'texto'    => 'La entrega es en {entrega} con Express El Salvador 🚚',
         ],
         [

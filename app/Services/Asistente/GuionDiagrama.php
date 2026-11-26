@@ -462,6 +462,9 @@ trait GuionDiagrama
         $t = $hay[0];
         $f->poner('tallas', [$t]);
         $todas = $this->presentaciones([$t], 'ambos');
+        // Si al contestar dice el tipo ("Calzoncito"), manda ese.
+        $tipoDicho = Entender::tipo($texto);
+        if (in_array($tipoDicho, ['cinta', 'calzoncito'], true)) $ctx['tipo'] = $tipoDicho;
         $suyas = $todas->filter(function ($s) use ($ctx) {
             $nombre = (string) $s->product->name;
             if ($ctx['tipo'] && mb_strtolower($this->tipoDe($nombre)) !== $ctx['tipo']) return false;
