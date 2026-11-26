@@ -167,7 +167,7 @@ class Whatsapp extends Page
     public function calientes(): array
     {
         try {
-            return \Illuminate\Support\Facades\Cache::remember('wa:calientes', 45, function () {
+            return \Illuminate\Support\Facades\Cache::remember('wa:calientes', 30, function () {
                 $convs = WaConversacion::where('archivada', false)
                     ->where('ultimo_saliente', false)
                     ->where('ultimo_mensaje_at', '>=', now()->subHours(24))
@@ -181,9 +181,27 @@ class Whatsapp extends Page
                         ->get(['id', 'tipo', 'texto', 'created_at']);
                     if ($suyos->isEmpty()) continue;
 
+                    // ¿Habló de pagar por transferencia en lo que escribió?
+                    $hablaDePago = $suyos->contains(fn ($m) => \App\Services\Interes::esPago((string) $m->texto));
+
                     $mejor = ['puntos' => -1, 'motivo' => '', 'texto' => ''];
                     foreach ($suyos as $m) {
                         $i = \App\Services\Interes::de((string) $m->texto, (string) $m->tipo);
+
+                        // 💳 Una FOTO que es, casi seguro, la captura del pago:
+                        // vino junto a "ya transferí / le mando el comprobante",
+                        // o poco después de que le pasamos la cuenta del banco.
+                        if ($m->tipo === 'image' && $i['puntos'] < 4) {
+                            $esCaptura = $hablaDePago;
+                            if (! $esCaptura) {
+                                $esCaptura = WaMensaje::where('conversacion_id', $c->id)->where('direccion', 'saliente')
+                                    ->where('created_at', '>=', $m->created_at->copy()->subHours(2))
+                                    ->where('created_at', '<=', $m->created_at)
+                                    ->pluck('texto')->contains(fn ($t) => \App\Services\Interes::esDatosDePago((string) $t));
+                            }
+                            if ($esCaptura) $i = ['puntos' => 4, 'motivo' => 'mandó la captura del pago'];
+                        }
+
                         if ($i['puntos'] >= $mejor['puntos']) $mejor = $i + ['texto' => (string) $m->texto];
                     }
                     if ($mejor['puntos'] < 2) continue;
@@ -215,14 +233,53 @@ class Whatsapp extends Page
     private function avisarCalientes(): bool
     {
         $uid = (int) auth()->id();
-        if (! \Illuminate\Support\Facades\Cache::add('wa:calientes:tick:' . $uid, 1, 60)) return false;
+        if (! \Illuminate\Support\Facades\Cache::add('wa:calientes:tick:' . $uid, 1, 30)) return false;
 
         $hizo = false;
         foreach ($this->calientes() as $convId => $c) {
             if ($c['puntos'] < 3) continue;
             $min = (int) floor((now()->timestamp - $c['desde']) / 60);
-            if ($min < 5) continue;
-            if ($convId === $this->abierta) continue;   // ya lo está mirando
+            // 💳 El pago avisa al instante (el repartidor puede estar llegando);
+            // lo demás, después de 5 minutos sin respuesta.
+            if ($c['puntos'] < 4 && $min < 5) continue;
+            if ($convId === $this->abierta && $c['puntos'] < 4) continue;   // ya lo está mirando
+
+            if ($c['puntos'] >= 4) {
+                $clave = 'wa:calientes:avisado:' . $uid . ':' . $convId;
+                if ((int) \Illuminate\Support\Facades\Cache::get($clave) === $c['ultimo']) continue;
+                \Illuminate\Support\Facades\Cache::put($clave, $c['ultimo'], now()->addDays(3));
+
+                $conv = WaConversacion::find($convId);
+                if (! $conv) continue;
+
+                // Su guía más reciente con cobro: es la que hay que poner en $0.
+                $guiaTxt = 'Revisá si tiene una guía con cobro y ponela en $0.';
+                try {
+                    $tel8 = substr(preg_replace('/\D/', '', (string) $conv->telefono), -8);
+                    $g = $tel8 !== '' ? \App\Models\GuiaBorrador::where('telefono', 'like', '%' . $tel8)
+                        ->where('created_at', '>=', now()->subDays(10))->orderByDesc('id')->first() : null;
+                    if ($g && (float) $g->cobrar > 0) {
+                        $guiaTxt = 'Su guía ' . ($g->guia ? $g->guia . ' ' : '(en la cola) ')
+                            . 'va con cobro $' . number_format((float) $g->cobrar, 2) . ': ponela en $0'
+                            . ($g->guia ? ' en Express.' : ' en Crear guías.');
+                    } elseif ($g) {
+                        $guiaTxt = 'Su guía ya va sin cobro ($0). Solo confirmá el pago.';
+                    }
+                } catch (\Throwable $e) {
+                }
+
+                Notification::make()
+                    ->title('💳 ' . $conv->titulo() . ' ' . $c['motivo'])
+                    ->body(($c['texto'] !== '' ? '«' . \Illuminate\Support\Str::limit(trim(preg_replace('/\s+/u', ' ', $c['texto'])), 70) . '» · ' : '') . $guiaTxt)
+                    ->danger()->persistent()
+                    ->actions([
+                        \Filament\Notifications\Actions\Action::make('abrir')->label('Abrir chat')->button()
+                            ->url(static::getUrl(['chat' => $convId])),
+                    ])
+                    ->send();
+                $hizo = true;
+                continue;
+            }
 
             $clave = 'wa:calientes:avisado:' . $uid . ':' . $convId;
             if ((int) \Illuminate\Support\Facades\Cache::get($clave) === $c['ultimo']) continue;

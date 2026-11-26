@@ -22,6 +22,43 @@ use App\Services\Asistente\Entender;
  */
 class Interes
 {
+    /**
+     * "Ya transferí", "le mando el comprobante", "lo voy a hacer por
+     * transferencia", "ya deposité", "ahí está el pago"…
+     */
+    public static function esPago(?string $texto): bool
+    {
+        $n = Entender::normalizar($texto);
+        if ($n === '') return false;
+        if (preg_match('/\b(no|todavia no|aun no) (he )?(transferido|depositado|pagado|transferi|deposite|pague)\b/', $n)) return false;
+
+        // Ya pagó: siempre.
+        if (preg_match('/\b('
+            . 'ya (le |se lo |se los )?(transferi|deposite|pague|cancele|hice (la )?transferencia|hice (el )?deposito|mande (la )?transferencia|envie (la )?transferencia|realice (la )?transferencia)'
+            . '|comprobante|captura (de|del) (pago|la transferencia|deposito)'
+            . '|transferencia (realizada|hecha|lista|enviada|exitosa)|deposito (realizado|hecho)|pago (realizado|hecho|enviado)'
+            . '|ahi (esta|va|le va|le mando) (la transferencia|el comprobante|el pago|el deposito)'
+            . '|ya (esta|quedo) (pagado|cancelado|transferido)'
+            . ')\b/', $n)) return true;
+
+        // Va a pagar así (no es pregunta: "¿puedo pagar por transferencia?" no cuenta).
+        if (str_contains((string) $texto, '?') || preg_match('/^(puedo|se puede|aceptan|tienen|reciben|hay)\b/', $n)) return false;
+
+        return (bool) preg_match('/\b('
+            . '(lo|la|los) (voy a|vamos a) (pagar|hacer|cancelar) (por|con) (transferencia|deposito|wompi|tarjeta)'
+            . '|(voy a|vamos a) (transferir|depositar|hacer la transferencia|hacer el deposito)'
+            . '|(pago|pagare|pagaria|cancelo|cancelare) (por|con) (transferencia|deposito|wompi|tarjeta)'
+            . '|sera (en|por) transferencia|(le )?transfiero|le deposito|le hago la transferencia'
+            . ')\b/', $n);
+    }
+
+    /** ¿Ese mensaje nuestro le pasó la cuenta del banco o el enlace de pago? */
+    public static function esDatosDePago(?string $texto): bool
+    {
+        $n = Entender::normalizar($texto);
+        return $n !== '' && (bool) preg_match('/\b(numero de cuenta|cuenta (de ahorro|corriente|bancaria)|banco (agricola|cuscatlan|promerica|davivienda|hipotecario|atlantida|azul|industrial)|bac|wompi|tigo money|transferencia a (la|nuestra) cuenta|a nombre de .{2,40} cuenta)\b/', $n);
+    }
+
     /** ['puntos' => 0..3, 'motivo' => '…'] */
     public static function de(?string $texto, string $tipo = 'text'): array
     {
@@ -30,6 +67,13 @@ class Interes
         $crudo = (string) $texto;
         $n = Entender::normalizar($crudo);
         if ($n === '') return ['puntos' => 0, 'motivo' => ''];
+
+        // ── 4 💳 Pagó o va a pagar por transferencia ─────────────────────────
+        // Lo más urgente: si la guía ya salió con cobro, hay que ponerla en $0
+        // antes de que el repartidor le cobre.
+        if (static::esPago($crudo)) {
+            return ['puntos' => 4, 'motivo' => 'avisa que paga por transferencia'];
+        }
 
         // ── 3 ───────────────────────────────────────────────────────────────
         if (preg_match('/orden de env[ií]o|nombre completo|direcci[oó]n exacta|total a pagar/iu', $crudo)) {
