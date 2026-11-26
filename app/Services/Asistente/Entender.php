@@ -211,6 +211,8 @@ class Entender
         if (preg_match('/\benvio\b/', $n)) return false;   // eso lo contesta la respuesta del envío
         // "¿Dentro de cuánto tiempo?", "¿cuántos días tarda?": es el tiempo de entrega, no el precio.
         if (preg_match('/\b(tiempo|dias|tarda|tardan|demora|llega|llegan|entrega)\b/', $n)) return false;
+        // "¿Cuánto cuesta que me los traigan a San Salvador?": es el envío.
+        if (preg_match('/\b(traigan|traiga|traer|traerlos|traerlo|traerme|traen|lleven|llevar|llevarmelos|mandarmelos|mandarlos|a domicilio|hasta mi casa|hasta san|hasta mi)\b/', $n)) return false;
 
         return (bool) preg_match('/\b(precio|precios|(q|que) (cuesta|cuestan|vale|valen)|cuanto (cuesta|cuestan|vale|valen|sale|salen|es|son|esta|estan|cobra)|a como|a cuanto|que valor|cuantos? (trae|traen|vienen|viene|unidades|panales|pamper|pampers)|cuantas unidades|de cuantos?)\b/', $n);
     }

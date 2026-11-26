@@ -177,6 +177,12 @@ trait GuionDiagrama
 
         // ── Solo asesora: "¿cuánto el envío?", "¿cuánto sería todo?" ────────
         // Lo contestás vos: a unos se les cobra envío y a otros no.
+        // Cajas (venta por caja / mayoreo): precio aparte, lo hablás vos.
+        if (preg_match('/\b(cajas?|por caja|fardo|fardos|al mayoreo)\b/', $n) && ! preg_match('/\bcaja (de )?(pagos|registradora)\b/', $n)) {
+            $this->pasarAWil('pregunta por cajas', false);
+            return;
+        }
+
         // Para revender, mayoreo, margen de ganancia: eso lo hablás vos.
         if (preg_match('/\b(margen|ganancia|ganancias|para negocio|para mi negocio|para un negocio|revender|reventa|revendo|mayoreo|al por mayor|por mayor|distribuidor|distribuidora|distribuir|precio de mayorista|mayorista)\b/', $n)) {
             $this->pasarAWil('pregunta por precio para revender o mayoreo', false);
