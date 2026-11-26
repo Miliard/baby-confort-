@@ -317,11 +317,11 @@ return [
             'texto'    => 'Tienen alta absorción y protegen durante toda la noche 🌙',
         ],
         [
-            'palabras' => ['que marca', 'cual marca', 'de que marca', 'son originales', 'de donde son', 'de donde vienen', 'son de el salvador', 'son de aqui', 'son importados', 'australia', 'son chinos'],
+            'palabras' => ['que marca', 'cual marca', 'de que marca', 'son originales', 'de donde son', 'de donde vienen', 'son de el salvador', 'son de aqui', 'son importados', 'australia', 'son chinos', 'son americanos', 'son gringos', 'de que pais', 'de donde son los panales', 'de que pais son', 'son de estados unidos'],
             'texto'    => 'Son pañales *Aiwibi* y vienen desde Australia 🇦🇺',
         ],
         [
-            'palabras' => ['donde estan', 'donde quedan', 'donde queda', 'ubicados', 'ubicada', 'ubicacion de la tienda', 'tienda fisica', 'tienen tienda', 'tienen local', 'de donde son ustedes', 'donde se encuentran', 'donde se ubican', 'donde estan ubicados', 'donde los encuentro', 'donde se ubica'],
+            'palabras' => ['donde estan', 'donde quedan', 'donde queda', 'ubicados', 'ubicada', 'ubicacion de la tienda', 'tienda fisica', 'tienen tienda', 'tienen local', 'de donde son ustedes', 'donde se encuentran', 'donde se ubican', 'donde estan ubicados', 'donde los encuentro', 'donde se ubica', 'donde se encuentra ubicado', 'donde se encuentran ubicados', 'ubicacion por favor', 'la ubicacion de la tienda', 'su ubicacion', 'donde los venden', 'donde venden', 'donde los puedo comprar', 'en tiendas o supermercados', 'supermercados', 'tienen tienda', 'tiene tienda', 'visitarlos', 'tienda para visitar', 'direccion de la tienda', 'la direccion en san miguel'],
             // Primero el envío a todo el país, después la tienda: que lea que se lo
             // mandamos antes de ver que estamos en San Miguel (caso 8).
             'texto'    => '📦 ¡Tenemos cobertura nacional en nuestros envíos! 🇸🇻 Y nuestra tienda está en *San Miguel, plaza Concepción* (a dos cuadras de Sertracen) 📍',

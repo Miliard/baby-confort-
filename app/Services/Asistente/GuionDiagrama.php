@@ -592,7 +592,7 @@ trait GuionDiagrama
         // "Tiene 20 días de nacido", "15 dia de nasida", "2 semanas": recién nacido.
         if ($meses === null && preg_match('/\b(\d{1,2}|un|una|dos|tres|cuatro|cinco|quince|veinte)\s*(dia|dias|semana|semanas|semanita|semanitas)\b/', $n)
             && preg_match('/\b(nacid[oa]|nasid[oa]|de nacer|tiene|bebe|nina|nino|edad)\b/', $n)) $meses = 0;
-        if ($meses === null && preg_match('/\b(recien nacid[oa]s?|no ha nacido|no a nacido|todavia no nace|aun no nace|no ha nacido|no nace|va a nacer|por nacer|cuando nazca|esta por nacer|embarazada|estoy embarazada|para (mi|un|el) bebe que viene|nacimiento)\b/', $n)) $meses = 0;
+        if ($meses === null && preg_match('/\b(recien nacid[oa]s?|no ha nacido|no a nacido|todavia no nace|aun no nace|no ha nacido|no nace|va a nacer|por nacer|cuando nazca|esta por nacer|embarazada|estoy embarazada|para (mi|un|el) bebe que viene|nacimiento|no he tenido (a )?mi bebe|aun no he tenido|todavia no he tenido|no lo he tenido|no la he tenido|nace en \w+|va a nacer en|esperando (a )?mi bebe|tener listos? sus panal\w*)\b/', $n)) $meses = 0;
         return $meses;
     }
 
@@ -1920,6 +1920,19 @@ trait GuionDiagrama
                 || preg_match('/\b(precio|precios|cuanto (cuesta|vale|sale|es)|que cuesta|que vale|a como)\b/', Entender::normalizar($texto)))
             && ! preg_match('/\b(quiero|deme|mandeme|me manda|envieme|la opcion|opcion \d)\b/', Entender::normalizar($texto));
 
+        // "Y la opción 5, ¿cuál es la diferencia?": nombra la opción pero
+        // PREGUNTA, no elige (antes se tomaba como que eligió la 5).
+        // "De 43 a 50" (libras) tampoco es elegir: el 50 no es "la de 50
+        // unidades".
+        $nq = Entender::normalizar($texto);
+        if (preg_match('/\b(diferencia|diferencias|en que se diferencia|cual es (la )?mejor|cual me conviene|cual es mas|que tiene de diferente|para que (es|sirve)|como es|como son)\b/', $nq)
+            && ! preg_match('/\b(quiero|deme|mandeme|me manda|envieme)\b/', $nq)) {
+            $esPregunta = true;
+        }
+        if (preg_match('/^\s*(de\s+)?\d{1,3}\s*(a|-|y)\s*\d{1,3}\s*(lb|lbs|libras?|kg|kilos?)?\s*$/', $nq)) {
+            $esPregunta = true;
+        }
+
         // "¿Tendrán de más unidades?", "¿paquete más grande?"
         if ($this->dgPideMasUnidades(Entender::normalizar($texto))) { $f->quitar('citada'); $this->dgMasUnidades(); return; }
 
@@ -2481,6 +2494,10 @@ trait GuionDiagrama
 
         if (! $m) {
             if ($this->dgReiterarCobertura($texto, 'municipio')) return;
+            // En vez del municipio pregunta por una talla ("y la M a qué
+            // precio"): se sigue con la talla.
+            if ($this->dgTallas($texto) || Entender::peso($texto)) { $this->dgTalla($texto, ''); return; }
+            if ($this->dgEsperarMunicipio($texto)) return;
             if ((Entender::esCortesia($texto) || Entender::siNo($texto) === true) && ! $f->dato('muni_repetido')) {
                 $f->poner('muni_repetido', true);
                 $this->dgDecir('¿Desde cuál municipio nos escribe, disculpe? 😊', 'municipio');
@@ -2515,6 +2532,24 @@ trait GuionDiagrama
         return true;
     }
 
+    /**
+     * Le preguntamos el municipio y contestó algo corto que no es un
+     * municipio: "El Salvador", "a todo el país", "calzoncitos", "de
+     * calzoncito". Casi siempre el municipio viene en el mensaje siguiente
+     * ("San Salvador"). No se le contesta ni se pasa: se espera.
+     * Una sola vez; si vuelve a pasar, sigue lo de siempre.
+     */
+    private function dgEsperarMunicipio(string $texto): bool
+    {
+        $n = Entender::normalizar($texto);
+        if ($n === '' || str_contains($texto, '?')) return false;
+        if (count(preg_split('/\s+/', $n)) > 5) return false;
+        if (preg_match('/\b(no|cuanto|precio|donde|como|cuando|que)\b/', $n)) return false;
+        if ($this->f->dato('muni_esperado')) return false;
+        $this->f->poner('muni_esperado', true);
+        return true;
+    }
+
     /** Contestó de dónde escribe, después de preguntar el envío: se guarda y se sigue donde iba. */
     private function dgMuniEnvio(string $texto): void
     {
@@ -2524,6 +2559,12 @@ trait GuionDiagrama
 
         if (! $m || ! $this->ponerMunicipio($m)) {
             if (! $m && $this->dgReiterarCobertura($texto, 'muni_envio')) return;
+            if (! $m && ($this->dgTallas($texto) || Entender::peso($texto))) {
+                $f->quitar('volver_a', 'pend_texto');
+                $this->dgTalla($texto, '');
+                return;
+            }
+            if (! $m && $this->dgEsperarMunicipio($texto)) return;
             // En vez del municipio dijo la talla o el peso: se sigue con eso.
             if ($volver === 'talla' && ($this->dgTallas($texto) || Entender::peso($texto))) {
                 $f->quitar('volver_a', 'pend_texto');
