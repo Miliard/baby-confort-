@@ -206,6 +206,9 @@ class Whatsapp extends Page
                     }
                     if ($mejor['puntos'] < 2) continue;
 
+                    // Marcado "✓ Listo" y no escribió nada nuevo después: fuera.
+                    if ((int) \Illuminate\Support\Facades\Cache::get('wa:calientes:listo:' . $c->id) >= (int) $suyos->last()->id) continue;
+
                     $res[$c->id] = $mejor + [
                         'desde'  => $suyos->first()->created_at?->timestamp ?? now()->timestamp,
                         'ultimo' => (int) $suyos->last()->id,
@@ -218,6 +221,18 @@ class Whatsapp extends Page
         } catch (\Throwable $e) {
             return [];
         }
+    }
+
+    /**
+     * "✓ Listo": lo saca de Calientes sin responder. Se guarda hasta qué
+     * mensaje se revisó: si la clienta escribe algo caliente nuevo, vuelve.
+     */
+    public function calienteListo(int $id): void
+    {
+        $c = $this->calientes()[$id] ?? null;
+        $ultimo = $c['ultimo'] ?? (int) WaMensaje::where('conversacion_id', $id)->where('direccion', 'entrante')->max('id');
+        \Illuminate\Support\Facades\Cache::put('wa:calientes:listo:' . $id, (int) $ultimo, now()->addDays(3));
+        \Illuminate\Support\Facades\Cache::forget('wa:calientes');
     }
 
     /** Cuántas 🔥🔥🔥 esperan respuesta (el número del filtro). */

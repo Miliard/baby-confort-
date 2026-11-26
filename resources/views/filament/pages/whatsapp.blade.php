@@ -398,6 +398,13 @@
               padding:1px 8px;cursor:pointer;flex:none;margin-left:auto}
     .wa-leido:hover{border-color:#2e9e6b;color:#2e9e6b}
     @media(min-width:901px){ .wa-leido{display:inline-flex} }
+    /* 🔥 Calientes: el motivo y el botón "✓ Listo" (en PC y en el teléfono). */
+    .wa-cal{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:3px;
+            font-size:12px;color:#f97316;font-weight:600}
+    .wa-cal span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .wa-cal-listo{flex:none;border:1px solid rgba(249,115,22,.55);background:none;color:#f97316;
+                  border-radius:999px;font-size:12px;font-weight:700;padding:3px 10px;cursor:pointer;font-family:inherit}
+    .wa-cal-listo:hover{background:rgba(249,115,22,.12)}
     .wa-quien{font-size:10.5px;color:#4aa3df;font-weight:700}
 
     /* Una sola fila con todo. Si no entra, se desliza de derecha a izquierda
@@ -1212,6 +1219,8 @@
             @php
                 $etqs = $this->etiquetas();
                 $cuentas = $this->cuentaEtiquetas();
+                // 🔥 Calientes (motivo y botón Listo en la lista).
+                $calientesLista = $soloCalientes ? $this->calientes() : [];
                 $sinLeer = $this->cuantasSinLeer();
             @endphp
 
@@ -1385,6 +1394,19 @@
 
                     @if($c->subtitulo())
                         <div class="wa-apodo">{{ $c->subtitulo() }}</div>
+                    @endif
+
+                    {{-- En 🔥 Calientes: por qué está acá y "✓ Listo" para sacarlo
+                         sin responder (ya corregiste el cobro, ya lo viste).
+                         Vuelve solo si la clienta escribe algo caliente nuevo. --}}
+                    @if($soloCalientes && isset($calientesLista[$c->id]))
+                        <div class="wa-cal">
+                            <span>{{ $calientesLista[$c->id]['puntos'] >= 4 ? '💳' : str_repeat('🔥', min(3, $calientesLista[$c->id]['puntos'])) }}
+                                {{ $calientesLista[$c->id]['motivo'] }}</span>
+                            <button type="button" class="wa-cal-listo" wire:click.stop="calienteListo({{ $c->id }})"
+                                    title="Sacarlo de Calientes sin responder"
+                                    aria-label="Sacar de Calientes el chat de {{ $c->titulo() }}">✓ Listo</button>
+                        </div>
                     @endif
 
                     {{-- Los dos mensajes de antes del último (solo en pantalla
