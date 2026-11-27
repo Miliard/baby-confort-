@@ -1953,7 +1953,8 @@ trait GuionDiagrama
         // uno"): un carrito de varios productos lo armás vos. Antes se tomaba
         // solo la primera y la otra se perdía.
         $nv = Entender::normalizar($texto);
-        if (preg_match('/\bopcion(es)? \d+\s*(y|,|e)\s*(la |el |opcion )?\d+\b|\b(la|el) \d+ (y|e) (la|el) \d+\b|\btambien (este|ese|esta|esa|estos|esos|quiero|me (manda|envia)|de este|de ese|uno)\b|\b(uno|una) de cada (uno|una)\b|\blas dos opciones\b|\blos dos\b|\bambos\b/', $nv)) {
+        if (preg_match('/\bopcion(es)? \d+\s*(y|,|e)\s*(la |el |opcion )?\d+\b|\b(la|el) \d+ (y|e) (la|el) \d+\b|\btambien (este|ese|esta|esa|estos|esos|quiero|me (manda|envia)|de este|de ese|uno)\b|\b(uno|una) de cada (uno|una)\b/', $nv)
+            || (! str_contains($texto, '?') && preg_match('/\b(las dos opciones|me (llevo|manda|envia) (los|las) dos|quiero (los|las) dos|ambos)\b/', $nv))) {
             $f->quitar('citada');
             $this->pasarAWil('eligió más de una presentación', false);
             return;
