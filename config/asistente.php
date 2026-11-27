@@ -316,6 +316,11 @@ return [
             'texto'    => 'Nuestros productos cuentan con certificación *Dermatest de Alemania*, lo que significa que han sido evaluados en pruebas relacionadas con la seguridad y compatibilidad con la piel, obteniendo una calificación de excelencia. Es un respaldo de calidad que brinda mayor confianza al elegir el cuidado para su bebé 👶✨',
         ],
         [
+            // "¿Y este lo puede usar en el día también?" (viendo uno de noche)
+            'palabras' => ['usar en el dia', 'usar para el dia', 'usar de dia', 'sirve para el dia', 'sirven para el dia', 'se puede usar de dia', 'para el dia tambien', 'en el dia tambien', 'tambien de dia', 'tambien en el dia', 'usarlos de dia', 'usarlo de dia'],
+            'texto'    => '¡Sí! 😊 Se pueden usar de día también. Los de noche son un poco más gruesos y absorbentes, así que de día le duran más tiempo puestos.',
+        ],
+        [
             'palabras' => ['absorben', 'absorbe', 'absorcion', 'se pasan', 'se rebalsan', 'derrama', 'derraman', 'toda la noche', 'aguantan', 'aguanta', 'se llenan'],
             'texto'    => 'Tienen alta absorción y protegen durante toda la noche 🌙',
         ],
@@ -324,7 +329,7 @@ return [
             'texto'    => 'Son pañales *Aiwibi* y vienen desde Australia 🇦🇺',
         ],
         [
-            'palabras' => ['donde estan', 'donde quedan', 'donde queda', 'ubicados', 'ubicada', 'ubicacion de la tienda', 'tienda fisica', 'tienen tienda', 'tienen local', 'de donde son ustedes', 'donde se encuentran', 'donde se ubican', 'donde estan ubicados', 'donde los encuentro', 'donde se ubica', 'donde se encuentra ubicado', 'donde se encuentran ubicados', 'ubicacion por favor', 'la ubicacion de la tienda', 'su ubicacion', 'donde los venden', 'donde venden', 'donde los puedo comprar', 'en tiendas o supermercados', 'supermercados', 'tienen tienda', 'tiene tienda', 'visitarlos', 'tienda para visitar', 'direccion de la tienda', 'la direccion en san miguel'],
+            'palabras' => ['donde estan', 'donde quedan', 'donde queda', 'ubicados', 'ubicada', 'ubicacion de la tienda', 'tienda fisica', 'tienen tienda', 'tienen local', 'de donde son ustedes', 'donde se encuentran', 'donde se ubican', 'donde estan ubicados', 'donde los encuentro', 'donde se ubica', 'donde se encuentra ubicado', 'donde se encuentran ubicados', 'ubicacion por favor', 'la ubicacion de la tienda', 'su ubicacion', 'donde los venden', 'donde venden', 'donde los puedo comprar', 'en tiendas o supermercados', 'supermercados', 'tienen tienda', 'tiene tienda', 'visitarlos', 'tienda para visitar', 'direccion de la tienda', 'la direccion en san miguel', 'la direccion para ir', 'direccion para ir', 'brindarme la direccion', 'darme la direccion', 'pasarme la direccion', 'ir a traerlos', 'ir a traer', 'pasar a traer', 'pasar a recoger', 'ir a recoger', 'recogerlos alla', 'puedo ir a', 'llegar a la tienda'],
             // Primero el envío a todo el país, después la tienda: que lea que se lo
             // mandamos antes de ver que estamos en San Miguel (caso 8).
             'texto'    => '📦 ¡Tenemos cobertura nacional en nuestros envíos! 🇸🇻 Y nuestra tienda está en *San Miguel, plaza Concepción* (a dos cuadras de Sertracen) 📍',
