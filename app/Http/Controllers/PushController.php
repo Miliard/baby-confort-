@@ -76,14 +76,14 @@ class PushController extends Controller
                     ->orderByDesc('ultimo_mensaje_at')->first();
 
                 if ($c) {
+                    // Solo el número (Wil): el nombre del perfil de WhatsApp
+                    // suele ser un apodo con emojis y estorba en el aviso.
                     $tel = $c->telefonoLegible();
-                    // El nombre que le pusiste; si no, el de su perfil de WhatsApp.
-                    $nom = $c->nombrePropio() ? trim((string) $c->alias) : trim((string) $c->nombre);
                     $texto = trim((string) $c->ultimo_texto);
 
                     $ultimo = [
                         'id'     => $c->id,
-                        'nombre' => $nom !== '' && $nom !== $tel ? $nom . ' · ' . $tel : $tel,
+                        'nombre' => $tel,
                         'texto'  => $texto !== '' ? mb_substr($texto, 0, 140) : 'Mensaje nuevo',
                     ];
                 }

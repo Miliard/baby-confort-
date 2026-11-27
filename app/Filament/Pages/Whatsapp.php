@@ -582,6 +582,8 @@ class Whatsapp extends Page
             if (trim($this->buscar) !== '') {
                 $b = trim($this->buscar);
                 $d = preg_replace('/\D/', '', $b);
+                // "+503 7745 6505" o "50377456505": se busca sin el código del país.
+                if (strlen($d) === 11 && str_starts_with($d, '503')) $d = substr($d, 3);
 
                 $q->where(function ($w) use ($b, $d) {
                     $w->where('nombre', 'like', '%' . $b . '%')
