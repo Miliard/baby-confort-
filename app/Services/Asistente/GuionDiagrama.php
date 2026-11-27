@@ -895,6 +895,8 @@ trait GuionDiagrama
         // más", "son más cómodos": decide esperar o explica por qué. Nada que contestar.
         if (preg_match('/\b(esperare|esperaremos|voy a esperar|vamos a esperar|mejor espero|prefiero esperar|espero (a )?que (entren|lleguen|tengan|vengan)|esperemos|(porque|por que|es que) (me|le|nos) gusta|son mas comodos|me gustan mas|le quedan mejor)\b/', $n)) return true;
 
+        // "Sí, por favor, estaré a la espera" (de que entre lo agotado): no elige.
+        if (preg_match('/\b(estare a la espera|quedo a la espera|estamos a la espera|a la espera|estare pendiente|estaremos pendientes|quedo pendiente|quedo atenta|quedo atento|espero su aviso|me avisa cuando|me avisan cuando|avisenme cuando|aviseme cuando)\b/', $n)) return true;
         return (bool) preg_match('/\b((yo )?(le|les) (aviso|escribo|confirmo|digo)|lo (voy a )?pienso|lo pensare|voy a pensarlo|lo voy a pensar|despues (le|les) (escribo|aviso|confirmo)|mas tarde (le|les)|luego (le|les) (escribo|aviso)|si (lo|los|la|las) voy a querer|cualquier cosa (le|les) (aviso|escribo))\b/', $n);
     }
 
@@ -1996,6 +1998,10 @@ trait GuionDiagrama
         if (preg_match('/^\s*(de\s+)?\d{1,3}\s*(a|-|y)\s*\d{1,3}\s*(lb|lbs|libras?|kg|kilos?)?\s*$/', $nq)) {
             $esPregunta = true;
         }
+        // "¿Y el Magic?", "y la de noche": pregunta por ella, no la elige.
+        if (preg_match('/^\s*y (el|la|los|las|de|del) /', $nq) && ! preg_match('/\b(quiero|deme|mandeme|me manda|envieme|tambien)\b/', $nq)) {
+            $esPregunta = true;
+        }
 
         // "¿Tendrán de más unidades?", "¿paquete más grande?"
         if ($this->dgPideMasUnidades(Entender::normalizar($texto))) { $f->quitar('citada'); $this->dgMasUnidades(); return; }
@@ -2376,7 +2382,7 @@ trait GuionDiagrama
     private function dgPideFotosDeUso(string $texto, array $vistas): bool
     {
         $n = Entender::normalizar($texto);
-        if (! preg_match('/\b(fotos? (reales?|de verdad|puest[oa]s?|de como (se )?(ven|quedan))|como (se )?(ven|quedan|queda|lucen) (puest[oa]s?|en el bebe|en la bebe|en el nino|en la nina)|(tiene|tienen|hay|me manda|mandeme|me puede mandar) (alguna |una |unas )?fotos?( reales?)?$|se ven puest[oa]s?)\b/', $n)) return false;
+        if (! preg_match('/\b(fotos? de referencia|foto(s)? (de )?como (queda|quedan|se ve|se ven|se mira|se miran)|como (se )?(mira|miran|queda|quedan|ve|ven) puest[oa]s?|fotos? (reales?|de verdad|puest[oa]s?|de como (se )?(ven|quedan))|como (se )?(ven|quedan|queda|lucen) (puest[oa]s?|en el bebe|en la bebe|en el nino|en la nina)|(tiene|tienen|hay|me manda|mandeme|me puede mandar) (alguna |una |unas )?fotos?( reales?)?$|se ven puest[oa]s?)\b/', $n)) return false;
 
         $ids = [];
         if ($c = $this->f->dato('citada')) $ids[] = (string) $c;
@@ -2388,6 +2394,11 @@ trait GuionDiagrama
             if ($productos >= 2) break;
             $s = ProductSize::with('product')->find($id);
             if ($s && $this->dgFotosDeUso($s)) { $mando = true; $productos++; }
+        }
+        // Pidió fotos y de eso no hay fotos de uso subidas: se las mandás vos.
+        if (! $mando) {
+            $this->pasarAWil('pide fotos de cómo queda puesto', false);
+            return true;
         }
         return $mando;
     }
