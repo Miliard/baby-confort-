@@ -186,9 +186,14 @@ class Whatsapp extends Page
                     // clienta justo queda esperando a alguien.
                     $ultNuestro = (int) WaMensaje::where('conversacion_id', $c->id)->where('direccion', 'saliente')
                         ->where('automatico', false)->max('id');
+                    // Solo lo de las últimas 24 horas: si nadie le escribió en un
+                    // mes (solo el asistente), se tomaban mensajes de hace semanas
+                    // y la alerta decía "espera hace 848 h".
                     $suyos = WaMensaje::where('conversacion_id', $c->id)->where('direccion', 'entrante')
-                        ->where('id', '>', $ultNuestro)->orderBy('id')->limit(12)
-                        ->get(['id', 'tipo', 'texto', 'created_at']);
+                        ->where('id', '>', $ultNuestro)
+                        ->where('created_at', '>=', now()->subHours(24))
+                        ->orderByDesc('id')->limit(12)
+                        ->get(['id', 'tipo', 'texto', 'created_at'])->reverse()->values();
                     if ($suyos->isEmpty()) continue;
 
                     // ¿Habló de pagar por transferencia en lo que escribió?
