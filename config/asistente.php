@@ -321,7 +321,7 @@ return [
             'texto'    => '¡Sí! 😊 Se pueden usar de día también. Los de noche son un poco más gruesos y absorbentes, así que de día le duran más tiempo puestos.',
         ],
         [
-            'palabras' => ['absorben', 'absorbe', 'absorcion', 'se pasan', 'se rebalsan', 'derrama', 'derraman', 'toda la noche', 'aguantan', 'aguanta', 'se llenan'],
+            'palabras' => ['absorben', 'absorbe', 'absorcion', 'se pasan', 'se rebalsan', 'derrama', 'derraman', 'toda la noche', 'aguantan', 'aguanta', 'se llenan', 'bueno para la noche', 'buenos para la noche', 'bueno igual para noche', 'igual para noche', 'sirve para la noche', 'sirven para la noche', 'sirve para noche', 'para la noche tambien', 'de noche tambien', 'aguanta la noche', 'aguantan la noche'],
             'texto'    => 'Tienen alta absorción y protegen durante toda la noche 🌙',
         ],
         [

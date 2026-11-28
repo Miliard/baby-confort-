@@ -84,6 +84,22 @@ trait GuionDiagrama
         // spam. No se contesta nada.
         if (preg_match('/^\s*https?:\/\/\S+\s*$/iu', $texto) && ! preg_match('/baby-?confort/i', $texto)) return;
 
+        // "Recibido, no lo esperaba tan rápido, muchísimas gracias", "ya me
+        // llegó, gracias": agradece una entrega. No se le saluda ni se le
+        // pregunta la talla; lo ves vos.
+        if (preg_match('/\b(recibido|ya (lo |los )?recibi|ya (me )?llego|ya (me )?llegaron|me llegaron|ya los tengo|llego bien|llegaron bien|excelente servicio|muy buen servicio|gracias por el envio|no lo esperaba tan rapido|que rapido)\b/', $n)
+            && ! str_contains($texto, '?') && ! preg_match('/\b(quiero|otro|otra|mas|necesito|talla|precio)\b/', $n)) {
+            $this->pasarAWil('agradece la entrega', false);
+            return;
+        }
+
+        // "Y otro de talla M", "otro más", "también uno de…" cuando ya eligió
+        // algo: un pedido de varios productos lo armás vos.
+        if ((array) $f->dato('carrito', []) && preg_match('/^\s*(y )?(otro|otra|uno mas|otro mas|tambien (otro|otra|uno|una)|ademas (otro|otra|uno|una))\b/', $n)) {
+            $this->pasarAWil('quiere otro producto más', false);
+            return;
+        }
+
         // Pide dos o más tallas en un mismo mensaje ("M y XL", "una L y una
         // XXL"): en cualquier paso, no se contesta nada; lo atendés vos.
         foreach (preg_split('/\n+/', $texto) as $l) {
